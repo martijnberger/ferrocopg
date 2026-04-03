@@ -104,6 +104,34 @@ struct BackendConnectTarget {
     summary: BackendConninfoSummary,
 }
 
+#[derive(Clone)]
+#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+struct BackendSyncNoTlsProbe {
+    #[pyo3(get)]
+    backend_pid: i32,
+    #[pyo3(get)]
+    current_user: String,
+    #[pyo3(get)]
+    current_database: String,
+    #[pyo3(get)]
+    server_version_num: i32,
+    #[pyo3(get)]
+    application_name: String,
+    #[pyo3(get)]
+    server_address: Option<String>,
+    #[pyo3(get)]
+    server_port: Option<u16>,
+}
+
+#[derive(Clone)]
+#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+struct BackendTextQueryResult {
+    #[pyo3(get)]
+    columns: Vec<String>,
+    #[pyo3(get)]
+    rows: Vec<Vec<Option<String>>>,
+}
+
 #[pyfunction]
 fn milestone() -> &'static str {
     "milestone-1-bootstrap"
@@ -143,6 +171,20 @@ fn parse_connect_target(conninfo: &str) -> PyResult<BackendConnectTarget> {
     ferrocopg_postgres::connect_target(conninfo)
         .map(BackendConnectTarget::from)
         .map_err(|err| PyErr::new::<PyValueError, _>(err.to_string()))
+}
+
+#[pyfunction]
+fn probe_connect_no_tls(conninfo: &str) -> PyResult<BackendSyncNoTlsProbe> {
+    ferrocopg_postgres::connect_no_tls_probe(conninfo)
+        .map(BackendSyncNoTlsProbe::from)
+        .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+}
+
+#[pyfunction]
+fn query_text_no_tls(conninfo: &str, query: &str) -> PyResult<BackendTextQueryResult> {
+    ferrocopg_postgres::query_text_no_tls(conninfo, query)
+        .map(BackendTextQueryResult::from)
+        .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
 }
 
 impl From<ferrocopg_postgres::ConninfoSummary> for BackendConninfoSummary {
@@ -214,11 +256,36 @@ impl From<ferrocopg_postgres::ConnectTarget> for BackendConnectTarget {
     }
 }
 
+impl From<ferrocopg_postgres::SyncNoTlsProbe> for BackendSyncNoTlsProbe {
+    fn from(probe: ferrocopg_postgres::SyncNoTlsProbe) -> Self {
+        Self {
+            backend_pid: probe.backend_pid,
+            current_user: probe.current_user,
+            current_database: probe.current_database,
+            server_version_num: probe.server_version_num,
+            application_name: probe.application_name,
+            server_address: probe.server_address,
+            server_port: probe.server_port,
+        }
+    }
+}
+
+impl From<ferrocopg_postgres::TextQueryResult> for BackendTextQueryResult {
+    fn from(result: ferrocopg_postgres::TextQueryResult) -> Self {
+        Self {
+            columns: result.columns,
+            rows: result.rows,
+        }
+    }
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<BackendConninfoSummary>()?;
     m.add_class::<BackendConnectPlan>()?;
     m.add_class::<BackendConnectEndpoint>()?;
     m.add_class::<BackendConnectTarget>()?;
+    m.add_class::<BackendSyncNoTlsProbe>()?;
+    m.add_class::<BackendTextQueryResult>()?;
     m.add_function(wrap_pyfunction!(milestone, m)?)?;
     m.add_function(wrap_pyfunction!(scaffold_status, m)?)?;
     m.add_function(wrap_pyfunction!(backend_stack, m)?)?;
@@ -226,5 +293,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_conninfo_summary, m)?)?;
     m.add_function(wrap_pyfunction!(parse_connect_plan, m)?)?;
     m.add_function(wrap_pyfunction!(parse_connect_target, m)?)?;
+    m.add_function(wrap_pyfunction!(probe_connect_no_tls, m)?)?;
+    m.add_function(wrap_pyfunction!(query_text_no_tls, m)?)?;
     Ok(())
 }
