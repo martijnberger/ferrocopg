@@ -1,5 +1,6 @@
 import importlib
 import socket
+from collections import deque
 from collections.abc import Generator
 from types import SimpleNamespace
 from typing import Any, Protocol, cast
@@ -56,6 +57,10 @@ class FetchManyImpl(Protocol):
 
 class ExecuteImpl(Protocol):
     def execute(self, pgconn: object) -> object: ...
+
+
+class PipelineImpl(Protocol):
+    def pipeline_communicate(self, pgconn: object, commands: object) -> object: ...
 
 
 def _copy_impls() -> list[tuple[str, CopyImpl]]:
@@ -203,6 +208,50 @@ class StubFetchManyPgconn:
         return result
 
 
+class StubPipelinePgconn:
+    def __init__(
+        self,
+        read_cycles: list[tuple[list[bool], list[StubResult | None], list[object]]],
+    ):
+        self._pending_cycles = [
+            (list(busy), list(results), list(notifies))
+            for busy, results, notifies in read_cycles
+        ]
+        self._current_busy: list[bool] = []
+        self._current_results: list[StubResult | None] = []
+        self._current_notifies: list[object] = []
+        self.consume_input_calls = 0
+        self.flush_calls = 0
+        self.notify_handler_calls: list[object] = []
+        self.notify_handler = self.notify_handler_calls.append
+
+    def consume_input(self) -> None:
+        self.consume_input_calls += 1
+        if self._pending_cycles:
+            self._current_busy, self._current_results, self._current_notifies = (
+                self._pending_cycles.pop(0)
+            )
+
+    def is_busy(self) -> bool:
+        if self._current_busy:
+            return self._current_busy.pop(0)
+        return False
+
+    def get_result(self) -> StubResult | None:
+        if self._current_results:
+            return self._current_results.pop(0)
+        return None
+
+    def notifies(self) -> object | None:
+        if self._current_notifies:
+            return self._current_notifies.pop(0)
+        return None
+
+    def flush(self) -> int:
+        self.flush_calls += 1
+        return 0
+
+
 def _drive_send_generator(gen: object, ready_values: list[int | None]) -> tuple[list[int], object]:
     waits: list[int] = []
     try:
@@ -249,6 +298,20 @@ def _drive_fetch_many_generator(
 
 
 def _drive_execute_generator(
+    gen: object, ready_values: list[int | None]
+) -> tuple[list[int], object]:
+    waits: list[int] = []
+    try:
+        waits.append(next(cast(Generator[int, int | None, object], gen)))
+        for ready in ready_values:
+            waits.append(cast(int, cast(Any, gen).send(ready)))
+    except StopIteration as ex:
+        return waits, ex.value
+
+    raise AssertionError("generator did not finish")
+
+
+def _drive_pipeline_generator(
     gen: object, ready_values: list[int | None]
 ) -> tuple[list[int], object]:
     waits: list[int] = []
@@ -313,6 +376,16 @@ def _execute_impls() -> list[tuple[str, ExecuteImpl]]:
             generators_any.fetch_many = original_fetch_many
 
     python_impl = cast(ExecuteImpl, SimpleNamespace(execute=python_execute))
+    return [("python", python_impl), ("rust", ferrocopg)]
+
+
+def _pipeline_impls() -> list[tuple[str, PipelineImpl]]:
+    ferrocopg = cast(PipelineImpl, pytest.importorskip("ferrocopg_rust"))
+    generators = importlib.import_module("psycopg.generators")
+    python_impl = cast(
+        PipelineImpl,
+        SimpleNamespace(pipeline_communicate=generators._pipeline_communicate),
+    )
     return [("python", python_impl), ("rust", ferrocopg)]
 
 
@@ -699,6 +772,99 @@ def test_generators_prefers_ferrocopg_execute_when_available():
 
     ferrocopg = pytest.importorskip("ferrocopg_rust")
     assert generators.execute is ferrocopg.execute
+
+
+@pytest.mark.parametrize(
+    (
+        "ready_values",
+        "read_cycles",
+        "expected_waits",
+        "expected_labels",
+        "expected_command_calls",
+        "expected_consume_calls",
+        "expected_flush_calls",
+        "expected_notifies",
+    ),
+    [
+        ([2, 2], [], [3, 3], [], ["cmd1"], 0, 2, []),
+        (
+            [3, 2, 2],
+            [([False], [("COMMAND_OK", "row"), None], [])],
+            [3, 3, 3],
+            [["row"]],
+            ["cmd1", "cmd2"],
+            1,
+            3,
+            [],
+        ),
+        (
+            [3, 2],
+            [([False], [("PIPELINE_SYNC", "sync")], ["n1"])],
+            [3, 3],
+            [["sync"]],
+            ["cmd1"],
+            1,
+            2,
+            ["n1"],
+        ),
+    ],
+)
+def test_pipeline_communicate_equivalent(
+    ready_values: list[int | None],
+    read_cycles: list[
+        tuple[list[bool], list[tuple[str, str] | None], list[object]]
+    ],
+    expected_waits: list[int],
+    expected_labels: list[list[str]],
+    expected_command_calls: list[str],
+    expected_consume_calls: int,
+    expected_flush_calls: int,
+    expected_notifies: list[object],
+) -> None:
+    wait_rw = cast(int, importlib.import_module("psycopg.waiting").WAIT_RW)
+    exec_status = importlib.import_module("psycopg.pq").ExecStatus
+
+    assert expected_waits == [wait_rw] * len(expected_waits)
+
+    for name, impl in _pipeline_impls():
+        command_calls: list[str] = []
+        commands = deque(
+            [(lambda label=label: command_calls.append(label)) for label in expected_command_calls]
+        )
+        pgconn = StubPipelinePgconn(
+            [
+                (
+                    busy,
+                    [
+                        None if result is None else StubResult(getattr(exec_status, result[0]), result[1])
+                        for result in results
+                    ],
+                    notifies,
+                )
+                for busy, results, notifies in read_cycles
+            ]
+        )
+        waits, got = _drive_pipeline_generator(
+            impl.pipeline_communicate(pgconn, commands), ready_values
+        )
+        assert waits == expected_waits, name
+        assert [
+            [res.label for res in batch]
+            for batch in cast(list[list[StubResult]], got)
+        ] == expected_labels, name
+        assert command_calls == expected_command_calls, name
+        assert pgconn.consume_input_calls == expected_consume_calls, name
+        assert pgconn.flush_calls == expected_flush_calls, name
+        assert pgconn.notify_handler_calls == expected_notifies, name
+
+
+def test_generators_prefers_ferrocopg_pipeline_when_available():
+    generators = importlib.import_module("psycopg.generators")
+    if generators._psycopg is not None:
+        pytest.skip("C accelerator installed")
+
+    ferrocopg = pytest.importorskip("ferrocopg_rust")
+    assert generators.pipeline_communicate is ferrocopg.pipeline_communicate
 
 
 def test_ferrocopg_unavailable(monkeypatch):

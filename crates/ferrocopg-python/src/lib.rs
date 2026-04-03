@@ -98,6 +98,23 @@ struct ExecuteGenerator {
     state: ExecuteState,
 }
 
+#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+struct PipelineCommunicateGenerator {
+    pgconn: Py<PyAny>,
+    commands: Py<PyAny>,
+    wait_rw: Py<PyAny>,
+    ready_r: i32,
+    ready_w: i32,
+    copy_in: i32,
+    copy_out: i32,
+    copy_both: i32,
+    pipeline_sync: i32,
+    pending_ready: i32,
+    results: Vec<Vec<Py<PyAny>>>,
+    current_batch: Vec<Py<PyAny>>,
+    state: PipelineState,
+}
+
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum SendState {
     StartOrFlush,
@@ -129,6 +146,14 @@ enum ExecuteState {
     StartFetchMany,
     PollFetchManyNext,
     PollFetchManySend,
+    Done,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum PipelineState {
+    AwaitReady,
+    ProcessRead,
+    ProcessWrite,
     Done,
 }
 
@@ -307,6 +332,32 @@ fn execute(_py: Python<'_>, pgconn: &Bound<'_, PyAny>) -> PyResult<ExecuteGenera
         pgconn: pgconn.clone().unbind(),
         current: None,
         state: ExecuteState::StartSend,
+    })
+}
+
+#[pyfunction]
+fn pipeline_communicate(
+    py: Python<'_>,
+    pgconn: &Bound<'_, PyAny>,
+    commands: &Bound<'_, PyAny>,
+) -> PyResult<PipelineCommunicateGenerator> {
+    let waiting = py.import("psycopg.waiting")?;
+    let exec_status = py.import("psycopg.pq")?.getattr("ExecStatus")?;
+
+    Ok(PipelineCommunicateGenerator {
+        pgconn: pgconn.clone().unbind(),
+        commands: commands.clone().unbind(),
+        wait_rw: waiting.getattr("WAIT_RW")?.unbind(),
+        ready_r: waiting.getattr("READY_R")?.extract::<i32>()?,
+        ready_w: waiting.getattr("READY_W")?.extract::<i32>()?,
+        copy_in: exec_status.getattr("COPY_IN")?.extract::<i32>()?,
+        copy_out: exec_status.getattr("COPY_OUT")?.extract::<i32>()?,
+        copy_both: exec_status.getattr("COPY_BOTH")?.extract::<i32>()?,
+        pipeline_sync: exec_status.getattr("PIPELINE_SYNC")?.extract::<i32>()?,
+        pending_ready: 0,
+        results: Vec::new(),
+        current_batch: Vec::new(),
+        state: PipelineState::AwaitReady,
     })
 }
 
@@ -500,6 +551,7 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<FetchGenerator>()?;
     m.add_class::<FetchManyGenerator>()?;
     m.add_class::<ExecuteGenerator>()?;
+    m.add_class::<PipelineCommunicateGenerator>()?;
     m.add_function(wrap_pyfunction!(milestone, m)?)?;
     m.add_function(wrap_pyfunction!(scaffold_status, m)?)?;
     m.add_function(wrap_pyfunction!(backend_stack, m)?)?;
@@ -512,6 +564,7 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(fetch, m)?)?;
     m.add_function(wrap_pyfunction!(fetch_many, m)?)?;
     m.add_function(wrap_pyfunction!(execute, m)?)?;
+    m.add_function(wrap_pyfunction!(pipeline_communicate, m)?)?;
     m.add_function(wrap_pyfunction!(parse_row_text, m)?)?;
     m.add_function(wrap_pyfunction!(parse_row_binary, m)?)?;
     m.add_function(wrap_pyfunction!(wait_c, m)?)?;
@@ -565,6 +618,21 @@ impl FetchManyGenerator {
 
 #[pymethods]
 impl ExecuteGenerator {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        self.advance(py, None)
+    }
+
+    fn send(&mut self, py: Python<'_>, ready: Option<i32>) -> PyResult<Py<PyAny>> {
+        self.advance(py, ready)
+    }
+}
+
+#[pymethods]
+impl PipelineCommunicateGenerator {
     fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
@@ -914,6 +982,101 @@ impl ExecuteGenerator {
         }
 
         Err(err)
+    }
+}
+
+impl PipelineCommunicateGenerator {
+    fn advance(&mut self, py: Python<'_>, mut ready: Option<i32>) -> PyResult<Py<PyAny>> {
+        loop {
+            match self.state {
+                PipelineState::Done => {
+                    return Err(PyStopIteration::new_err((self.finish_results(py)?,)));
+                }
+                PipelineState::AwaitReady => {
+                    let ready = ready.unwrap_or_default();
+                    if ready == 0 {
+                        return Ok(self.wait_rw.clone_ref(py));
+                    }
+
+                    self.pending_ready = ready;
+                    if ready & self.ready_r != 0 {
+                        self.state = PipelineState::ProcessRead;
+                    } else {
+                        self.state = PipelineState::ProcessWrite;
+                    }
+                }
+                PipelineState::ProcessRead => {
+                    self.pgconn.bind(py).call_method0("consume_input")?;
+                    py.import("psycopg.generators")?
+                        .getattr("_consume_notifies")?
+                        .call1((self.pgconn.bind(py),))?;
+
+                    loop {
+                        let busy = self
+                            .pgconn
+                            .bind(py)
+                            .call_method0("is_busy")?
+                            .extract::<bool>()?;
+                        if busy {
+                            break;
+                        }
+
+                        let result = self.pgconn.bind(py).call_method0("get_result")?;
+                        if result.is_none() {
+                            if self.current_batch.is_empty() {
+                                break;
+                            }
+                            self.results.push(std::mem::take(&mut self.current_batch));
+                        } else {
+                            let status = result.getattr("status")?.extract::<i32>()?;
+                            if status == self.pipeline_sync {
+                                self.results.push(vec![result.unbind()]);
+                            } else if status == self.copy_in
+                                || status == self.copy_out
+                                || status == self.copy_both
+                            {
+                                let errors = py.import("psycopg.errors")?;
+                                return Err(psycopg_operational_error(
+                                    &errors.getattr("NotSupportedError")?,
+                                    "COPY cannot be used in pipeline mode",
+                                ));
+                            } else {
+                                self.current_batch.push(result.unbind());
+                            }
+                        }
+                    }
+
+                    if self.pending_ready & self.ready_w != 0 {
+                        self.state = PipelineState::ProcessWrite;
+                    } else {
+                        self.state = PipelineState::AwaitReady;
+                    }
+                }
+                PipelineState::ProcessWrite => {
+                    self.pgconn.bind(py).call_method0("flush")?;
+                    if self.commands.bind(py).len()? == 0 {
+                        self.state = PipelineState::Done;
+                        return Err(PyStopIteration::new_err((self.finish_results(py)?,)));
+                    }
+                    let command = self.commands.bind(py).call_method0("popleft")?;
+                    command.call0()?;
+                    self.state = PipelineState::AwaitReady;
+                    ready = None;
+                }
+            }
+        }
+    }
+
+    fn finish_results(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let outer = PyList::empty(py);
+        for batch in &self.results {
+            let inner = PyList::empty(py);
+            for result in batch {
+                inner.append(result.bind(py))?;
+            }
+            outer.append(inner)?;
+        }
+        Ok(outer.unbind().into_any())
     }
 }
 

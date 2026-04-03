@@ -399,4 +399,8 @@ else:
         if _rpsycopg and hasattr(_rpsycopg, "fetch_many")
         else _fetch_many
     )
-    pipeline_communicate = _pipeline_communicate
+    pipeline_communicate = (
+        _rpsycopg.pipeline_communicate
+        if _rpsycopg and hasattr(_rpsycopg, "pipeline_communicate")
+        else _pipeline_communicate
+    )
