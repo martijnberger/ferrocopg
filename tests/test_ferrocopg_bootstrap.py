@@ -2072,6 +2072,8 @@ def test_ferrocopg_unavailable(monkeypatch):
     assert module.conninfo_summary("host=localhost") is None
     assert module.connect_plan("host=localhost") is None
     assert module.connect_target("host=localhost") is None
+    assert module.connect_no_tls_probe("host=localhost") is None
+    assert module.query_text_no_tls("host=localhost", "select 1") is None
 
 
 def test_ferrocopg_wrapper(monkeypatch):
@@ -2095,16 +2097,34 @@ def test_ferrocopg_wrapper(monkeypatch):
             calls.append(("target", conninfo))
             return ("target", conninfo)
 
+        @staticmethod
+        def probe_connect_no_tls(conninfo: str) -> tuple[str, str]:
+            calls.append(("probe", conninfo))
+            return ("probe", conninfo)
+
+        @staticmethod
+        def query_text_no_tls(conninfo: str, query: str) -> tuple[str, str, str]:
+            calls.append(("query", conninfo))
+            return ("query", conninfo, query)
+
     monkeypatch.setattr(module, "_ferrocopg", StubRustModule)
 
     assert module.is_available() is True
     assert module.conninfo_summary("host=localhost") == ("summary", "host=localhost")
     assert module.connect_plan("host=localhost") == ("plan", "host=localhost")
     assert module.connect_target("host=localhost") == ("target", "host=localhost")
+    assert module.connect_no_tls_probe("host=localhost") == ("probe", "host=localhost")
+    assert module.query_text_no_tls("host=localhost", "select 1") == (
+        "query",
+        "host=localhost",
+        "select 1",
+    )
     assert calls == [
         ("summary", "host=localhost"),
         ("plan", "host=localhost"),
         ("target", "host=localhost"),
+        ("probe", "host=localhost"),
+        ("query", "host=localhost"),
     ]
 
 
@@ -2144,6 +2164,47 @@ def test_backend_connect_target_defaults_localhost() -> None:
     assert target.endpoints[0].target == "localhost"
     assert target.endpoints[0].port == 5432
     assert target.endpoints[0].inferred is True
+
+
+def test_backend_connect_no_tls_probe_rejects_tls_required() -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    with pytest.raises(RuntimeError, match="requires TLS"):
+        module.connect_no_tls_probe("host=localhost sslmode=require dbname=postgres")
+
+
+def test_backend_connect_no_tls_probe_live(dsn: str) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    probe = module.connect_no_tls_probe(dsn)
+    assert probe is not None
+    assert probe.backend_pid > 0
+    assert probe.current_database
+    assert probe.current_user
+    assert probe.server_version_num >= 100000
+
+
+def test_backend_query_text_no_tls_live(dsn: str) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    result = module.query_text_no_tls(
+        dsn,
+        "select current_user::text as usr, current_database()::text as db",
+    )
+    assert result is not None
+    assert result.columns == ["usr", "db"]
+    assert len(result.rows) == 1
+    assert result.rows[0][0]
+    assert result.rows[0][1]
 
 
 def test_copy_base_prefers_c_copy_optimizations(monkeypatch):

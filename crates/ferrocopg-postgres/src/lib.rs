@@ -3,6 +3,8 @@
 //! The long-term plan is to build ferrocopg on the `rust-postgres` ecosystem
 //! instead of mirroring the current `libpq`/Cython transport layer.
 
+use std::error::Error;
+use std::fmt;
 use std::str::FromStr;
 
 const DEFAULT_CONNECT_TIMEOUT_SECS: u64 = 130;
@@ -64,6 +66,55 @@ pub struct ConnectTarget {
     pub requires_external_tls_connector: bool,
     pub endpoints: Vec<ConnectEndpoint>,
     pub summary: ConninfoSummary,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SyncNoTlsProbe {
+    pub backend_pid: i32,
+    pub current_user: String,
+    pub current_database: String,
+    pub server_version_num: i32,
+    pub application_name: String,
+    pub server_address: Option<String>,
+    pub server_port: Option<u16>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextQueryResult {
+    pub columns: Vec<String>,
+    pub rows: Vec<Vec<Option<String>>>,
+}
+
+#[derive(Debug)]
+pub enum ProbeError {
+    Parse(tokio_postgres::Error),
+    NoTlsNotSupported,
+    Connect(postgres::Error),
+    Query(postgres::Error),
+}
+
+impl fmt::Display for ProbeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Parse(err) => write!(f, "{err}"),
+            Self::NoTlsNotSupported => {
+                write!(f, "conninfo requires TLS; no-TLS bootstrap is not supported")
+            }
+            Self::Connect(err) => write!(f, "{err}"),
+            Self::Query(err) => write!(f, "{err}"),
+        }
+    }
+}
+
+impl Error for ProbeError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Parse(err) => Some(err),
+            Self::Connect(err) => Some(err),
+            Self::Query(err) => Some(err),
+            Self::NoTlsNotSupported => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -138,6 +189,16 @@ pub fn connect_target(conninfo: &str) -> Result<ConnectTarget, tokio_postgres::E
     Ok(config.connect_target())
 }
 
+pub fn connect_no_tls_probe(conninfo: &str) -> Result<SyncNoTlsProbe, ProbeError> {
+    let config = BootstrapConfig::parse(conninfo).map_err(ProbeError::Parse)?;
+    config.connect_no_tls_probe()
+}
+
+pub fn query_text_no_tls(conninfo: &str, query: &str) -> Result<TextQueryResult, ProbeError> {
+    let config = BootstrapConfig::parse(conninfo).map_err(ProbeError::Parse)?;
+    config.query_text_no_tls(query)
+}
+
 impl BootstrapConfig {
     pub fn connect_plan(&self) -> ConnectPlan {
         let summary = self.summary();
@@ -184,6 +245,72 @@ impl BootstrapConfig {
             endpoints: connect_endpoints(&self.config),
             summary: plan.summary,
         }
+    }
+
+    pub fn connect_no_tls_probe(&self) -> Result<SyncNoTlsProbe, ProbeError> {
+        if !self.connect_plan().can_bootstrap_with_no_tls {
+            return Err(ProbeError::NoTlsNotSupported);
+        }
+
+        let mut client = postgres::Config::from_str(self.raw_conninfo())
+            .map_err(ProbeError::Parse)?
+            .connect(postgres::NoTls)
+            .map_err(ProbeError::Connect)?;
+
+        let row = client
+            .query_one(
+                "select \
+                    pg_backend_pid(), \
+                    current_user::text, \
+                    current_database()::text, \
+                    current_setting('server_version_num')::int4, \
+                    coalesce(current_setting('application_name', true), '')::text, \
+                    inet_server_addr()::text, \
+                    inet_server_port()",
+                &[],
+            )
+            .map_err(ProbeError::Connect)?;
+
+        let server_port = row
+            .get::<_, Option<i32>>(6)
+            .and_then(|port| u16::try_from(port).ok());
+
+        Ok(SyncNoTlsProbe {
+            backend_pid: row.get(0),
+            current_user: row.get(1),
+            current_database: row.get(2),
+            server_version_num: row.get(3),
+            application_name: row.get(4),
+            server_address: row.get(5),
+            server_port,
+        })
+    }
+
+    pub fn query_text_no_tls(&self, query: &str) -> Result<TextQueryResult, ProbeError> {
+        if !self.connect_plan().can_bootstrap_with_no_tls {
+            return Err(ProbeError::NoTlsNotSupported);
+        }
+
+        let mut client = postgres::Config::from_str(self.raw_conninfo())
+            .map_err(ProbeError::Parse)?
+            .connect(postgres::NoTls)
+            .map_err(ProbeError::Connect)?;
+
+        let rows = client.query(query, &[]).map_err(ProbeError::Query)?;
+        let columns = rows
+            .first()
+            .map(|row| row.columns().iter().map(|col| col.name().to_owned()).collect())
+            .unwrap_or_default();
+        let rows = rows
+            .into_iter()
+            .map(|row| {
+                (0..row.len())
+                    .map(|index| row.try_get::<_, Option<String>>(index).map_err(ProbeError::Query))
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(TextQueryResult { columns, rows })
     }
 }
 
@@ -356,5 +483,22 @@ mod tests {
             target.endpoints.iter().map(|ep| ep.port).collect::<Vec<_>>(),
             vec![6543, 6543, 6543]
         );
+    }
+
+    #[test]
+    fn no_tls_probe_rejects_tls_required_conninfo() {
+        let err = connect_no_tls_probe("host=localhost sslmode=require dbname=postgres")
+            .expect_err("no-TLS probe should reject TLS-required conninfo");
+        assert!(matches!(err, ProbeError::NoTlsNotSupported));
+    }
+
+    #[test]
+    fn query_text_no_tls_rejects_tls_required_conninfo() {
+        let err = query_text_no_tls(
+            "host=localhost sslmode=require dbname=postgres",
+            "select 'ok'::text",
+        )
+        .expect_err("no-TLS query should reject TLS-required conninfo");
+        assert!(matches!(err, ProbeError::NoTlsNotSupported));
     }
 }

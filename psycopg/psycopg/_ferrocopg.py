@@ -44,3 +44,21 @@ def connect_target(conninfo: str) -> object | None:
     if not _ferrocopg:
         return None
     return cast(object, _ferrocopg.parse_connect_target(conninfo))
+
+
+def connect_no_tls_probe(conninfo: str) -> object | None:
+    """
+    Return a live Rust-backed no-TLS connection probe if the ferrocopg extension is loaded.
+    """
+    if not _ferrocopg:
+        return None
+    return cast(object, _ferrocopg.probe_connect_no_tls(conninfo))
+
+
+def query_text_no_tls(conninfo: str, query: str) -> object | None:
+    """
+    Return a live Rust-backed no-TLS text query result if the ferrocopg extension is loaded.
+    """
+    if not _ferrocopg:
+        return None
+    return cast(object, _ferrocopg.query_text_no_tls(conninfo, query))
