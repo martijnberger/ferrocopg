@@ -13,9 +13,17 @@ Use `uv` for local environment management:
 ```bash
 uv venv
 source .venv/bin/activate
-uv pip install --config-settings editable_mode=strict -e "./psycopg[dev,test]"
-uv pip install --config-settings editable_mode=strict -e ./psycopg_pool
-uv pip install ./psycopg_c
+uv sync --dev --locked
+```
+
+The locked `uv` environment includes the current Cython-backed test baseline,
+including optional test dependencies such as `gevent` and `shapely`. To run
+database-backed tests, point `pytest` at a working PostgreSQL database:
+
+```bash
+createdb psycopg_test
+export PSYCOPG_TEST_DSN="postgresql:///psycopg_test"
+uv run pytest --test-dsn "$PSYCOPG_TEST_DSN"
 ```
 
 ## Rust toolchain

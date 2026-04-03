@@ -1,11 +1,35 @@
 from __future__ import annotations
 
+import os
 import sys
 import asyncio
 import selectors
+from pathlib import Path
 from typing import Any
 
 import pytest
+
+
+def _bootstrap_repo_packages() -> None:
+    repo_root = Path(__file__).resolve().parent.parent
+    package_roots = [
+        repo_root / "psycopg",
+        repo_root / "psycopg_c",
+        repo_root / "psycopg_pool",
+    ]
+
+    repo_paths = [str(path) for path in package_roots if path.exists()]
+    for path in reversed(repo_paths):
+        if path not in sys.path:
+            sys.path.insert(0, path)
+
+    env_paths = [path for path in os.environ.get("PYTHONPATH", "").split(os.pathsep) if path]
+    merged_paths = repo_paths + [path for path in env_paths if path not in repo_paths]
+    os.environ["PYTHONPATH"] = os.pathsep.join(merged_paths)
+
+
+_bootstrap_repo_packages()
+
 
 pytest_plugins = (
     "tests.fix_db",

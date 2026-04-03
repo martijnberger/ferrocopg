@@ -4,13 +4,13 @@ psycopg test suite
 Quick version
 -------------
 
-To run tests on the current code you can install the ``test`` extra of the
-package, specify a connection string  in the ``PSYCOPG_TEST_DSN`` env var to
-connect to a test database, and run ``pytest``::
+To run tests on the current code from this repository, install the workspace
+with ``uv``, specify a connection string in the ``PSYCOPG_TEST_DSN`` env var
+to connect to a test database, and run ``pytest``::
 
-    $ pip install -e "psycopg[test]"
-    $ export PSYCOPG_TEST_DSN="host=localhost dbname=psycopg_test"
-    $ pytest
+    $ uv sync --dev --locked
+    $ export PSYCOPG_TEST_DSN="postgresql:///psycopg_test"
+    $ uv run pytest --test-dsn "$PSYCOPG_TEST_DSN"
 
 
 Test options
