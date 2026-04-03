@@ -12,16 +12,17 @@ with Rust while preserving behavior, test coverage, and packaging ergonomics.
 For now, this plan assumes:
 
 - We keep the existing Python-facing APIs and compatibility expectations.
-- We focus on Cython removal first, not on replacing `libpq`.
-- We defer experiments with alternate PostgreSQL backends until after the
-  Cython-to-Rust migration is complete.
+- We focus on Cython removal first while moving the Rust backend toward the
+  `rust-postgres` ecosystem instead of mirroring `libpq`.
+- We expect the Rust side to be transport-native rather than a one-for-one
+  port of the existing `libpq` wrapper layer.
 
 ## Non-goals for the first phase
 
 - Redesigning the connection/cursor API.
 - Rewriting the whole library into Rust.
 - Removing Python from high-level orchestration code.
-- Switching away from `libpq` during the first Rust port.
+- Requiring an immediate flag-day rewrite of every `psycopg.pq` caller.
 
 ## Current Architecture Summary
 
@@ -78,7 +79,7 @@ This is a first-cut target structure, not a commitment to exact names:
 ├── pyproject.toml
 ├── crates/
 │   ├── ferrocopg-core/
-│   ├── ferrocopg-pq/
+│   ├── ferrocopg-postgres/
 │   ├── ferrocopg-encode/
 │   └── ferrocopg-python/
 ├── psycopg/
@@ -91,8 +92,10 @@ A likely split of responsibilities:
 
 - `ferrocopg-core`
   Shared Rust data structures, errors, buffer helpers, and utilities.
-- `ferrocopg-pq`
-  Rust implementation of the low-level `pq` wrapper over `libpq`.
+- `ferrocopg-postgres`
+  Rust backend layer built on the `rust-postgres` ecosystem, likely centered
+  on `tokio-postgres` plus lower-level `postgres-protocol` and
+  `postgres-types` helpers where needed.
 - `ferrocopg-encode`
   Fast-path binary/text adaptation helpers, copy formatting/parsing, array
   helpers, and transformer-related internals.
@@ -171,32 +174,31 @@ Scope includes:
 Why start here:
 
 - The Python fallback implementations already exist.
-- The interface boundary is narrower than the full `pq` binding layer.
-- We can remove a large amount of Cython while still relying on the current
-  Python/libpq path underneath.
+- The interface boundary is narrower than the full transport layer.
+- We can remove a large amount of Cython before doing the harder work of
+  mapping Psycopg semantics onto `rust-postgres`.
 
 Expected result:
 
 - `_cmodule.py` imports a Rust-backed optimized module instead of Cython.
 - Pure Python remains the fallback where necessary.
 
-### Layer B: Replace `psycopg_c.pq`
+### Layer B: Introduce a Rust-native PostgreSQL backend
 
-This is the low-level wrapper around PostgreSQL client behavior.
+This replaces the current Cython/libpq-oriented transport implementation with
+an internal backend built on the `rust-postgres` stack.
 
 Scope includes:
 
-- `PGconn`
-- `PGresult`
-- `Conninfo`
-- `Escaping`
-- `PGcancel`
-- connection polling and nonblocking I/O
-- result retrieval and metadata access
+- backend connection state
+- query execution and prepared statement flow
+- cancellation
 - COPY operations
 - LISTEN/NOTIFY support
 - pipeline support
-- trace hooks and other libpq-exposed features used by tests
+- row and type metadata exposure needed by higher layers
+- adaptation hooks needed to preserve Psycopg behavior
+- transitional compatibility shims for current `psycopg.pq` callers
 
 Why second:
 
@@ -207,8 +209,8 @@ Why second:
 
 Expected result:
 
-- `psycopg.pq` can load a Rust-backed implementation with the same behavior as
-  the current `c` implementation.
+- `ferrocopg` can route database operations through a Rust-native backend while
+  preserving Psycopg's Python-facing behavior.
 
 ## Milestones
 
@@ -300,23 +302,26 @@ Definition of done:
 
 - Waiting and generator tests pass with the Rust module enabled.
 
-### Milestone 5: Port `pq` bindings to Rust
+### Milestone 5: Build the Rust-native backend layer
 
 Objective:
-Replace the Cython/libpq wrapper with a Rust/libpq wrapper.
+Replace the Cython/libpq-oriented transport path with a backend built on
+`rust-postgres`.
 
 Tasks:
 
-- Implement the `pq.abc` contract in Rust.
-- Port connection, result, cancel, conninfo, escaping, and copy interfaces.
-- Port notice and notify callback behavior.
-- Port pipeline-mode behavior and edge cases.
+- Introduce a backend abstraction that is not tied to `libpq` naming.
+- Build the transport around `tokio-postgres`.
+- Use `postgres-protocol`/`postgres-types` where lower-level protocol or type
+  support is needed.
+- Map notice/notify, copy, cancellation, and pipeline behavior into the
+  semantics expected by the Python layer.
 - Preserve error mapping and encoding behavior expected by higher layers.
 
 Definition of done:
 
-- `psycopg.pq` can choose the Rust-backed implementation.
-- `tests/pq` and integration tests pass against it.
+- The Rust backend can drive the core connection/cursor flows.
+- The relevant integration tests pass against it.
 
 ### Milestone 6: Packaging cutover
 
@@ -410,9 +415,10 @@ design task, not clerical work.
 
 ### Platform support
 
-Wheel building and linking across Linux, macOS, Windows, CPython versions, and
-possibly PyPy need an explicit support decision. Rust may simplify some of
-this, but the `libpq` dependency still matters in the first phase.
+Wheel building across Linux, macOS, Windows, CPython versions, and possibly
+PyPy still needs an explicit support decision. Moving away from `libpq`
+removes one axis of native dependency management, but runtime integration and
+TLS choices become more important.
 
 ## Compatibility Decisions To Make Early
 
@@ -430,9 +436,9 @@ These do not need to block Milestone 1, but they should be settled early:
    Decide whether the Rust accelerated path will target CPython only at first,
    with Python fallback on PyPy.
 
-4. Build and link policy
-   Decide whether the first Rust port dynamically links `libpq` exactly as
-   today or changes the distribution story.
+4. Runtime strategy
+   Decide how `ferrocopg` owns or shares its async runtime around a
+   `tokio-postgres`-based backend, especially for the sync API.
 
 ## Success Criteria
 
