@@ -9,7 +9,8 @@ with ``uv``, specify a connection string in the ``PSYCOPG_TEST_DSN`` env var
 to connect to a test database, and run ``pytest``::
 
     $ uv sync --dev --locked
-    $ export PSYCOPG_TEST_DSN="postgresql:///psycopg_test"
+    $ tools/test-db start
+    $ export PSYCOPG_TEST_DSN="$(tools/test-db dsn)"
     $ uv run pytest --test-dsn "$PSYCOPG_TEST_DSN"
 
 
