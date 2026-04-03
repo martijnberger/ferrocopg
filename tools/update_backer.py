@@ -2,8 +2,8 @@
 # mypy: ignore-errors
 """Add or edit github users in the backers file"""
 
-import sys
 import logging
+import sys
 from pathlib import Path
 
 import requests

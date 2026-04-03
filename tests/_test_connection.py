@@ -4,13 +4,13 @@ Support module for test_connection[_async].py
 
 from __future__ import annotations
 
-from typing import Any
 from dataclasses import dataclass
+from typing import Any
 
 import pytest
+from psycopg.conninfo import conninfo_to_dict
 
 import psycopg
-from psycopg.conninfo import conninfo_to_dict
 
 try:
     from psycopg.conninfo import _DEFAULT_CONNECT_TIMEOUT as DEFAULT_TIMEOUT

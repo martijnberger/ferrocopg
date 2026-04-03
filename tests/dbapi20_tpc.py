@@ -1,4 +1,4 @@
-# flake8: noqa
+# ruff: noqa
 # fmt: off
 
 """ Python DB API 2.0 driver Two Phase Commit compliance test suite.

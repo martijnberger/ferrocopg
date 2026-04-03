@@ -4,19 +4,19 @@ Adapters for the enum type.
 
 from __future__ import annotations
 
-from enum import Enum
-from typing import TYPE_CHECKING, Any, Generic, TypeAlias, cast
-from functools import cache
 from collections.abc import Mapping, Sequence
+from enum import Enum
+from functools import cache
+from typing import TYPE_CHECKING, Any, Generic, TypeAlias, cast
 
 from .. import errors as e
 from .. import postgres, sql
-from ..pq import Format
+from .._compat import TypeVar
+from .._encodings import conn_encoding
+from .._typeinfo import TypeInfo
 from ..abc import AdaptContext, QueryNoTemplate
 from ..adapt import Buffer, Dumper, Loader
-from .._compat import TypeVar
-from .._typeinfo import TypeInfo
-from .._encodings import conn_encoding
+from ..pq import Format
 
 if TYPE_CHECKING:
     from .._connection_base import BaseConnection

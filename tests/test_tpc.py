@@ -2,9 +2,9 @@
 # from the original file 'test_tpc_async.py'
 # DO NOT CHANGE! Change the original file instead.
 import pytest
+from psycopg.pq import TransactionStatus
 
 import psycopg
-from psycopg.pq import TransactionStatus
 
 pytestmark = pytest.mark.crdb_skip("2-phase commit")
 
@@ -22,7 +22,6 @@ def test_tpc_disabled(conn, pipeline):
 
 
 class TestTPC:
-
     def test_tpc_commit(self, conn, tpc):
         xid = conn.xid(1, "gtrid", "bqual")
         assert conn.info.transaction_status == TransactionStatus.IDLE

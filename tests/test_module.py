@@ -1,5 +1,4 @@
 import pytest
-
 from psycopg._cmodule import _psycopg
 from psycopg.conninfo import conninfo_to_dict
 
@@ -20,7 +19,7 @@ def test_connect(monkeypatch, dsn_env, args, kwargs, want, setpgenv):
 
     orig_connect = psycopg.generators.connect
 
-    got_conninfo: str
+    got_conninfo = ""
 
     def mock_connect(conninfo, *, timeout):
         nonlocal got_conninfo

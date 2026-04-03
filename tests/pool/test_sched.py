@@ -2,9 +2,9 @@
 # from the original file 'test_sched_async.py'
 # DO NOT CHANGE! Change the original file instead.
 import logging
-from time import time
-from functools import partial
 from contextlib import contextmanager
+from functools import partial
+from time import time
 
 import pytest
 

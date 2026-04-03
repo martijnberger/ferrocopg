@@ -9,19 +9,19 @@ Psycopg Cursor object.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, overload
-from contextlib import contextmanager
-from collections.abc import Iterable, Iterator
 
 from . import errors as e
 from . import pq
+from ._compat import Self, Template
+from ._cursor_base import BaseCursor
+from ._pipeline import Pipeline
 from .abc import Params, Query, QueryNoTemplate
 from .copy import Copy, Writer
 from .rows import Row, RowFactory, RowMaker
-from ._compat import Self, Template
-from ._pipeline import Pipeline
-from ._cursor_base import BaseCursor
 
 if TYPE_CHECKING:
     from .connection import Connection

@@ -3,11 +3,11 @@
 # DO NOT CHANGE! Change the original file instead.
 import time
 
-import pytest
-
 import psycopg.crdb
-from psycopg import errors as e
+import pytest
 from psycopg.crdb import CrdbConnection
+
+from psycopg import errors as e
 
 from ..acompat import gather, sleep, spawn
 

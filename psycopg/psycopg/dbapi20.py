@@ -7,8 +7,8 @@ Compatibility objects with DBAPI 2.0
 from __future__ import annotations
 
 import datetime as dt
-from typing import Any
 from collections.abc import Sequence
+from typing import Any
 
 from . import _oids
 from .abc import AdaptContext, Buffer

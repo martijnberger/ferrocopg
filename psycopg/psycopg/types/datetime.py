@@ -8,17 +8,17 @@ from __future__ import annotations
 
 import re
 import struct
-from typing import TYPE_CHECKING, Any, cast
-from datetime import date, datetime, time, timedelta, timezone
 from collections.abc import Callable
+from datetime import date, datetime, time, timedelta, timezone
+from typing import TYPE_CHECKING, Any, cast
 
 from .. import _oids
-from ..pq import Format
+from .._struct import pack_int4, pack_int8, unpack_int4, unpack_int8
 from .._tz import get_tzinfo
 from ..abc import AdaptContext, DumperKey
 from ..adapt import Buffer, Dumper, Loader, PyFormat
 from ..errors import DataError, InterfaceError
-from .._struct import pack_int4, pack_int8, unpack_int4, unpack_int8
+from ..pq import Format
 
 if TYPE_CHECKING:
     from .._connection_base import BaseConnection

@@ -1,14 +1,13 @@
+import socket
 import sys
 import time
-import select  # noqa: used in pytest.mark.skipif
-import socket
 
 import pytest
+from psycopg.conninfo import make_conninfo
+from psycopg.pq import ConnStatus, ExecStatus
 
 import psycopg
 from psycopg import generators, waiting
-from psycopg.pq import ConnStatus, ExecStatus
-from psycopg.conninfo import make_conninfo
 
 from .acompat import AEvent, asleep, gather, spawn
 

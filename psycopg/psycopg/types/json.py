@@ -8,16 +8,16 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
+from threading import Lock
 from types import CodeType
 from typing import Any, TypeAlias
-from threading import Lock
-from collections.abc import Callable
 
 from .. import _oids, abc
 from .. import errors as e
-from ..pq import Format
 from ..adapt import AdaptersMap, Buffer, Dumper, Loader, PyFormat
 from ..errors import DataError
+from ..pq import Format
 
 JsonDumpsFunction: TypeAlias = Callable[[Any], str | bytes]
 JsonLoadsFunction: TypeAlias = Callable[[str | bytes], Any]

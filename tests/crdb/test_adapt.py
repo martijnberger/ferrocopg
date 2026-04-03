@@ -1,14 +1,18 @@
 from copy import deepcopy
 
 import pytest
-
-from psycopg.crdb import CrdbConnection, adapters
 from psycopg.adapt import PyFormat, Transformer
+from psycopg.crdb import CrdbConnection, adapters
 from psycopg.postgres import types as builtins
 from psycopg.types.array import ListDumper
 
-from ..test_adapt import MyStr, make_bin_dumper, make_bin_loader, make_dumper
-from ..test_adapt import make_loader
+from ..test_adapt import (
+    MyStr,
+    make_bin_dumper,
+    make_bin_loader,
+    make_dumper,
+    make_loader,
+)
 
 pytestmark = pytest.mark.crdb
 

@@ -6,19 +6,19 @@ Psycopg AsyncCursor object.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator, Iterable
+from contextlib import asynccontextmanager
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, overload
-from contextlib import asynccontextmanager
-from collections.abc import AsyncIterator, Iterable
 
 from . import errors as e
 from . import pq
-from .abc import Params, Query, QueryNoTemplate
-from .copy import AsyncCopy, AsyncWriter
-from .rows import AsyncRowFactory, Row, RowMaker
 from ._compat import Self, Template
 from ._cursor_base import BaseCursor
 from ._pipeline_async import AsyncPipeline
+from .abc import Params, Query, QueryNoTemplate
+from .copy import AsyncCopy, AsyncWriter
+from .rows import AsyncRowFactory, Row, RowMaker
 
 if TYPE_CHECKING:
     from .connection_async import AsyncConnection

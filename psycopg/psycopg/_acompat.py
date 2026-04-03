@@ -10,11 +10,11 @@ when generating the sync version.
 
 from __future__ import annotations
 
-import queue
 import asyncio
+import queue
 import threading
-from typing import Any, TypeAlias
 from collections.abc import Callable, Coroutine
+from typing import Any, TypeAlias
 
 from ._compat import TypeVar
 

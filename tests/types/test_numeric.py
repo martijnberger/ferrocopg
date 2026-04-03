@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 import enum
-from math import exp, isinf, isnan
 from decimal import Decimal
+from math import exp, isinf, isnan
 
 import pytest
-
-import psycopg
-from psycopg import pq, sql
 from psycopg.abc import Buffer
 from psycopg.adapt import PyFormat, Transformer
 from psycopg.types.numeric import FloatLoader, Int8, Int8BinaryDumper, Int8Dumper
+
+import psycopg
+from psycopg import pq, sql
 
 from ..fix_crdb import is_crdb
 
@@ -47,18 +47,18 @@ def test_dump_int(conn, val, expr, fmt_in):
         (-1, "'-1'::smallint"),
         (42, "'42'::smallint"),
         (-42, "'-42'::smallint"),
-        (int(2**15 - 1), f"'{2 ** 15 - 1}'::smallint"),
-        (int(-(2**15)), f"'{-2 ** 15}'::smallint"),
-        (int(2**15), f"'{2 ** 15}'::integer"),
-        (int(-(2**15) - 1), f"'{-2 ** 15 - 1}'::integer"),
-        (int(2**31 - 1), f"'{2 ** 31 - 1}'::integer"),
-        (int(-(2**31)), f"'{-2 ** 31}'::integer"),
-        (int(2**31), f"'{2 ** 31}'::bigint"),
-        (int(-(2**31) - 1), f"'{-2 ** 31 - 1}'::bigint"),
-        (int(2**63 - 1), f"'{2 ** 63 - 1}'::bigint"),
-        (int(-(2**63)), f"'{-2 ** 63}'::bigint"),
-        (int(2**63), f"'{2 ** 63}'::numeric"),
-        (int(-(2**63) - 1), f"'{-2 ** 63 - 1}'::numeric"),
+        (int(2**15 - 1), f"'{2**15 - 1}'::smallint"),
+        (int(-(2**15)), f"'{-(2**15)}'::smallint"),
+        (int(2**15), f"'{2**15}'::integer"),
+        (int(-(2**15) - 1), f"'{-(2**15) - 1}'::integer"),
+        (int(2**31 - 1), f"'{2**31 - 1}'::integer"),
+        (int(-(2**31)), f"'{-(2**31)}'::integer"),
+        (int(2**31), f"'{2**31}'::bigint"),
+        (int(-(2**31) - 1), f"'{-(2**31) - 1}'::bigint"),
+        (int(2**63 - 1), f"'{2**63 - 1}'::bigint"),
+        (int(-(2**63)), f"'{-(2**63)}'::bigint"),
+        (int(2**63), f"'{2**63}'::numeric"),
+        (int(-(2**63) - 1), f"'{-(2**63) - 1}'::numeric"),
     ],
 )
 @pytest.mark.parametrize("fmt_in", PyFormat)

@@ -6,8 +6,8 @@ import pytest
 
 from psycopg import Notify
 
-from .utils import skip_free_threaded
 from .acompat import AEvent, alist, asleep, gather, spawn
+from .utils import skip_free_threaded
 
 pytestmark = pytest.mark.crdb_skip("notify")
 

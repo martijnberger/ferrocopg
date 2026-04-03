@@ -1,9 +1,9 @@
 import pytest
+from psycopg.adapt import PyFormat
 
 import psycopg
 from psycopg import errors as e
 from psycopg import pq, rows
-from psycopg.adapt import PyFormat
 
 from ._test_cursor import ph
 

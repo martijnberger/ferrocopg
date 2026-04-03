@@ -3,28 +3,32 @@
 # DO NOT CHANGE! Change the original file instead.
 from __future__ import annotations
 
+import logging
 import os
 import sys
 import time
-import logging
 import weakref
 from typing import Any
 
 import pytest
+from psycopg._conninfo_utils import get_param
+from psycopg.conninfo import conninfo_to_dict, make_conninfo, timeout_from_conninfo
+from psycopg.rows import tuple_row
 
 import psycopg
 from psycopg import errors as e
 from psycopg import pq
-from psycopg.rows import tuple_row
-from psycopg.conninfo import conninfo_to_dict, make_conninfo, timeout_from_conninfo
-from psycopg._conninfo_utils import get_param
 
+from ._test_connection import (
+    conninfo_params_timeout,
+    testctx,  # noqa: F401  # fixture
+    tx_params,
+    tx_params_isolation,
+    tx_values_map,
+)
+from ._test_cursor import my_row_factory
 from .acompat import skip_async, sleep
 from .test_adapt import make_bin_dumper, make_dumper
-from ._test_cursor import my_row_factory
-from ._test_connection import testctx  # noqa: F401  # fixture
-from ._test_connection import conninfo_params_timeout, tx_params, tx_params_isolation
-from ._test_connection import tx_values_map
 
 MULTI_FAILURE_MESSAGE = "Multiple connection attempts failed. All failures were:"
 
@@ -516,7 +520,7 @@ def test_autocommit_unknown(conn):
 def test_connect_args(
     conn_cls, monkeypatch, setpgenv, pgconn, fake_resolve, args, kwargs, want
 ):
-    got_conninfo: str
+    got_conninfo = ""
 
     def fake_connect(conninfo, *, timeout=0.0):
         nonlocal got_conninfo

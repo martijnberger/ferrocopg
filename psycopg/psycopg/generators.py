@@ -23,16 +23,16 @@ generator should probably yield the same value again in order to wait more.
 from __future__ import annotations
 
 import logging
-from time import monotonic
 from collections import deque
+from time import monotonic
 
 from . import errors as e
 from . import pq
+from ._cmodule import _psycopg
+from ._encodings import conninfo_encoding
 from .abc import Buffer, PipelineCommand, PQGen, PQGenConn
 from .pq.abc import PGcancelConn, PGconn, PGresult
 from .waiting import Ready, Wait
-from ._cmodule import _psycopg
-from ._encodings import conninfo_encoding
 
 OK = pq.ConnStatus.OK
 BAD = pq.ConnStatus.BAD
@@ -158,7 +158,6 @@ def _send(pgconn: PGconn) -> PQGen[None]:
     to retrieve the results available.
     """
     while pgconn.flush() != 0:
-
         while not (ready := (yield WAIT_RW)):
             continue
 

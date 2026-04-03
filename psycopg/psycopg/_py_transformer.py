@@ -11,23 +11,22 @@ dependencies problems).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, DefaultDict, TypeAlias
 from collections import defaultdict
 from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, DefaultDict, TypeAlias
 
-from . import abc
+from . import abc, pq
 from . import errors as e
-from . import pq
+from ._encodings import conn_encoding
+from ._oids import INVALID_OID, TEXT_OID
 from .abc import AdaptContext, Buffer, LoadFunc, NoneType, PyFormat
 from .rows import Row, RowMaker
-from ._oids import INVALID_OID, TEXT_OID
-from ._encodings import conn_encoding
 
 if TYPE_CHECKING:
+    from ._connection_base import BaseConnection
     from .abc import DumperKey  # noqa: F401
     from .adapt import AdaptersMap
     from .pq.abc import PGresult
-    from ._connection_base import BaseConnection
 
 DumperCache: TypeAlias = "dict[DumperKey, abc.Dumper]"
 OidDumperCache: TypeAlias = dict[int, abc.Dumper]

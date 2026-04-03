@@ -1,13 +1,19 @@
-# flake8: builtins=reveal_type
-
 from __future__ import annotations
 
-from typing import Any
-from dataclasses import dataclass
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from typing import Any
 
-from psycopg import AsyncConnection, AsyncCursor, AsyncServerCursor, Connection, Cursor
-from psycopg import ServerCursor, connect, rows
+from psycopg import (
+    AsyncConnection,
+    AsyncCursor,
+    AsyncServerCursor,
+    Connection,
+    Cursor,
+    ServerCursor,
+    connect,
+    rows,
+)
 
 
 def int_row_factory(
@@ -114,13 +120,15 @@ def check_row_factory_connection() -> None:
     with conn2.cursor() as cur2:
         cur2.execute("select 2")
 
-    cur3: Cursor[tuple[Any, ...]]
+    cur3_exec: Cursor[tuple[Any, ...]]
     r3: tuple[Any, ...] | None
     conn3 = connect()
-    cur3 = conn3.execute("select 3")
-    with conn3.cursor() as cur3:
-        cur3.execute("select 42")
-        r3 = cur3.fetchone()
+    cur3_exec = conn3.execute("select 3")
+    r3 = cur3_exec.fetchone()
+    r3 and len(r3)
+    with conn3.cursor() as cur3_ctx:
+        cur3_ctx.execute("select 42")
+        r3 = cur3_ctx.fetchone()
         r3 and len(r3)
 
 
@@ -148,13 +156,15 @@ async def async_check_row_factory_connection() -> None:
     async with conn2.cursor() as cur2:
         await cur2.execute("select 2")
 
-    cur3: AsyncCursor[tuple[Any, ...]]
+    cur3_exec: AsyncCursor[tuple[Any, ...]]
     r3: tuple[Any, ...] | None
     conn3 = await AsyncConnection.connect()
-    cur3 = await conn3.execute("select 3")
-    async with conn3.cursor() as cur3:
-        await cur3.execute("select 42")
-        r3 = await cur3.fetchone()
+    cur3_exec = await conn3.execute("select 3")
+    r3 = await cur3_exec.fetchone()
+    r3 and len(r3)
+    async with conn3.cursor() as cur3_ctx:
+        await cur3_ctx.execute("select 42")
+        r3 = await cur3_ctx.fetchone()
         r3 and len(r3)
 
 

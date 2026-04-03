@@ -7,18 +7,18 @@ dict to hstore adaptation
 from __future__ import annotations
 
 import re
+from functools import cache
 from struct import Struct
 from typing import TypeAlias
-from functools import cache
 
 from .. import errors as e
 from .. import postgres
-from ..pq import Format
-from ..abc import AdaptContext, Buffer
-from .._oids import TEXT_OID
-from ..adapt import Loader, PyFormat, RecursiveDumper, RecursiveLoader
-from .._typeinfo import TypeInfo
 from .._encodings import conn_encoding
+from .._oids import TEXT_OID
+from .._typeinfo import TypeInfo
+from ..abc import AdaptContext, Buffer
+from ..adapt import Loader, PyFormat, RecursiveDumper, RecursiveLoader
+from ..pq import Format
 
 _re_escape = re.compile(r'(["\\])')
 _re_unescape = re.compile(r"\\(.)")

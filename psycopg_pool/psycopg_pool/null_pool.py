@@ -12,21 +12,21 @@ from __future__ import annotations
 import logging
 from typing import cast
 
-from psycopg import Connection
 from psycopg.pq import TransactionStatus
 
-from .abc import CT, ConnectFailedCB, ConnectionCB, ConninfoParam, KwargsParam
-from .pool import AddConnection, ConnectionPool
-from .errors import PoolTimeout, TooManyRequests
-from ._compat import ConnectionTimeout
+from psycopg import Connection
+
 from ._acompat import Event
+from ._compat import ConnectionTimeout
+from .abc import CT, ConnectFailedCB, ConnectionCB, ConninfoParam, KwargsParam
 from .base_null_pool import _BaseNullConnectionPool
+from .errors import PoolTimeout, TooManyRequests
+from .pool import AddConnection, ConnectionPool
 
 logger = logging.getLogger("psycopg.pool")
 
 
 class NullConnectionPool(_BaseNullConnectionPool, ConnectionPool[CT]):
-
     def __init__(
         self,
         conninfo: ConninfoParam = "",

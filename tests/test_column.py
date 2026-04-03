@@ -1,7 +1,6 @@
 import pickle
 
 import pytest
-
 from psycopg.postgres import types as builtins
 
 from .fix_crdb import crdb_encoding, is_crdb, skip_crdb
@@ -17,9 +16,11 @@ def test_description_attribs(conn):
     assert len(curs.description) == 3
     for c in curs.description:
         len(c) == 7  # DBAPI happy
-        for i, a in enumerate("""
+        for i, a in enumerate(
+            """
             name type_code display_size internal_size precision scale null_ok
-        """.split()):
+        """.split()
+        ):
             assert c[i] == getattr(c, a)
 
         # Won't fill them up

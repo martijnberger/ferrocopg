@@ -6,14 +6,14 @@ Various functionalities to make easier to work with the libpq.
 
 from __future__ import annotations
 
+import ctypes.util
+import logging
 import os
 import re
 import sys
-import logging
-import ctypes.util
-from typing import NamedTuple
-from pathlib import Path
 from functools import cache
+from pathlib import Path
+from typing import NamedTuple
 
 from . import abc
 from ._enums import ConnStatus, PipelineStatus, TransactionStatus

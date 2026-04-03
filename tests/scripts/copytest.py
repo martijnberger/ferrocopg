@@ -3,16 +3,17 @@
 
 from __future__ import annotations
 
-import sys
 import asyncio
 import logging
+import sys
+from argparse import ArgumentParser, Namespace
 from time import time
 from typing import Any
-from argparse import ArgumentParser, Namespace
+
+from psycopg.abc import Query
 
 import psycopg
 from psycopg import sql
-from psycopg.abc import Query
 
 logger = logging.getLogger()
 logging.basicConfig(

@@ -7,10 +7,10 @@ from __future__ import annotations
 from functools import cache
 
 from .. import postgres
-from ..pq import Format
+from .._typeinfo import TypeInfo
 from ..abc import AdaptContext, Buffer
 from ..adapt import Dumper, Loader
-from .._typeinfo import TypeInfo
+from ..pq import Format
 
 try:
     import shapely

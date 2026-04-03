@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import pytest
+from psycopg.conninfo import conninfo_to_dict
 
 import psycopg
-from psycopg.conninfo import conninfo_to_dict
 
 from .test_dns import import_dnspython
 

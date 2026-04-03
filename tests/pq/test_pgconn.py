@@ -1,23 +1,23 @@
 from __future__ import annotations
 
+import contextlib
+import ctypes
+import logging
 import os
 import sys
 import time
-import ctypes
-import logging
 import weakref
-import contextlib
+from collections.abc import Iterator
+from functools import partial
 from select import select
 from typing import TYPE_CHECKING
-from functools import partial
-from collections.abc import Iterator
 
+import psycopg.generators
 import pytest
+from psycopg.conninfo import make_conninfo
 
 import psycopg
-import psycopg.generators
 from psycopg import pq
-from psycopg.conninfo import make_conninfo
 
 if TYPE_CHECKING:
     from psycopg.pq.abc import PGcancelConn, PGconn
@@ -41,9 +41,9 @@ def wait(
             select([], [conn.socket], [], timeout)
         else:
             pytest.fail(f"unexpected poll result: {rv}")
-    assert (
-        conn.status == pq.ConnStatus.OK
-    ), f"unexpected connection status: {conn.error_message}"
+    assert conn.status == pq.ConnStatus.OK, (
+        f"unexpected connection status: {conn.error_message}"
+    )
 
 
 def test_connectdb(dsn):
@@ -437,9 +437,9 @@ def test_set_chunked_rows_mode(pgconn):
 def cancellable_query(pgconn: PGconn) -> Iterator[None]:
     dsn = b" ".join(b"%s='%s'" % (i.keyword, i.val) for i in pgconn.info if i.val)
     monitor_conn = pq.PGconn.connect(dsn)
-    assert (
-        monitor_conn.status == pq.ConnStatus.OK
-    ), f"bad connection: {monitor_conn.get_error_message()}"
+    assert monitor_conn.status == pq.ConnStatus.OK, (
+        f"bad connection: {monitor_conn.get_error_message()}"
+    )
 
     pgconn.send_query_params(b"SELECT pg_sleep($1)", [b"10"])
 

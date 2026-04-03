@@ -1,10 +1,10 @@
 import time
 
-import pytest
-
 import psycopg.crdb
-from psycopg import errors as e
+import pytest
 from psycopg.crdb import AsyncCrdbConnection
+
+from psycopg import errors as e
 
 from ..acompat import asleep, gather, spawn
 

@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
-use pyo3::{exceptions::PyValueError, PyErr};
+use pyo3::{PyErr, exceptions::PyValueError};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 

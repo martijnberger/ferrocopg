@@ -7,21 +7,21 @@ commands pipeline management
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, TypeAlias
 from collections import deque
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 from . import errors as e
 from . import pq
-from .abc import PipelineCommand, PQGen
-from .pq.misc import connection_summary
-from .generators import fetch_many, pipeline_communicate, send
 from ._capabilities import capabilities
+from .abc import PipelineCommand, PQGen
+from .generators import fetch_many, pipeline_communicate, send
+from .pq.misc import connection_summary
 
 if TYPE_CHECKING:
-    from .pq.abc import PGresult
-    from ._preparing import Key, Prepare  # noqa: F401
-    from ._cursor_base import BaseCursor  # noqa: F401
     from ._connection_base import BaseConnection
+    from ._cursor_base import BaseCursor  # noqa: F401
+    from ._preparing import Key, Prepare  # noqa: F401
+    from .pq.abc import PGresult
 
 
 PendingResult: TypeAlias = (

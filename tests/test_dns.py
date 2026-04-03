@@ -1,7 +1,7 @@
 import pytest
+from psycopg.conninfo import conninfo_to_dict
 
 import psycopg
-from psycopg.conninfo import conninfo_to_dict
 
 
 @pytest.mark.dns

@@ -18,8 +18,9 @@ if sys.version_info >= (3, 13):
 else:
     from typing_extensions import TypeVar
 
-import psycopg
 import psycopg.errors as e
+
+import psycopg
 
 PSYCOPG_VERSION = tuple(map(int, psycopg.__version__.split(".", 2)[:2]))
 

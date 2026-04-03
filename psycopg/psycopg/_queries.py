@@ -7,16 +7,16 @@ Utility module to manipulate queries
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any, NamedTuple, TypeAlias, TypeGuard
-from functools import lru_cache
 from collections.abc import Callable, Mapping, Sequence
+from functools import lru_cache
+from typing import TYPE_CHECKING, Any, NamedTuple, TypeAlias, TypeGuard
 
 from . import errors as e
 from . import pq, sql
-from .abc import Buffer, Params, Query, QueryNoTemplate
-from ._enums import PyFormat
 from ._compat import Template
+from ._enums import PyFormat
 from ._tstrings import TemplateProcessor
+from .abc import Buffer, Params, Query, QueryNoTemplate
 
 if TYPE_CHECKING:
     from .abc import Transformer
@@ -414,7 +414,7 @@ def _split_query(
         if ph == b"%(":
             raise e.ProgrammingError(
                 "incomplete placeholder:"
-                f" '{query[m.span(0)[0]:].split()[0].decode(encoding)}'"
+                f" '{query[m.span(0)[0] :].split()[0].decode(encoding)}'"
             )
         elif ph == b"% ":
             # explicit message for a typical error

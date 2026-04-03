@@ -14,12 +14,12 @@ will link to::
 
 # Copyright (C) 2020 The Psycopg Team
 
-import os
 import logging
+import os
 import urllib.request
-from pathlib import Path
 from functools import lru_cache
 from html.parser import HTMLParser
+from pathlib import Path
 
 from docutils import nodes, utils
 from docutils.parsers.rst import roles

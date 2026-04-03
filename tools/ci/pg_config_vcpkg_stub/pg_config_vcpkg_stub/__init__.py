@@ -10,10 +10,10 @@ libpq:x64-windows-release` before using this script.
 """
 
 import os
-import sys
 import platform
-from pathlib import Path
+import sys
 from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
+from pathlib import Path
 
 
 class ScriptError(Exception):

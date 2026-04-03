@@ -9,20 +9,20 @@ information to the adapters if needed.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, TypeAlias, overload
 from collections.abc import Iterator, Sequence
+from typing import TYPE_CHECKING, Any, TypeAlias, overload
 
 from . import errors as e
 from . import sql
+from ._compat import TypeVar
+from ._encodings import conn_encoding
+from ._typemod import TypeModifier
 from .abc import AdaptContext, QueryNoTemplate
 from .rows import dict_row
-from ._compat import TypeVar
-from ._typemod import TypeModifier
-from ._encodings import conn_encoding
 
 if TYPE_CHECKING:
-    from .connection import Connection
     from ._connection_base import BaseConnection
+    from .connection import Connection
     from .connection_async import AsyncConnection
 
 T = TypeVar("T", bound="TypeInfo")

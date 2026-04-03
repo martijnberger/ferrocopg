@@ -8,9 +8,9 @@ import re
 from typing import Any
 
 import pytest
+from psycopg.rows import RowMaker
 
 import psycopg
-from psycopg.rows import RowMaker
 
 
 @pytest.fixture(scope="session")

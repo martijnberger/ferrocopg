@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 """Find the error prefixes in various l10n used for precise prefix stripping."""
 
-import re
 import logging
-from pathlib import Path
+import re
 from argparse import ArgumentParser, Namespace
 from collections import defaultdict
+from pathlib import Path
 
 import polib
 

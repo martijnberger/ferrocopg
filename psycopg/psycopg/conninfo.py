@@ -8,9 +8,8 @@ from __future__ import annotations
 
 import re
 
-from . import _conninfo_attempts, _conninfo_attempts_async, _conninfo_utils
+from . import _conninfo_attempts, _conninfo_attempts_async, _conninfo_utils, pq
 from . import errors as e
-from . import pq
 from .abc import ConnDict, ConnParam
 
 # re-exports

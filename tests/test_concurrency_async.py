@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import sys
-import time
-import signal
 import asyncio
-import threading
+import signal
 import subprocess as sp
+import sys
+import threading
+import time
 from asyncio import create_task
 from asyncio.queues import Queue
 
@@ -312,9 +312,9 @@ asyncio.run(main())
         [sys.executable, "-s"], input=script, text=True, stdout=sp.PIPE, stderr=sp.PIPE
     )
     assert "InterruptedError" not in cp.stderr
-    assert (
-        cp.returncode == 0
-    ), f"script terminated with {signal.Signals(abs(cp.returncode)).name}"
+    assert cp.returncode == 0, (
+        f"script terminated with {signal.Signals(abs(cp.returncode)).name}"
+    )
     assert cp.stdout.rstrip() == "ok"
 
 

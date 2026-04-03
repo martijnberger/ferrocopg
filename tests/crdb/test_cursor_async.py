@@ -4,10 +4,10 @@ import json
 from uuid import uuid4
 
 import pytest
+from psycopg.rows import namedtuple_row
 
 from psycopg import errors as e
 from psycopg import pq
-from psycopg.rows import namedtuple_row
 
 from ..acompat import AQueue, gather, spawn
 

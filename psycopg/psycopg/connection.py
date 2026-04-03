@@ -11,32 +11,44 @@ from __future__ import annotations
 
 import logging
 import warnings
+from collections.abc import Generator, Iterator
+from contextlib import contextmanager
 from time import monotonic
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, cast, overload
-from contextlib import contextmanager
-from collections.abc import Generator, Iterator
 
 from . import errors as e
 from . import pq, waiting
-from .abc import RV, AdaptContext, ConnDict, ConnParam, Params, PQGen, Query
-from .abc import QueryNoTemplate
-from ._tpc import Xid
-from .rows import Row, RowFactory, args_row, tuple_row
-from .adapt import AdaptersMap
-from ._enums import IsolationLevel
-from .cursor import Cursor
-from ._compat import Self, Template
 from ._acompat import Lock
-from .conninfo import conninfo_attempts, conninfo_to_dict, make_conninfo
-from .conninfo import timeout_from_conninfo
-from ._pipeline import Pipeline
-from .generators import notifies
-from .transaction import Transaction
 from ._capabilities import capabilities
-from ._server_cursor import ServerCursor
-from ._conninfo_utils import gssapi_requested
+from ._compat import Self, Template
 from ._connection_base import BaseConnection, CursorRow, Notify
+from ._conninfo_utils import gssapi_requested
+from ._enums import IsolationLevel
+from ._pipeline import Pipeline
+from ._server_cursor import ServerCursor
+from ._tpc import Xid
+from .abc import (
+    RV,
+    AdaptContext,
+    ConnDict,
+    ConnParam,
+    Params,
+    PQGen,
+    Query,
+    QueryNoTemplate,
+)
+from .adapt import AdaptersMap
+from .conninfo import (
+    conninfo_attempts,
+    conninfo_to_dict,
+    make_conninfo,
+    timeout_from_conninfo,
+)
+from .cursor import Cursor
+from .generators import notifies
+from .rows import Row, RowFactory, args_row, tuple_row
+from .transaction import Transaction
 
 if TYPE_CHECKING:
     from .pq.abc import PGconn

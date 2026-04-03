@@ -6,14 +6,15 @@ Types used in the psycopg_pool package
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, TypeAlias, Union
 from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any, TypeAlias, Union
 
 from ._compat import TypeVar
 
 if TYPE_CHECKING:
-    from psycopg import AsyncConnection, Connection  # noqa: F401
     from psycopg.rows import TupleRow  # noqa: F401
+
+    from psycopg import AsyncConnection, Connection  # noqa: F401
 
     from .pool import ConnectionPool  # noqa: F401
     from .pool_async import AsyncConnectionPool  # noqa: F401

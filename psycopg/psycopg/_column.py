@@ -6,9 +6,9 @@ The Column object in Cursor.description
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
-from operator import attrgetter
 from collections.abc import Sequence
+from operator import attrgetter
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ._cursor_base import BaseCursor
@@ -32,14 +32,16 @@ class Column(Sequence[Any]):
         self._fmod = res.fmod(index)
         self._fsize = res.fsize(index)
 
-    _attrs = tuple(attrgetter(attr) for attr in """
+    _attrs = tuple(
+        attrgetter(attr)
+        for attr in """
             name type_code display_size internal_size precision scale null_ok
-            """.split())
+            """.split()
+    )
 
     def __repr__(self) -> str:
         return (
-            f"<Column {self.name!r},"
-            f" type: {self.type_display} (oid: {self.type_code})>"
+            f"<Column {self.name!r}, type: {self.type_display} (oid: {self.type_code})>"
         )
 
     def __len__(self) -> int:

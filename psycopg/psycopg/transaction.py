@@ -7,15 +7,15 @@ Transaction context managers returned by Connection.transaction()
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from enum import Enum
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Generic
-from collections.abc import Iterator
 
 from . import errors as e
 from . import pq, sql
-from .abc import ConnectionType, PQGen
 from ._compat import Self
+from .abc import ConnectionType, PQGen
 from .pq.misc import connection_summary
 
 if TYPE_CHECKING:

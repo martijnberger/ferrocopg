@@ -6,11 +6,11 @@ Mappings between PostgreSQL and Python encodings.
 
 from __future__ import annotations
 
-import re
 import codecs
+import re
 import string
-from typing import TYPE_CHECKING, Any
 from functools import cache
+from typing import TYPE_CHECKING, Any
 
 from .errors import NotSupportedError
 from .pq._enums import ConnStatus

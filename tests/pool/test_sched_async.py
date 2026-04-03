@@ -1,7 +1,7 @@
 import logging
-from time import time
-from functools import partial
 from contextlib import asynccontextmanager
+from functools import partial
+from time import time
 
 import pytest
 

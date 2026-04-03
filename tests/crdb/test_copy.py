@@ -3,20 +3,23 @@
 # DO NOT CHANGE! Change the original file instead.
 import string
 from random import choice, randrange
-from typing import Any  # noqa: ignore
+from typing import Any
 
 import pytest
-
-from psycopg import errors as e
-from psycopg import pq, sql
 from psycopg.adapt import PyFormat
 from psycopg.types.numeric import Int4
 
-from ..utils import eur
-from .._test_copy import sample_binary  # noqa
-from .._test_copy import ensure_table, sample_records
+from psycopg import errors as e
+from psycopg import pq, sql
+
+from .._test_copy import (
+    ensure_table,
+    sample_binary,  # noqa: F401
+    sample_records,
+    sample_text,
+)
 from .._test_copy import sample_tabledef as sample_tabledef_pg
-from .._test_copy import sample_text
+from ..utils import eur
 
 # CRDB int/serial are int8
 sample_tabledef = sample_tabledef_pg.replace("int", "int4").replace("serial", "int4")

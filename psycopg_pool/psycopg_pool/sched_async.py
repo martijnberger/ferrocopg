@@ -15,13 +15,13 @@ Tasks are called "Task", not "Event", here, because we actually make use of
 from __future__ import annotations
 
 import logging
-from time import monotonic
-from heapq import heappop, heappush
-from typing import Any
 from collections.abc import Callable
+from heapq import heappop, heappush
+from time import monotonic
+from typing import Any
 
-from ._task import Task
 from ._acompat import AEvent, ALock
+from ._task import Task
 
 logger = logging.getLogger(__name__)
 

@@ -3,15 +3,15 @@
 
 from __future__ import annotations
 
-import re
-import sys
 import logging
+import re
 import subprocess as sp
-from enum import Enum
-from pathlib import Path
+import sys
 from argparse import ArgumentParser, Namespace
-from functools import cached_property
 from dataclasses import dataclass
+from enum import Enum
+from functools import cached_property
+from pathlib import Path
 
 from packaging.version import Version
 
@@ -154,7 +154,7 @@ chore: bump {self.package.name} package version to {self.want_version}
         msg = f"""\
 {self.package.name} {self.want_version} released
 
-{''.join(changes)}
+{"".join(changes)}
 """
         cmdline = ["git", "tag", "-a", "-s", "-m", msg, tag_name]
         sp.check_call(cmdline)

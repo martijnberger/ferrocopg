@@ -5,16 +5,16 @@ from types import ModuleType
 from typing import Any
 
 import pytest
+from psycopg._cmodule import _psycopg
+from psycopg.abc import Buffer
+from psycopg.adapt import Dumper, Loader, PyFormat, Transformer
+from psycopg.postgres import types as builtins
+from psycopg.types.array import ListBinaryDumper, ListDumper
+from psycopg.types.string import StrBinaryDumper, StrDumper
 
 import psycopg
 from psycopg import errors as e
 from psycopg import postgres, pq, sql
-from psycopg.abc import Buffer
-from psycopg.adapt import Dumper, Loader, PyFormat, Transformer
-from psycopg._cmodule import _psycopg
-from psycopg.postgres import types as builtins
-from psycopg.types.array import ListBinaryDumper, ListDumper
-from psycopg.types.string import StrBinaryDumper, StrDumper
 
 
 @pytest.mark.parametrize(

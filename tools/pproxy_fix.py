@@ -4,8 +4,8 @@
 Work around https://github.com/qwj/python-proxy/issues/200
 """
 
-import sys
 import asyncio
+import sys
 from typing import Any
 
 from pproxy.server import main as main_  # type: ignore[import-untyped]

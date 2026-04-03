@@ -30,13 +30,13 @@ Suggested usage::
 
 import inspect
 import logging
-from typing import Any
-from functools import wraps
 from collections.abc import Callable
+from functools import wraps
+from typing import Any
 
+from .._compat import Self, TypeVar
 from . import PGconn, abc
 from .misc import connection_summary
-from .._compat import Self, TypeVar
 
 Func = TypeVar("Func", bound=Callable[..., Any])
 

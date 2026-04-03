@@ -1,11 +1,11 @@
+import logging
 import os
+import socket
+import subprocess as sp
 import sys
 import time
-import socket
-import logging
-import subprocess as sp
-from pathlib import Path
 from contextlib import contextmanager
+from pathlib import Path
 
 import pytest
 

@@ -8,10 +8,10 @@ The script can be run at a new PostgreSQL release to refresh the module.
 
 # Copyright (C) 2020 The Psycopg Team
 
+import logging
 import os
 import re
 import sys
-import logging
 from collections import defaultdict, namedtuple
 from urllib.request import urlopen
 
@@ -112,10 +112,12 @@ def fetch_errors(versions):
         "XX000": "InternalError_",
     }
 
-    seen = set("""
+    seen = set(
+        """
         Error Warning InterfaceError DataError DatabaseError ProgrammingError
         IntegrityError InternalError NotSupportedError OperationalError
-        """.split())
+        """.split()
+    )
 
     for c, cerrs in errors.items():
         for sqstate, errlabel in list(cerrs.items()):

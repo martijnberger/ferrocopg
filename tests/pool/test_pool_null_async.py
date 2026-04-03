@@ -5,13 +5,13 @@ from typing import Any
 
 import pytest
 from packaging.version import parse as ver  # noqa: F401  # used in skipif
-
-import psycopg
 from psycopg.pq import TransactionStatus
 from psycopg.rows import Row, TupleRow, class_row
 
-from ..utils import assert_type, set_autocommit
+import psycopg
+
 from ..acompat import asleep, gather, skip_sync, spawn
+from ..utils import assert_type, set_autocommit
 from .test_pool_common_async import delay_connection, ensure_waiting
 
 try:

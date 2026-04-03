@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 import io
+import logging
 import os
 import sys
-import logging
-from functools import cache
 from contextlib import contextmanager
+from functools import cache
 
 import pytest
+from psycopg.conninfo import conninfo_to_dict, make_conninfo
+from psycopg.pq._debug import PGconnDebug
 
 import psycopg
 from psycopg import pq, sql
-from psycopg.conninfo import conninfo_to_dict, make_conninfo
-from psycopg.pq._debug import PGconnDebug
 
 from .utils import check_postgres_version
 

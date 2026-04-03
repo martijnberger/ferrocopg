@@ -24,7 +24,6 @@ logger = logging.getLogger("psycopg")
 
 
 class _DummyLock:
-
     def __enter__(self) -> None:
         pass
 

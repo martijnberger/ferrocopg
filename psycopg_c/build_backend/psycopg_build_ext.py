@@ -7,10 +7,10 @@ libpq and accounting for other platform differences.
 
 # Copyright (C) 2024 The Psycopg Team
 
-import os
-import sys
 import logging
+import os
 import subprocess as sp
+import sys
 from distutils.command.build_ext import build_ext
 
 log = logging.getLogger(__name__)

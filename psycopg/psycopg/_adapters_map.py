@@ -6,16 +6,16 @@ Mapping from types/oids to Dumpers/Loaders
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
 from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, cast
 
 from . import errors as e
 from . import pq
-from .abc import Dumper, Loader
-from ._enums import PyFormat as PyFormat
-from ._compat import TypeVar
 from ._cmodule import _psycopg
+from ._compat import TypeVar
+from ._enums import PyFormat as PyFormat
 from ._typeinfo import TypesRegistry
+from .abc import Dumper, Loader
 
 if TYPE_CHECKING:
     from ._connection_base import BaseConnection

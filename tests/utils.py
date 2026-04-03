@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-import re
-import sys
 import asyncio
 import operator
+import re
 import selectors
+import sys
 import sysconfig
-from typing import Any
-from contextlib import contextmanager
 from collections.abc import Callable
+from contextlib import contextmanager
+from typing import Any
 
 import pytest
 
