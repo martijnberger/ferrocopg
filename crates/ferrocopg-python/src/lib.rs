@@ -70,10 +70,25 @@ struct SendGenerator {
     state: SendState,
 }
 
+#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+struct FetchGenerator {
+    pgconn: Py<PyAny>,
+    wait_r: Py<PyAny>,
+    state: FetchState,
+}
+
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum SendState {
     StartOrFlush,
     AwaitReady,
+    Done,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum FetchState {
+    Start,
+    AwaitReady,
+    ConsumeInput,
     Done,
 }
 
@@ -213,6 +228,18 @@ fn send(py: Python<'_>, pgconn: &Bound<'_, PyAny>) -> PyResult<SendGenerator> {
         wait_rw,
         ready_r,
         state: SendState::StartOrFlush,
+    })
+}
+
+#[pyfunction]
+fn fetch(py: Python<'_>, pgconn: &Bound<'_, PyAny>) -> PyResult<FetchGenerator> {
+    let waiting = py.import("psycopg.waiting")?;
+    let wait_r = waiting.getattr("WAIT_R")?.unbind();
+
+    Ok(FetchGenerator {
+        pgconn: pgconn.clone().unbind(),
+        wait_r,
+        state: FetchState::Start,
     })
 }
 
@@ -403,6 +430,7 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<BackendConninfoSummary>()?;
     m.add_class::<BackendConnectPlan>()?;
     m.add_class::<SendGenerator>()?;
+    m.add_class::<FetchGenerator>()?;
     m.add_function(wrap_pyfunction!(milestone, m)?)?;
     m.add_function(wrap_pyfunction!(scaffold_status, m)?)?;
     m.add_function(wrap_pyfunction!(backend_stack, m)?)?;
@@ -412,6 +440,7 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(format_row_text, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_binary, m)?)?;
     m.add_function(wrap_pyfunction!(send, m)?)?;
+    m.add_function(wrap_pyfunction!(fetch, m)?)?;
     m.add_function(wrap_pyfunction!(parse_row_text, m)?)?;
     m.add_function(wrap_pyfunction!(parse_row_binary, m)?)?;
     m.add_function(wrap_pyfunction!(wait_c, m)?)?;
@@ -420,6 +449,21 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[pymethods]
 impl SendGenerator {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        self.advance(py, None)
+    }
+
+    fn send(&mut self, py: Python<'_>, ready: Option<i32>) -> PyResult<Py<PyAny>> {
+        self.advance(py, ready)
+    }
+}
+
+#[pymethods]
+impl FetchGenerator {
     fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
@@ -522,6 +566,65 @@ impl SendGenerator {
                 }
             }
         }
+    }
+}
+
+impl FetchGenerator {
+    fn advance(&mut self, py: Python<'_>, ready: Option<i32>) -> PyResult<Py<PyAny>> {
+        loop {
+            match self.state {
+                FetchState::Done => {
+                    return Err(PyStopIteration::new_err((py.None(),)));
+                }
+                FetchState::Start => {
+                    let busy = self
+                        .pgconn
+                        .bind(py)
+                        .call_method0("is_busy")?
+                        .extract::<bool>()?;
+                    if busy {
+                        self.state = FetchState::AwaitReady;
+                        return Ok(self.wait_r.clone_ref(py));
+                    }
+
+                    let result = self.finish(py)?;
+                    self.state = FetchState::Done;
+                    return Err(PyStopIteration::new_err((result,)));
+                }
+                FetchState::AwaitReady => {
+                    if ready.unwrap_or_default() == 0 {
+                        return Ok(self.wait_r.clone_ref(py));
+                    }
+                    self.state = FetchState::ConsumeInput;
+                }
+                FetchState::ConsumeInput => {
+                    self.pgconn.bind(py).call_method0("consume_input")?;
+                    let busy = self
+                        .pgconn
+                        .bind(py)
+                        .call_method0("is_busy")?
+                        .extract::<bool>()?;
+                    if busy {
+                        self.state = FetchState::AwaitReady;
+                        return Ok(self.wait_r.clone_ref(py));
+                    }
+
+                    let result = self.finish(py)?;
+                    self.state = FetchState::Done;
+                    return Err(PyStopIteration::new_err((result,)));
+                }
+            }
+        }
+    }
+
+    fn finish(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        py.import("psycopg.generators")?
+            .getattr("_consume_notifies")?
+            .call1((self.pgconn.bind(py),))?;
+        self.pgconn
+            .bind(py)
+            .call_method0("get_result")
+            .map(Bound::unbind)
     }
 }
 
