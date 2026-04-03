@@ -106,7 +106,6 @@ sqlite_cache = false
 [[tool.mypy.overrides]]
 module = [
     "numpy.*",
-    "polib",
     "shapely.*",
 ]
 ignore_missing_imports = true
@@ -114,7 +113,6 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = [
     "tests.*",
-    "scrap.*",
 ]
 check_untyped_defs = true
 disallow_untyped_defs = false
@@ -137,6 +135,8 @@ ignore = ["E203", "E501"]
 "tests/crdb/test_copy.py" = ["F401"]
 "tests/test_connection.py" = ["F401"]
 "tests/test_copy.py" = ["F401"]
+"tests/test_waiting.py" = ["F401"]
+"tests/test_waiting_async.py" = ["F401"]
 "tests/test_transaction.py" = ["F401"]
 
 [tool.ruff.format]

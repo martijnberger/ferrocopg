@@ -1,6 +1,8 @@
 import importlib
 import socket
+from collections.abc import Generator
 from types import SimpleNamespace
+from typing import Any, Protocol, cast
 
 import pytest
 
@@ -22,14 +24,35 @@ class StubCopyTransformer:
         return tuple(None if item is None else bytes(item) for item in record)
 
 
-def _copy_impls() -> list[tuple[str, object]]:
-    ferrocopg = pytest.importorskip("ferrocopg_rust")
+class CopyImpl(Protocol):
+    def format_row_text(
+        self, row: tuple[object, ...] | tuple[int, ...], tx: object, out: bytearray
+    ) -> None: ...
+
+    def format_row_binary(
+        self, row: tuple[object, ...] | tuple[int, ...], tx: object, out: bytearray
+    ) -> None: ...
+
+    def parse_row_text(
+        self, data: bytearray, tx: object
+    ) -> tuple[bytes | None, ...] | tuple[object, ...]: ...
+
+    def parse_row_binary(
+        self, data: bytearray, tx: object
+    ) -> tuple[bytes | None, ...] | tuple[object, ...]: ...
+
+
+def _copy_impls() -> list[tuple[str, CopyImpl]]:
+    ferrocopg = cast(CopyImpl, pytest.importorskip("ferrocopg_rust"))
     copy_base = importlib.import_module("psycopg._copy_base")
-    python_impl = SimpleNamespace(
-        format_row_text=copy_base._format_row_text,
-        format_row_binary=copy_base._format_row_binary,
-        parse_row_text=_expected_text_row,
-        parse_row_binary=copy_base._parse_row_binary,
+    python_impl = cast(
+        CopyImpl,
+        SimpleNamespace(
+            format_row_text=copy_base._format_row_text,
+            format_row_binary=copy_base._format_row_binary,
+            parse_row_text=_expected_text_row,
+            parse_row_binary=copy_base._parse_row_binary,
+        ),
     )
 
     return [
@@ -38,14 +61,21 @@ def _copy_impls() -> list[tuple[str, object]]:
     ]
 
 
-def _expected_text_row(data: bytearray, tx: StubCopyTransformer) -> tuple[bytes | None, ...]:
+def _expected_text_row(
+    data: bytearray, tx: StubCopyTransformer
+) -> tuple[bytes | None, ...]:
     if not tx._nfields and bytes(data) == b"\n":
         return ()
 
-    return importlib.import_module("psycopg._copy_base")._parse_row_text(data, tx)
+    return cast(
+        tuple[bytes | None, ...],
+        importlib.import_module("psycopg._copy_base")._parse_row_text(data, tx),
+    )
 
 
-def _wait_ready_gen(wait_state: int, expected_ready: int, result: str = "ok"):
+def _wait_ready_gen(
+    wait_state: int, expected_ready: int, result: str = "ok"
+) -> Generator[int, int, str]:
     ready = yield wait_state
     assert ready == expected_ready
     return result
@@ -103,7 +133,7 @@ def test_copy_binary_helpers_equivalent(adapted):
         assert impl.parse_row_binary(out, tx) == expected_row, name
 
 
-def _make_text_transformer(impl_name: str, nfields: int):
+def _make_text_transformer(impl_name: str, nfields: int) -> Any:
     pq = importlib.import_module("psycopg.pq")
     text_oid = 25
 
@@ -117,7 +147,7 @@ def _make_text_transformer(impl_name: str, nfields: int):
     return tx
 
 
-def _make_int4_binary_transformer(impl_name: str, nfields: int):
+def _make_int4_binary_transformer(impl_name: str, nfields: int) -> Any:
     pq = importlib.import_module("psycopg.pq")
     int4_oid = 23
 
@@ -143,7 +173,7 @@ def _make_int4_binary_transformer(impl_name: str, nfields: int):
 def test_copy_text_helpers_equivalent_with_cython(row):
     pytest.importorskip("ferrocopg_rust")
     importlib.import_module("psycopg")
-    cmodule = pytest.importorskip("psycopg_c._psycopg")
+    cmodule = cast(CopyImpl, pytest.importorskip("psycopg_c._psycopg"))
     baseline = importlib.import_module("psycopg._copy_base")
 
     py_tx = _make_text_transformer("python", len(row))
@@ -151,7 +181,7 @@ def test_copy_text_helpers_equivalent_with_cython(row):
     baseline._format_row_text(row, py_tx, expected_out)
     expected_row = () if not row else baseline._parse_row_text(expected_out, py_tx)
 
-    rust = importlib.import_module("ferrocopg_rust")
+    rust = cast(CopyImpl, importlib.import_module("ferrocopg_rust"))
     for name, impl in [("rust", rust), ("c", cmodule)]:
         tx = _make_text_transformer(name, len(row))
         out = bytearray()
@@ -173,7 +203,7 @@ def test_copy_text_helpers_equivalent_with_cython(row):
 def test_copy_binary_helpers_equivalent_with_cython(row):
     pytest.importorskip("ferrocopg_rust")
     importlib.import_module("psycopg")
-    cmodule = pytest.importorskip("psycopg_c._psycopg")
+    cmodule = cast(CopyImpl, pytest.importorskip("psycopg_c._psycopg"))
     baseline = importlib.import_module("psycopg._copy_base")
 
     py_tx = _make_int4_binary_transformer("python", len(row))
@@ -181,7 +211,7 @@ def test_copy_binary_helpers_equivalent_with_cython(row):
     baseline._format_row_binary(row, py_tx, expected_out)
     expected_row = baseline._parse_row_binary(expected_out, py_tx)
 
-    rust = importlib.import_module("ferrocopg_rust")
+    rust = cast(CopyImpl, importlib.import_module("ferrocopg_rust"))
     for name, impl in [("rust", rust), ("c", cmodule)]:
         tx = _make_int4_binary_transformer(name, len(row))
         out = bytearray()
