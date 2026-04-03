@@ -105,6 +105,11 @@ pub struct StatementDescription {
     pub columns: Vec<StatementColumn>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecuteResult {
+    pub rows_affected: u64,
+}
+
 pub struct SyncNoTlsSession {
     client: Option<postgres::Client>,
 }
@@ -115,6 +120,7 @@ pub enum ProbeError {
     NoTlsNotSupported,
     Connect(postgres::Error),
     Query(postgres::Error),
+    BadParam(String),
     Closed,
 }
 
@@ -130,6 +136,7 @@ impl fmt::Display for ProbeError {
             }
             Self::Connect(err) => write!(f, "{err}"),
             Self::Query(err) => write!(f, "{err}"),
+            Self::BadParam(msg) => write!(f, "{msg}"),
             Self::Closed => write!(f, "backend session is closed"),
         }
     }
@@ -141,6 +148,7 @@ impl Error for ProbeError {
             Self::Parse(err) => Some(err),
             Self::Connect(err) => Some(err),
             Self::Query(err) => Some(err),
+            Self::BadParam(_) => None,
             Self::NoTlsNotSupported => None,
             Self::Closed => None,
         }
@@ -251,6 +259,15 @@ pub fn describe_text_no_tls(
     config.describe_text_no_tls(query)
 }
 
+pub fn execute_text_params_no_tls(
+    conninfo: &str,
+    query: &str,
+    params: &[Option<String>],
+) -> Result<ExecuteResult, ProbeError> {
+    let config = BootstrapConfig::parse(conninfo).map_err(ProbeError::Parse)?;
+    config.execute_text_params_no_tls(query, params)
+}
+
 impl BootstrapConfig {
     pub fn connect_plan(&self) -> ConnectPlan {
         let summary = self.summary();
@@ -355,6 +372,15 @@ impl BootstrapConfig {
         self.connect_no_tls_session()?.describe_text(query)
     }
 
+    pub fn execute_text_params_no_tls(
+        &self,
+        query: &str,
+        params: &[Option<String>],
+    ) -> Result<ExecuteResult, ProbeError> {
+        self.connect_no_tls_session()?
+            .execute_text_params(query, params)
+    }
+
     pub fn connect_no_tls_session(&self) -> Result<SyncNoTlsSession, ProbeError> {
         if !self.connect_plan().can_bootstrap_with_no_tls {
             return Err(ProbeError::NoTlsNotSupported);
@@ -424,10 +450,15 @@ impl SyncNoTlsSession {
         query: &str,
         params: &[Option<String>],
     ) -> Result<TextQueryResult, ProbeError> {
-        let params = typed_text_query_params(params);
+        let statement = self
+            .client_mut()?
+            .prepare(query)
+            .map_err(ProbeError::Query)?;
+        let params = parsed_query_params(&statement, params)?;
+        let refs = query_param_refs(&params);
         let rows = self
             .client_mut()?
-            .query_typed(query, &params)
+            .query(&statement, &refs)
             .map_err(ProbeError::Query)?;
         text_query_result(rows)
     }
@@ -459,6 +490,24 @@ impl SyncNoTlsSession {
         })
     }
 
+    pub fn execute_text_params(
+        &mut self,
+        query: &str,
+        params: &[Option<String>],
+    ) -> Result<ExecuteResult, ProbeError> {
+        let statement = self
+            .client_mut()?
+            .prepare(query)
+            .map_err(ProbeError::Query)?;
+        let params = parsed_query_params(&statement, params)?;
+        let refs = query_param_refs(&params);
+        let rows_affected = self
+            .client_mut()?
+            .execute(&statement, &refs)
+            .map_err(ProbeError::Query)?;
+        Ok(ExecuteResult { rows_affected })
+    }
+
     fn client_mut(&mut self) -> Result<&mut postgres::Client, ProbeError> {
         self.client.as_mut().ok_or(ProbeError::Closed)
     }
@@ -471,11 +520,115 @@ fn normalize_connect_timeout(timeout_seconds: Option<u64>) -> u64 {
     }
 }
 
-fn typed_text_query_params(params: &[Option<String>]) -> Vec<(&(dyn ToSql + Sync), Type)> {
-    params
+fn query_param_refs(params: &[Box<dyn ToSql + Sync>]) -> Vec<&(dyn ToSql + Sync)> {
+    params.iter().map(|value| value.as_ref()).collect()
+}
+
+fn parsed_query_params(
+    statement: &postgres::Statement,
+    params: &[Option<String>],
+) -> Result<Vec<Box<dyn ToSql + Sync>>, ProbeError> {
+    let expected = statement.params();
+    if expected.len() != params.len() {
+        return Err(ProbeError::BadParam(format!(
+            "expected {} params but got {}",
+            expected.len(),
+            params.len()
+        )));
+    }
+
+    expected
         .iter()
-        .map(|value| (value as &(dyn ToSql + Sync), Type::TEXT))
+        .zip(params.iter())
+        .enumerate()
+        .map(|(index, (ty, value))| parse_query_param(index, ty, value))
         .collect()
+}
+
+fn parse_query_param(
+    index: usize,
+    ty: &Type,
+    value: &Option<String>,
+) -> Result<Box<dyn ToSql + Sync>, ProbeError> {
+    match value {
+        None => parse_null_query_param(index, ty),
+        Some(value) => parse_text_query_param(index, ty, value),
+    }
+}
+
+fn parse_null_query_param(index: usize, ty: &Type) -> Result<Box<dyn ToSql + Sync>, ProbeError> {
+    Ok(match *ty {
+        Type::BOOL => Box::new(Option::<bool>::None),
+        Type::INT2 => Box::new(Option::<i16>::None),
+        Type::INT4 => Box::new(Option::<i32>::None),
+        Type::INT8 => Box::new(Option::<i64>::None),
+        Type::OID => Box::new(Option::<u32>::None),
+        Type::FLOAT4 => Box::new(Option::<f32>::None),
+        Type::FLOAT8 => Box::new(Option::<f64>::None),
+        Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::NAME | Type::UNKNOWN => {
+            Box::new(Option::<String>::None)
+        }
+        _ => {
+            return Err(ProbeError::BadParam(format!(
+                "unsupported null parameter type at ${}: {}",
+                index + 1,
+                ty.name()
+            )));
+        }
+    })
+}
+
+fn parse_text_query_param(
+    index: usize,
+    ty: &Type,
+    value: &str,
+) -> Result<Box<dyn ToSql + Sync>, ProbeError> {
+    Ok(match *ty {
+        Type::BOOL => Box::new(parse_bool_param(index, value)?),
+        Type::INT2 => Box::new(parse_numeric_param::<i16>(index, ty, value)?),
+        Type::INT4 => Box::new(parse_numeric_param::<i32>(index, ty, value)?),
+        Type::INT8 => Box::new(parse_numeric_param::<i64>(index, ty, value)?),
+        Type::OID => Box::new(parse_numeric_param::<u32>(index, ty, value)?),
+        Type::FLOAT4 => Box::new(parse_numeric_param::<f32>(index, ty, value)?),
+        Type::FLOAT8 => Box::new(parse_numeric_param::<f64>(index, ty, value)?),
+        Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::NAME | Type::UNKNOWN => {
+            Box::new(value.to_owned())
+        }
+        _ => {
+            return Err(ProbeError::BadParam(format!(
+                "unsupported parameter type at ${}: {}",
+                index + 1,
+                ty.name()
+            )));
+        }
+    })
+}
+
+fn parse_bool_param(index: usize, value: &str) -> Result<bool, ProbeError> {
+    match value {
+        "t" | "true" | "TRUE" | "1" => Ok(true),
+        "f" | "false" | "FALSE" | "0" => Ok(false),
+        _ => Err(ProbeError::BadParam(format!(
+            "invalid boolean value at ${}: {}",
+            index + 1,
+            value
+        ))),
+    }
+}
+
+fn parse_numeric_param<T>(index: usize, ty: &Type, value: &str) -> Result<T, ProbeError>
+where
+    T: std::str::FromStr,
+    T::Err: fmt::Display,
+{
+    value.parse::<T>().map_err(|err| {
+        ProbeError::BadParam(format!(
+            "invalid {} value at ${}: {} ({err})",
+            ty.name(),
+            index + 1,
+            value
+        ))
+    })
 }
 
 fn text_query_result(rows: Vec<postgres::Row>) -> Result<TextQueryResult, ProbeError> {
@@ -693,6 +846,10 @@ mod tests {
         assert!(session.closed());
         assert!(matches!(
             session.query_text("select 1"),
+            Err(ProbeError::Closed)
+        ));
+        assert!(matches!(
+            session.execute_text_params("select 1", &[]),
             Err(ProbeError::Closed)
         ));
         assert!(matches!(
