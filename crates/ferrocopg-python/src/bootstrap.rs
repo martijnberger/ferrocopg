@@ -223,6 +223,17 @@ fn query_text_no_tls(conninfo: &str, query: &str) -> PyResult<BackendTextQueryRe
 }
 
 #[pyfunction]
+fn query_text_params_no_tls(
+    conninfo: &str,
+    query: &str,
+    params: Vec<Option<String>>,
+) -> PyResult<BackendTextQueryResult> {
+    ferrocopg_postgres::query_text_params_no_tls(conninfo, query, &params)
+        .map(BackendTextQueryResult::from)
+        .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+}
+
+#[pyfunction]
 fn describe_text_no_tls(conninfo: &str, query: &str) -> PyResult<BackendStatementDescription> {
     ferrocopg_postgres::describe_text_no_tls(conninfo, query)
         .map(BackendStatementDescription::from)
@@ -423,6 +434,23 @@ impl BackendSyncNoTlsSession {
             .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
     }
 
+    fn query_text_params(
+        &self,
+        query: &str,
+        params: Vec<Option<String>>,
+    ) -> PyResult<BackendTextQueryResult> {
+        self.inner
+            .lock()
+            .map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    "backend session mutex is poisoned",
+                )
+            })?
+            .query_text_params(query, &params)
+            .map(BackendTextQueryResult::from)
+            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    }
+
     fn describe_text(&self, query: &str) -> PyResult<BackendStatementDescription> {
         self.inner
             .lock()
@@ -457,6 +485,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_connect_target, m)?)?;
     m.add_function(wrap_pyfunction!(probe_connect_no_tls, m)?)?;
     m.add_function(wrap_pyfunction!(query_text_no_tls, m)?)?;
+    m.add_function(wrap_pyfunction!(query_text_params_no_tls, m)?)?;
     m.add_function(wrap_pyfunction!(describe_text_no_tls, m)?)?;
     m.add_function(wrap_pyfunction!(connect_no_tls_session, m)?)?;
     Ok(())
