@@ -18,3 +18,8 @@ dist/
 wheelhouse/
 build/
 scrap/
+target/
+.maturin/
+
+uv.lock
+target/

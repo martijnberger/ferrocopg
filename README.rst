@@ -63,17 +63,24 @@ You can create a local virtualenv and install the packages `in
 development mode`__, together with their development and testing
 requirements::
 
-    python -m venv .venv
+    uv venv
     source .venv/bin/activate
 
     # Install the base Psycopg package in editable mode
-    pip install --config-settings editable_mode=strict -e "./psycopg[dev,test]"
+    uv pip install --config-settings editable_mode=strict -e "./psycopg[dev,test]"
 
     # Install the connection pool package in editable mode
-    pip install --config-settings editable_mode=strict -e ./psycopg_pool
+    uv pip install --config-settings editable_mode=strict -e ./psycopg_pool
 
     # Install the C speedup extension
-    pip install ./psycopg_c
+    uv pip install ./psycopg_c
+
+The repository is also starting the ``ferrocopg`` Rust port. The initial Rust
+extension scaffold lives in ``crates/ferrocopg-python`` and can be installed
+into the active environment using::
+
+    uv run --with maturin maturin develop \
+        --manifest-path crates/ferrocopg-python/Cargo.toml
 
 .. __: https://pip.pypa.io/en/stable/topics/local-project-installs/#editable-installs
 

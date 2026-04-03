@@ -47,3 +47,9 @@ repos:
         language: system
         entry: cython-lint
         files: \.(pxd|pyx)$
+
+      - id: cargo-fmt
+        name: cargo fmt
+        language: system
+        entry: cargo fmt --all --check
+        files: \.rs$
