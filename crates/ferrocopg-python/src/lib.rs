@@ -26,6 +26,32 @@ struct BackendConninfoSummary {
     effective_connect_timeout_seconds: u64,
 }
 
+#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+struct BackendConnectPlan {
+    #[pyo3(get)]
+    backend_stack: String,
+    #[pyo3(get)]
+    sync_client: String,
+    #[pyo3(get)]
+    async_client: String,
+    #[pyo3(get)]
+    sync_runtime: String,
+    #[pyo3(get)]
+    async_runtime: String,
+    #[pyo3(get)]
+    tls_mode: String,
+    #[pyo3(get)]
+    tls_negotiation: String,
+    #[pyo3(get)]
+    tls_connector_hint: String,
+    #[pyo3(get)]
+    can_bootstrap_with_no_tls: bool,
+    #[pyo3(get)]
+    requires_external_tls_connector: bool,
+    #[pyo3(get)]
+    summary: BackendConninfoSummary,
+}
+
 #[pyfunction]
 fn milestone() -> &'static str {
     "milestone-1-bootstrap"
@@ -53,6 +79,13 @@ fn parse_conninfo_summary(conninfo: &str) -> PyResult<BackendConninfoSummary> {
         .map_err(|err| PyErr::new::<PyValueError, _>(err.to_string()))
 }
 
+#[pyfunction]
+fn parse_connect_plan(conninfo: &str) -> PyResult<BackendConnectPlan> {
+    ferrocopg_postgres::connect_plan(conninfo)
+        .map(BackendConnectPlan::from)
+        .map_err(|err| PyErr::new::<PyValueError, _>(err.to_string()))
+}
+
 impl From<ferrocopg_postgres::ConninfoSummary> for BackendConninfoSummary {
     fn from(summary: ferrocopg_postgres::ConninfoSummary) -> Self {
         Self {
@@ -69,14 +102,34 @@ impl From<ferrocopg_postgres::ConninfoSummary> for BackendConninfoSummary {
     }
 }
 
+impl From<ferrocopg_postgres::ConnectPlan> for BackendConnectPlan {
+    fn from(plan: ferrocopg_postgres::ConnectPlan) -> Self {
+        Self {
+            backend_stack: plan.backend_stack.to_owned(),
+            sync_client: plan.sync_client.to_owned(),
+            async_client: plan.async_client.to_owned(),
+            sync_runtime: plan.sync_runtime.to_owned(),
+            async_runtime: plan.async_runtime.to_owned(),
+            tls_mode: plan.tls_mode.to_owned(),
+            tls_negotiation: plan.tls_negotiation.to_owned(),
+            tls_connector_hint: plan.tls_connector_hint.to_owned(),
+            can_bootstrap_with_no_tls: plan.can_bootstrap_with_no_tls,
+            requires_external_tls_connector: plan.requires_external_tls_connector,
+            summary: plan.summary.into(),
+        }
+    }
+}
+
 #[pymodule]
 fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", VERSION)?;
     m.add_class::<BackendConninfoSummary>()?;
+    m.add_class::<BackendConnectPlan>()?;
     m.add_function(wrap_pyfunction!(milestone, m)?)?;
     m.add_function(wrap_pyfunction!(scaffold_status, m)?)?;
     m.add_function(wrap_pyfunction!(backend_stack, m)?)?;
     m.add_function(wrap_pyfunction!(backend_core, m)?)?;
     m.add_function(wrap_pyfunction!(parse_conninfo_summary, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_connect_plan, m)?)?;
     Ok(())
 }
