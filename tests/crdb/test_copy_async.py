@@ -9,9 +9,9 @@ from psycopg.types.numeric import Int4
 from psycopg import errors as e
 from psycopg import pq, sql
 
-from .._test_copy import (
+from .._test_copy import (  # noqa: F401
     ensure_table_async,
-    sample_binary,  # noqa: F401
+    sample_binary,
     sample_records,
     sample_text,
 )

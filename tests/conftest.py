@@ -10,13 +10,20 @@ from typing import Any
 import pytest
 
 
+def _has_in_place_psycopg_c_build(repo_root: Path) -> bool:
+    package_root = repo_root / "psycopg_c" / "psycopg_c"
+    patterns = ("pq*.so", "pq*.pyd")
+    return any(package_root.glob(pattern) for pattern in patterns)
+
+
 def _bootstrap_repo_packages() -> None:
     repo_root = Path(__file__).resolve().parent.parent
     package_roots = [
         repo_root / "psycopg",
-        repo_root / "psycopg_c",
         repo_root / "psycopg_pool",
     ]
+    if _has_in_place_psycopg_c_build(repo_root):
+        package_roots.append(repo_root / "psycopg_c")
 
     repo_paths = [str(path) for path in package_roots if path.exists()]
     for path in reversed(repo_paths):

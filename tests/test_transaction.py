@@ -8,10 +8,11 @@ import pytest
 from psycopg import Rollback, pq
 from psycopg import errors as e
 
+# noqa: F401  # autouse fixture
 from ._test_transaction import (
     ExpectedException,
     crdb_skip_external_observer,
-    create_test_table,  # noqa  # autouse fixture
+    create_test_table,
     get_exc_info,
     in_transaction,
     insert_row,

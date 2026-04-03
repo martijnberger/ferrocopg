@@ -12,12 +12,8 @@ from psycopg.types.numeric import Int4
 from psycopg import errors as e
 from psycopg import pq, sql
 
-from .._test_copy import (
-    ensure_table,
-    sample_binary,  # noqa: F401
-    sample_records,
-    sample_text,
-)
+# noqa: F401
+from .._test_copy import ensure_table, sample_binary, sample_records, sample_text
 from .._test_copy import sample_tabledef as sample_tabledef_pg
 from ..utils import eur
 

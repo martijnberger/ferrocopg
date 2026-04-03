@@ -2,73 +2,76 @@
 
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COMPOSE_FILE="$ROOT_DIR/tools/docker-compose.test-db.yml"
-
-PORT="${FERROCOPG_TEST_DB_PORT:-55432}"
+CONTAINER_NAME="${FERROCOPG_TEST_DB_CONTAINER:-postgres}"
+PORT="${FERROCOPG_TEST_DB_PORT:-5432}"
 USER_NAME="${FERROCOPG_TEST_DB_USER:-postgres}"
-PASSWORD="${FERROCOPG_TEST_DB_PASSWORD:-postgres}"
-DB_NAME="${FERROCOPG_TEST_DB_NAME:-psycopg_test}"
+PASSWORD="${FERROCOPG_TEST_DB_PASSWORD:-password}"
+DB_NAME="${FERROCOPG_TEST_DB_NAME:-postgres}"
 HOST_NAME="${FERROCOPG_TEST_DB_HOST:-127.0.0.1}"
 
 default_image() {
-  case "$(uname -m)" in
-    arm64|aarch64)
-      printf '%s\n' "nickblah/postgis:17-postgis-3.6"
-      ;;
-    *)
-      printf '%s\n' "postgis/postgis:17-3.5"
-      ;;
-  esac
+  printf '%s\n' "postgres:17"
 }
 
 IMAGE_NAME="${FERROCOPG_TEST_DB_IMAGE:-$(default_image)}"
-export FERROCOPG_TEST_DB_IMAGE="$IMAGE_NAME"
-
-compose() {
-  docker compose -f "$COMPOSE_FILE" "$@"
-}
 
 dsn() {
   printf 'postgresql://%s:%s@%s:%s/%s\n' \
     "$USER_NAME" "$PASSWORD" "$HOST_NAME" "$PORT" "$DB_NAME"
 }
 
+container_exists() {
+  docker ps -a --format '{{.Names}}' | grep -Fxq "$CONTAINER_NAME"
+}
+
+remove_container() {
+  if container_exists; then
+    docker rm -f "$CONTAINER_NAME" >/dev/null
+  fi
+}
+
 wait_for_db() {
   local attempt
   for attempt in $(seq 1 60); do
-    if compose exec -T postgres pg_isready -U "$USER_NAME" -d "$DB_NAME" >/dev/null 2>&1; then
+    if docker exec "$CONTAINER_NAME" pg_isready -U "$USER_NAME" -d "$DB_NAME" >/dev/null 2>&1; then
       return 0
     fi
     sleep 1
   done
 
   echo "database did not become ready in time" >&2
-  compose ps >&2 || true
+  docker logs "$CONTAINER_NAME" >&2 || true
   return 1
 }
 
 cmd_start() {
-  compose up -d
+  remove_container
+  docker pull "$IMAGE_NAME"
+  docker run --rm -d --name "$CONTAINER_NAME" -p "$PORT:5432" \
+    -e "POSTGRES_USER=$USER_NAME" \
+    -e "POSTGRES_PASSWORD=$PASSWORD" \
+    -e "POSTGRES_DB=$DB_NAME" \
+    "$IMAGE_NAME" \
+    -c max_prepared_transactions=10 >/dev/null
   wait_for_db
   echo "test database is ready"
   echo "PSYCOPG_TEST_DSN=$(dsn)"
 }
 
 cmd_stop() {
-  compose down
+  remove_container
 }
 
 cmd_reset() {
-  compose down --volumes --remove-orphans
+  remove_container
 }
 
 cmd_status() {
-  compose ps
+  docker ps -a --filter "name=$CONTAINER_NAME"
 }
 
 cmd_logs() {
-  compose logs -f postgres
+  docker logs -f "$CONTAINER_NAME"
 }
 
 cmd_dsn() {
@@ -94,6 +97,7 @@ Environment overrides:
   FERROCOPG_TEST_DB_PASSWORD
   FERROCOPG_TEST_DB_NAME
   FERROCOPG_TEST_DB_IMAGE
+  FERROCOPG_TEST_DB_CONTAINER
 EOF
 }
 

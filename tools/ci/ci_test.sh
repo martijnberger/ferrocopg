@@ -19,10 +19,25 @@ for m in ${NOT_MARKERS:-}; do
     markers="$markers not $m"
 done
 
-pytest="python -bb -m pytest --color=yes"
+pytest=()
+if [[ "${PSYCOPG_USE_UV:-1}" == "1" ]]; then
+    uv_run=(uv run)
+    if [[ -n "${UV_PROJECT:-}" ]]; then
+        uv_run+=(--project "${UV_PROJECT}")
+    fi
 
-$pytest -m "$markers" "$@" && exit 0
+    lock_dir="${UV_PROJECT:-.}"
+    if [[ -f "${lock_dir}/uv.lock" ]]; then
+        uv_run+=(--locked)
+    fi
 
-$pytest -m "$markers" --lf --randomly-seed=last "$@" && exit 0
+    pytest=("${uv_run[@]}" python -bb -m pytest --color=yes)
+else
+    pytest=(python -bb -m pytest --color=yes)
+fi
 
-$pytest -m "$markers" --lf --randomly-seed=last "$@"
+"${pytest[@]}" -m "$markers" "$@" && exit 0
+
+"${pytest[@]}" -m "$markers" --lf --randomly-seed=last "$@" && exit 0
+
+"${pytest[@]}" -m "$markers" --lf --randomly-seed=last "$@"

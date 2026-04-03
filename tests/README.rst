@@ -13,6 +13,11 @@ to connect to a test database, and run ``pytest``::
     $ export PSYCOPG_TEST_DSN="$(tools/test-db dsn)"
     $ uv run pytest --test-dsn "$PSYCOPG_TEST_DSN"
 
+If you want to run the suite against the Cython backend too, add the ``c``
+dependency group before invoking ``pytest``::
+
+    $ uv sync --dev --group c --locked
+
 
 Test options
 ------------

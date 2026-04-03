@@ -322,7 +322,6 @@ def test_notify_query_notify(conn_cls, dsn, sleep_on, listen_by):
                 conn.execute("")
                 nap(conn)
                 conn.execute("")
-
     else:
 
         def listener():

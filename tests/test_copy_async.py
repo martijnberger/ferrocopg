@@ -16,11 +16,11 @@ import psycopg
 from psycopg import errors as e
 from psycopg import pq, sql
 
-from ._test_copy import (
+from ._test_copy import (  # noqa: F401
     AsyncFileWriter,
     ensure_table_async,
     py_to_raw,
-    sample_binary,  # noqa: F401
+    sample_binary,
     sample_binary_rows,
     sample_records,
     sample_tabledef,

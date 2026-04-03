@@ -1,0 +1,25 @@
+[project]
+name = "ferrocopg-pool-compat"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "psycopg-pool[test]",
+]
+
+[dependency-groups]
+psycopg32 = [
+    "psycopg<3.2",
+]
+psycopg33 = [
+    "psycopg<3.3",
+]
+
+[build-system]
+requires = ["setuptools>=49.2.0", "wheel>=0.37"]
+build-backend = "setuptools.build_meta"
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+psycopg-pool = { path = "../../../psycopg_pool", editable = true }
