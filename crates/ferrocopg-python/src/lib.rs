@@ -77,6 +77,20 @@ struct FetchGenerator {
     state: FetchState,
 }
 
+#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+struct FetchManyGenerator {
+    pgconn: Py<PyAny>,
+    current_fetch: Option<Py<PyAny>>,
+    results: Vec<Py<PyAny>>,
+    copy_in: i32,
+    copy_out: i32,
+    copy_both: i32,
+    pipeline_sync: i32,
+    fatal_error: i32,
+    has_fatal_result: bool,
+    state: FetchManyState,
+}
+
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum SendState {
     StartOrFlush,
@@ -89,6 +103,14 @@ enum FetchState {
     Start,
     AwaitReady,
     ConsumeInput,
+    Done,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum FetchManyState {
+    StartFetch,
+    PollFetchNext,
+    PollFetchSend,
     Done,
 }
 
@@ -240,6 +262,24 @@ fn fetch(py: Python<'_>, pgconn: &Bound<'_, PyAny>) -> PyResult<FetchGenerator> 
         pgconn: pgconn.clone().unbind(),
         wait_r,
         state: FetchState::Start,
+    })
+}
+
+#[pyfunction]
+fn fetch_many(py: Python<'_>, pgconn: &Bound<'_, PyAny>) -> PyResult<FetchManyGenerator> {
+    let exec_status = py.import("psycopg.pq")?.getattr("ExecStatus")?;
+
+    Ok(FetchManyGenerator {
+        pgconn: pgconn.clone().unbind(),
+        current_fetch: None,
+        results: Vec::new(),
+        copy_in: exec_status.getattr("COPY_IN")?.extract::<i32>()?,
+        copy_out: exec_status.getattr("COPY_OUT")?.extract::<i32>()?,
+        copy_both: exec_status.getattr("COPY_BOTH")?.extract::<i32>()?,
+        pipeline_sync: exec_status.getattr("PIPELINE_SYNC")?.extract::<i32>()?,
+        fatal_error: exec_status.getattr("FATAL_ERROR")?.extract::<i32>()?,
+        has_fatal_result: false,
+        state: FetchManyState::StartFetch,
     })
 }
 
@@ -431,6 +471,7 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<BackendConnectPlan>()?;
     m.add_class::<SendGenerator>()?;
     m.add_class::<FetchGenerator>()?;
+    m.add_class::<FetchManyGenerator>()?;
     m.add_function(wrap_pyfunction!(milestone, m)?)?;
     m.add_function(wrap_pyfunction!(scaffold_status, m)?)?;
     m.add_function(wrap_pyfunction!(backend_stack, m)?)?;
@@ -441,6 +482,7 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(format_row_binary, m)?)?;
     m.add_function(wrap_pyfunction!(send, m)?)?;
     m.add_function(wrap_pyfunction!(fetch, m)?)?;
+    m.add_function(wrap_pyfunction!(fetch_many, m)?)?;
     m.add_function(wrap_pyfunction!(parse_row_text, m)?)?;
     m.add_function(wrap_pyfunction!(parse_row_binary, m)?)?;
     m.add_function(wrap_pyfunction!(wait_c, m)?)?;
@@ -464,6 +506,21 @@ impl SendGenerator {
 
 #[pymethods]
 impl FetchGenerator {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        self.advance(py, None)
+    }
+
+    fn send(&mut self, py: Python<'_>, ready: Option<i32>) -> PyResult<Py<PyAny>> {
+        self.advance(py, ready)
+    }
+}
+
+#[pymethods]
+impl FetchManyGenerator {
     fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
@@ -625,6 +682,97 @@ impl FetchGenerator {
             .bind(py)
             .call_method0("get_result")
             .map(Bound::unbind)
+    }
+}
+
+impl FetchManyGenerator {
+    fn advance(&mut self, py: Python<'_>, ready: Option<i32>) -> PyResult<Py<PyAny>> {
+        loop {
+            match self.state {
+                FetchManyState::Done => {
+                    return Err(PyStopIteration::new_err((self.finish_results(py)?,)));
+                }
+                FetchManyState::StartFetch => {
+                    let fetch_gen = Py::new(py, fetch(py, self.pgconn.bind(py))?)?;
+                    self.current_fetch = Some(fetch_gen.into_any());
+                    self.state = FetchManyState::PollFetchNext;
+                }
+                FetchManyState::PollFetchNext => {
+                    let Some(current_fetch) = self.current_fetch.as_ref() else {
+                        self.state = FetchManyState::Done;
+                        continue;
+                    };
+                    match current_fetch.bind(py).call_method0("__next__") {
+                        Ok(wait) => {
+                            self.state = FetchManyState::PollFetchSend;
+                            return Ok(wait.unbind());
+                        }
+                        Err(err) => return self.handle_fetch_error(py, err),
+                    }
+                }
+                FetchManyState::PollFetchSend => {
+                    let Some(current_fetch) = self.current_fetch.as_ref() else {
+                        self.state = FetchManyState::Done;
+                        continue;
+                    };
+                    match current_fetch.bind(py).call_method1("send", (ready,)) {
+                        Ok(wait) => return Ok(wait.unbind()),
+                        Err(err) => return self.handle_fetch_error(py, err),
+                    }
+                }
+            }
+        }
+    }
+
+    fn handle_fetch_error(&mut self, py: Python<'_>, err: PyErr) -> PyResult<Py<PyAny>> {
+        if err.is_instance_of::<PyStopIteration>(py) {
+            let value = err
+                .value(py)
+                .getattr("value")
+                .map(Bound::unbind)
+                .unwrap_or_else(|_| py.None());
+            self.current_fetch = None;
+
+            if value.bind(py).is_none() {
+                self.state = FetchManyState::Done;
+                return Err(PyStopIteration::new_err((self.finish_results(py)?,)));
+            }
+
+            let status = value.bind(py).getattr("status")?.extract::<i32>()?;
+            if status == self.fatal_error {
+                self.has_fatal_result = true;
+            }
+            self.results.push(value.clone_ref(py));
+
+            if status == self.copy_in
+                || status == self.copy_out
+                || status == self.copy_both
+                || status == self.pipeline_sync
+            {
+                self.state = FetchManyState::Done;
+                return Err(PyStopIteration::new_err((self.finish_results(py)?,)));
+            }
+
+            self.state = FetchManyState::StartFetch;
+            return self.advance(py, None);
+        }
+
+        let errors = py.import("psycopg.errors")?;
+        let database_error = errors.getattr("DatabaseError")?;
+        if err.is_instance(py, &database_error) && self.has_fatal_result {
+            self.state = FetchManyState::Done;
+            return Err(PyStopIteration::new_err((self.finish_results(py)?,)));
+        }
+
+        Err(err)
+    }
+
+    fn finish_results(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let list = PyList::empty(py);
+        for result in &self.results {
+            list.append(result.bind(py))?;
+        }
+        Ok(list.unbind().into_any())
     }
 }
 
