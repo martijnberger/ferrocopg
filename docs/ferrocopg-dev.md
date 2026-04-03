@@ -41,6 +41,20 @@ You can then smoke test the import:
 python -c "import ferrocopg_rust; print(ferrocopg_rust.milestone())"
 ```
 
+You can also inspect how the Rust backend currently parses conninfo:
+
+```bash
+python - <<'PY'
+import ferrocopg_rust
+
+summary = ferrocopg_rust.parse_conninfo_summary(
+    "host=localhost dbname=postgres user=postgres connect_timeout=1"
+)
+print(summary.user, summary.dbname, summary.host_count)
+print(summary.effective_connect_timeout_seconds)
+PY
+```
+
 ## Scope of the scaffold
 
 The bootstrap extension is intentionally small. It proves:
@@ -49,6 +63,7 @@ The bootstrap extension is intentionally small. It proves:
 - the `maturin` integration path
 - the Python import path for future `ferrocopg` acceleration work
 - the initial backend direction via the `rust-postgres` stack
+- a first real backend-facing parser around `tokio-postgres::Config`
 
 The next implementation slice should attach a narrow real helper behind this
 package, then begin replacing pieces of `_psycopg`.
