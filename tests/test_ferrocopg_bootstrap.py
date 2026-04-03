@@ -3,6 +3,7 @@ import socket
 import uuid
 from collections import deque
 from collections.abc import Callable, Generator
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, Protocol, cast
@@ -135,6 +136,38 @@ class NumericImpl(Protocol):
     def numeric_load_text(self, data: object) -> object: ...
 
     def numeric_load_binary(self, data: object) -> object: ...
+
+
+class DateTimeImpl(Protocol):
+    def date_dump_text(self, obj: object) -> object: ...
+
+    def date_dump_binary(self, obj: object) -> object: ...
+
+    def date_load_binary(self, data: object) -> object: ...
+
+    def time_dump_text(self, obj: object) -> object: ...
+
+    def time_dump_binary(self, obj: object) -> object: ...
+
+    def time_load_binary(self, data: object) -> object: ...
+
+    def timetz_dump_binary(self, obj: object) -> object: ...
+
+    def timetz_load_binary(self, data: object) -> object: ...
+
+    def datetime_dump_text(self, obj: object) -> object: ...
+
+    def datetime_dump_binary(self, obj: object) -> object: ...
+
+    def datetime_notz_dump_binary(self, obj: object) -> object: ...
+
+    def timestamp_load_binary(self, data: object) -> object: ...
+
+    def timestamptz_load_binary(self, data: object, timezone_obj: object) -> object: ...
+
+    def timedelta_dump_binary(self, obj: object) -> object: ...
+
+    def interval_load_binary(self, data: object) -> object: ...
 
 
 def _copy_impls() -> list[tuple[str, CopyImpl]]:
@@ -739,6 +772,71 @@ def _numeric_impls() -> list[tuple[str, NumericImpl]]:
             dump_int_to_numeric_binary=numeric_mod.dump_int_to_numeric_binary,
             numeric_load_text=lambda data: Decimal(bytes(data).decode()),
             numeric_load_binary=python_numeric_load_binary,
+        ),
+    )
+    return [("python", python_impl), ("rust", ferrocopg)]
+
+
+def _datetime_impls() -> list[tuple[str, DateTimeImpl]]:
+    ferrocopg = cast(DateTimeImpl, pytest.importorskip("ferrocopg_rust"))
+    dt_mod = cast(Any, importlib.import_module("psycopg.types.datetime"))
+
+    def without_rpsycopg(func: Callable[[], object]) -> object:
+        original = dt_mod._rpsycopg
+        dt_mod._rpsycopg = None
+        try:
+            return func()
+        finally:
+            dt_mod._rpsycopg = original
+
+    def timestamptz_load_binary(data: object, timezone_obj: object) -> object:
+        def load() -> object:
+            loader = dt_mod.TimestamptzBinaryLoader(0)
+            loader._timezone = timezone_obj
+            return loader.load(data)
+
+        return without_rpsycopg(load)
+
+    python_impl = cast(
+        DateTimeImpl,
+        SimpleNamespace(
+            date_dump_text=lambda obj: str(obj).encode(),
+            date_dump_binary=lambda obj: without_rpsycopg(
+                lambda: dt_mod.DateBinaryDumper(date).dump(obj)
+            ),
+            date_load_binary=lambda data: without_rpsycopg(
+                lambda: dt_mod.DateBinaryLoader(0).load(data)
+            ),
+            time_dump_text=lambda obj: str(obj).encode(),
+            time_dump_binary=lambda obj: without_rpsycopg(
+                lambda: dt_mod.TimeBinaryDumper(time).dump(obj)
+            ),
+            time_load_binary=lambda data: without_rpsycopg(
+                lambda: dt_mod.TimeBinaryLoader(0).load(data)
+            ),
+            timetz_dump_binary=lambda obj: without_rpsycopg(
+                lambda: dt_mod.TimeTzBinaryDumper(time).dump(obj)
+            ),
+            timetz_load_binary=lambda data: without_rpsycopg(
+                lambda: dt_mod.TimetzBinaryLoader(0).load(data)
+            ),
+            datetime_dump_text=lambda obj: str(obj).encode(),
+            datetime_dump_binary=lambda obj: without_rpsycopg(
+                lambda: dt_mod.DatetimeBinaryDumper(datetime).dump(obj)
+            ),
+            datetime_notz_dump_binary=lambda obj: without_rpsycopg(
+                lambda: dt_mod.DatetimeNoTzBinaryDumper(datetime).dump(obj)
+            ),
+            timestamp_load_binary=lambda data: without_rpsycopg(
+                lambda: dt_mod.TimestampBinaryLoader(0).load(data)
+            ),
+            timestamptz_load_binary=timestamptz_load_binary,
+            timedelta_dump_binary=lambda obj: without_rpsycopg(
+                lambda: dt_mod.TimedeltaBinaryDumper(timedelta).dump(obj)
+            ),
+            interval_load_binary=lambda data: without_rpsycopg(
+                lambda: dt_mod.IntervalBinaryLoader(0).load(data)
+            ),
         ),
     )
     return [("python", python_impl), ("rust", ferrocopg)]
@@ -1803,6 +1901,166 @@ def test_numeric_helpers_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> N
     assert module.IntNumericBinaryDumper(int).dump(42) == b"int-binary"
     assert module.NumericLoader(0).load(b"12.3") == ("load-text", b"12.3")
     assert module.NumericBinaryLoader(0).load(b"payload") == ("load-binary", b"payload")
+
+
+def test_datetime_date_helpers_equivalent() -> None:
+    value = date(2024, 1, 2)
+    for name, impl in _datetime_impls():
+        assert impl.date_dump_text(value) == b"2024-01-02", name
+        payload = impl.date_dump_binary(value)
+        assert impl.date_load_binary(payload) == value, name
+
+
+def test_datetime_time_helpers_equivalent() -> None:
+    value = time(3, 4, 5, 678901)
+    for name, impl in _datetime_impls():
+        assert impl.time_dump_text(value) == b"03:04:05.678901", name
+        payload = impl.time_dump_binary(value)
+        assert impl.time_load_binary(payload) == value, name
+
+
+def test_datetime_timetz_helpers_equivalent() -> None:
+    value = time(3, 4, 5, 678901, timezone(timedelta(hours=-10, minutes=-20)))
+    for name, impl in _datetime_impls():
+        payload = impl.timetz_dump_binary(value)
+        assert impl.timetz_load_binary(payload) == value, name
+
+
+def test_datetime_timestamp_helpers_equivalent() -> None:
+    naive = datetime(2024, 1, 2, 3, 4, 5, 678901)
+    aware = datetime(2024, 1, 2, 3, 4, 5, 678901, timezone(timedelta(hours=2)))
+    target_tz = timezone.utc
+
+    for name, impl in _datetime_impls():
+        assert impl.datetime_dump_text(naive) == b"2024-01-02 03:04:05.678901", name
+        naive_payload = impl.datetime_notz_dump_binary(naive)
+        aware_payload = impl.datetime_dump_binary(aware)
+        assert impl.timestamp_load_binary(naive_payload) == naive, name
+        assert impl.timestamptz_load_binary(aware_payload, target_tz) == aware.astimezone(
+            target_tz
+        ), name
+
+
+def test_datetime_interval_helpers_equivalent() -> None:
+    value = timedelta(days=3, seconds=3661, microseconds=42)
+    for name, impl in _datetime_impls():
+        payload = impl.timedelta_dump_binary(value)
+        assert impl.interval_load_binary(payload) == value, name
+
+
+def test_datetime_helpers_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = importlib.import_module("psycopg.types.datetime")
+
+    class StubRustModule:
+        @staticmethod
+        def date_dump_text(obj: object) -> tuple[str, object]:
+            return ("date-text", obj)
+
+        @staticmethod
+        def date_dump_binary(obj: object) -> bytes:
+            return b"date-binary"
+
+        @staticmethod
+        def date_load_binary(data: object) -> tuple[str, object]:
+            return ("date-load", data)
+
+        @staticmethod
+        def time_dump_text(obj: object) -> tuple[str, object]:
+            return ("time-text", obj)
+
+        @staticmethod
+        def time_dump_binary(obj: object) -> bytes:
+            return b"time-binary"
+
+        @staticmethod
+        def time_load_binary(data: object) -> tuple[str, object]:
+            return ("time-load", data)
+
+        @staticmethod
+        def timetz_dump_binary(obj: object) -> bytes:
+            return b"timetz-binary"
+
+        @staticmethod
+        def timetz_load_binary(data: object) -> tuple[str, object]:
+            return ("timetz-load", data)
+
+        @staticmethod
+        def datetime_dump_text(obj: object) -> tuple[str, object]:
+            return ("datetime-text", obj)
+
+        @staticmethod
+        def datetime_dump_binary(obj: object) -> bytes:
+            return b"datetime-binary"
+
+        @staticmethod
+        def datetime_notz_dump_binary(obj: object) -> bytes:
+            return b"datetime-notz-binary"
+
+        @staticmethod
+        def timestamp_load_binary(data: object) -> tuple[str, object]:
+            return ("timestamp-load", data)
+
+        @staticmethod
+        def timestamptz_load_binary(data: object, timezone_obj: object) -> tuple[str, object, object]:
+            return ("timestamptz-load", data, timezone_obj)
+
+        @staticmethod
+        def timedelta_dump_binary(obj: object) -> bytes:
+            return b"interval-binary"
+
+        @staticmethod
+        def interval_load_binary(data: object) -> tuple[str, object]:
+            return ("interval-load", data)
+
+    monkeypatch.setattr(module, "_rpsycopg", StubRustModule)
+    assert module.DateDumper(date).dump(date(2024, 1, 2)) == ("date-text", date(2024, 1, 2))
+    assert module.DateBinaryDumper(date).dump(date(2024, 1, 2)) == b"date-binary"
+    assert module.DateBinaryLoader(0).load(b"x") == ("date-load", b"x")
+    assert module.TimeDumper(time).dump(time(1, 2, 3)) == ("time-text", time(1, 2, 3))
+    assert module.TimeBinaryDumper(time).dump(time(1, 2, 3)) == b"time-binary"
+    assert module.TimeBinaryLoader(0).load(b"x") == ("time-load", b"x")
+    assert (
+        module.TimeTzBinaryDumper(time).dump(time(1, 2, 3, tzinfo=timezone.utc))
+        == b"timetz-binary"
+    )
+    assert module.TimetzBinaryLoader(0).load(b"x") == ("timetz-load", b"x")
+    assert (
+        module.DatetimeDumper(datetime).dump(datetime(2024, 1, 2, 3, 4, 5))
+        == ("datetime-text", datetime(2024, 1, 2, 3, 4, 5))
+    )
+    assert (
+        module.DatetimeBinaryDumper(datetime).dump(
+            datetime(2024, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+        )
+        == b"datetime-binary"
+    )
+    assert (
+        module.DatetimeNoTzBinaryDumper(datetime).dump(datetime(2024, 1, 2, 3, 4, 5))
+        == b"datetime-notz-binary"
+    )
+    assert module.TimestampBinaryLoader(0).load(b"x") == ("timestamp-load", b"x")
+    ts_loader = module.TimestamptzBinaryLoader(0)
+    ts_loader._timezone = timezone.utc
+    assert ts_loader.load(b"x") == ("timestamptz-load", b"x", timezone.utc)
+    assert module.TimedeltaBinaryDumper(timedelta).dump(timedelta(seconds=1)) == b"interval-binary"
+    assert module.IntervalBinaryLoader(0).load(b"x") == ("interval-load", b"x")
+
+
+def test_transformer_prefers_ferrocopg_when_c_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = cast(Any, importlib.import_module("psycopg._transformer"))
+    py_transformer = importlib.import_module("psycopg._py_transformer")
+
+    class StubRustModule:
+        Transformer = object()
+
+    monkeypatch.setattr(module, "_psycopg", None)
+    monkeypatch.setattr(module, "_rpsycopg", StubRustModule)
+    monkeypatch.setattr(module, "Transformer", py_transformer.Transformer)
+
+    if module._rpsycopg and hasattr(module._rpsycopg, "Transformer"):
+        module.Transformer = module._rpsycopg.Transformer
+
+    assert module.Transformer is StubRustModule.Transformer
 
 
 def test_ferrocopg_unavailable(monkeypatch):

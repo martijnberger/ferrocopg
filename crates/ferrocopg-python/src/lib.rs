@@ -460,6 +460,265 @@ fn numeric_load_binary(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<Py<P
 }
 
 #[pyfunction]
+fn date_dump_text(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let text = obj.str()?.to_str()?.as_bytes().to_vec();
+    Ok(PyBytes::new(py, &text).unbind().into_any())
+}
+
+#[pyfunction]
+fn date_dump_binary(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let ordinal = obj.call_method0("toordinal")?.extract::<i32>()?;
+    let days = ordinal - 730120;
+    Ok(PyBytes::new(py, &days.to_be_bytes()).unbind().into_any())
+}
+
+#[pyfunction]
+fn date_load_binary(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let raw = bytes_like_to_vec(py, data)?;
+    if raw.len() != 4 {
+        return Err(PyErr::new::<PyValueError, _>(
+            "date binary payload has an invalid size",
+        ));
+    }
+    let raw_days = i32::from_be_bytes([raw[0], raw[1], raw[2], raw[3]]);
+    if raw_days == i32::MIN || raw_days == i32::MAX {
+        let errors = py.import("psycopg.errors")?;
+        let data_error = errors.getattr("DataError")?;
+        return Err(psycopg_operational_error(
+            &data_error,
+            if raw_days < 0 {
+                "date too small (before year 1)"
+            } else {
+                "date too large (after year 10K)"
+            },
+        ));
+    }
+    let days = raw_days as i64 + 730120;
+    let value = match py
+        .import("datetime")?
+        .getattr("date")?
+        .call_method1("fromordinal", (days,))
+    {
+        Ok(value) => value,
+        Err(_) => {
+            let errors = py.import("psycopg.errors")?;
+            let data_error = errors.getattr("DataError")?;
+            return Err(psycopg_operational_error(
+                &data_error,
+                if days < 1 {
+                    "date too small (before year 1)"
+                } else {
+                    "date too large (after year 10K)"
+                },
+            ));
+        }
+    };
+    Ok(value.unbind().into_any())
+}
+
+#[pyfunction]
+fn time_dump_text(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let text = obj.str()?.to_str()?.as_bytes().to_vec();
+    Ok(PyBytes::new(py, &text).unbind().into_any())
+}
+
+#[pyfunction]
+fn time_dump_binary(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let micros = time_to_micros(obj)?;
+    Ok(PyBytes::new(py, &micros.to_be_bytes()).unbind().into_any())
+}
+
+#[pyfunction]
+fn timetz_dump_binary(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let micros = time_to_micros(obj)?;
+    let offset = timezone_offset_seconds(py, obj)?;
+    let mut out = Vec::with_capacity(12);
+    out.extend_from_slice(&micros.to_be_bytes());
+    out.extend_from_slice(&(-offset).to_be_bytes());
+    Ok(PyBytes::new(py, &out).unbind().into_any())
+}
+
+#[pyfunction]
+fn time_load_binary(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let raw = bytes_like_to_vec(py, data)?;
+    if raw.len() != 8 {
+        return Err(PyErr::new::<PyValueError, _>(
+            "time binary payload has an invalid size",
+        ));
+    }
+    let value = i64::from_be_bytes(raw.try_into().expect("validated length"));
+    let (hour, minute, second, microsecond) = micros_to_time_parts(value);
+    let value =
+        match py
+            .import("datetime")?
+            .getattr("time")?
+            .call1((hour, minute, second, microsecond))
+        {
+            Ok(value) => value,
+            Err(_) => {
+                let errors = py.import("psycopg.errors")?;
+                let data_error = errors.getattr("DataError")?;
+                return Err(psycopg_operational_error(
+                    &data_error,
+                    &format!("time not supported by Python: hour={hour}"),
+                ));
+            }
+        };
+    Ok(value.unbind().into_any())
+}
+
+#[pyfunction]
+fn timetz_load_binary(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let raw = bytes_like_to_vec(py, data)?;
+    if raw.len() != 12 {
+        return Err(PyErr::new::<PyValueError, _>(
+            "timetz binary payload has an invalid size",
+        ));
+    }
+    let micros = i64::from_be_bytes(raw[..8].try_into().expect("validated length"));
+    let offset = i32::from_be_bytes(raw[8..12].try_into().expect("validated length"));
+    let (hour, minute, second, microsecond) = micros_to_time_parts(micros);
+    let dt = py.import("datetime")?;
+    let delta = dt
+        .getattr("timedelta")?
+        .call1((0, -offset, 0, 0, 0, 0, 0))?;
+    let tz = dt.getattr("timezone")?.call1((delta,))?;
+    let value = dt
+        .getattr("time")?
+        .call1((hour, minute, second, microsecond, tz))?;
+    Ok(value.unbind().into_any())
+}
+
+#[pyfunction]
+fn datetime_dump_text(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let text = obj.str()?.to_str()?.as_bytes().to_vec();
+    Ok(PyBytes::new(py, &text).unbind().into_any())
+}
+
+#[pyfunction]
+fn datetime_dump_binary(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let epoch = datetime_epoch(py, true)?;
+    let delta = obj.call_method1("__sub__", (epoch,))?;
+    let micros = timedelta_to_microseconds(&delta)?;
+    Ok(PyBytes::new(py, &micros.to_be_bytes()).unbind().into_any())
+}
+
+#[pyfunction]
+fn datetime_notz_dump_binary(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let epoch = datetime_epoch(py, false)?;
+    let delta = obj.call_method1("__sub__", (epoch,))?;
+    let micros = timedelta_to_microseconds(&delta)?;
+    Ok(PyBytes::new(py, &micros.to_be_bytes()).unbind().into_any())
+}
+
+#[pyfunction]
+fn timestamp_load_binary(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let raw = bytes_like_to_vec(py, data)?;
+    if raw.len() != 8 {
+        return Err(PyErr::new::<PyValueError, _>(
+            "timestamp binary payload has an invalid size",
+        ));
+    }
+    let micros = i64::from_be_bytes(raw.try_into().expect("validated length"));
+    let epoch = datetime_epoch(py, false)?;
+    let delta = py
+        .import("datetime")?
+        .getattr("timedelta")?
+        .call1((0, 0, micros))?;
+    let value = match epoch.call_method1("__add__", (delta,)) {
+        Ok(value) => value,
+        Err(_) => {
+            let errors = py.import("psycopg.errors")?;
+            let data_error = errors.getattr("DataError")?;
+            return Err(psycopg_operational_error(
+                &data_error,
+                if micros <= 0 {
+                    "timestamp too small (before year 1)"
+                } else {
+                    "timestamp too large (after year 10K)"
+                },
+            ));
+        }
+    };
+    Ok(value.unbind().into_any())
+}
+
+#[pyfunction]
+fn timestamptz_load_binary(
+    py: Python<'_>,
+    data: &Bound<'_, PyAny>,
+    timezone_obj: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    let raw = bytes_like_to_vec(py, data)?;
+    if raw.len() != 8 {
+        return Err(PyErr::new::<PyValueError, _>(
+            "timestamptz binary payload has an invalid size",
+        ));
+    }
+    let micros = i64::from_be_bytes(raw.try_into().expect("validated length"));
+    let epoch = datetime_epoch(py, true)?;
+    let delta = py
+        .import("datetime")?
+        .getattr("timedelta")?
+        .call1((0, 0, micros))?;
+    let value = epoch
+        .call_method1("__add__", (delta,))?
+        .call_method1("astimezone", (timezone_obj,))?;
+    Ok(value.unbind().into_any())
+}
+
+#[pyfunction]
+fn timedelta_dump_binary(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let days = obj.getattr("days")?.extract::<i32>()?;
+    let seconds = obj.getattr("seconds")?.extract::<i64>()?;
+    let micros = obj.getattr("microseconds")?.extract::<i64>()? + seconds * 1_000_000;
+    let mut out = Vec::with_capacity(16);
+    out.extend_from_slice(&micros.to_be_bytes());
+    out.extend_from_slice(&days.to_be_bytes());
+    out.extend_from_slice(&0_i32.to_be_bytes());
+    Ok(PyBytes::new(py, &out).unbind().into_any())
+}
+
+#[pyfunction]
+fn interval_load_binary(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let raw = bytes_like_to_vec(py, data)?;
+    if raw.len() != 16 {
+        return Err(PyErr::new::<PyValueError, _>(
+            "interval binary payload has an invalid size",
+        ));
+    }
+    let micros = i64::from_be_bytes(raw[..8].try_into().expect("validated length"));
+    let mut days = i32::from_be_bytes(raw[8..12].try_into().expect("validated length"));
+    let months = i32::from_be_bytes(raw[12..16].try_into().expect("validated length"));
+    if months > 0 {
+        let years = months / 12;
+        let rem = months % 12;
+        days += 365 * years + 30 * rem;
+    } else if months < 0 {
+        let abs = -months;
+        let years = abs / 12;
+        let rem = abs % 12;
+        days -= 365 * years + 30 * rem;
+    }
+    let value = match py
+        .import("datetime")?
+        .getattr("timedelta")?
+        .call1((days, 0, micros))
+    {
+        Ok(value) => value,
+        Err(err) => {
+            let errors = py.import("psycopg.errors")?;
+            let data_error = errors.getattr("DataError")?;
+            return Err(psycopg_operational_error(
+                &data_error,
+                &format!("can't parse interval: {err}"),
+            ));
+        }
+    };
+    Ok(value.unbind().into_any())
+}
+
+#[pyfunction]
 fn composite_dump_text_sequence(
     py: Python<'_>,
     seq: &Bound<'_, PyAny>,
@@ -809,25 +1068,29 @@ fn parse_row_binary(
     tx.call_method1("load_sequence", (row,)).map(Bound::unbind)
 }
 
-#[pyfunction(signature = (generator, fileno, interval=0.0))]
+#[pyfunction(signature = (generator, fileno, interval=None))]
 fn wait_c(
     py: Python<'_>,
     generator: &Bound<'_, PyAny>,
     fileno: i32,
-    interval: f64,
+    interval: Option<f64>,
 ) -> PyResult<Py<PyAny>> {
+    let interval = if let Some(interval) = interval {
+        interval
+    } else {
+        return Err(PyErr::new::<PyValueError, _>(
+            "indefinite wait not supported anymore",
+        ));
+    };
     if interval.is_nan() {
         return Err(PyErr::new::<PyValueError, _>("interval cannot be NaN"));
     }
     if interval.is_infinite() {
-        return Err(PyErr::new::<PyValueError, _>(
-            "indefinite wait not supported anymore",
-        ));
+        return Err(PyErr::new::<PyValueError, _>("interval cannot be infinite"));
     }
 
     let waiting = py.import("psycopg.waiting")?;
     let select = py.import("select")?;
-    let os = py.import("os")?;
     let errors = py.import("psycopg.errors")?;
     let operational_error = errors.getattr("OperationalError")?;
 
@@ -837,10 +1100,74 @@ fn wait_c(
     let ready_r = waiting.getattr("READY_R")?;
     let ready_w = waiting.getattr("READY_W")?;
     let ready_rw = waiting.getattr("READY_RW")?;
+    let check_fd_closed = waiting.getattr("_check_fd_closed")?;
     let send = generator.getattr("send")?;
-
     let timeout = interval.max(0.0);
-    let mut wait = generator.call_method0("__next__")?;
+    let mut wait = match generator.call_method0("__next__") {
+        Ok(wait) => wait,
+        Err(err) => return handle_stop_iteration(py, err),
+    };
+
+    if hasattr(&select, "poll")? {
+        let poll = select.getattr("poll")?.call0()?;
+        let pollin = select.getattr("POLLIN")?.extract::<i32>()?;
+        let pollout = select.getattr("POLLOUT")?.extract::<i32>()?;
+        let poll_bad = !(pollin | pollout);
+        let timeout_ms = if interval < 0.0 {
+            0
+        } else {
+            (timeout * 1000.0) as i32
+        };
+        let mut current_mask = wait.extract::<i32>()?;
+        poll.call_method1(
+            "register",
+            (
+                fileno,
+                poll_event_mask(current_mask, wait_r, wait_w, pollin, pollout),
+            ),
+        )?;
+
+        loop {
+            let file_events = poll.call_method1("poll", (timeout_ms,))?;
+            let next_wait = if file_events.len()? == 0 {
+                send.call1((ready_none.clone(),))
+            } else {
+                let event = file_events.get_item(0)?.get_item(1)?.extract::<i32>()?;
+                let mut ready = 0;
+                if event & pollin != 0 {
+                    ready |= ready_r.extract::<i32>()?;
+                }
+                if event & pollout != 0 {
+                    ready |= ready_w.extract::<i32>()?;
+                }
+                if ready == 0 && event & poll_bad != 0 {
+                    if let Err(err) = check_fd_closed.call1((fileno,)) {
+                        return Err(err);
+                    }
+                    return Err(psycopg_operational_error(
+                        &operational_error,
+                        "connection socket closed",
+                    ));
+                }
+                send.call1((ready,))
+            };
+
+            match next_wait {
+                Ok(next_wait) => {
+                    wait = next_wait;
+                    current_mask = wait.extract::<i32>()?;
+                    poll.call_method1(
+                        "modify",
+                        (
+                            fileno,
+                            poll_event_mask(current_mask, wait_r, wait_w, pollin, pollout),
+                        ),
+                    )?;
+                }
+                Err(err) => return handle_stop_iteration(py, err),
+            }
+        }
+    }
 
     loop {
         let wait_mask = wait.extract::<i32>()?;
@@ -855,48 +1182,35 @@ fn wait_c(
         };
         let except_fds = vec![fileno];
 
-        match select.call_method1("select", (read_fds, write_fds, except_fds, timeout)) {
-            Ok(ready_sets) => {
-                let (readable, writable, exceptional): (Vec<i32>, Vec<i32>, Vec<i32>) =
-                    ready_sets.extract()?;
+        let ready_sets =
+            match select.call_method1("select", (read_fds, write_fds, except_fds, timeout)) {
+                Ok(ready_sets) => ready_sets,
+                Err(err) => return Err(err),
+            };
+        let (readable, writable, exceptional): (Vec<i32>, Vec<i32>, Vec<i32>) =
+            ready_sets.extract()?;
 
-                let ready = if !exceptional.is_empty() {
-                    if os.call_method1("fstat", (fileno,)).is_err() {
-                        return Err(psycopg_operational_error(
-                            &operational_error,
-                            "connection socket closed",
-                        ));
-                    }
-                    return Err(psycopg_operational_error(
-                        &operational_error,
-                        "connection socket closed",
-                    ));
-                } else if !readable.is_empty() && !writable.is_empty() {
-                    ready_rw.clone()
-                } else if !readable.is_empty() {
-                    ready_r.clone()
-                } else if !writable.is_empty() {
-                    ready_w.clone()
-                } else {
-                    ready_none.clone()
-                };
-
-                match send.call1((ready,)) {
-                    Ok(next_wait) => wait = next_wait,
-                    Err(err) => {
-                        if err.is_instance_of::<pyo3::exceptions::PyStopIteration>(py) {
-                            let value = err
-                                .value(py)
-                                .getattr("value")
-                                .map(Bound::unbind)
-                                .unwrap_or_else(|_| py.None());
-                            return Ok(value);
-                        }
-                        return Err(err);
-                    }
-                }
+        let ready = if !exceptional.is_empty() {
+            if let Err(err) = check_fd_closed.call1((fileno,)) {
+                return Err(err);
             }
-            Err(err) => return Err(err),
+            return Err(psycopg_operational_error(
+                &operational_error,
+                "connection socket closed",
+            ));
+        } else if !readable.is_empty() && !writable.is_empty() {
+            ready_rw.clone()
+        } else if !readable.is_empty() {
+            ready_r.clone()
+        } else if !writable.is_empty() {
+            ready_w.clone()
+        } else {
+            ready_none.clone()
+        };
+
+        match send.call1((ready,)) {
+            Ok(next_wait) => wait = next_wait,
+            Err(err) => return handle_stop_iteration(py, err),
         }
     }
 }
@@ -938,8 +1252,13 @@ impl From<ferrocopg_postgres::ConnectPlan> for BackendConnectPlan {
 }
 
 #[pymodule]
-fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn _ferrocopg(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", VERSION)?;
+    m.add(
+        "Transformer",
+        py.import("psycopg._py_transformer")?
+            .getattr("Transformer")?,
+    )?;
     m.add_class::<BackendConninfoSummary>()?;
     m.add_class::<BackendConnectPlan>()?;
     m.add_class::<ConnectGenerator>()?;
@@ -975,6 +1294,21 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(dump_int_to_numeric_binary, m)?)?;
     m.add_function(wrap_pyfunction!(numeric_load_text, m)?)?;
     m.add_function(wrap_pyfunction!(numeric_load_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(date_dump_text, m)?)?;
+    m.add_function(wrap_pyfunction!(date_dump_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(date_load_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(time_dump_text, m)?)?;
+    m.add_function(wrap_pyfunction!(time_dump_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(timetz_dump_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(time_load_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(timetz_load_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(datetime_dump_text, m)?)?;
+    m.add_function(wrap_pyfunction!(datetime_dump_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(datetime_notz_dump_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(timestamp_load_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(timestamptz_load_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(timedelta_dump_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(interval_load_binary, m)?)?;
     m.add_function(wrap_pyfunction!(composite_dump_text_sequence, m)?)?;
     m.add_function(wrap_pyfunction!(composite_dump_binary_sequence, m)?)?;
     m.add_function(wrap_pyfunction!(composite_parse_text_record, m)?)?;
@@ -1167,6 +1501,34 @@ fn psycopg_exception_with_pgconn(
     PyErr::from_value(exc)
 }
 
+fn handle_stop_iteration(py: Python<'_>, err: PyErr) -> PyResult<Py<PyAny>> {
+    if err.is_instance_of::<PyStopIteration>(py) {
+        let value = err
+            .value(py)
+            .getattr("value")
+            .map(Bound::unbind)
+            .unwrap_or_else(|_| py.None());
+        Ok(value)
+    } else {
+        Err(err)
+    }
+}
+
+fn hasattr(obj: &Bound<'_, PyAny>, attr: &str) -> PyResult<bool> {
+    obj.hasattr(attr)
+}
+
+fn poll_event_mask(wait_mask: i32, wait_r: i32, wait_w: i32, pollin: i32, pollout: i32) -> i32 {
+    let mut mask = 0;
+    if wait_mask & wait_r != 0 {
+        mask |= pollin;
+    }
+    if wait_mask & wait_w != 0 {
+        mask |= pollout;
+    }
+    mask
+}
+
 impl ConnectGenerator {
     fn advance(&mut self, py: Python<'_>, ready: Option<i32>) -> PyResult<Py<PyAny>> {
         loop {
@@ -1342,7 +1704,8 @@ impl FetchGenerator {
                         .pgconn
                         .bind(py)
                         .call_method0("is_busy")?
-                        .extract::<bool>()?;
+                        .extract::<i32>()?
+                        != 0;
                     if busy {
                         self.state = FetchState::AwaitReady;
                         return Ok(self.wait_r.clone_ref(py));
@@ -1364,7 +1727,8 @@ impl FetchGenerator {
                         .pgconn
                         .bind(py)
                         .call_method0("is_busy")?
-                        .extract::<bool>()?;
+                        .extract::<i32>()?
+                        != 0;
                     if busy {
                         self.state = FetchState::AwaitReady;
                         return Ok(self.wait_r.clone_ref(py));
@@ -1608,7 +1972,8 @@ impl PipelineCommunicateGenerator {
                             .pgconn
                             .bind(py)
                             .call_method0("is_busy")?
-                            .extract::<bool>()?;
+                            .extract::<i32>()?
+                            != 0;
                         if busy {
                             break;
                         }
@@ -2142,6 +2507,58 @@ fn numeric_binary_to_decimal<'py>(py: Python<'py>, data: &[u8]) -> PyResult<Boun
     }
 
     decimal.call1((text,))
+}
+
+fn time_to_micros(obj: &Bound<'_, PyAny>) -> PyResult<i64> {
+    let hour = obj.getattr("hour")?.extract::<i64>()?;
+    let minute = obj.getattr("minute")?.extract::<i64>()?;
+    let second = obj.getattr("second")?.extract::<i64>()?;
+    let microsecond = obj.getattr("microsecond")?.extract::<i64>()?;
+    Ok(microsecond + 1_000_000 * (second + 60 * (minute + 60 * hour)))
+}
+
+fn micros_to_time_parts(value: i64) -> (i64, i64, i64, i64) {
+    let (value, microsecond) = (value / 1_000_000, value % 1_000_000);
+    let (value, second) = (value / 60, value % 60);
+    let (hour, minute) = (value / 60, value % 60);
+    (hour, minute, second, microsecond)
+}
+
+fn timezone_offset_seconds(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<i32> {
+    let offset = obj.call_method0("utcoffset")?;
+    if offset.is_none() {
+        let errors = py.import("psycopg.errors")?;
+        let data_error = errors.getattr("DataError")?;
+        return Err(psycopg_operational_error(
+            &data_error,
+            &format!(
+                "cannot calculate the offset of tzinfo '{}' without a date",
+                obj.getattr("tzinfo")?.str()?.to_str()?
+            ),
+        ));
+    }
+
+    offset
+        .call_method0("total_seconds")?
+        .extract::<f64>()
+        .map(|seconds| seconds as i32)
+}
+
+fn datetime_epoch<'py>(py: Python<'py>, with_timezone: bool) -> PyResult<Bound<'py, PyAny>> {
+    let dt = py.import("datetime")?;
+    if with_timezone {
+        let utc = dt.getattr("timezone")?.getattr("utc")?;
+        dt.getattr("datetime")?.call1((2000, 1, 1, 0, 0, 0, 0, utc))
+    } else {
+        dt.getattr("datetime")?.call1((2000, 1, 1, 0, 0, 0, 0))
+    }
+}
+
+fn timedelta_to_microseconds(delta: &Bound<'_, PyAny>) -> PyResult<i64> {
+    let days = delta.getattr("days")?.extract::<i64>()?;
+    let seconds = delta.getattr("seconds")?.extract::<i64>()?;
+    let microseconds = delta.getattr("microseconds")?.extract::<i64>()?;
+    Ok(microseconds + 1_000_000 * (86_400 * days + seconds))
 }
 
 fn parse_composite_text_record(data: &[u8]) -> Vec<Option<Vec<u8>>> {

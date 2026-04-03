@@ -13,6 +13,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import TYPE_CHECKING, Any, cast
 
 from .. import _oids
+from .._rmodule import _ferrocopg as _rpsycopg
 from .._struct import pack_int4, pack_int8, unpack_int4, unpack_int8
 from .._tz import get_tzinfo
 from ..abc import AdaptContext, DumperKey
@@ -46,6 +47,8 @@ class DateDumper(Dumper):
     def dump(self, obj: date) -> Buffer | None:
         # NOTE: whatever the PostgreSQL DateStyle input format (DMY, MDY, YMD)
         # the YYYY-MM-DD is always understood correctly.
+        if _rpsycopg and hasattr(_rpsycopg, "date_dump_text"):
+            return cast(Buffer, _rpsycopg.date_dump_text(obj))
         return str(obj).encode()
 
 
@@ -54,6 +57,8 @@ class DateBinaryDumper(Dumper):
     oid = _oids.DATE_OID
 
     def dump(self, obj: date) -> Buffer | None:
+        if _rpsycopg and hasattr(_rpsycopg, "date_dump_binary"):
+            return cast(Buffer, _rpsycopg.date_dump_binary(obj))
         days = obj.toordinal() - _pg_date_epoch_days
         return pack_int4(days)
 
@@ -80,6 +85,8 @@ class _BaseTimeDumper(Dumper):
 
 class _BaseTimeTextDumper(_BaseTimeDumper):
     def dump(self, obj: time) -> Buffer | None:
+        if _rpsycopg and hasattr(_rpsycopg, "time_dump_text"):
+            return cast(Buffer, _rpsycopg.time_dump_text(obj))
         return str(obj).encode()
 
 
@@ -106,6 +113,8 @@ class TimeBinaryDumper(_BaseTimeDumper):
     oid = _oids.TIME_OID
 
     def dump(self, obj: time) -> Buffer | None:
+        if _rpsycopg and hasattr(_rpsycopg, "time_dump_binary"):
+            return cast(Buffer, _rpsycopg.time_dump_binary(obj))
         us = obj.microsecond + 1_000_000 * (
             obj.second + 60 * (obj.minute + 60 * obj.hour)
         )
@@ -123,6 +132,8 @@ class TimeTzBinaryDumper(_BaseTimeDumper):
     oid = _oids.TIMETZ_OID
 
     def dump(self, obj: time) -> Buffer | None:
+        if _rpsycopg and hasattr(_rpsycopg, "timetz_dump_binary"):
+            return cast(Buffer, _rpsycopg.timetz_dump_binary(obj))
         us = obj.microsecond + 1_000_000 * (
             obj.second + 60 * (obj.minute + 60 * obj.hour)
         )
@@ -147,6 +158,8 @@ class _BaseDatetimeTextDumper(_BaseDatetimeDumper):
     def dump(self, obj: datetime) -> Buffer | None:
         # NOTE: whatever the PostgreSQL DateStyle input format (DMY, MDY, YMD)
         # the YYYY-MM-DD is always understood correctly.
+        if _rpsycopg and hasattr(_rpsycopg, "datetime_dump_text"):
+            return cast(Buffer, _rpsycopg.datetime_dump_text(obj))
         return str(obj).encode()
 
 
@@ -169,6 +182,8 @@ class DatetimeBinaryDumper(_BaseDatetimeDumper):
     oid = _oids.TIMESTAMPTZ_OID
 
     def dump(self, obj: datetime) -> Buffer | None:
+        if _rpsycopg and hasattr(_rpsycopg, "datetime_dump_binary"):
+            return cast(Buffer, _rpsycopg.datetime_dump_binary(obj))
         delta = obj - _pg_datetimetz_epoch
         micros = delta.microseconds + 1_000_000 * (86_400 * delta.days + delta.seconds)
         return pack_int8(micros)
@@ -185,6 +200,8 @@ class DatetimeNoTzBinaryDumper(_BaseDatetimeDumper):
     oid = _oids.TIMESTAMP_OID
 
     def dump(self, obj: datetime) -> Buffer | None:
+        if _rpsycopg and hasattr(_rpsycopg, "datetime_notz_dump_binary"):
+            return cast(Buffer, _rpsycopg.datetime_notz_dump_binary(obj))
         delta = obj - _pg_datetime_epoch
         micros = delta.microseconds + 1_000_000 * (86_400 * delta.days + delta.seconds)
         return pack_int8(micros)
@@ -225,6 +242,8 @@ class TimedeltaBinaryDumper(Dumper):
     oid = _oids.INTERVAL_OID
 
     def dump(self, obj: timedelta) -> Buffer | None:
+        if _rpsycopg and hasattr(_rpsycopg, "timedelta_dump_binary"):
+            return cast(Buffer, _rpsycopg.timedelta_dump_binary(obj))
         micros = 1_000_000 * obj.seconds + obj.microseconds
         return _pack_interval(micros, obj.days, 0)
 
@@ -275,6 +294,8 @@ class DateBinaryLoader(Loader):
     format = Format.BINARY
 
     def load(self, data: Buffer) -> date:
+        if _rpsycopg and hasattr(_rpsycopg, "date_load_binary"):
+            return cast(date, _rpsycopg.date_load_binary(data))
         days = unpack_int4(data)[0] + _pg_date_epoch_days
         try:
             return date.fromordinal(days)
@@ -314,6 +335,8 @@ class TimeBinaryLoader(Loader):
     format = Format.BINARY
 
     def load(self, data: Buffer) -> time:
+        if _rpsycopg and hasattr(_rpsycopg, "time_load_binary"):
+            return cast(time, _rpsycopg.time_load_binary(data))
         val = unpack_int8(data)[0]
         val, us = divmod(val, 1_000_000)
         val, s = divmod(val, 60)
@@ -366,6 +389,8 @@ class TimetzBinaryLoader(Loader):
     format = Format.BINARY
 
     def load(self, data: Buffer) -> time:
+        if _rpsycopg and hasattr(_rpsycopg, "timetz_load_binary"):
+            return cast(time, _rpsycopg.timetz_load_binary(data))
         val, off = _unpack_timetz(data)
 
         val, us = divmod(val, 1_000_000)
@@ -460,6 +485,8 @@ class TimestampBinaryLoader(Loader):
     format = Format.BINARY
 
     def load(self, data: Buffer) -> datetime:
+        if _rpsycopg and hasattr(_rpsycopg, "timestamp_load_binary"):
+            return cast(datetime, _rpsycopg.timestamp_load_binary(data))
         micros = unpack_int8(data)[0]
         try:
             return _pg_datetime_epoch + timedelta(microseconds=micros)
@@ -646,6 +673,8 @@ class IntervalBinaryLoader(Loader):
     format = Format.BINARY
 
     def load(self, data: Buffer) -> timedelta:
+        if _rpsycopg and hasattr(_rpsycopg, "interval_load_binary"):
+            return cast(timedelta, _rpsycopg.interval_load_binary(data))
         micros, days, months = _unpack_interval(data)
         if months > 0:
             years, months = divmod(months, 12)

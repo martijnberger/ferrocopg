@@ -10,11 +10,14 @@ from __future__ import annotations
 
 from . import abc
 from ._cmodule import _psycopg
+from ._rmodule import _ferrocopg as _rpsycopg
 
 Transformer: type[abc.Transformer]
 
 if _psycopg:
     Transformer = _psycopg.Transformer
+elif _rpsycopg and hasattr(_rpsycopg, "Transformer"):
+    Transformer = _rpsycopg.Transformer
 else:
     from . import _py_transformer
 
