@@ -42,6 +42,10 @@ class CopyImpl(Protocol):
     ) -> tuple[bytes | None, ...] | tuple[object, ...]: ...
 
 
+class GeneratorImpl(Protocol):
+    def send(self, pgconn: object) -> object: ...
+
+
 def _copy_impls() -> list[tuple[str, CopyImpl]]:
     ferrocopg = cast(CopyImpl, pytest.importorskip("ferrocopg_rust"))
     copy_base = importlib.import_module("psycopg._copy_base")
@@ -79,6 +83,46 @@ def _wait_ready_gen(
     ready = yield wait_state
     assert ready == expected_ready
     return result
+
+
+class StubSendPgconn:
+    def __init__(self, flush_results: list[int]):
+        self._flush_results = list(flush_results)
+        self.flush_calls = 0
+        self.consume_input_calls = 0
+
+    def flush(self) -> int:
+        self.flush_calls += 1
+        if self._flush_results:
+            return self._flush_results.pop(0)
+        return 0
+
+    def consume_input(self) -> None:
+        self.consume_input_calls += 1
+
+
+def _drive_send_generator(gen: object, ready_values: list[int | None]) -> tuple[list[int], object]:
+    waits: list[int] = []
+    try:
+        waits.append(next(cast(Generator[int, int | None, object], gen)))
+        for ready in ready_values:
+            waits.append(
+                cast(
+                    int,
+                    cast(Any, gen).send(ready),
+                )
+            )
+    except StopIteration as ex:
+        return waits, ex.value
+
+    raise AssertionError("generator did not finish")
+
+
+def _send_impls() -> list[tuple[str, GeneratorImpl]]:
+    ferrocopg = cast(GeneratorImpl, pytest.importorskip("ferrocopg_rust"))
+    generators = importlib.import_module("psycopg.generators")
+    python_impl = cast(GeneratorImpl, SimpleNamespace(send=generators._send))
+    return [("python", python_impl), ("rust", ferrocopg)]
 
 
 @pytest.mark.parametrize(
@@ -268,6 +312,44 @@ def test_wait_c_timeout_equivalent():
     finally:
         reader.close()
         writer.close()
+
+
+@pytest.mark.parametrize(
+    ("flush_results", "ready_values", "expected_waits", "expected_consume_calls"),
+    [
+        ([0], [], [], 0),
+        ([1, 0], [2], [3], 0),
+        ([1, 1, 0], [0, 1, 2], [3, 3, 3], 1),
+    ],
+)
+def test_send_generator_equivalent(
+    flush_results: list[int],
+    ready_values: list[int | None],
+    expected_waits: list[int],
+    expected_consume_calls: int,
+) -> None:
+    wait_rw = cast(int, importlib.import_module("psycopg.waiting").WAIT_RW)
+    ready_r = cast(int, importlib.import_module("psycopg.waiting").READY_R)
+
+    assert expected_waits == [wait_rw] * len(expected_waits)
+    if expected_consume_calls:
+        assert ready_r in [rv for rv in ready_values if rv]
+
+    for name, impl in _send_impls():
+        pgconn = StubSendPgconn(flush_results)
+        waits, result = _drive_send_generator(impl.send(pgconn), ready_values)
+        assert waits == expected_waits, name
+        assert result is None, name
+        assert pgconn.consume_input_calls == expected_consume_calls, name
+
+
+def test_generators_prefers_ferrocopg_send_when_available():
+    generators = importlib.import_module("psycopg.generators")
+    if generators._psycopg is not None:
+        pytest.skip("C accelerator installed")
+
+    ferrocopg = pytest.importorskip("ferrocopg_rust")
+    assert generators.send is ferrocopg.send
 
 
 def test_ferrocopg_unavailable(monkeypatch):
