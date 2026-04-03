@@ -1,5 +1,7 @@
 import importlib
 
+import pytest
+
 
 def test_ferrocopg_unavailable(monkeypatch):
     module = importlib.import_module("psycopg._ferrocopg")
@@ -119,3 +121,42 @@ def test_copy_base_uses_ferrocopg_copy_optimizations(monkeypatch):
     assert format_row_binary is StubRustModule.format_row_binary
     assert parse_row_text is StubRustModule.parse_row_text
     assert parse_row_binary is StubRustModule.parse_row_binary
+
+
+def test_installed_ferrocopg_copy_helpers_roundtrip():
+    ferrocopg = pytest.importorskip("ferrocopg_rust")
+
+    class StubTransformer:
+        def dump_sequence(
+            self, params: tuple[object, ...], formats: list[object]
+        ) -> list[bytes | None]:
+            assert len(params) == len(formats)
+            return [
+                b"alpha\tbeta",
+                None,
+                b"line1\nline2",
+            ]
+
+        def load_sequence(
+            self, record: list[bytes | None]
+        ) -> tuple[bytes | None, ...]:
+            return tuple(record)
+
+    tx = StubTransformer()
+
+    text_out = bytearray()
+    ferrocopg.format_row_text(("ignored",), tx, text_out)
+    assert bytes(text_out) == b"alpha\\tbeta\t\\N\tline1\\nline2\n"
+    assert ferrocopg.parse_row_text(text_out, tx) == (
+        b"alpha\tbeta",
+        None,
+        b"line1\nline2",
+    )
+
+    binary_out = bytearray()
+    ferrocopg.format_row_binary(("ignored",), tx, binary_out)
+    assert ferrocopg.parse_row_binary(binary_out, tx) == (
+        b"alpha\tbeta",
+        None,
+        b"line1\nline2",
+    )
