@@ -1,5 +1,6 @@
 import logging
 import os
+import platform
 import socket
 import subprocess as sp
 import sys
@@ -77,7 +78,9 @@ class Proxy:
 
         logging.info("starting proxy")
         pproxy_fix = str(Path(__file__).parent.parent / "tools/pproxy_fix.py")
-        cmdline = [sys.executable, pproxy_fix, "--reuse"]
+        cmdline = [sys.executable, pproxy_fix]
+        if platform.system() == "Linux":
+            cmdline.append("--reuse")
         cmdline += ["-l", f"tunnel://:{self.client_port}"]
         cmdline += ["-r", f"tunnel://{self.server_host}:{self.server_port}"]
 

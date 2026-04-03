@@ -16,9 +16,9 @@ import psycopg
 from psycopg import errors as e
 from psycopg import pq
 
-from ._test_connection import (
+from ._test_connection import (  # noqa: F401  # fixture
     conninfo_params_timeout,
-    testctx,  # noqa: F401  # fixture
+    testctx,
     tx_params,
     tx_params_isolation,
     tx_values_map,

@@ -465,11 +465,13 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "psycopg" },
-    { name = "psycopg-c" },
     { name = "psycopg-pool" },
 ]
 
 [package.dev-dependencies]
+c = [
+    { name = "psycopg-c" },
+]
 dev = [
     { name = "anyio" },
     { name = "ast-comments" },
@@ -478,6 +480,8 @@ dev = [
     { name = "dnspython" },
     { name = "gevent" },
     { name = "mypy", marker = "implementation_name != 'pypy'" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pproxy" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -493,11 +497,11 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "psycopg", editable = "psycopg" },
-    { name = "psycopg-c", directory = "psycopg_c" },
     { name = "psycopg-pool", editable = "psycopg_pool" },
 ]
 
 [package.metadata.requires-dev]
+c = [{ name = "psycopg-c", directory = "psycopg_c" }]
 dev = [
     { name = "anyio", specifier = ">=4.0" },
     { name = "ast-comments", specifier = ">=1.1.2" },
@@ -506,6 +510,7 @@ dev = [
     { name = "dnspython", specifier = ">=2.1" },
     { name = "gevent" },
     { name = "mypy", marker = "implementation_name != 'pypy'", specifier = ">=1.19.0" },
+    { name = "numpy" },
     { name = "pproxy", specifier = ">=2.7" },
     { name = "pre-commit", specifier = ">=4.0.1" },
     { name = "pytest", specifier = ">=6.2.5" },

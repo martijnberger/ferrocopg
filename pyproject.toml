@@ -4,11 +4,13 @@ version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = [
     "psycopg",
-    "psycopg-c",
     "psycopg-pool",
 ]
 
 [dependency-groups]
+c = [
+    "psycopg-c",
+]
 dev = [
     "anyio >= 4.0",
     "ast-comments >= 1.1.2",
@@ -17,6 +19,7 @@ dev = [
     "dnspython >= 2.1",
     "gevent",
     "mypy >= 1.19.0; implementation_name != 'pypy'",
+    "numpy",
     "pproxy >= 2.7",
     "pre-commit >= 4.0.1",
     "pytest >= 6.2.5",
@@ -124,6 +127,12 @@ exclude = ["tests/test_tstring.py"]
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
 ignore = ["E203", "E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/crdb/test_copy.py" = ["F401"]
+"tests/test_connection.py" = ["F401"]
+"tests/test_copy.py" = ["F401"]
+"tests/test_transaction.py" = ["F401"]
 
 [tool.ruff.format]
 exclude = ["tests/test_tstring.py"]

@@ -19,11 +19,12 @@ import psycopg
 from psycopg import errors as e
 from psycopg import pq, sql
 
+# noqa: F401
 from ._test_copy import (
     FileWriter,
     ensure_table,
     py_to_raw,
-    sample_binary,  # noqa: F401
+    sample_binary,
     sample_binary_rows,
     sample_records,
     sample_tabledef,

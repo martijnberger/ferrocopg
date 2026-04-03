@@ -16,9 +16,16 @@ source .venv/bin/activate
 uv sync --dev --locked
 ```
 
-The locked `uv` environment includes the current Cython-backed test baseline,
-including optional test dependencies such as `gevent` and `shapely`. To run
-database-backed tests, point `pytest` at a working PostgreSQL database:
+The default locked `uv` environment includes the shared Python test baseline,
+including optional test dependencies such as `gevent`, `shapely`, `dnspython`,
+and `numpy`. Add the `c` group when you want to exercise the current
+Cython-backed implementation too:
+
+```bash
+uv sync --dev --group c --locked
+```
+
+To run database-backed tests, point `pytest` at a working PostgreSQL database:
 
 ```bash
 tools/test-db start

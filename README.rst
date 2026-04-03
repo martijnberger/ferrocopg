@@ -66,13 +66,18 @@ requirements. The workspace requires Python 3.10 or newer::
     uv venv
     source .venv/bin/activate
 
-    # Install the workspace, including the Cython speedup package
-    uv sync
+    # Install the shared test and development environment
+    uv sync --dev --locked
+
+    # Include the Cython speedup package when working on the C backend
+    uv sync --dev --group c --locked
 
 The root ``uv sync`` command is the recommended way to get a working
-development environment for the current implementation. It installs the local
-``psycopg``, ``psycopg_pool``, and ``psycopg_c`` projects together with the
-development and test dependencies needed to run the Cython-backed test suite.
+development environment for the current implementation. The default locked sync
+installs the local ``psycopg`` and ``psycopg_pool`` projects together with the
+development and test dependencies used across the suite. Add ``--group c`` to
+bring ``psycopg_c`` into the environment when you want to exercise the
+Cython-backed implementation.
 
 The repository is also starting the ``ferrocopg`` Rust port. The initial Rust
 extension scaffold lives in ``crates/ferrocopg-python`` and is currently aimed

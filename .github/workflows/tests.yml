@@ -65,9 +65,9 @@ jobs:
 
     env:
       PSYCOPG_IMPL: ${{ matrix.impl }}
-      DEPS: ./psycopg[test] ./psycopg_pool
       PSYCOPG_TEST_DSN: "host=127.0.0.1 user=postgres password=password"
       MARKERS: ""
+      UV_SYNC_ARGS: "--dev --locked"
 
     steps:
       - uses: actions/checkout@v6
@@ -76,6 +76,11 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           allow-prereleases: true
+          cache: uv
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
 
       - name: Start PostgreSQL service
         # Note: this would love to be a service, but I don't see a way to pass
@@ -92,29 +97,25 @@ jobs:
       - name: Include psycopg-c to the packages to install
         if: ${{ matrix.impl == 'c' }}
         run: |
-          echo "DEPS=$DEPS ./psycopg_c" >> $GITHUB_ENV
+          echo "UV_SYNC_ARGS=$UV_SYNC_ARGS --group c" >> $GITHUB_ENV
 
-      - name: Include gevent to the packages to install
+      - name: Include gevent test marker
         if: ${{ matrix.ext == 'gevent' }}
         run: |
-          echo "DEPS=$DEPS gevent" >> $GITHUB_ENV
           echo "MARKERS=$MARKERS gevent" >> $GITHUB_ENV
 
-      - name: Include dnspython to the packages to install
+      - name: Include dnspython test marker
         if: ${{ matrix.ext == 'dns' }}
         run: |
-          echo "DEPS=$DEPS dnspython" >> $GITHUB_ENV
           echo "MARKERS=$MARKERS dns" >> $GITHUB_ENV
 
-      - name: Include shapely to the packages to install
+      - name: Include shapely test marker
         if: ${{ matrix.ext == 'postgis' }}
         run: |
-          echo "DEPS=$DEPS shapely" >> $GITHUB_ENV
           echo "MARKERS=$MARKERS postgis" >> $GITHUB_ENV
 
       - if: ${{ matrix.ext == 'numpy' }}
         run: |
-          echo "DEPS=$DEPS numpy" >> $GITHUB_ENV
           echo "MARKERS=$MARKERS numpy" >> $GITHUB_ENV
 
       - name: Exclude certain tests from pypy
@@ -125,8 +126,7 @@ jobs:
       - name: Configure to use the oldest dependencies
         if: ${{ matrix.ext == 'min' }}
         run: |
-          echo "DEPS=$DEPS dnspython shapely numpy gevent" >> $GITHUB_ENV
-          echo "PIP_CONSTRAINT=${{ github.workspace }}/tests/constraints.txt" \
+          echo "UV_SYNC_ARGS=--dev --group c --resolution lowest-direct" \
             >> $GITHUB_ENV
 
       - name: Configure memory alignment tests
@@ -137,8 +137,8 @@ jobs:
           echo "UBSAN_OPTIONS=halt_on_error=1" >> $GITHUB_ENV
           echo "PYTEST_ADDOPTS=-v" >> $GITHUB_ENV
 
-      - name: Install Python packages
-        run: pip install $DEPS
+      - name: Sync uv environment
+        run: uv sync $UV_SYNC_ARGS
 
       - name: Run tests
         run: ./tools/ci/ci_test.sh
@@ -159,9 +159,10 @@ jobs:
           - {psycopg: "3.2", python: "3.12", postgres: "postgres:17"}
 
     env:
-      DEPS: psycopg<${{ matrix.psycopg }} ./psycopg_pool[test]
       PSYCOPG_TEST_DSN: "host=127.0.0.1 user=postgres password=password"
       MARKERS: "pool"
+      UV_PROJECT: tools/ci/pool-compat
+      UV_SYNC_ARGS: ""
 
     steps:
       - uses: actions/checkout@v6
@@ -169,6 +170,11 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
+          cache: uv
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
 
       - name: Start PostgreSQL service
         # Note: this would love to be a service, but I don't see a way to pass
@@ -179,8 +185,13 @@ jobs:
             -e POSTGRES_PASSWORD=password ${{ matrix.postgres }} \
             -c max_prepared_transactions=10
 
-      - name: Install Python packages
-        run: pip install $DEPS
+      - name: Select pool compatibility group
+        run: |
+          echo "UV_SYNC_ARGS=--group psycopg${{ matrix.psycopg }}" \
+            | tr -d '.' >> $GITHUB_ENV
+
+      - name: Sync uv environment
+        run: uv sync --project "$UV_PROJECT" $UV_SYNC_ARGS
 
       - name: Run tests
         run: ./tools/ci/ci_test.sh
@@ -209,13 +220,13 @@ jobs:
 
     env:
       PSYCOPG_IMPL: ${{ matrix.impl }}
-      DEPS: ./psycopg[test] ./psycopg_pool
       PSYCOPG_TEST_DSN: "host=127.0.0.1 user=runner dbname=postgres"
       # MacOS on GitHub Actions seems particularly slow.
       # Don't run timing-based tests as they regularly fail.
       # pproxy-based tests fail too, with the proxy not coming up in 2s.
       NOT_MARKERS: "timing proxy mypy"
       PG_VERSION: "18"
+      UV_SYNC_ARGS: "--dev --locked"
 
     steps:
       - uses: actions/checkout@v6
@@ -224,6 +235,11 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           allow-prereleases: true
+          cache: uv
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
 
       - name: Install PostgreSQL on the runner
         run: brew install postgresql@${PG_VERSION}
@@ -243,11 +259,11 @@ jobs:
       - name: Include psycopg-c to the packages to install
         if: ${{ matrix.impl == 'c' }}
         run: |
-          echo "DEPS=$DEPS ./psycopg_c" >> $GITHUB_ENV
+          echo "UV_SYNC_ARGS=$UV_SYNC_ARGS --group c" >> $GITHUB_ENV
           echo "PATH=/opt/homebrew/opt/postgresql@${PG_VERSION}/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Install Python packages
-        run: pip install $DEPS
+      - name: Sync uv environment
+        run: uv sync $UV_SYNC_ARGS
 
       - name: Run tests
         run: ./tools/ci/ci_test.sh
@@ -281,6 +297,7 @@ jobs:
       PSYCOPG_TEST_DSN: "host=127.0.0.1 dbname=postgres"
       # On windows pproxy doesn't seem very happy. Also a few timing test fail.
       NOT_MARKERS: "timing proxy mypy"
+      PSYCOPG_USE_UV: "0"
 
     defaults:
       run:
@@ -296,6 +313,11 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           allow-prereleases: true
+          cache: uv
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
 
       - name: Start PostgreSQL service
         run: |
@@ -373,13 +395,13 @@ jobs:
 
     env:
       PSYCOPG_IMPL: ${{ matrix.impl }}
-      DEPS: ./psycopg[test] ./psycopg_pool
       PSYCOPG_TEST_DSN: "host=127.0.0.1 port=26257 user=root dbname=defaultdb"
       CRDB_REPO: us-docker.pkg.dev/cockroach-cloud-images/cockroachdb/cockroach
       # Since CRDB 25.1, 'on' should become the default, which will break
       # the test suite assumption.
       # https://www.cockroachlabs.com/docs/stable/online-schema-changes#enable-automatic-commit-before-running-schema-changes-inside-transactions
       PGOPTIONS: "-c autocommit_before_ddl=off"
+      UV_SYNC_ARGS: "--dev --locked"
 
     steps:
       - uses: actions/checkout@v6
@@ -387,6 +409,11 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
+          cache: uv
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
 
       - name: Start CockroachDB service
         # Note: this would love to be a service, but I don't see a way to pass
@@ -407,10 +434,10 @@ jobs:
       - name: Include psycopg-c to the packages to install
         if: ${{ matrix.impl == 'c' }}
         run: |
-          echo "DEPS=$DEPS ./psycopg_c" >> $GITHUB_ENV
+          echo "UV_SYNC_ARGS=$UV_SYNC_ARGS --group c" >> $GITHUB_ENV
 
-      - name: Install Python packages
-        run: pip install $DEPS
+      - name: Sync uv environment
+        run: uv sync $UV_SYNC_ARGS
 
       - name: Run tests
         run: ./tools/ci/ci_test.sh
