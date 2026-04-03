@@ -88,6 +88,11 @@ active uv-managed environment using::
     uv run maturin develop \
         --manifest-path crates/ferrocopg-python/Cargo.toml
 
+To keep the current Cython backend and the Rust port installed side by side in
+one uv-managed environment, sync both optional groups::
+
+    uv sync --dev --group c --group rust
+
 Now hack away! You can run the tests using a local Docker database::
 
     tools/test-db start

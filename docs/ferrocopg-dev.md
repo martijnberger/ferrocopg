@@ -25,6 +25,14 @@ Cython-backed implementation too:
 uv sync --dev --group c --locked
 ```
 
+Add the `rust` group to keep the `ferrocopg-rust` package installed in the
+same environment, so the current Cython path and the Rust port can be compared
+side by side:
+
+```bash
+uv sync --dev --group c --group rust --locked
+```
+
 To run database-backed tests, point `pytest` at a working PostgreSQL database:
 
 ```bash
@@ -43,7 +51,7 @@ package defined in `crates/ferrocopg-python`.
 ## Building the ferrocopg scaffold
 
 Install the bootstrap extension into the active uv-managed environment with
-`maturin`:
+`maturin` when you want an editable Rust build while porting:
 
 ```bash
 uv run maturin develop \
@@ -80,6 +88,24 @@ The bootstrap extension is intentionally small. It proves:
 - the initial backend direction via the `rust-postgres` stack
 - a first real backend-facing parser around `tokio-postgres::Config`
 - a first Rust-backed COPY formatting/parsing seam behind `psycopg._copy_base`
+
+## Side-By-Side Equivalency
+
+The current goal is to keep the Rust and Cython implementations available at
+the same time and prove behavior before switching default paths.
+
+With both optional groups installed, the ferrocopg bootstrap tests compare:
+
+- the pure Python COPY helpers
+- the Rust COPY helpers from `ferrocopg_rust`
+- the Cython COPY helpers from `psycopg_c._psycopg` when present
+
+You can run the current equivalency checks with:
+
+```bash
+uv sync --dev --group c --group rust --locked
+uv run pytest tests/test_ferrocopg_bootstrap.py -q
+```
 
 The next implementation slice should attach a narrow real helper behind this
 package, then begin replacing pieces of `_psycopg`.

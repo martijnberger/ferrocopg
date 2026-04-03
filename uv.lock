@@ -460,6 +460,11 @@ wheels = [
 ]
 
 [[package]]
+name = "ferrocopg-rust"
+version = "0.1.0"
+source = { directory = "crates/ferrocopg-python" }
+
+[[package]]
 name = "ferrocopg-workspace"
 version = "0.1.0"
 source = { virtual = "." }
@@ -494,6 +499,9 @@ dev = [
     { name = "types-shapely" },
     { name = "wheel" },
 ]
+rust = [
+    { name = "ferrocopg-rust" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -524,6 +532,7 @@ dev = [
     { name = "types-shapely", specifier = ">=2.0" },
     { name = "wheel", specifier = ">=0.37" },
 ]
+rust = [{ name = "ferrocopg-rust", directory = "crates/ferrocopg-python" }]
 
 [[package]]
 name = "filelock"
