@@ -6,10 +6,11 @@ Adapters for textual types.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from .. import _oids
 from .._encodings import conn_encoding
+from .._rmodule import _ferrocopg as _rpsycopg
 from ..abc import AdaptContext
 from ..adapt import Buffer, Dumper, Loader
 from ..errors import DataError
@@ -36,6 +37,8 @@ class _StrBinaryDumper(_BaseStrDumper):
     format = Format.BINARY
 
     def dump(self, obj: str) -> Buffer | None:
+        if _rpsycopg and hasattr(_rpsycopg, "str_dump_binary"):
+            return cast(Buffer, _rpsycopg.str_dump_binary(obj, self._encoding))
         # the server will raise DataError subclass if the string contains 0x00
         return obj.encode(self._encoding)
 
@@ -48,10 +51,12 @@ class _StrDumper(_BaseStrDumper):
     """
 
     def dump(self, obj: str) -> Buffer | None:
+        if _rpsycopg and hasattr(_rpsycopg, "str_dump_text"):
+            return cast(Buffer, _rpsycopg.str_dump_text(obj, self._encoding))
+
         if "\x00" in obj:
             raise DataError("PostgreSQL text fields cannot contain NUL (0x00) bytes")
-        else:
-            return obj.encode(self._encoding)
+        return obj.encode(self._encoding)
 
 
 # The next are concrete dumpers, each one specifying the oid they dump to.
@@ -111,6 +116,9 @@ class TextLoader(Loader):
         self._encoding = enc if enc != "ascii" else ""
 
     def load(self, data: Buffer) -> bytes | str:
+        if _rpsycopg and hasattr(_rpsycopg, "text_load"):
+            return cast(bytes | str, _rpsycopg.text_load(data, self._encoding))
+
         if self._encoding:
             if isinstance(data, memoryview):
                 data = bytes(data)

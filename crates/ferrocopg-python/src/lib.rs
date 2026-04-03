@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict, PyList, PyTuple};
+use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 use pyo3::wrap_pyfunction;
 use pyo3::{
     PyErr,
@@ -367,6 +367,45 @@ fn bool_load_text(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<bool> {
 #[pyfunction]
 fn bool_load_binary(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<bool> {
     Ok(bytes_like_to_vec(py, data)? != b"\x00")
+}
+
+#[pyfunction]
+fn str_dump_binary(py: Python<'_>, obj: &str, encoding: &str) -> PyResult<Py<PyAny>> {
+    if encoding == "utf-8" {
+        return Ok(PyBytes::new(py, obj.as_bytes()).unbind().into_any());
+    }
+
+    let encoded = PyString::new(py, obj).call_method1("encode", (encoding,))?;
+    Ok(encoded.unbind())
+}
+
+#[pyfunction]
+fn str_dump_text(py: Python<'_>, obj: &str, encoding: &str) -> PyResult<Py<PyAny>> {
+    if obj.contains('\0') {
+        return Err(psycopg_operational_error(
+            &py.import("psycopg.errors")?.getattr("DataError")?,
+            "PostgreSQL text fields cannot contain NUL (0x00) bytes",
+        ));
+    }
+
+    str_dump_binary(py, obj, encoding)
+}
+
+#[pyfunction]
+fn text_load(py: Python<'_>, data: &Bound<'_, PyAny>, encoding: &str) -> PyResult<Py<PyAny>> {
+    let data = bytes_like_to_vec(py, data)?;
+    if encoding.is_empty() {
+        return Ok(PyBytes::new(py, &data).unbind().into_any());
+    }
+
+    if encoding == "utf-8" {
+        let decoded = std::str::from_utf8(&data)
+            .map_err(|err| PyErr::new::<PyValueError, _>(err.to_string()))?;
+        return Ok(PyString::new(py, decoded).unbind().into_any());
+    }
+
+    let decoded = PyBytes::new(py, &data).call_method1("decode", (encoding,))?;
+    Ok(decoded.unbind())
 }
 
 #[pyfunction]
@@ -748,6 +787,9 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bool_dump_binary, m)?)?;
     m.add_function(wrap_pyfunction!(bool_load_text, m)?)?;
     m.add_function(wrap_pyfunction!(bool_load_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(str_dump_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(str_dump_text, m)?)?;
+    m.add_function(wrap_pyfunction!(text_load, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_text, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_binary, m)?)?;
     m.add_function(wrap_pyfunction!(send, m)?)?;
