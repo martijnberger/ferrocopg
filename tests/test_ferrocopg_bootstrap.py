@@ -100,6 +100,14 @@ class BoolImpl(Protocol):
     def bool_load_binary(self, data: object) -> object: ...
 
 
+class StringImpl(Protocol):
+    def str_dump_text(self, obj: str, encoding: str) -> object: ...
+
+    def str_dump_binary(self, obj: str, encoding: str) -> object: ...
+
+    def text_load(self, data: object, encoding: str) -> object: ...
+
+
 def _copy_impls() -> list[tuple[str, CopyImpl]]:
     ferrocopg = cast(CopyImpl, pytest.importorskip("ferrocopg_rust"))
     copy_base = importlib.import_module("psycopg._copy_base")
@@ -590,6 +598,33 @@ def _bool_impls() -> list[tuple[str, BoolImpl]]:
         ),
     )
     return [("python", python_impl), ("rust", ferrocopg)]
+
+
+def _string_impls() -> list[tuple[str, StringImpl]]:
+    ferrocopg = cast(StringImpl, pytest.importorskip("ferrocopg_rust"))
+    python_impl = cast(
+        StringImpl,
+        SimpleNamespace(
+            str_dump_text=_python_str_dump_text,
+            str_dump_binary=lambda obj, encoding: obj.encode(encoding),
+            text_load=_python_text_load,
+        ),
+    )
+    return [("python", python_impl), ("rust", ferrocopg)]
+
+
+def _python_str_dump_text(obj: str, encoding: str) -> bytes:
+    if "\x00" in obj:
+        errors = importlib.import_module("psycopg.errors")
+        raise errors.DataError(
+            "PostgreSQL text fields cannot contain NUL (0x00) bytes"
+        )
+    return obj.encode(encoding)
+
+
+def _python_text_load(data: object, encoding: str) -> bytes | str:
+    raw = bytes(data) if isinstance(data, memoryview) else cast(bytes, data)
+    return raw if not encoding else raw.decode(encoding)
 
 
 @pytest.mark.parametrize(
@@ -1333,6 +1368,85 @@ def test_bool_loaders_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(module, "_rpsycopg", StubRustModule)
     assert module.BoolLoader(16).load(b"t") == ("text", b"t")
     assert module.BoolBinaryLoader(16).load(b"\x01") == ("binary", b"\x01")
+
+
+@pytest.mark.parametrize(
+    ("value", "encoding", "expected"),
+    [
+        ("plain", "utf-8", b"plain"),
+        ("cafe", "latin-1", b"cafe"),
+        ("cafe", "utf-8", b"cafe"),
+        ("café", "utf-8", "café".encode("utf-8")),
+        ("café", "latin-1", "café".encode("latin-1")),
+    ],
+)
+def test_string_dump_helpers_equivalent(
+    value: str, encoding: str, expected: bytes
+) -> None:
+    for name, impl in _string_impls():
+        assert impl.str_dump_binary(value, encoding) == expected, name
+        assert impl.str_dump_text(value, encoding) == expected, name
+
+
+def test_string_dump_text_rejects_nul() -> None:
+    errors = importlib.import_module("psycopg.errors")
+    for _name, impl in _string_impls():
+        with pytest.raises(errors.DataError, match="cannot contain NUL"):
+            impl.str_dump_text("bad\x00text", "utf-8")
+
+
+@pytest.mark.parametrize(
+    ("payload", "encoding", "expected"),
+    [
+        (b"plain", "utf-8", "plain"),
+        ("café".encode("utf-8"), "utf-8", "café"),
+        ("café".encode("latin-1"), "latin-1", "café"),
+        (b"plain", "", b"plain"),
+    ],
+)
+def test_text_load_equivalent(
+    payload: bytes, encoding: str, expected: bytes | str
+) -> None:
+    for name, impl in _string_impls():
+        assert impl.text_load(payload, encoding) == expected, name
+
+
+def test_string_dumpers_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = importlib.import_module("psycopg.types.string")
+
+    class StubRustModule:
+        @staticmethod
+        def str_dump_text(obj: str, encoding: str) -> tuple[str, str, str]:
+            return ("text", obj, encoding)
+
+        @staticmethod
+        def str_dump_binary(obj: str, encoding: str) -> tuple[str, str, str]:
+            return ("binary", obj, encoding)
+
+    monkeypatch.setattr(module, "_rpsycopg", StubRustModule)
+    text_dumper = module.StrDumper(str)
+    text_dumper._encoding = "latin-1"
+    binary_dumper = module.StrBinaryDumper(str)
+    binary_dumper._encoding = "utf-8"
+    assert text_dumper.dump("abc") == ("text", "abc", "latin-1")
+    assert binary_dumper.dump("abc") == ("binary", "abc", "utf-8")
+
+
+def test_text_loaders_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = importlib.import_module("psycopg.types.string")
+
+    class StubRustModule:
+        @staticmethod
+        def text_load(data: object, encoding: str) -> tuple[str, object, str]:
+            return ("load", data, encoding)
+
+    monkeypatch.setattr(module, "_rpsycopg", StubRustModule)
+    text_loader = module.TextLoader(25)
+    text_loader._encoding = "latin-1"
+    binary_loader = module.TextBinaryLoader(25)
+    binary_loader._encoding = ""
+    assert text_loader.load(b"abc") == ("load", b"abc", "latin-1")
+    assert binary_loader.load(b"abc") == ("load", b"abc", "")
 
 
 def test_ferrocopg_unavailable(monkeypatch):
