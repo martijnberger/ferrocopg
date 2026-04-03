@@ -40,10 +40,7 @@ def get_bindir(vcpkg_platform_root: Path) -> Path:
         if (bindir / "libpq.dll").exists():
             return bindir
 
-    raise ScriptError(
-        "libpq runtime directory not found under "
-        f"{vcpkg_platform_root}"
-    )
+    raise ScriptError(f"libpq runtime directory not found under {vcpkg_platform_root}")
 
 
 def _main() -> None:
