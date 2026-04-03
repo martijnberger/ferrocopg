@@ -31,6 +31,8 @@ pub struct ConnectPlan {
     pub tls_mode: &'static str,
     pub tls_negotiation: &'static str,
     pub tls_connector_hint: &'static str,
+    pub target_session_attrs: &'static str,
+    pub load_balance_hosts: &'static str,
     pub can_bootstrap_with_no_tls: bool,
     pub requires_external_tls_connector: bool,
     pub summary: ConninfoSummary,
@@ -122,6 +124,8 @@ impl BootstrapConfig {
             tls_mode: ssl_mode,
             tls_negotiation,
             tls_connector_hint: tls_connector_hint(self.config.get_ssl_mode()),
+            target_session_attrs: target_session_attrs_name(self.config.get_target_session_attrs()),
+            load_balance_hosts: load_balance_hosts_name(self.config.get_load_balance_hosts()),
             can_bootstrap_with_no_tls,
             requires_external_tls_connector: !can_bootstrap_with_no_tls,
             summary,
@@ -160,9 +164,7 @@ fn tls_connector_hint(ssl_mode: tokio_postgres::config::SslMode) -> &'static str
         tokio_postgres::config::SslMode::Prefer => {
             "NoTls can bootstrap, but a real TLS connector is preferred"
         }
-        tokio_postgres::config::SslMode::Require => {
-            "external TLS connector required"
-        }
+        tokio_postgres::config::SslMode::Require => "external TLS connector required",
         _ => "external TLS policy decision required",
     }
 }
@@ -176,12 +178,30 @@ fn ssl_mode_name(ssl_mode: tokio_postgres::config::SslMode) -> &'static str {
     }
 }
 
-fn ssl_negotiation_name(
-    ssl_negotiation: tokio_postgres::config::SslNegotiation,
-) -> &'static str {
+fn ssl_negotiation_name(ssl_negotiation: tokio_postgres::config::SslNegotiation) -> &'static str {
     match ssl_negotiation {
         tokio_postgres::config::SslNegotiation::Postgres => "postgres",
         tokio_postgres::config::SslNegotiation::Direct => "direct",
+        _ => "unknown",
+    }
+}
+
+fn target_session_attrs_name(
+    target_session_attrs: tokio_postgres::config::TargetSessionAttrs,
+) -> &'static str {
+    match target_session_attrs {
+        tokio_postgres::config::TargetSessionAttrs::Any => "any",
+        tokio_postgres::config::TargetSessionAttrs::ReadWrite => "read-write",
+        _ => "unknown",
+    }
+}
+
+fn load_balance_hosts_name(
+    load_balance_hosts: tokio_postgres::config::LoadBalanceHosts,
+) -> &'static str {
+    match load_balance_hosts {
+        tokio_postgres::config::LoadBalanceHosts::Disable => "disable",
+        tokio_postgres::config::LoadBalanceHosts::Random => "random",
         _ => "unknown",
     }
 }

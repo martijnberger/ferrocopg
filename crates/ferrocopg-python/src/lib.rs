@@ -45,6 +45,10 @@ struct BackendConnectPlan {
     #[pyo3(get)]
     tls_connector_hint: String,
     #[pyo3(get)]
+    target_session_attrs: String,
+    #[pyo3(get)]
+    load_balance_hosts: String,
+    #[pyo3(get)]
     can_bootstrap_with_no_tls: bool,
     #[pyo3(get)]
     requires_external_tls_connector: bool,
@@ -113,6 +117,8 @@ impl From<ferrocopg_postgres::ConnectPlan> for BackendConnectPlan {
             tls_mode: plan.tls_mode.to_owned(),
             tls_negotiation: plan.tls_negotiation.to_owned(),
             tls_connector_hint: plan.tls_connector_hint.to_owned(),
+            target_session_attrs: plan.target_session_attrs.to_owned(),
+            load_balance_hosts: plan.load_balance_hosts.to_owned(),
             can_bootstrap_with_no_tls: plan.can_bootstrap_with_no_tls,
             requires_external_tls_connector: plan.requires_external_tls_connector,
             summary: plan.summary.into(),
