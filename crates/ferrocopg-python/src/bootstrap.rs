@@ -135,6 +135,13 @@ struct BackendTextQueryResult {
 
 #[derive(Clone)]
 #[pyclass(module = "ferrocopg_rust._ferrocopg")]
+struct BackendExecuteResult {
+    #[pyo3(get)]
+    rows_affected: u64,
+}
+
+#[derive(Clone)]
+#[pyclass(module = "ferrocopg_rust._ferrocopg")]
 struct BackendStatementParameter {
     #[pyo3(get)]
     oid: u32,
@@ -230,6 +237,17 @@ fn query_text_params_no_tls(
 ) -> PyResult<BackendTextQueryResult> {
     ferrocopg_postgres::query_text_params_no_tls(conninfo, query, &params)
         .map(BackendTextQueryResult::from)
+        .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+}
+
+#[pyfunction]
+fn execute_text_params_no_tls(
+    conninfo: &str,
+    query: &str,
+    params: Vec<Option<String>>,
+) -> PyResult<BackendExecuteResult> {
+    ferrocopg_postgres::execute_text_params_no_tls(conninfo, query, &params)
+        .map(BackendExecuteResult::from)
         .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
 }
 
@@ -345,6 +363,14 @@ impl From<ferrocopg_postgres::TextQueryResult> for BackendTextQueryResult {
     }
 }
 
+impl From<ferrocopg_postgres::ExecuteResult> for BackendExecuteResult {
+    fn from(result: ferrocopg_postgres::ExecuteResult) -> Self {
+        Self {
+            rows_affected: result.rows_affected,
+        }
+    }
+}
+
 impl From<ferrocopg_postgres::StatementParameter> for BackendStatementParameter {
     fn from(param: ferrocopg_postgres::StatementParameter) -> Self {
         Self {
@@ -451,6 +477,23 @@ impl BackendSyncNoTlsSession {
             .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
     }
 
+    fn execute_text_params(
+        &self,
+        query: &str,
+        params: Vec<Option<String>>,
+    ) -> PyResult<BackendExecuteResult> {
+        self.inner
+            .lock()
+            .map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    "backend session mutex is poisoned",
+                )
+            })?
+            .execute_text_params(query, &params)
+            .map(BackendExecuteResult::from)
+            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    }
+
     fn describe_text(&self, query: &str) -> PyResult<BackendStatementDescription> {
         self.inner
             .lock()
@@ -472,6 +515,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<BackendConnectTarget>()?;
     m.add_class::<BackendSyncNoTlsProbe>()?;
     m.add_class::<BackendTextQueryResult>()?;
+    m.add_class::<BackendExecuteResult>()?;
     m.add_class::<BackendStatementParameter>()?;
     m.add_class::<BackendStatementColumn>()?;
     m.add_class::<BackendStatementDescription>()?;
@@ -486,6 +530,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(probe_connect_no_tls, m)?)?;
     m.add_function(wrap_pyfunction!(query_text_no_tls, m)?)?;
     m.add_function(wrap_pyfunction!(query_text_params_no_tls, m)?)?;
+    m.add_function(wrap_pyfunction!(execute_text_params_no_tls, m)?)?;
     m.add_function(wrap_pyfunction!(describe_text_no_tls, m)?)?;
     m.add_function(wrap_pyfunction!(connect_no_tls_session, m)?)?;
     Ok(())
