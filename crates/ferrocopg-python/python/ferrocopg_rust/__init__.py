@@ -3,7 +3,9 @@ Bootstrap Rust extension package for ferrocopg.
 """
 
 from ._ferrocopg import (
+    BackendConnectEndpoint,
     BackendConnectPlan,
+    BackendConnectTarget,
     BackendConninfoSummary,
     Transformer,
     __version__,
@@ -41,6 +43,7 @@ from ._ferrocopg import (
     numeric_load_binary,
     numeric_load_text,
     parse_connect_plan,
+    parse_connect_target,
     parse_conninfo_summary,
     parse_row_binary,
     parse_row_text,
@@ -64,7 +67,9 @@ from ._ferrocopg import (
 )
 
 __all__ = [
+    "BackendConnectEndpoint",
     "BackendConnectPlan",
+    "BackendConnectTarget",
     "BackendConninfoSummary",
     "Transformer",
     "__version__",
@@ -104,6 +109,7 @@ __all__ = [
     "parse_row_binary",
     "parse_row_text",
     "parse_connect_plan",
+    "parse_connect_target",
     "parse_conninfo_summary",
     "pipeline_communicate",
     "scaffold_status",

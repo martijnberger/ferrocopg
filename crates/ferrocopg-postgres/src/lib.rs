@@ -7,6 +7,7 @@ use std::str::FromStr;
 
 const DEFAULT_CONNECT_TIMEOUT_SECS: u64 = 130;
 const MIN_CONNECT_TIMEOUT_SECS: u64 = 2;
+const DEFAULT_POSTGRES_PORT: u16 = 5432;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConninfoSummary {
@@ -35,6 +36,33 @@ pub struct ConnectPlan {
     pub load_balance_hosts: &'static str,
     pub can_bootstrap_with_no_tls: bool,
     pub requires_external_tls_connector: bool,
+    pub summary: ConninfoSummary,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConnectEndpoint {
+    pub transport: &'static str,
+    pub target: String,
+    pub hostaddr: Option<String>,
+    pub port: u16,
+    pub inferred: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConnectTarget {
+    pub backend_stack: &'static str,
+    pub sync_client: &'static str,
+    pub async_client: &'static str,
+    pub sync_runtime: &'static str,
+    pub async_runtime: &'static str,
+    pub tls_mode: &'static str,
+    pub tls_negotiation: &'static str,
+    pub tls_connector_hint: &'static str,
+    pub target_session_attrs: &'static str,
+    pub load_balance_hosts: &'static str,
+    pub can_bootstrap_with_no_tls: bool,
+    pub requires_external_tls_connector: bool,
+    pub endpoints: Vec<ConnectEndpoint>,
     pub summary: ConninfoSummary,
 }
 
@@ -105,6 +133,11 @@ pub fn connect_plan(conninfo: &str) -> Result<ConnectPlan, tokio_postgres::Error
     Ok(config.connect_plan())
 }
 
+pub fn connect_target(conninfo: &str) -> Result<ConnectTarget, tokio_postgres::Error> {
+    let config = BootstrapConfig::parse(conninfo)?;
+    Ok(config.connect_target())
+}
+
 impl BootstrapConfig {
     pub fn connect_plan(&self) -> ConnectPlan {
         let summary = self.summary();
@@ -129,6 +162,27 @@ impl BootstrapConfig {
             can_bootstrap_with_no_tls,
             requires_external_tls_connector: !can_bootstrap_with_no_tls,
             summary,
+        }
+    }
+
+    pub fn connect_target(&self) -> ConnectTarget {
+        let plan = self.connect_plan();
+
+        ConnectTarget {
+            backend_stack: plan.backend_stack,
+            sync_client: plan.sync_client,
+            async_client: plan.async_client,
+            sync_runtime: plan.sync_runtime,
+            async_runtime: plan.async_runtime,
+            tls_mode: plan.tls_mode,
+            tls_negotiation: plan.tls_negotiation,
+            tls_connector_hint: plan.tls_connector_hint,
+            target_session_attrs: plan.target_session_attrs,
+            load_balance_hosts: plan.load_balance_hosts,
+            can_bootstrap_with_no_tls: plan.can_bootstrap_with_no_tls,
+            requires_external_tls_connector: plan.requires_external_tls_connector,
+            endpoints: connect_endpoints(&self.config),
+            summary: plan.summary,
         }
     }
 }
@@ -203,5 +257,104 @@ fn load_balance_hosts_name(
         tokio_postgres::config::LoadBalanceHosts::Disable => "disable",
         tokio_postgres::config::LoadBalanceHosts::Random => "random",
         _ => "unknown",
+    }
+}
+
+fn connect_endpoints(config: &tokio_postgres::Config) -> Vec<ConnectEndpoint> {
+    let hosts = config.get_hosts();
+    let hostaddrs = config.get_hostaddrs();
+    let ports = config.get_ports();
+
+    if hosts.is_empty() {
+        return vec![ConnectEndpoint {
+            transport: "tcp",
+            target: "localhost".to_owned(),
+            hostaddr: None,
+            port: default_port(ports, 0),
+            inferred: true,
+        }];
+    }
+
+    hosts
+        .iter()
+        .enumerate()
+        .map(|(index, host)| {
+            let (transport, target) = match host {
+                tokio_postgres::config::Host::Tcp(name) => ("tcp", name.clone()),
+                tokio_postgres::config::Host::Unix(path) => ("unix", path.display().to_string()),
+            };
+
+            ConnectEndpoint {
+                transport,
+                target,
+                hostaddr: hostaddrs.get(index).map(ToString::to_string),
+                port: default_port(ports, index),
+                inferred: false,
+            }
+        })
+        .collect()
+}
+
+fn default_port(ports: &[u16], index: usize) -> u16 {
+    match ports {
+        [] => DEFAULT_POSTGRES_PORT,
+        [port] => *port,
+        _ => ports
+            .get(index)
+            .copied()
+            .or_else(|| ports.last().copied())
+            .unwrap_or(DEFAULT_POSTGRES_PORT),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn connect_target_defaults_to_localhost_when_host_missing() {
+        let target = connect_target("dbname=postgres").expect("conninfo should parse");
+        assert_eq!(target.endpoints.len(), 1);
+        assert_eq!(target.endpoints[0].transport, "tcp");
+        assert_eq!(target.endpoints[0].target, "localhost");
+        assert_eq!(target.endpoints[0].port, DEFAULT_POSTGRES_PORT);
+        assert!(target.endpoints[0].inferred);
+    }
+
+    #[test]
+    fn connect_target_preserves_host_port_and_hostaddr_pairs() {
+        let target = connect_target(
+            "host=a,b hostaddr=10.0.0.1,10.0.0.2 port=5433,5434 dbname=postgres",
+        )
+        .expect("conninfo should parse");
+        assert_eq!(
+            target.endpoints,
+            vec![
+                ConnectEndpoint {
+                    transport: "tcp",
+                    target: "a".to_owned(),
+                    hostaddr: Some("10.0.0.1".to_owned()),
+                    port: 5433,
+                    inferred: false,
+                },
+                ConnectEndpoint {
+                    transport: "tcp",
+                    target: "b".to_owned(),
+                    hostaddr: Some("10.0.0.2".to_owned()),
+                    port: 5434,
+                    inferred: false,
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn connect_target_uses_single_port_for_many_hosts() {
+        let target =
+            connect_target("host=a,b,c port=6543 dbname=postgres").expect("conninfo should parse");
+        assert_eq!(
+            target.endpoints.iter().map(|ep| ep.port).collect::<Vec<_>>(),
+            vec![6543, 6543, 6543]
+        );
     }
 }

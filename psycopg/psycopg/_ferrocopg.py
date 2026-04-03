@@ -35,3 +35,12 @@ def connect_plan(conninfo: str) -> object | None:
     if not _ferrocopg:
         return None
     return cast(object, _ferrocopg.parse_connect_plan(conninfo))
+
+
+def connect_target(conninfo: str) -> object | None:
+    """
+    Return a Rust-backed backend connect target if the ferrocopg extension is loaded.
+    """
+    if not _ferrocopg:
+        return None
+    return cast(object, _ferrocopg.parse_connect_target(conninfo))
