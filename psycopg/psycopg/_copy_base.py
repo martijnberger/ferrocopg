@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, Generic
 from . import adapt, pq
 from . import errors as e
 from ._cmodule import _psycopg
+from ._rmodule import _ferrocopg as _rpsycopg
 from .abc import Buffer, ConnectionType, PQGen, Transformer
 from .generators import copy_from
 from .pq.misc import connection_summary
@@ -408,15 +409,32 @@ def _load_sub(m: re.Match[bytes], __map: dict[bytes, bytes] = _load_repl) -> byt
     return __map[m.group(0)]
 
 
-# Override functions with fast versions if available
-if _psycopg:
-    format_row_text = _psycopg.format_row_text
-    format_row_binary = _psycopg.format_row_binary
-    parse_row_text = _psycopg.parse_row_text
-    parse_row_binary = _psycopg.parse_row_binary
+def _load_copy_impl() -> tuple[Any, Any, Any, Any]:
+    # Prefer the long-standing C accelerator when present. Otherwise, allow the
+    # ferrocopg Rust module to provide just the COPY fast paths while the rest
+    # of the optimized module surface is still being ported.
+    if _psycopg:
+        return (
+            _psycopg.format_row_text,
+            _psycopg.format_row_binary,
+            _psycopg.parse_row_text,
+            _psycopg.parse_row_binary,
+        )
 
-else:
-    format_row_text = _format_row_text
-    format_row_binary = _format_row_binary
-    parse_row_text = _parse_row_text
-    parse_row_binary = _parse_row_binary
+    if _rpsycopg and hasattr(_rpsycopg, "format_row_text"):
+        return (
+            _rpsycopg.format_row_text,
+            _rpsycopg.format_row_binary,
+            _rpsycopg.parse_row_text,
+            _rpsycopg.parse_row_binary,
+        )
+
+    return (
+        _format_row_text,
+        _format_row_binary,
+        _parse_row_text,
+        _parse_row_binary,
+    )
+
+
+format_row_text, format_row_binary, parse_row_text, parse_row_binary = _load_copy_impl()

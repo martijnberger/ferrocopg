@@ -336,11 +336,8 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
-            const path = require('path')
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-            core.addPath(path.join(process.env.VCPKG_INSTALLATION_ROOT, 'installed/x64-windows-release/lib'));
-            core.addPath(path.join(process.env.VCPKG_INSTALLATION_ROOT, 'installed/x64-windows-release/bin'));
 
       - name: Install libpq from vcpkg and install pg_config.exe stub
         run: .\tools\ci\wheel_win32_before_build.bat

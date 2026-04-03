@@ -1,9 +1,11 @@
 use pyo3::prelude::*;
+use pyo3::types::{PyBytes, PyList};
 use pyo3::wrap_pyfunction;
 use pyo3::{PyErr, exceptions::PyValueError};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+#[derive(Clone)]
 #[pyclass(module = "ferrocopg_rust._ferrocopg")]
 struct BackendConninfoSummary {
     #[pyo3(get)]
@@ -26,6 +28,7 @@ struct BackendConninfoSummary {
     effective_connect_timeout_seconds: u64,
 }
 
+#[derive(Clone)]
 #[pyclass(module = "ferrocopg_rust._ferrocopg")]
 struct BackendConnectPlan {
     #[pyo3(get)]
@@ -90,6 +93,145 @@ fn parse_connect_plan(conninfo: &str) -> PyResult<BackendConnectPlan> {
         .map_err(|err| PyErr::new::<PyValueError, _>(err.to_string()))
 }
 
+#[pyfunction]
+fn format_row_text(
+    py: Python<'_>,
+    row: &Bound<'_, PyAny>,
+    tx: &Bound<'_, PyAny>,
+    out: &Bound<'_, PyAny>,
+) -> PyResult<()> {
+    let adapted = dump_sequence(py, row, tx, "TEXT")?;
+    let mut buffer = Vec::new();
+
+    if adapted.is_empty() {
+        buffer.push(b'\n');
+    } else {
+        for field in adapted {
+            match field {
+                Some(data) => append_escaped_text_field(&mut buffer, &data),
+                None => buffer.extend_from_slice(br"\N"),
+            }
+            buffer.push(b'\t');
+        }
+        buffer.pop();
+        buffer.push(b'\n');
+    }
+
+    extend_bytearray(out, &buffer)
+}
+
+#[pyfunction]
+fn format_row_binary(
+    py: Python<'_>,
+    row: &Bound<'_, PyAny>,
+    tx: &Bound<'_, PyAny>,
+    out: &Bound<'_, PyAny>,
+) -> PyResult<()> {
+    let adapted = dump_sequence(py, row, tx, "BINARY")?;
+    let row_len = i16::try_from(adapted.len())
+        .map_err(|_| PyErr::new::<PyValueError, _>("too many fields in COPY row"))?;
+
+    let mut buffer = Vec::new();
+    buffer.extend_from_slice(&row_len.to_be_bytes());
+
+    for field in adapted {
+        match field {
+            Some(data) => {
+                let len = i32::try_from(data.len()).map_err(|_| {
+                    PyErr::new::<PyValueError, _>("COPY binary field larger than i32")
+                })?;
+                buffer.extend_from_slice(&len.to_be_bytes());
+                buffer.extend_from_slice(&data);
+            }
+            None => buffer.extend_from_slice(&(-1_i32).to_be_bytes()),
+        }
+    }
+
+    extend_bytearray(out, &buffer)
+}
+
+#[pyfunction]
+fn parse_row_text(
+    py: Python<'_>,
+    data: &Bound<'_, PyAny>,
+    tx: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    let mut fields = bytes_like_to_vec(py, data)?
+        .split(|byte| *byte == b'\t')
+        .map(|field| field.to_vec())
+        .collect::<Vec<_>>();
+
+    if let Some(last) = fields.last_mut() {
+        if last.last() == Some(&b'\n') {
+            last.pop();
+        }
+    }
+
+    let row = PyList::empty(py);
+    for field in fields {
+        if field == br"\N" {
+            row.append(py.None())?;
+        } else {
+            row.append(PyBytes::new(py, &unescape_text_field(&field)))?;
+        }
+    }
+
+    tx.call_method1("load_sequence", (row,)).map(Bound::unbind)
+}
+
+#[pyfunction]
+fn parse_row_binary(
+    py: Python<'_>,
+    data: &Bound<'_, PyAny>,
+    tx: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    let data = bytes_like_to_vec(py, data)?;
+    if data.len() < 2 {
+        return Err(PyErr::new::<PyValueError, _>(
+            "COPY binary row is truncated",
+        ));
+    }
+
+    let nfields = i16::from_be_bytes([data[0], data[1]]);
+    if nfields < 0 {
+        return Err(PyErr::new::<PyValueError, _>(
+            "COPY binary row has a negative field count",
+        ));
+    }
+
+    let row = PyList::empty(py);
+    let mut pos = 2_usize;
+    for _ in 0..usize::try_from(nfields).unwrap_or(0) {
+        if data.len().saturating_sub(pos) < 4 {
+            return Err(PyErr::new::<PyValueError, _>(
+                "COPY binary row is truncated",
+            ));
+        }
+
+        let length = i32::from_be_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]]);
+        pos += 4;
+
+        if length < 0 {
+            row.append(py.None())?;
+            continue;
+        }
+
+        let length = usize::try_from(length).map_err(|_| {
+            PyErr::new::<PyValueError, _>("COPY binary field length cannot fit in usize")
+        })?;
+        if data.len().saturating_sub(pos) < length {
+            return Err(PyErr::new::<PyValueError, _>(
+                "COPY binary field payload is truncated",
+            ));
+        }
+
+        row.append(PyBytes::new(py, &data[pos..pos + length]))?;
+        pos += length;
+    }
+
+    tx.call_method1("load_sequence", (row,)).map(Bound::unbind)
+}
+
 impl From<ferrocopg_postgres::ConninfoSummary> for BackendConninfoSummary {
     fn from(summary: ferrocopg_postgres::ConninfoSummary) -> Self {
         Self {
@@ -137,5 +279,117 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(backend_core, m)?)?;
     m.add_function(wrap_pyfunction!(parse_conninfo_summary, m)?)?;
     m.add_function(wrap_pyfunction!(parse_connect_plan, m)?)?;
+    m.add_function(wrap_pyfunction!(format_row_text, m)?)?;
+    m.add_function(wrap_pyfunction!(format_row_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_row_text, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_row_binary, m)?)?;
     Ok(())
+}
+
+fn dump_sequence(
+    py: Python<'_>,
+    row: &Bound<'_, PyAny>,
+    tx: &Bound<'_, PyAny>,
+    format_name: &str,
+) -> PyResult<Vec<Option<Vec<u8>>>> {
+    let pyformat = py
+        .import("psycopg.adapt")?
+        .getattr("PyFormat")?
+        .getattr(format_name)?;
+    let formats = PyList::empty(py);
+    for _ in 0..row.len()? {
+        formats.append(pyformat.clone())?;
+    }
+
+    let adapted = tx.call_method1("dump_sequence", (row, formats))?;
+    let mut out = Vec::new();
+    for item in adapted.try_iter()? {
+        let item = item?;
+        if item.is_none() {
+            out.push(None);
+        } else {
+            out.push(Some(bytes_like_to_vec(py, &item)?));
+        }
+    }
+
+    Ok(out)
+}
+
+fn bytes_like_to_vec(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
+    py.import("builtins")?
+        .getattr("bytes")?
+        .call1((obj,))?
+        .extract()
+}
+
+fn extend_bytearray(out: &Bound<'_, PyAny>, data: &[u8]) -> PyResult<()> {
+    out.call_method1("extend", (PyBytes::new(out.py(), data),))?;
+    Ok(())
+}
+
+fn append_escaped_text_field(out: &mut Vec<u8>, field: &[u8]) {
+    for byte in field {
+        match byte {
+            0x08 => out.extend_from_slice(br"\b"),
+            b'\t' => out.extend_from_slice(br"\t"),
+            b'\n' => out.extend_from_slice(br"\n"),
+            0x0b => out.extend_from_slice(br"\v"),
+            0x0c => out.extend_from_slice(br"\f"),
+            b'\r' => out.extend_from_slice(br"\r"),
+            b'\\' => out.extend_from_slice(br"\\"),
+            _ => out.push(*byte),
+        }
+    }
+}
+
+fn unescape_text_field(field: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(field.len());
+    let mut pos = 0;
+    while pos < field.len() {
+        if field[pos] == b'\\' && pos + 1 < field.len() {
+            match field[pos + 1] {
+                b'b' => {
+                    out.push(0x08);
+                    pos += 2;
+                    continue;
+                }
+                b't' => {
+                    out.push(b'\t');
+                    pos += 2;
+                    continue;
+                }
+                b'n' => {
+                    out.push(b'\n');
+                    pos += 2;
+                    continue;
+                }
+                b'v' => {
+                    out.push(0x0b);
+                    pos += 2;
+                    continue;
+                }
+                b'f' => {
+                    out.push(0x0c);
+                    pos += 2;
+                    continue;
+                }
+                b'r' => {
+                    out.push(b'\r');
+                    pos += 2;
+                    continue;
+                }
+                b'\\' => {
+                    out.push(b'\\');
+                    pos += 2;
+                    continue;
+                }
+                _ => {}
+            }
+        }
+
+        out.push(field[pos]);
+        pos += 1;
+    }
+
+    out
 }
