@@ -1,0 +1,17 @@
+[package]
+name = "ferrocopg-python"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+description = "Bootstrap Rust extension package for ferrocopg"
+
+[lib]
+name = "_ferrocopg"
+crate-type = ["cdylib"]
+
+[dependencies]
+ferrocopg-pq = { path = "../ferrocopg-pq" }
+pyo3 = { version = "0.24", features = ["extension-module"] }

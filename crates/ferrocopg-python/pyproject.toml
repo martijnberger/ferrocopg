@@ -1,0 +1,21 @@
+[build-system]
+requires = ["maturin>=1.8,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "ferrocopg-rust"
+version = "0.1.0"
+description = "Bootstrap Rust extension package for ferrocopg"
+requires-python = ">=3.10"
+license = "LGPL-3.0-only"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+
+[tool.maturin]
+python-source = "python"
+module-name = "ferrocopg_rust._ferrocopg"
+manifest-path = "Cargo.toml"
