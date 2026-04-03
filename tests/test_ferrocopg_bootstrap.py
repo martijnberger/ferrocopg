@@ -1,5 +1,6 @@
 import importlib
 import socket
+import uuid
 from collections import deque
 from collections.abc import Callable, Generator
 from types import SimpleNamespace
@@ -79,6 +80,14 @@ class ArrayTextImpl(Protocol):
     def array_load_text(
         self, data: object, loader: object, delimiter: bytes = b","
     ) -> object: ...
+
+
+class UUIDTextImpl(Protocol):
+    def uuid_load_text(self, data: object) -> object: ...
+
+
+class UUIDBinaryImpl(Protocol):
+    def uuid_load_binary(self, data: object) -> object: ...
 
 
 def _copy_impls() -> list[tuple[str, CopyImpl]]:
@@ -529,6 +538,32 @@ def _array_text_impls() -> list[tuple[str, ArrayTextImpl]]:
     python_impl = cast(
         ArrayTextImpl,
         SimpleNamespace(array_load_text=array_mod._load_text),
+    )
+    return [("python", python_impl), ("rust", ferrocopg)]
+
+
+def _uuid_text_impls() -> list[tuple[str, UUIDTextImpl]]:
+    ferrocopg = cast(UUIDTextImpl, pytest.importorskip("ferrocopg_rust"))
+    python_impl = cast(
+        UUIDTextImpl,
+        SimpleNamespace(
+            uuid_load_text=lambda data: uuid.UUID(
+                (bytes(data) if isinstance(data, memoryview) else data).decode()
+            )
+        ),
+    )
+    return [("python", python_impl), ("rust", ferrocopg)]
+
+
+def _uuid_binary_impls() -> list[tuple[str, UUIDBinaryImpl]]:
+    ferrocopg = cast(UUIDBinaryImpl, pytest.importorskip("ferrocopg_rust"))
+    python_impl = cast(
+        UUIDBinaryImpl,
+        SimpleNamespace(
+            uuid_load_binary=lambda data: uuid.UUID(
+                bytes=(bytes(data) if isinstance(data, memoryview) else data)
+            )
+        ),
     )
     return [("python", python_impl), ("rust", ferrocopg)]
 
@@ -1177,6 +1212,58 @@ def test_array_text_loader_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) ->
     loader.base_oid = 23
     loader.delimiter = b";"
     assert loader.load(b"abc") == ("rust", b"abc", ("loader", 23, loader.format), b";")
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"12345678-1234-5678-1234-567812345678",
+        memoryview(b"{12345678-1234-5678-1234-567812345678}"),
+        b"12345678123456781234567812345678",
+    ],
+)
+def test_uuid_load_text_equivalent(payload: bytes | memoryview) -> None:
+    for name, impl in _uuid_text_impls():
+        assert impl.uuid_load_text(payload) == uuid.UUID("12345678-1234-5678-1234-567812345678"), name
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"\x12\x34\x56\x78\x12\x34\x56\x78\x12\x34\x56\x78\x12\x34\x56\x78",
+        memoryview(b"\x12\x34\x56\x78\x12\x34\x56\x78\x12\x34\x56\x78\x12\x34\x56\x78"),
+    ],
+)
+def test_uuid_load_binary_equivalent(payload: bytes | memoryview) -> None:
+    expected = uuid.UUID("12345678-1234-5678-1234-567812345678")
+    for name, impl in _uuid_binary_impls():
+        assert impl.uuid_load_binary(payload) == expected, name
+
+
+def test_uuid_loader_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = importlib.import_module("psycopg.types.uuid")
+
+    class StubRustModule:
+        @staticmethod
+        def uuid_load_text(data: object) -> tuple[str, object]:
+            return ("rust", data)
+
+    monkeypatch.setattr(module, "_rpsycopg", StubRustModule)
+    assert module.UUIDLoader(2950).load(b"abc") == ("rust", b"abc")
+
+
+def test_uuid_binary_loader_prefers_ferrocopg(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = importlib.import_module("psycopg.types.uuid")
+
+    class StubRustModule:
+        @staticmethod
+        def uuid_load_binary(data: object) -> tuple[str, object]:
+            return ("rust", data)
+
+    monkeypatch.setattr(module, "_rpsycopg", StubRustModule)
+    assert module.UUIDBinaryLoader(2950).load(b"abc") == ("rust", b"abc")
 
 
 def test_ferrocopg_unavailable(monkeypatch):

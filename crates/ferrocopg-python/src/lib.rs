@@ -325,6 +325,31 @@ fn array_load_text(
 }
 
 #[pyfunction]
+fn uuid_load_text(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let data = bytes_like_to_vec(py, data)?;
+    let text =
+        std::str::from_utf8(&data).map_err(|err| PyErr::new::<PyValueError, _>(err.to_string()))?;
+    let uuid = py.import("uuid")?.getattr("UUID")?.call1((text,))?;
+    Ok(uuid.unbind().into_any())
+}
+
+#[pyfunction]
+fn uuid_load_binary(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let data = bytes_like_to_vec(py, data)?;
+    if data.len() != 16 {
+        return Err(PyErr::new::<PyValueError, _>("Invalid UUID data"));
+    }
+
+    let kwargs = PyDict::new(py);
+    kwargs.set_item("bytes", PyBytes::new(py, &data))?;
+    let uuid = py
+        .import("uuid")?
+        .getattr("UUID")?
+        .call((), Some(&kwargs))?;
+    Ok(uuid.unbind().into_any())
+}
+
+#[pyfunction]
 fn format_row_text(
     py: Python<'_>,
     row: &Bound<'_, PyAny>,
@@ -697,6 +722,8 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(cancel, m)?)?;
     m.add_function(wrap_pyfunction!(array_load_text, m)?)?;
     m.add_function(wrap_pyfunction!(array_load_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(uuid_load_text, m)?)?;
+    m.add_function(wrap_pyfunction!(uuid_load_binary, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_text, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_binary, m)?)?;
     m.add_function(wrap_pyfunction!(send, m)?)?;
