@@ -63,6 +63,10 @@ class PipelineImpl(Protocol):
     def pipeline_communicate(self, pgconn: object, commands: object) -> object: ...
 
 
+class CancelImpl(Protocol):
+    def cancel(self, cancel_conn: object, *, timeout: float = 0.0) -> object: ...
+
+
 def _copy_impls() -> list[tuple[str, CopyImpl]]:
     ferrocopg = cast(CopyImpl, pytest.importorskip("ferrocopg_rust"))
     copy_base = importlib.import_module("psycopg._copy_base")
@@ -252,6 +256,21 @@ class StubPipelinePgconn:
         return 0
 
 
+class StubCancelConn:
+    def __init__(self, statuses: list[int], socket: int = 42, error_message: str = "boom"):
+        self._statuses = list(statuses)
+        self.socket = socket
+        self._error_message = error_message
+
+    def poll(self) -> int:
+        if self._statuses:
+            return self._statuses.pop(0)
+        return 0
+
+    def get_error_message(self) -> str:
+        return self._error_message
+
+
 def _drive_send_generator(gen: object, ready_values: list[int | None]) -> tuple[list[int], object]:
     waits: list[int] = []
     try:
@@ -325,6 +344,20 @@ def _drive_pipeline_generator(
     raise AssertionError("generator did not finish")
 
 
+def _drive_cancel_generator(
+    gen: object, ready_values: list[int | None]
+) -> tuple[list[tuple[int, int]], object]:
+    waits: list[tuple[int, int]] = []
+    try:
+        waits.append(next(cast(Generator[tuple[int, int], int | None, object], gen)))
+        for ready in ready_values:
+            waits.append(cast(tuple[int, int], cast(Any, gen).send(ready)))
+    except StopIteration as ex:
+        return waits, ex.value
+
+    raise AssertionError("generator did not finish")
+
+
 def _send_impls() -> list[tuple[str, GeneratorImpl]]:
     ferrocopg = cast(GeneratorImpl, pytest.importorskip("ferrocopg_rust"))
     generators = importlib.import_module("psycopg.generators")
@@ -386,6 +419,13 @@ def _pipeline_impls() -> list[tuple[str, PipelineImpl]]:
         PipelineImpl,
         SimpleNamespace(pipeline_communicate=generators._pipeline_communicate),
     )
+    return [("python", python_impl), ("rust", ferrocopg)]
+
+
+def _cancel_impls() -> list[tuple[str, CancelImpl]]:
+    ferrocopg = cast(CancelImpl, pytest.importorskip("ferrocopg_rust"))
+    generators = importlib.import_module("psycopg.generators")
+    python_impl = cast(CancelImpl, SimpleNamespace(cancel=generators._cancel))
     return [("python", python_impl), ("rust", ferrocopg)]
 
 
@@ -865,6 +905,42 @@ def test_generators_prefers_ferrocopg_pipeline_when_available():
 
     ferrocopg = pytest.importorskip("ferrocopg_rust")
     assert generators.pipeline_communicate is ferrocopg.pipeline_communicate
+
+
+@pytest.mark.parametrize(
+    ("statuses", "expected_waits"),
+    [
+        (["READING", "OK"], [(42, 1)]),
+        (["WRITING", "OK"], [(42, 2)]),
+        (["READING", "WRITING", "OK"], [(42, 1), (42, 2)]),
+    ],
+)
+def test_cancel_generator_equivalent(
+    statuses: list[str],
+    expected_waits: list[tuple[int, int]],
+) -> None:
+    waiting = importlib.import_module("psycopg.waiting")
+    polling_status = importlib.import_module("psycopg.pq").PollingStatus
+    cancel_statuses = [getattr(polling_status, status) for status in statuses]
+    translated_waits = [
+        (fileno, waiting.WAIT_R if wait == 1 else waiting.WAIT_W)
+        for fileno, wait in expected_waits
+    ]
+
+    for name, impl in _cancel_impls():
+        cancel_conn = StubCancelConn(cancel_statuses)
+        waits, result = _drive_cancel_generator(impl.cancel(cancel_conn), [1] * len(expected_waits))
+        assert waits == translated_waits, name
+        assert result is None, name
+
+
+def test_generators_prefers_ferrocopg_cancel_when_available():
+    generators = importlib.import_module("psycopg.generators")
+    if generators._psycopg is not None:
+        pytest.skip("C accelerator installed")
+
+    ferrocopg = pytest.importorskip("ferrocopg_rust")
+    assert generators.cancel is ferrocopg.cancel
 
 
 def test_ferrocopg_unavailable(monkeypatch):
