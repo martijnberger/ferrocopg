@@ -1,7 +1,7 @@
 import importlib
 import socket
 from collections import deque
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from types import SimpleNamespace
 from typing import Any, Protocol, cast
 
@@ -65,6 +65,10 @@ class PipelineImpl(Protocol):
 
 class CancelImpl(Protocol):
     def cancel(self, cancel_conn: object, *, timeout: float = 0.0) -> object: ...
+
+
+class ConnectImpl(Protocol):
+    def connect(self, conninfo: str, *, timeout: float = 0.0) -> object: ...
 
 
 def _copy_impls() -> list[tuple[str, CopyImpl]]:
@@ -271,6 +275,30 @@ class StubCancelConn:
         return self._error_message
 
 
+class StubConnectConn:
+    def __init__(
+        self,
+        status: int,
+        poll_statuses: list[int],
+        *,
+        socket: int = 42,
+        error_message: str = "connect boom",
+    ):
+        self.status = status
+        self._poll_statuses = list(poll_statuses)
+        self.socket = socket
+        self.error_message = error_message
+        self.nonblocking = 0
+
+    def connect_poll(self) -> int:
+        if self._poll_statuses:
+            return self._poll_statuses.pop(0)
+        return 0
+
+    def get_error_message(self, _encoding: object) -> str:
+        return self.error_message
+
+
 def _drive_send_generator(gen: object, ready_values: list[int | None]) -> tuple[list[int], object]:
     waits: list[int] = []
     try:
@@ -358,6 +386,20 @@ def _drive_cancel_generator(
     raise AssertionError("generator did not finish")
 
 
+def _drive_connect_generator(
+    gen: object, ready_values: list[int | None]
+) -> tuple[list[tuple[int, int]], object]:
+    waits: list[tuple[int, int]] = []
+    try:
+        waits.append(next(cast(Generator[tuple[int, int], int | None, object], gen)))
+        for ready in ready_values:
+            waits.append(cast(tuple[int, int], cast(Any, gen).send(ready)))
+    except StopIteration as ex:
+        return waits, ex.value
+
+    raise AssertionError("generator did not finish")
+
+
 def _send_impls() -> list[tuple[str, GeneratorImpl]]:
     ferrocopg = cast(GeneratorImpl, pytest.importorskip("ferrocopg_rust"))
     generators = importlib.import_module("psycopg.generators")
@@ -426,6 +468,24 @@ def _cancel_impls() -> list[tuple[str, CancelImpl]]:
     ferrocopg = cast(CancelImpl, pytest.importorskip("ferrocopg_rust"))
     generators = importlib.import_module("psycopg.generators")
     python_impl = cast(CancelImpl, SimpleNamespace(cancel=generators._cancel))
+    return [("python", python_impl), ("rust", ferrocopg)]
+
+
+def _connect_impls(
+    monkeypatch: pytest.MonkeyPatch, conn_factory: Callable[[], StubConnectConn]
+) -> list[tuple[str, ConnectImpl]]:
+    ferrocopg = cast(ConnectImpl, pytest.importorskip("ferrocopg_rust"))
+    generators = importlib.import_module("psycopg.generators")
+    pq_module = importlib.import_module("psycopg.pq")
+
+    fake_pgconn = SimpleNamespace(
+        connect_start=staticmethod(lambda _conninfo: conn_factory())
+    )
+    monkeypatch.setattr(generators, "pq", SimpleNamespace(**{**generators.pq.__dict__, "PGconn": fake_pgconn}))
+    monkeypatch.setattr(pq_module, "PGconn", fake_pgconn)
+    monkeypatch.setattr(generators.e, "finish_pgconn", lambda pgconn: pgconn)
+
+    python_impl = cast(ConnectImpl, SimpleNamespace(connect=generators._connect))
     return [("python", python_impl), ("rust", ferrocopg)]
 
 
@@ -941,6 +1001,50 @@ def test_generators_prefers_ferrocopg_cancel_when_available():
 
     ferrocopg = pytest.importorskip("ferrocopg_rust")
     assert generators.cancel is ferrocopg.cancel
+
+
+@pytest.mark.parametrize(
+    ("poll_status_names", "ready_values", "expected_waits"),
+    [
+        (["OK"], [], []),
+        (["READING", "OK"], [1], [(42, 1)]),
+        (["WRITING", "OK"], [1], [(42, 2)]),
+        (["READING", "READING", "OK"], [0, 1, 1], [(42, 1), (42, 1), (42, 1)]),
+    ],
+)
+def test_connect_generator_equivalent(
+    monkeypatch: pytest.MonkeyPatch,
+    poll_status_names: list[str],
+    ready_values: list[int | None],
+    expected_waits: list[tuple[int, int]],
+) -> None:
+    waiting = importlib.import_module("psycopg.waiting")
+    pq = importlib.import_module("psycopg.pq")
+    poll_statuses = [getattr(pq.PollingStatus, name) for name in poll_status_names]
+    translated_waits = [
+        (fileno, waiting.WAIT_R if wait == 1 else waiting.WAIT_W)
+        for fileno, wait in expected_waits
+    ]
+
+    for name, impl in _connect_impls(
+        monkeypatch,
+        lambda: StubConnectConn(pq.ConnStatus.OK, poll_statuses),
+    ):
+        waits, result = _drive_connect_generator(
+            impl.connect("host=example dbname=test"),
+            ready_values,
+        )
+        assert waits == translated_waits, name
+        assert cast(StubConnectConn, result).nonblocking == 1, name
+
+
+def test_generators_prefers_ferrocopg_connect_when_available():
+    generators = importlib.import_module("psycopg.generators")
+    if generators._psycopg is not None:
+        pytest.skip("C accelerator installed")
+
+    ferrocopg = pytest.importorskip("ferrocopg_rust")
+    assert generators.connect is ferrocopg.connect
 
 
 def test_ferrocopg_unavailable(monkeypatch):

@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyList, PyTuple};
+use pyo3::types::{PyBytes, PyDict, PyList, PyTuple};
 use pyo3::wrap_pyfunction;
 use pyo3::{
     PyErr,
@@ -127,6 +127,22 @@ struct CancelGenerator {
     deadline: Option<f64>,
 }
 
+#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+struct ConnectGenerator {
+    conn: Py<PyAny>,
+    conninfo: String,
+    wait_r: Py<PyAny>,
+    wait_w: Py<PyAny>,
+    bad: i32,
+    poll_ok: i32,
+    poll_reading: i32,
+    poll_writing: i32,
+    poll_failed: i32,
+    deadline: Option<f64>,
+    state: ConnectState,
+    pending_wait: Option<Py<PyAny>>,
+}
+
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum SendState {
     StartOrFlush,
@@ -169,6 +185,13 @@ enum PipelineState {
     Done,
 }
 
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum ConnectState {
+    Poll,
+    AwaitReady,
+    Done,
+}
+
 #[pyfunction]
 fn milestone() -> &'static str {
     "milestone-1-bootstrap"
@@ -201,6 +224,44 @@ fn parse_connect_plan(conninfo: &str) -> PyResult<BackendConnectPlan> {
     ferrocopg_postgres::connect_plan(conninfo)
         .map(BackendConnectPlan::from)
         .map_err(|err| PyErr::new::<PyValueError, _>(err.to_string()))
+}
+
+#[pyfunction(signature = (conninfo, timeout=0.0))]
+fn connect(py: Python<'_>, conninfo: &str, timeout: f64) -> PyResult<ConnectGenerator> {
+    let waiting = py.import("psycopg.waiting")?;
+    let pq = py.import("psycopg.pq")?;
+    let conn_status = pq.getattr("ConnStatus")?;
+    let polling_status = pq.getattr("PollingStatus")?;
+    let conn = pq
+        .getattr("PGconn")?
+        .call_method1("connect_start", (conninfo.as_bytes(),))?
+        .unbind();
+    let deadline = if timeout > 0.0 {
+        Some(
+            py.import("time")?
+                .getattr("monotonic")?
+                .call0()?
+                .extract::<f64>()?
+                + timeout,
+        )
+    } else {
+        None
+    };
+
+    Ok(ConnectGenerator {
+        conn,
+        conninfo: conninfo.to_owned(),
+        wait_r: waiting.getattr("WAIT_R")?.unbind(),
+        wait_w: waiting.getattr("WAIT_W")?.unbind(),
+        bad: conn_status.getattr("BAD")?.extract::<i32>()?,
+        poll_ok: polling_status.getattr("OK")?.extract::<i32>()?,
+        poll_reading: polling_status.getattr("READING")?.extract::<i32>()?,
+        poll_writing: polling_status.getattr("WRITING")?.extract::<i32>()?,
+        poll_failed: polling_status.getattr("FAILED")?.extract::<i32>()?,
+        deadline,
+        state: ConnectState::Poll,
+        pending_wait: None,
+    })
 }
 
 #[pyfunction(signature = (cancel_conn, timeout=0.0))]
@@ -592,6 +653,7 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", VERSION)?;
     m.add_class::<BackendConninfoSummary>()?;
     m.add_class::<BackendConnectPlan>()?;
+    m.add_class::<ConnectGenerator>()?;
     m.add_class::<SendGenerator>()?;
     m.add_class::<FetchGenerator>()?;
     m.add_class::<FetchManyGenerator>()?;
@@ -604,6 +666,7 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(backend_core, m)?)?;
     m.add_function(wrap_pyfunction!(parse_conninfo_summary, m)?)?;
     m.add_function(wrap_pyfunction!(parse_connect_plan, m)?)?;
+    m.add_function(wrap_pyfunction!(connect, m)?)?;
     m.add_function(wrap_pyfunction!(cancel, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_text, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_binary, m)?)?;
@@ -616,6 +679,21 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_row_binary, m)?)?;
     m.add_function(wrap_pyfunction!(wait_c, m)?)?;
     Ok(())
+}
+
+#[pymethods]
+impl ConnectGenerator {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        self.advance(py, None)
+    }
+
+    fn send(&mut self, py: Python<'_>, ready: Option<i32>) -> PyResult<Py<PyAny>> {
+        self.advance(py, ready)
+    }
 }
 
 #[pymethods]
@@ -761,6 +839,148 @@ fn psycopg_operational_error(exc_type: &Bound<'_, PyAny>, message: &str) -> PyEr
         .call1((message,))
         .expect("OperationalError constructor should succeed");
     PyErr::from_value(exc)
+}
+
+fn psycopg_exception_with_pgconn(
+    py: Python<'_>,
+    exc_type: &Bound<'_, PyAny>,
+    message: &str,
+    pgconn: &Bound<'_, PyAny>,
+) -> PyErr {
+    let kwargs = PyDict::new(py);
+    kwargs
+        .set_item("pgconn", pgconn)
+        .expect("exception kwargs should accept pgconn");
+    let exc = exc_type
+        .call((message,), Some(&kwargs))
+        .expect("exception constructor should succeed");
+    PyErr::from_value(exc)
+}
+
+impl ConnectGenerator {
+    fn advance(&mut self, py: Python<'_>, ready: Option<i32>) -> PyResult<Py<PyAny>> {
+        loop {
+            match self.state {
+                ConnectState::Done => {
+                    return Err(PyStopIteration::new_err((py.None(),)));
+                }
+                ConnectState::Poll => {
+                    let status_now = self.conn.bind(py).getattr("status")?.extract::<i32>()?;
+                    if status_now == self.bad {
+                        let encoding = py
+                            .import("psycopg._encodings")?
+                            .getattr("conninfo_encoding")?
+                            .call1((self.conninfo.as_str(),))?;
+                        let msg = format!(
+                            "connection is bad: {}",
+                            self.conn
+                                .bind(py)
+                                .call_method1("get_error_message", (encoding,))?
+                                .extract::<String>()?
+                        );
+                        return Err(psycopg_exception_with_pgconn(
+                            py,
+                            &py.import("psycopg.errors")?.getattr("OperationalError")?,
+                            &msg,
+                            self.conn.bind(py),
+                        ));
+                    }
+
+                    let poll_status = self
+                        .conn
+                        .bind(py)
+                        .call_method0("connect_poll")?
+                        .extract::<i32>()?;
+                    if poll_status == self.poll_reading || poll_status == self.poll_writing {
+                        let wait = if poll_status == self.poll_reading {
+                            self.wait_r.clone_ref(py)
+                        } else {
+                            self.wait_w.clone_ref(py)
+                        };
+                        self.pending_wait = Some(wait.clone_ref(py));
+                        self.state = ConnectState::AwaitReady;
+                        return Ok(PyTuple::new(
+                            py,
+                            [self.conn.bind(py).getattr("socket")?, wait.bind(py).clone()],
+                        )?
+                        .unbind()
+                        .into_any());
+                    }
+                    if poll_status == self.poll_ok {
+                        self.conn.bind(py).setattr("nonblocking", 1)?;
+                        self.state = ConnectState::Done;
+                        return Err(PyStopIteration::new_err((self.conn.clone_ref(py),)));
+                    }
+                    if poll_status == self.poll_failed {
+                        let encoding = py
+                            .import("psycopg._encodings")?
+                            .getattr("conninfo_encoding")?
+                            .call1((self.conninfo.as_str(),))?;
+                        let finished = py
+                            .import("psycopg.errors")?
+                            .getattr("finish_pgconn")?
+                            .call1((self.conn.bind(py),))?;
+                        let msg = format!(
+                            "connection failed: {}",
+                            self.conn
+                                .bind(py)
+                                .call_method1("get_error_message", (encoding,))?
+                                .extract::<String>()?
+                        );
+                        return Err(psycopg_exception_with_pgconn(
+                            py,
+                            &py.import("psycopg.errors")?.getattr("OperationalError")?,
+                            &msg,
+                            &finished,
+                        ));
+                    }
+
+                    let finished = py
+                        .import("psycopg.errors")?
+                        .getattr("finish_pgconn")?
+                        .call1((self.conn.bind(py),))?;
+                    return Err(psycopg_exception_with_pgconn(
+                        py,
+                        &py.import("psycopg.errors")?.getattr("InternalError")?,
+                        &format!("unexpected poll status: {poll_status}"),
+                        &finished,
+                    ));
+                }
+                ConnectState::AwaitReady => {
+                    if let Some(deadline) = self.deadline {
+                        let now = py
+                            .import("time")?
+                            .getattr("monotonic")?
+                            .call0()?
+                            .extract::<f64>()?;
+                        if now > deadline {
+                            return Err(psycopg_operational_error(
+                                &py.import("psycopg.errors")?.getattr("ConnectionTimeout")?,
+                                "connection timeout expired",
+                            ));
+                        }
+                    }
+
+                    if ready.unwrap_or_default() != 0 {
+                        self.state = ConnectState::Poll;
+                        continue;
+                    }
+
+                    let wait = self
+                        .pending_wait
+                        .as_ref()
+                        .expect("pending wait must exist in AwaitReady")
+                        .clone_ref(py);
+                    return Ok(PyTuple::new(
+                        py,
+                        [self.conn.bind(py).getattr("socket")?, wait.bind(py).clone()],
+                    )?
+                    .unbind()
+                    .into_any());
+                }
+            }
+        }
+    }
 }
 
 impl SendGenerator {
