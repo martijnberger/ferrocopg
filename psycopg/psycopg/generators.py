@@ -394,5 +394,9 @@ else:
     execute = _execute
     send = _rpsycopg.send if _rpsycopg and hasattr(_rpsycopg, "send") else _send
     fetch = _rpsycopg.fetch if _rpsycopg and hasattr(_rpsycopg, "fetch") else _fetch
-    fetch_many = _fetch_many
+    fetch_many = (
+        _rpsycopg.fetch_many
+        if _rpsycopg and hasattr(_rpsycopg, "fetch_many")
+        else _fetch_many
+    )
     pipeline_communicate = _pipeline_communicate
