@@ -6,10 +6,10 @@ psycopg connection pool base class and functionalities.
 
 from __future__ import annotations
 
-from time import monotonic
-from random import random
-from typing import TYPE_CHECKING, Any
 from collections import Counter, deque
+from random import random
+from time import monotonic
+from typing import TYPE_CHECKING, Any
 
 from psycopg import errors as e
 

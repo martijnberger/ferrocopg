@@ -11,8 +11,8 @@ import pytest
 
 import psycopg
 
-from ..utils import set_autocommit
 from ..acompat import Event, gather, is_alive, skip_async, sleep, spawn
+from ..utils import set_autocommit
 
 try:
     import psycopg_pool as pool

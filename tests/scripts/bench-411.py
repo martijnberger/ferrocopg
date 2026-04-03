@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-import os
-import sys
-import time
-import random
 import asyncio
 import logging
+import os
+import random
 import selectors
-from enum import Enum
-from typing import Any
+import sys
+import time
 from argparse import ArgumentParser, Namespace
-from contextlib import contextmanager
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+from enum import Enum
+from typing import Any
 
 logger = logging.getLogger()
 logging.basicConfig(

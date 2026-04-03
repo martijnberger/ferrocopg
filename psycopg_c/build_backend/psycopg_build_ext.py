@@ -8,8 +8,8 @@ libpq and accounting for other platform differences.
 # Copyright (C) 2024 The Psycopg Team
 
 import os
-import sys
 import subprocess as sp
+import sys
 from distutils import log
 from distutils.command.build_ext import build_ext
 

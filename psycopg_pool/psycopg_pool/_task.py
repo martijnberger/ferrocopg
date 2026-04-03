@@ -6,9 +6,9 @@ Task for Scheduler and AsyncScheduler
 
 from __future__ import annotations
 
-from typing import Any
-from dataclasses import dataclass, field
 from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(order=True)

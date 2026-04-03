@@ -6,13 +6,13 @@ Adapters for the UUID type.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from .. import _oids
-from ..pq import Format
 from ..abc import AdaptContext
 from ..adapt import Buffer, Dumper, Loader
+from ..pq import Format
 
 if TYPE_CHECKING:
     import uuid

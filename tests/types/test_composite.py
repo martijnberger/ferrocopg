@@ -1,16 +1,16 @@
 import logging
 
 import pytest
-
-from psycopg import postgres, pq, sql
 from psycopg.adapt import PyFormat
 from psycopg.postgres import types as builtins
-from psycopg.types.range import Range
 from psycopg.types.composite import CompositeInfo, register_composite
+from psycopg.types.range import Range
 
-from ..utils import eur
+from psycopg import postgres, pq, sql
+
 from ..fix_crdb import crdb_skip_message, is_crdb
 from ..test_adapt import StrNoneBinaryDumper, StrNoneDumper
+from ..utils import eur
 
 pytestmark = pytest.mark.crdb_skip("composite")
 
@@ -59,7 +59,7 @@ def test_dump_tuple(conn, rec, obj):
     fields = [f"f{i} text" for i in range(len(obj))]
     cur.execute(f"""
         drop type if exists tmptype;
-        create type tmptype as ({', '.join(fields)});
+        create type tmptype as ({", ".join(fields)});
         """)
     info = CompositeInfo.fetch(conn, "tmptype")
     register_composite(info, conn)

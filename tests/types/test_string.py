@@ -1,13 +1,12 @@
 import pytest
-
-import psycopg
-from psycopg import Binary
-from psycopg import errors as e
-from psycopg import pq, sql
 from psycopg.adapt import PyFormat
 
-from ..utils import eur
+import psycopg
+from psycopg import Binary, pq, sql
+from psycopg import errors as e
+
 from ..fix_crdb import crdb_encoding, crdb_scs_off
+from ..utils import eur
 
 #
 # tests with text

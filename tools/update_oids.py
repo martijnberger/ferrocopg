@@ -16,16 +16,17 @@ with a specified version tag, and then query it using:
 
 from __future__ import annotations
 
-import re
 import argparse
+import re
 import subprocess as sp
-from typing import TypeAlias
 from pathlib import Path
+from typing import TypeAlias
+
+from psycopg.crdb import CrdbConnection
+from psycopg.pq import version_pretty
+from psycopg.rows import TupleRow
 
 import psycopg
-from psycopg.pq import version_pretty
-from psycopg.crdb import CrdbConnection
-from psycopg.rows import TupleRow
 
 Connection: TypeAlias = psycopg.Connection[TupleRow]
 
@@ -54,7 +55,7 @@ def update_python_types(conn: Connection) -> None:
     lines.extend(get_py_multiranges(conn))
 
     update_file(fn, lines)
-    sp.check_call(["black", "-q", fn])
+    sp.check_call(["ruff", "format", str(fn)])
 
 
 def update_python_oids(conn: Connection) -> None:
@@ -65,7 +66,7 @@ def update_python_oids(conn: Connection) -> None:
     lines.extend(get_py_oids(conn))
 
     update_file(fn, lines)
-    sp.check_call(["black", "-q", fn])
+    sp.check_call(["ruff", "format", str(fn)])
 
 
 def update_cython_oids(conn: Connection) -> None:
@@ -86,7 +87,7 @@ def update_crdb_python_oids(conn: Connection) -> None:
     lines.extend(get_py_types(conn))
 
     update_file(fn, lines)
-    sp.check_call(["black", "-q", fn])
+    sp.check_call(["ruff", "format", str(fn)])
 
 
 def get_version_comment(conn: Connection) -> list[str]:

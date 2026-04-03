@@ -1,7 +1,7 @@
 import pytest
+from psycopg.conninfo import conninfo_attempts_async, conninfo_to_dict
 
 import psycopg
-from psycopg.conninfo import conninfo_attempts_async, conninfo_to_dict
 
 pytestmark = pytest.mark.anyio
 

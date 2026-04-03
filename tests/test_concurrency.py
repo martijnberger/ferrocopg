@@ -2,20 +2,20 @@
 Tests dealing with concurrency issues.
 """
 
+import multiprocessing
 import os
-import sys
-import time
 import queue
 import signal
-import threading
 import subprocess as sp
-import multiprocessing
+import sys
+import threading
+import time
 
 import pytest
+from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
 import psycopg
 from psycopg import errors as e
-from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
 
 @pytest.mark.slow
@@ -395,9 +395,9 @@ with psycopg.connect({dsn!r}) as conn:
         [sys.executable, "-s"], input=script, text=True, stdout=sp.PIPE, stderr=sp.PIPE
     )
     assert "InterruptedError" not in cp.stderr
-    assert (
-        cp.returncode == 0
-    ), f"script terminated with {signal.Signals(abs(cp.returncode)).name}"
+    assert cp.returncode == 0, (
+        f"script terminated with {signal.Signals(abs(cp.returncode)).name}"
+    )
     assert cp.stdout.rstrip() == "ok"
 
 

@@ -7,9 +7,9 @@ psycopg row factories
 from __future__ import annotations
 
 import functools
-from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Protocol, TypeAlias
 from collections import namedtuple
 from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Protocol, TypeAlias
 
 from . import errors as e
 from . import pq
@@ -17,10 +17,10 @@ from ._compat import TypeVar
 from ._encodings import _as_python_identifier
 
 if TYPE_CHECKING:
-    from .cursor import Cursor
-    from .pq.abc import PGresult
     from ._cursor_base import BaseCursor
+    from .cursor import Cursor
     from .cursor_async import AsyncCursor
+    from .pq.abc import PGresult
 
 COMMAND_OK = pq.ExecStatus.COMMAND_OK
 TUPLES_OK = pq.ExecStatus.TUPLES_OK
@@ -238,7 +238,8 @@ def _get_names(cursor: BaseCursor[Any, Any]) -> list[str] | None:
     if (res := cursor.pgresult) and (nfields := _get_nfields(res)) is not None:
         enc = cursor._encoding
         return [
-            res.fname(i).decode(enc) for i in range(nfields)  # type: ignore[union-attr]
+            res.fname(i).decode(enc)
+            for i in range(nfields)  # type: ignore[union-attr]
         ]
     else:
         return None

@@ -1,10 +1,10 @@
 from select import select
 
 import pytest
+from psycopg.generators import execute
 
 import psycopg
 from psycopg import pq
-from psycopg.generators import execute
 
 
 def execute_wait(pgconn):
@@ -24,7 +24,6 @@ def test_send_query(pgconn):
     # send loop
     waited_on_send = 0
     while pgconn.flush() != 0:
-
         waited_on_send += 1
 
         rl, wl, xl = select([pgconn.socket], [pgconn.socket], [])

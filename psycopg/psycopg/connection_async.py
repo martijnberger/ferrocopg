@@ -8,36 +8,48 @@ from __future__ import annotations
 
 import logging
 import warnings
+from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager
 from time import monotonic
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, cast, overload
-from contextlib import asynccontextmanager
-from collections.abc import AsyncGenerator, AsyncIterator
 
 from . import errors as e
 from . import pq, waiting
-from .abc import RV, AdaptContext, ConnDict, ConnParam, Params, PQGen, Query
-from .abc import QueryNoTemplate
-from ._tpc import Xid
-from .rows import AsyncRowFactory, Row, args_row, tuple_row
-from .adapt import AdaptersMap
-from ._enums import IsolationLevel
-from ._compat import Self, Template
 from ._acompat import ALock
-from .conninfo import conninfo_attempts_async, conninfo_to_dict, make_conninfo
-from .conninfo import timeout_from_conninfo
-from .generators import notifies
-from .transaction import AsyncTransaction
-from .cursor_async import AsyncCursor
 from ._capabilities import capabilities
-from ._conninfo_utils import gssapi_requested
-from ._pipeline_async import AsyncPipeline
+from ._compat import Self, Template
 from ._connection_base import BaseConnection, CursorRow, Notify
+from ._conninfo_utils import gssapi_requested
+from ._enums import IsolationLevel
+from ._pipeline_async import AsyncPipeline
 from ._server_cursor_async import AsyncServerCursor
+from ._tpc import Xid
+from .abc import (
+    RV,
+    AdaptContext,
+    ConnDict,
+    ConnParam,
+    Params,
+    PQGen,
+    Query,
+    QueryNoTemplate,
+)
+from .adapt import AdaptersMap
+from .conninfo import (
+    conninfo_attempts_async,
+    conninfo_to_dict,
+    make_conninfo,
+    timeout_from_conninfo,
+)
+from .cursor_async import AsyncCursor
+from .generators import notifies
+from .rows import AsyncRowFactory, Row, args_row, tuple_row
+from .transaction import AsyncTransaction
 
 if True:  # ASYNC
-    import sys
     import asyncio
+    import sys
 
 if TYPE_CHECKING:
     from .pq.abc import PGconn
@@ -101,7 +113,6 @@ class AsyncConnection(BaseConnection[Row]):
             if sys.platform == "win32":
                 loop = asyncio.get_running_loop()
                 if isinstance(loop, asyncio.ProactorEventLoop):
-
                     from ._compat import _asyncio_run_snippet
 
                     raise e.InterfaceError(

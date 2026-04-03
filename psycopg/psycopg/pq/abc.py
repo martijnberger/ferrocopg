@@ -6,11 +6,11 @@ Protocol objects to represent objects exposed by different pq implementations.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol, TypeAlias, Union
 from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, Any, Protocol, TypeAlias, Union
 
-from ._enums import Format, Trace
 from .._compat import Self
+from ._enums import Format, Trace
 
 if TYPE_CHECKING:
     from .misc import ConninfoOption, PGnotify, PGresAttDesc

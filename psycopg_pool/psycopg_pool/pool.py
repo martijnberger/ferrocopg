@@ -12,25 +12,35 @@ from __future__ import annotations
 import logging
 import warnings
 from abc import ABC, abstractmethod
+from collections import deque
+from collections.abc import Iterator
+from contextlib import contextmanager
 from time import monotonic
 from types import TracebackType
 from typing import Any, Generic, cast
 from weakref import ref
-from contextlib import contextmanager
-from collections import deque
-from collections.abc import Iterator
+
+from psycopg.pq import TransactionStatus
 
 from psycopg import Connection
 from psycopg import errors as e
-from psycopg.pq import TransactionStatus
 
+from ._acompat import (
+    Condition,
+    Event,
+    Lock,
+    Queue,
+    Worker,
+    current_thread_name,
+    gather,
+    sleep,
+    spawn,
+)
+from ._compat import PSYCOPG_VERSION, PoolConnection, Self
 from .abc import CT, ConnectFailedCB, ConnectionCB, ConninfoParam, KwargsParam
 from .base import AttemptWithBackoff, BasePool
-from .sched import Scheduler
 from .errors import PoolClosed, PoolTimeout, TooManyRequests
-from ._compat import PSYCOPG_VERSION, PoolConnection, Self
-from ._acompat import Condition, Event, Lock, Queue, Worker, current_thread_name
-from ._acompat import gather, sleep, spawn
+from .sched import Scheduler
 
 CLIENT_EXCEPTIONS = Exception
 
@@ -983,7 +993,6 @@ class StopWorker(MaintenanceTask):
 
 
 class AddConnection(MaintenanceTask):
-
     def __init__(
         self,
         pool: ConnectionPool[Any],

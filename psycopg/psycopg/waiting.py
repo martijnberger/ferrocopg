@@ -10,19 +10,19 @@ These functions are designed to consume the generators returned by the
 
 from __future__ import annotations
 
-import os
-import sys
-import select
 import logging
+import os
+import select
 import selectors
+import sys
 from asyncio import Event, TimeoutError, get_event_loop, wait_for
 from selectors import DefaultSelector
 
 from . import errors as e
-from .abc import RV, PQGen, PQGenConn, WaitFunc
+from ._cmodule import _psycopg
 from ._enums import Ready as Ready
 from ._enums import Wait as Wait  # re-exported
-from ._cmodule import _psycopg
+from .abc import RV, PQGen, PQGenConn, WaitFunc
 
 WAIT_R = Wait.R
 WAIT_W = Wait.W
@@ -47,7 +47,6 @@ if sys.platform != "win32":
             raise e.OperationalError("connection socket closed") from ex
 
 else:
-
     # On windows we cannot use os.fstat() to check a socket.
     def _check_fd_closed(fileno: int) -> None:
         return

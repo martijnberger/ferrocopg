@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import os
-import sys
 import asyncio
+import os
 import selectors
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -23,7 +23,9 @@ def _bootstrap_repo_packages() -> None:
         if path not in sys.path:
             sys.path.insert(0, path)
 
-    env_paths = [path for path in os.environ.get("PYTHONPATH", "").split(os.pathsep) if path]
+    env_paths = [
+        path for path in os.environ.get("PYTHONPATH", "").split(os.pathsep) if path
+    ]
     merged_paths = repo_paths + [path for path in env_paths if path not in repo_paths]
     os.environ["PYTHONPATH"] = os.pathsep.join(merged_paths)
 

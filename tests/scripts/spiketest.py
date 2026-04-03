@@ -12,13 +12,14 @@ The test is inspired to the `spike analysis`__ illustrated by HikariCP
 # mypy: allow-untyped-defs
 # mypy: allow-untyped-calls
 
-import time
 import logging
 import threading
+import time
+
+from psycopg.rows import Row
 
 import psycopg
 import psycopg_pool
-from psycopg.rows import Row
 
 
 def main() -> None:
@@ -64,10 +65,10 @@ def main() -> None:
     print(f"time: {(t1 - t0) * 1000} msec")
     print("active,idle,total,waiting")
     recs = [
-        f'{m["pool_size"] - m["pool_available"]}'
-        f',{m["pool_available"]}'
-        f',{m["pool_size"]}'
-        f',{m["requests_waiting"]}'
+        f"{m['pool_size'] - m['pool_available']}"
+        f",{m['pool_available']}"
+        f",{m['pool_size']}"
+        f",{m['requests_waiting']}"
         for m in measurer.measures
     ]
     print("\n".join(recs))

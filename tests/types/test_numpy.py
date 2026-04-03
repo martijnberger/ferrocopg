@@ -3,9 +3,8 @@ from math import isnan
 
 import pytest
 from packaging.version import parse as ver  # noqa: F401  # used in skipif
-
-from psycopg.pq import Format
 from psycopg.adapt import PyFormat
+from psycopg.pq import Format
 
 pytest.importorskip("numpy")
 

@@ -8,13 +8,13 @@ from typing import Any
 
 import pytest
 from packaging.version import parse as ver  # noqa: F401  # used in skipif
-
-import psycopg
 from psycopg.pq import TransactionStatus
 from psycopg.rows import Row, TupleRow, class_row
 
-from ..utils import assert_type, set_autocommit
+import psycopg
+
 from ..acompat import gather, sleep, spawn
+from ..utils import assert_type, set_autocommit
 from .test_pool_common import delay_connection, ensure_waiting
 
 try:
@@ -84,7 +84,6 @@ def test_non_generic_connection_type(dsn):
         set_autocommit(conn, True)
 
     class MyConnection(psycopg.Connection[MyRow]):
-
         def __init__(self, *args: Any, **kwargs: Any):
             kwargs["row_factory"] = class_row(MyRow)
             super().__init__(*args, **kwargs)

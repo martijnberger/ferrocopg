@@ -1,10 +1,10 @@
 import datetime as dt
 
 import pytest
+from psycopg._encodings import pg2pyenc
+from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
 import psycopg
-from psycopg.conninfo import conninfo_to_dict, make_conninfo
-from psycopg._encodings import pg2pyenc
 
 from .fix_crdb import crdb_encoding
 

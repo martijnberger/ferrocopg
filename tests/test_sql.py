@@ -2,20 +2,20 @@
 
 # Copyright (C) 2020 The Psycopg Team
 
-import re
 import datetime as dt
+import re
 
 import pytest
-
-from psycopg import ProgrammingError, pq, sql
+from psycopg._encodings import py2pgenc
 from psycopg.adapt import PyFormat
 from psycopg.types import TypeInfo
-from psycopg._encodings import py2pgenc
 from psycopg.types.string import StrDumper
 
-from .utils import eur
+from psycopg import ProgrammingError, pq, sql
+
 from .fix_crdb import crdb_encoding, crdb_scs_off
 from .test_adapt import make_dumper
+from .utils import eur
 
 
 @pytest.mark.parametrize(

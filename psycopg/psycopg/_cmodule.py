@@ -29,7 +29,6 @@ elif pq.__impl__ == "binary":
     __version__ = psycopg_binary.__version__
 
 elif pq.__impl__ == "python":
-
     _psycopg = None  # type: ignore[assignment]
 
 else:

@@ -6,20 +6,20 @@ Protocol objects representing different implementations of the same classes.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol, TypeAlias, Union
 from collections.abc import Callable, Generator, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Protocol, TypeAlias, Union
 
 from . import pq
-from ._enums import PyFormat as PyFormat
 from ._compat import LiteralString, Template, TypeVar
+from ._enums import PyFormat as PyFormat
 
 if TYPE_CHECKING:
     from . import sql
-    from .rows import Row, RowMaker
-    from .pq.abc import PGresult
-    from .waiting import Ready, Wait
     from ._adapters_map import AdaptersMap
     from ._connection_base import BaseConnection
+    from .pq.abc import PGresult
+    from .rows import Row, RowMaker
+    from .waiting import Ready, Wait
 
 NoneType: type = type(None)
 

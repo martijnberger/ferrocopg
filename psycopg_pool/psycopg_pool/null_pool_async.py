@@ -9,22 +9,27 @@ from __future__ import annotations
 import logging
 from typing import cast
 
-from psycopg import AsyncConnection
 from psycopg.pq import TransactionStatus
 
-from .abc import ACT, AsyncConnectFailedCB, AsyncConnectionCB, AsyncConninfoParam
-from .abc import AsyncKwargsParam
-from .errors import PoolTimeout, TooManyRequests
-from ._compat import ConnectionTimeout
+from psycopg import AsyncConnection
+
 from ._acompat import AEvent
-from .pool_async import AddConnection, AsyncConnectionPool
+from ._compat import ConnectionTimeout
+from .abc import (
+    ACT,
+    AsyncConnectFailedCB,
+    AsyncConnectionCB,
+    AsyncConninfoParam,
+    AsyncKwargsParam,
+)
 from .base_null_pool import _BaseNullConnectionPool
+from .errors import PoolTimeout, TooManyRequests
+from .pool_async import AddConnection, AsyncConnectionPool
 
 logger = logging.getLogger("psycopg.pool")
 
 
 class AsyncNullConnectionPool(_BaseNullConnectionPool, AsyncConnectionPool[ACT]):
-
     def __init__(
         self,
         conninfo: AsyncConninfoParam = "",

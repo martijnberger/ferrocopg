@@ -1,25 +1,27 @@
 # See https://pre-commit.com for more information
 #
 # Note: we use `language: system` to make sure that pre-commit uses the same
-# dependencies installed by `pip install psycopg[dev]` and not some random
-# version installed in a hidden virtualenv. This way running the tools via
-# pre-commit should give the same result of running them manually.
+# dependencies installed by the local project environment (for instance via
+# `uv sync --dev --locked`) and not some random version installed in a hidden
+# virtualenv. This way running the tools via pre-commit should give the same
+# result of running them manually.
 #
 # Please check README.rst about setting up a development env.
 
 repos:
   - repo: local
     hooks:
-      - id: isort
-        name: isort
+      - id: ruff-check
+        name: ruff check
         language: system
-        entry: isort --diff --color --check
-        files: \.(py[i]?|pxd|pyx)$
+        entry: ruff check --output-format=full
+        files: \.py[i]?$
+        exclude: tests/test_tstring.py
 
-      - id: black
-        name: black
+      - id: ruff-format
+        name: ruff format
         language: system
-        entry: black --check --diff --color --quiet
+        entry: ruff format --check --diff
         files: \.py[i]?$
         exclude: tests/test_tstring.py
 
@@ -27,13 +29,6 @@ repos:
         name: codespell
         language: system
         entry: codespell
-
-      - id: flake8
-        name: flake8
-        language: system
-        entry: flake8
-        files: \.py$
-        exclude: tests/test_tstring.py
 
       - id: mypy
         name: mypy
@@ -52,4 +47,5 @@ repos:
         name: cargo fmt
         language: system
         entry: cargo fmt --all --check
+        pass_filenames: false
         files: \.rs$

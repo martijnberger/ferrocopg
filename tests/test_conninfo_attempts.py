@@ -2,9 +2,9 @@
 # from the original file 'test_conninfo_attempts_async.py'
 # DO NOT CHANGE! Change the original file instead.
 import pytest
+from psycopg.conninfo import conninfo_attempts, conninfo_to_dict
 
 import psycopg
-from psycopg.conninfo import conninfo_attempts, conninfo_to_dict
 
 pytestmark = pytest.mark.anyio
 

@@ -6,18 +6,18 @@ Support for prepared statements
 
 from __future__ import annotations
 
-from enum import IntEnum, auto
-from typing import TYPE_CHECKING, Any, TypeAlias
 from collections import OrderedDict, deque
 from collections.abc import Sequence
+from enum import IntEnum, auto
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 from . import pq
-from .abc import PQGen
 from ._queries import PostgresQuery
+from .abc import PQGen
 
 if TYPE_CHECKING:
-    from .pq.abc import PGresult
     from ._connection_base import BaseConnection
+    from .pq.abc import PGresult
 
 Key: TypeAlias = tuple[bytes, tuple[int, ...]]
 

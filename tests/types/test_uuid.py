@@ -1,11 +1,11 @@
-import sys
 import subprocess as sp
+import sys
 from uuid import UUID
 
 import pytest
+from psycopg.adapt import PyFormat
 
 from psycopg import pq, sql
-from psycopg.adapt import PyFormat
 
 
 @pytest.mark.parametrize("fmt_in", PyFormat)

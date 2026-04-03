@@ -4,9 +4,9 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
-from operator import attrgetter
 from itertools import groupby
+from operator import attrgetter
+from typing import Any
 
 import pytest
 

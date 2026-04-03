@@ -8,19 +8,19 @@ from __future__ import annotations
 
 import re
 import struct
+from collections.abc import Callable
+from functools import cache
 from math import prod
 from typing import Any, cast
-from functools import cache
-from collections.abc import Callable
 
 from .. import errors as e
 from .. import postgres, pq
-from ..abc import AdaptContext, Buffer, Dumper, DumperKey, Loader, NoneType, Transformer
-from .._oids import INVALID_OID, TEXT_ARRAY_OID, TEXT_OID
-from ..adapt import PyFormat, RecursiveDumper, RecursiveLoader
-from .._struct import pack_len, unpack_len
 from .._cmodule import _psycopg
+from .._oids import INVALID_OID, TEXT_ARRAY_OID, TEXT_OID
+from .._struct import pack_len, unpack_len
 from .._typeinfo import TypeInfo
+from ..abc import AdaptContext, Buffer, Dumper, DumperKey, Loader, NoneType, Transformer
+from ..adapt import PyFormat, RecursiveDumper, RecursiveLoader
 
 _struct_head = struct.Struct("!III")  # ndims, hasnull, elem oid
 _pack_head = cast(Callable[[int, int, int], bytes], _struct_head.pack)
@@ -204,11 +204,14 @@ def _get_needs_quotes_regexp(delimiter: bytes) -> re.Pattern[bytes]:
     they are empty strings, contain curly braces, delimiter characters,
     double quotes, backslashes, or white space, or match the word NULL.
     """
-    return re.compile(rb"""(?xi)
+    return re.compile(
+        rb"""(?xi)
           ^$              # the empty string
         | ["{}%s\\\s]      # or a char to escape
         | ^null$          # or the word NULL
-        """ % delimiter)
+        """
+        % delimiter
+    )
 
 
 class ListBinaryDumper(BaseListDumper):
@@ -428,12 +431,15 @@ def _get_array_parse_regexp(delimiter: bytes) -> re.Pattern[bytes]:
     """
     Return a regexp to tokenize an array representation into item and brackets
     """
-    return re.compile(rb"""(?xi)
+    return re.compile(
+        rb"""(?xi)
         (     [{}]                        # open or closed bracket
             | " (?: [^"\\] | \\. )* "     # or a quoted string
             | [^"{}%s\\]+                 # or an unquoted non-empty string
         ) ,?
-        """ % delimiter)
+        """
+        % delimiter
+    )
 
 
 def _load_binary(data: Buffer, tx: Transformer) -> list[Any]:

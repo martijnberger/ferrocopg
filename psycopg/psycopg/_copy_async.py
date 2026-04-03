@@ -7,21 +7,21 @@ Objects to support the COPY protocol (async version).
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator, Sequence
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
-from collections.abc import AsyncIterator, Sequence
 
 from . import errors as e
 from . import pq
-from ._compat import Self
 from ._acompat import AQueue, AWorker, agather, aspawn
+from ._compat import Self
 from ._copy_base import MAX_BUFFER_SIZE, PREFER_FLUSH, QUEUE_SIZE, BaseCopy
 from .generators import copy_end, copy_to
 
 if TYPE_CHECKING:
     from .abc import Buffer
-    from .cursor_async import AsyncCursor
     from .connection_async import AsyncConnection  # noqa: F401
+    from .cursor_async import AsyncCursor
 
 COPY_IN = pq.ExecStatus.COPY_IN
 COPY_OUT = pq.ExecStatus.COPY_OUT

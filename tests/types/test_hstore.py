@@ -1,12 +1,16 @@
 import pytest
-
-import psycopg
 from psycopg.pq import Format
 from psycopg.types import TypeInfo
 
+import psycopg
+
 try:
-    from psycopg.types.hstore import HstoreBinaryLoader, HstoreLoader
-    from psycopg.types.hstore import _make_hstore_binary_dumper, register_hstore
+    from psycopg.types.hstore import (
+        HstoreBinaryLoader,
+        HstoreLoader,
+        _make_hstore_binary_dumper,
+        register_hstore,
+    )
 except ImportError:
     # Allow to import the module without failing if psycopg is an old version
     # (e.g. to run pool tests with an old psycopg)

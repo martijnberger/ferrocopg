@@ -1,7 +1,6 @@
 import pytest
-
-from psycopg.pq import TransactionStatus
 from psycopg.crdb import CrdbConnection
+from psycopg.pq import TransactionStatus
 
 pytestmark = pytest.mark.crdb("skip")
 

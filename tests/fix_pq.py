@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import ctypes
 import os
 import sys
-import ctypes
-from typing import NamedTuple
-from tempfile import TemporaryFile
 from collections.abc import Iterator
+from tempfile import TemporaryFile
+from typing import NamedTuple
 
 import pytest
 

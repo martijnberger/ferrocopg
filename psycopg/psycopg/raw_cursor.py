@@ -8,14 +8,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .abc import ConnectionType
-from .rows import Row
-from .cursor import Cursor
-from ._queries import PostgresRawQuery
 from ._cursor_base import BaseCursor
-from .cursor_async import AsyncCursor
+from ._queries import PostgresRawQuery
 from ._server_cursor import ServerCursor
 from ._server_cursor_async import AsyncServerCursor
+from .abc import ConnectionType
+from .cursor import Cursor
+from .cursor_async import AsyncCursor
+from .rows import Row
 
 if TYPE_CHECKING:
     from typing import Any  # noqa: F401

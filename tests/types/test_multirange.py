@@ -1,18 +1,18 @@
-import pickle
 import datetime as dt
+import pickle
 from decimal import Decimal
 
 import pytest
-
-from psycopg import pq, sql
 from psycopg.adapt import PyFormat
 from psycopg.types import multirange
-from psycopg.types.range import Range
 from psycopg.types.multirange import Multirange, MultirangeInfo, register_multirange
+from psycopg.types.range import Range
 
+from psycopg import pq, sql
+
+from ..test_adapt import StrNoneBinaryDumper, StrNoneDumper
 from ..utils import eur
 from .test_range import create_test_range
-from ..test_adapt import StrNoneBinaryDumper, StrNoneDumper
 
 pytestmark = [
     pytest.mark.pg(">= 14"),

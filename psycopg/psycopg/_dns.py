@@ -10,15 +10,15 @@ from __future__ import annotations
 import os
 import re
 import warnings
-from random import randint
-from typing import TYPE_CHECKING, Any, DefaultDict, NamedTuple
 from collections import defaultdict
 from collections.abc import Sequence
+from random import randint
+from typing import TYPE_CHECKING, Any, DefaultDict, NamedTuple
 
 try:
-    from dns.resolver import Cache, Resolver
-    from dns.exception import DNSException
     from dns.asyncresolver import Resolver as AsyncResolver
+    from dns.exception import DNSException
+    from dns.resolver import Cache, Resolver
 except ImportError:
     raise ImportError(
         "the module psycopg._dns requires the package 'dnspython' installed"

@@ -1,28 +1,36 @@
-import string
 import hashlib
+import string
 from io import BytesIO, StringIO
-from random import choice, randrange
 from itertools import cycle
+from random import choice, randrange
 
 import pytest
-
-import psycopg
-from psycopg import errors as e
-from psycopg import pq, sql
 from psycopg.abc import Buffer
-from psycopg.copy import AsyncCopy, AsyncLibpqWriter, AsyncQueuedLibpqWriter
 from psycopg.adapt import Dumper, PyFormat
+from psycopg.copy import AsyncCopy, AsyncLibpqWriter, AsyncQueuedLibpqWriter
 from psycopg.types import TypeInfo
 from psycopg.types.hstore import register_hstore
 from psycopg.types.numeric import Int4
 
-from .utils import eur
+import psycopg
+from psycopg import errors as e
+from psycopg import pq, sql
+
+from ._test_copy import (
+    AsyncFileWriter,
+    ensure_table_async,
+    py_to_raw,
+    sample_binary,  # noqa: F401
+    sample_binary_rows,
+    sample_records,
+    sample_tabledef,
+    sample_text,
+    sample_values,
+    special_chars,
+)
 from .acompat import AEvent, alist, gather, spawn
-from ._test_copy import sample_binary  # noqa: F401
-from ._test_copy import AsyncFileWriter, ensure_table_async, py_to_raw
-from ._test_copy import sample_binary_rows, sample_records, sample_tabledef
-from ._test_copy import sample_text, sample_values, special_chars
 from .test_adapt import StrNoneBinaryDumper, StrNoneDumper
+from .utils import eur
 
 pytestmark = pytest.mark.crdb_skip("copy")
 
@@ -94,10 +102,13 @@ async def test_copy_out_param(aconn, ph, params):
 @pytest.mark.parametrize("typetype", ["names", "oids"])
 async def test_read_rows(aconn, format, typetype):
     cur = aconn.cursor()
-    async with cur.copy("""
+    async with cur.copy(
+        """
         copy (
             select 10::int4, 'hello'::text, '{0.0,1.0}'::float8[]
-    ) to stdout (format %s)""" % format.name) as copy:
+    ) to stdout (format %s)"""
+        % format.name
+    ) as copy:
         copy.set_types(["int4", "text", "float8[]"])
         row = await copy.read_row()
         assert (await copy.read_row()) is None

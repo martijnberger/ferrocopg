@@ -10,14 +10,14 @@ when generating the sync version.
 
 from __future__ import annotations
 
-import time
-import queue
 import asyncio
 import logging
+import queue
 import threading
-from typing import Any, Awaitable, ParamSpec, TypeAlias, overload
-from inspect import isawaitable
+import time
 from collections.abc import Callable, Coroutine
+from inspect import isawaitable
+from typing import Any, Awaitable, ParamSpec, TypeAlias, overload
 
 from ._compat import TypeVar
 

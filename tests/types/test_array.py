@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 import gc
+from decimal import Decimal
 from math import prod
 from typing import Any
-from decimal import Decimal
 
+import psycopg.types.numeric
 import pytest
+from psycopg.adapt import Dumper, PyFormat, Transformer
+from psycopg.postgres import types as builtins
+from psycopg.types import TypeInfo
+from psycopg.types.array import register_array
 
 import psycopg
-import psycopg.types.numeric
 from psycopg import pq, sql
-from psycopg.adapt import Dumper, PyFormat, Transformer
-from psycopg.types import TypeInfo
-from psycopg.postgres import types as builtins
-from psycopg.types.array import register_array
 
 from ..test_adapt import StrNoneBinaryDumper, StrNoneDumper
 

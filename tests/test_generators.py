@@ -1,12 +1,12 @@
 import time
-from functools import partial
 from collections import deque
+from functools import partial
 
 import pytest
+from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
 import psycopg
 from psycopg import pq, waiting
-from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
 
 def test_connect_operationalerror_pgconn(generators, dsn, monkeypatch):
@@ -132,7 +132,7 @@ def pipeline_demo(pgconn):
     res = pgconn.exec_(b"DROP TABLE IF EXISTS pg_pipeline")
     assert res.status == pq.ExecStatus.COMMAND_OK, res.error_message
     res = pgconn.exec_(
-        b"CREATE UNLOGGED TABLE pg_pipeline(" b" id serial primary key, itemno integer)"
+        b"CREATE UNLOGGED TABLE pg_pipeline( id serial primary key, itemno integer)"
     )
     assert res.status == pq.ExecStatus.COMMAND_OK, res.error_message
     yield "pg_pipeline"

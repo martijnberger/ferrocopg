@@ -3,11 +3,11 @@ Tests for psycopg.Cursor that are not supposed to pass for subclasses.
 """
 
 import pytest
+from psycopg.adapt import PyFormat
 
 import psycopg
 from psycopg import errors as e
 from psycopg import pq, rows
-from psycopg.adapt import PyFormat
 
 
 async def test_default_cursor(aconn):
@@ -75,8 +75,9 @@ async def test_leak(aconn_cls, dsn, faker, fmt, fmt_out, fetch, row_factory, gc)
     row_factory = getattr(rows, row_factory)
 
     async def work():
-        async with await aconn_cls.connect(dsn) as conn, conn.transaction(
-            force_rollback=True
+        async with (
+            await aconn_cls.connect(dsn) as conn,
+            conn.transaction(force_rollback=True),
         ):
             async with conn.cursor(binary=fmt_out, row_factory=row_factory) as cur:
                 await cur.execute(faker.drop_stmt)

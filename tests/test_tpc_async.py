@@ -1,7 +1,7 @@
 import pytest
+from psycopg.pq import TransactionStatus
 
 import psycopg
-from psycopg.pq import TransactionStatus
 
 pytestmark = pytest.mark.crdb_skip("2-phase commit")
 

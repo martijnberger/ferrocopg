@@ -4,9 +4,9 @@ import datetime as dt
 from typing import Any
 
 import pytest
+from psycopg.conninfo import conninfo_to_dict
 
 import psycopg
-from psycopg.conninfo import conninfo_to_dict
 
 from . import dbapi20, dbapi20_tpc
 
@@ -129,7 +129,7 @@ def test_time_from_ticks(ticks, want):
     ],
 )
 def test_connect_args(monkeypatch, pgconn, args, kwargs, want, setpgenv, fake_resolve):
-    got_conninfo: str
+    got_conninfo = ""
 
     def fake_connect(conninfo, *, timeout=0.0):
         nonlocal got_conninfo

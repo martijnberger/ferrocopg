@@ -5,16 +5,16 @@
 Prepared statements tests
 """
 
-import sys
-import logging
 import datetime as dt
+import logging
+import sys
 from decimal import Decimal
 
 import pytest
+from psycopg.pq._debug import PGconnDebug
+from psycopg.rows import namedtuple_row
 
 import psycopg
-from psycopg.rows import namedtuple_row
-from psycopg.pq._debug import PGconnDebug
 
 
 @pytest.mark.parametrize("value", [None, 0, 3])

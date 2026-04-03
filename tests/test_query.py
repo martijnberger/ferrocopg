@@ -1,9 +1,9 @@
 import pytest
+from psycopg._queries import PostgresQuery, _split_query
+from psycopg.adapt import PyFormat, Transformer
 
 import psycopg
 from psycopg import pq
-from psycopg.adapt import PyFormat, Transformer
-from psycopg._queries import PostgresQuery, _split_query
 
 
 @pytest.mark.parametrize(

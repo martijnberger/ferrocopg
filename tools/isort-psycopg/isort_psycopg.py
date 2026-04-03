@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import re
 import inspect
-from typing import Any
+import re
 from collections.abc import Callable, Iterable
+from typing import Any
 
 from isort.sorting import naturally
 

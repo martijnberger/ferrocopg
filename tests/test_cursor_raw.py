@@ -2,11 +2,11 @@
 # from the original file 'test_cursor_raw_async.py'
 # DO NOT CHANGE! Change the original file instead.
 import pytest
+from psycopg.adapt import PyFormat
 
 import psycopg
 from psycopg import errors as e
 from psycopg import pq, rows
-from psycopg.adapt import PyFormat
 
 from ._test_cursor import ph
 

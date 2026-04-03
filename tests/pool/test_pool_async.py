@@ -2,19 +2,19 @@ from __future__ import annotations
 
 import logging
 import weakref
+from collections import Counter
 from time import time
 from typing import Any
-from collections import Counter
 
 import pytest
-
-import psycopg
 from psycopg.pq import TransactionStatus
 from psycopg.rows import Row, TupleRow, class_row
 
+import psycopg
+
 from .. import acompat
-from ..utils import assert_type, set_autocommit, skip_free_threaded
 from ..acompat import AEvent, asleep, gather, skip_sync, spawn
+from ..utils import assert_type, set_autocommit, skip_free_threaded
 from .test_pool_common_async import delay_connection
 
 try:
@@ -1278,15 +1278,15 @@ async def test_get_config_rotates_connections(dsn):
             row2 = await conn2.execute("SHOW application_name")
 
             name1 = await row1.fetchone()
-            assert (
-                name1 is not None
-            ), "first call to SHOW application_name returned no rows"
+            assert name1 is not None, (
+                "first call to SHOW application_name returned no rows"
+            )
             assert name1[0] in app_names
 
             name2 = await row2.fetchone()
-            assert (
-                name2 is not None
-            ), "second call to SHOW application_name returned no rows"
+            assert name2 is not None, (
+                "second call to SHOW application_name returned no rows"
+            )
             assert name2[0] in app_names
 
             # Make sure that names are different.

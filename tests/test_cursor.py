@@ -6,11 +6,11 @@ Tests for psycopg.Cursor that are not supposed to pass for subclasses.
 """
 
 import pytest
+from psycopg.adapt import PyFormat
 
 import psycopg
 from psycopg import errors as e
 from psycopg import pq, rows
-from psycopg.adapt import PyFormat
 
 
 def test_default_cursor(conn):

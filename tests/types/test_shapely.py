@@ -1,15 +1,14 @@
 import pytest
+from psycopg.adapt import PyFormat
+from psycopg.pq import Format
+from psycopg.types import TypeInfo
 
 import psycopg
-from psycopg.pq import Format
-from psycopg.adapt import PyFormat
-from psycopg.types import TypeInfo
 
 pytest.importorskip("shapely")
 
-from shapely.geometry import MultiPolygon, Point, Polygon
-
 from psycopg.types.shapely import register_shapely, shapely_version
+from shapely.geometry import MultiPolygon, Point, Polygon
 
 if shapely_version >= (2, 0):
     from shapely import get_srid, set_srid

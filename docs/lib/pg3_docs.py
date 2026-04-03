@@ -7,10 +7,10 @@ Customisation for docs generation.
 
 from __future__ import annotations
 
+import importlib
+import logging
 import os
 import re
-import logging
-import importlib
 from collections import deque
 
 

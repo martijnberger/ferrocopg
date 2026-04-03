@@ -12,20 +12,17 @@ dependencies = [
 dev = [
     "anyio >= 4.0",
     "ast-comments >= 1.1.2",
-    "black >= 26.1.0",
     "codespell >= 2.2",
     "cython-lint >= 0.16",
     "dnspython >= 2.1",
-    "flake8 >= 4.0",
     "gevent",
-    "isort[colors] >= 6.0",
-    "isort-psycopg",
     "mypy >= 1.19.0; implementation_name != 'pypy'",
     "pproxy >= 2.7",
     "pre-commit >= 4.0.1",
     "pytest >= 6.2.5",
     "pytest-cov >= 3.0",
     "pytest-randomly >= 3.5",
+    "ruff >= 0.11.0",
     "shapely",
     "types-setuptools >= 57.4",
     "types-shapely >= 2.0",
@@ -119,11 +116,14 @@ disallow_untyped_calls = false
 ignore-words-list = "alot,ans,ba,fo,te,erro,varning,perfor"
 skip = "build,_build,.tox,.mypy_cache,.venv,pq.c,_psycopg.c,*.html"
 
-[tool.isort]
-profile = "black"
-length_sort = true
-multi_line_output = 9
-sort_order = "psycopg"  # requires the isort-psycopg module
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+exclude = ["tests/test_tstring.py"]
 
-[tool.black]
-force_exclude = "tests/test_tstring.py"
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E203", "E501"]
+
+[tool.ruff.format]
+exclude = ["tests/test_tstring.py"]

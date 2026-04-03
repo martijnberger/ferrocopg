@@ -3,12 +3,12 @@ import logging
 from copy import deepcopy
 from typing import Any
 
-import pytest
-
 import psycopg.types
-from psycopg import pq, sql
+import pytest
 from psycopg.adapt import PyFormat
 from psycopg.types.json import set_json_dumps, set_json_loads
+
+from psycopg import pq, sql
 
 samples = [
     "null",

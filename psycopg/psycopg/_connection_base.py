@@ -6,29 +6,29 @@ psycopg connection objects
 
 from __future__ import annotations
 
-import sys
 import logging
-from typing import TYPE_CHECKING, Any, Generic, NamedTuple, TypeAlias
-from weakref import ReferenceType, ref
-from warnings import warn
-from functools import partial
+import sys
 from collections import deque
 from collections.abc import Callable
+from functools import partial
+from typing import TYPE_CHECKING, Any, Generic, NamedTuple, TypeAlias
+from warnings import warn
+from weakref import ReferenceType, ref
 
 from . import errors as e
 from . import generators, postgres, pq
-from .abc import PQGen, PQGenConn, QueryNoTemplate
-from .sql import SQL, Composable
-from ._tpc import Xid
-from .rows import Row
-from .adapt import AdaptersMap
-from ._enums import IsolationLevel
-from ._compat import LiteralString, Self, TypeVar
-from .pq.misc import connection_summary
-from ._preparing import PrepareManager
 from ._capabilities import capabilities
-from ._pipeline_base import BasePipeline
+from ._compat import LiteralString, Self, TypeVar
 from ._connection_info import ConnectionInfo
+from ._enums import IsolationLevel
+from ._pipeline_base import BasePipeline
+from ._preparing import PrepareManager
+from ._tpc import Xid
+from .abc import PQGen, PQGenConn, QueryNoTemplate
+from .adapt import AdaptersMap
+from .pq.misc import connection_summary
+from .rows import Row
+from .sql import SQL, Composable
 
 if TYPE_CHECKING:
     from psycopg_pool.base import BasePool

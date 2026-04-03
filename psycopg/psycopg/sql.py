@@ -9,15 +9,15 @@ from __future__ import annotations
 import codecs
 import string
 from abc import ABC, abstractmethod
-from typing import Any, overload
 from collections.abc import Iterable, Iterator, Sequence
+from typing import Any, overload
 
-from .pq import Escaping
-from .abc import AdaptContext
-from ._enums import PyFormat
 from ._compat import LiteralString, Template
 from ._encodings import conn_encoding
+from ._enums import PyFormat
 from ._transformer import Transformer
+from .abc import AdaptContext
+from .pq import Escaping
 
 
 def quote(obj: Any, context: AdaptContext | None = None) -> str:

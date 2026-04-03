@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# flake8: noqa
+# ruff: noqa
 # fmt: off
 ''' Python DB API 2.0 driver compliance unit test suite.
 

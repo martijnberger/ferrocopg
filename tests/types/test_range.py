@@ -1,17 +1,17 @@
-import pickle
 import datetime as dt
+import pickle
 from decimal import Decimal
 
 import pytest
-
-from psycopg import pq, sql
 from psycopg.adapt import PyFormat
 from psycopg.types import range as range_module
 from psycopg.types.range import Range, RangeInfo, register_range
 
-from ..utils import eur
+from psycopg import pq, sql
+
 from ..fix_crdb import crdb_skip_message, is_crdb
 from ..test_adapt import StrNoneBinaryDumper, StrNoneDumper
+from ..utils import eur
 
 pytestmark = pytest.mark.crdb_skip("range")
 

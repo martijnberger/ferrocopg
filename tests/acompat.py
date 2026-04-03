@@ -8,12 +8,12 @@ when generating the sync version.
 
 from __future__ import annotations
 
-import time
-import queue
 import asyncio
-import inspect
-import threading
 import contextlib
+import inspect
+import queue
+import threading
+import time
 from typing import Any
 
 import pytest

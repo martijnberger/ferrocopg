@@ -3,23 +3,23 @@ from __future__ import annotations
 import datetime as dt
 import importlib
 import ipaddress
+from collections import deque
+from contextlib import asynccontextmanager, contextmanager
+from decimal import Decimal
 from math import isnan
-from uuid import UUID
 from random import choice, random, randrange
 from typing import Any
-from decimal import Decimal
-from contextlib import asynccontextmanager, contextmanager
-from collections import deque
+from uuid import UUID
 
 import pytest
+from psycopg.adapt import PyFormat
+from psycopg.types.json import Json, Jsonb
+from psycopg.types.multirange import Multirange
+from psycopg.types.numeric import Int4, Int8
+from psycopg.types.range import Range
 
 import psycopg
 from psycopg import sql
-from psycopg.adapt import PyFormat
-from psycopg.types.json import Json, Jsonb
-from psycopg.types.range import Range
-from psycopg.types.numeric import Int4, Int8
-from psycopg.types.multirange import Multirange
 
 
 @pytest.fixture
@@ -288,7 +288,7 @@ class Faker:
 
         parts = name.split(".")
         for i in range(len(parts) - 1, -1, -1):
-            if meth := getattr(self, f"{prefix}_{'_'.join(parts[-(i + 1):])}", None):
+            if meth := getattr(self, f"{prefix}_{'_'.join(parts[-(i + 1) :])}", None):
                 return meth
 
         return None

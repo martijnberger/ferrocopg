@@ -9,25 +9,41 @@ from __future__ import annotations
 import logging
 import warnings
 from abc import ABC, abstractmethod
+from collections import deque
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from time import monotonic
 from types import TracebackType
 from typing import Any, Generic, cast
 from weakref import ref
-from contextlib import asynccontextmanager
-from collections import deque
-from collections.abc import AsyncIterator
+
+from psycopg.pq import TransactionStatus
 
 from psycopg import AsyncConnection
 from psycopg import errors as e
-from psycopg.pq import TransactionStatus
 
-from .abc import ACT, AsyncConnectFailedCB, AsyncConnectionCB, AsyncConninfoParam
-from .abc import AsyncKwargsParam
+from ._acompat import (
+    ACondition,
+    AEvent,
+    ALock,
+    AQueue,
+    AWorker,
+    agather,
+    asleep,
+    aspawn,
+    current_task_name,
+    ensure_async,
+)
+from ._compat import PSYCOPG_VERSION, AsyncPoolConnection, Self
+from .abc import (
+    ACT,
+    AsyncConnectFailedCB,
+    AsyncConnectionCB,
+    AsyncConninfoParam,
+    AsyncKwargsParam,
+)
 from .base import AttemptWithBackoff, BasePool
 from .errors import PoolClosed, PoolTimeout, TooManyRequests
-from ._compat import PSYCOPG_VERSION, AsyncPoolConnection, Self
-from ._acompat import ACondition, AEvent, ALock, AQueue, AWorker, agather, asleep
-from ._acompat import aspawn, current_task_name, ensure_async
 from .sched_async import AsyncScheduler
 
 if True:  # ASYNC
@@ -828,7 +844,6 @@ class AsyncConnectionPool(Generic[ACT], BasePool):
         # Critical section: if there is a client waiting give it the connection
         # otherwise put it back into the pool.
         async with self._lock:
-
             # Check if the pool was closed by the time we arrived here. It is
             # unlikely but it doesn't seem impossible, if the worker was adding
             # this connection while the main process is closing the pool.

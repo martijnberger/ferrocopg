@@ -58,7 +58,7 @@ def test_copy_out(pgconn):
         data = []
         for j in range(20):
             data.append(f"""\
-{i * 20 + j}\t{j}\t{'X' * (i * 20 + j)}
+{i * 20 + j}\t{j}\t{"X" * (i * 20 + j)}
 """)
         rv = pgconn.put_copy_data("".join(data).encode("ascii"))
         assert rv > 0
@@ -114,7 +114,7 @@ def test_copy_out_error_end(pgconn):
         data = []
         for j in range(20):
             data.append(f"""\
-{i * 20 + j}\t{j}\t{'X' * (i * 20 + j)}
+{i * 20 + j}\t{j}\t{"X" * (i * 20 + j)}
 """)
         rv = pgconn.put_copy_data("".join(data).encode("ascii"))
         assert rv > 0

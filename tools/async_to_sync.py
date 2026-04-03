@@ -11,16 +11,16 @@ Hint: in order to explore the AST of a module you can run:
 
 from __future__ import annotations
 
-import os
-import sys
 import logging
+import os
 import subprocess as sp
-from copy import deepcopy
-from typing import Any, Literal
-from pathlib import Path
+import sys
 from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
 from concurrent.futures import ProcessPoolExecutor
+from copy import deepcopy
 from importlib.metadata import version
+from pathlib import Path
+from typing import Any, Literal
 
 import ast_comments as ast  # type: ignore
 
@@ -132,8 +132,8 @@ def convert(fpin: Path, fpout: Path) -> None:
     with fpout.open("w") as f:
         print(output, file=f)
 
-    sp.check_call(["black", "-q", str(fpout)])
-    sp.check_call(["isort", "-q", str(fpout)])
+    sp.check_call(["ruff", "check", "--select", "I", "--fix", str(fpout)])
+    sp.check_call(["ruff", "format", str(fpout)])
 
 
 def check(outputs: list[str]) -> int:
@@ -578,7 +578,7 @@ class Unparser(ast._Unparser):  # type: ignore
     Try to emit long strings as multiline.
 
     The normal class only tries to emit docstrings as multiline,
-    but the resulting source doesn't pass flake8.
+    but the resulting source doesn't pass the project lint checks.
     """
 
     # Beware: private method. Tested with in Python 3.10, 3.11.
