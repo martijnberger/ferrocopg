@@ -108,6 +108,12 @@ class StringImpl(Protocol):
     def text_load(self, data: object, encoding: str) -> object: ...
 
 
+class ByteaBinaryImpl(Protocol):
+    def bytes_dump_binary(self, data: object) -> object: ...
+
+    def bytea_load_binary(self, data: object) -> object: ...
+
+
 def _copy_impls() -> list[tuple[str, CopyImpl]]:
     ferrocopg = cast(CopyImpl, pytest.importorskip("ferrocopg_rust"))
     copy_base = importlib.import_module("psycopg._copy_base")
@@ -608,6 +614,18 @@ def _string_impls() -> list[tuple[str, StringImpl]]:
             str_dump_text=_python_str_dump_text,
             str_dump_binary=lambda obj, encoding: obj.encode(encoding),
             text_load=_python_text_load,
+        ),
+    )
+    return [("python", python_impl), ("rust", ferrocopg)]
+
+
+def _bytea_binary_impls() -> list[tuple[str, ByteaBinaryImpl]]:
+    ferrocopg = cast(ByteaBinaryImpl, pytest.importorskip("ferrocopg_rust"))
+    python_impl = cast(
+        ByteaBinaryImpl,
+        SimpleNamespace(
+            bytes_dump_binary=lambda data: bytes(data),
+            bytea_load_binary=lambda data: bytes(data),
         ),
     )
     return [("python", python_impl), ("rust", ferrocopg)]
@@ -1447,6 +1465,52 @@ def test_text_loaders_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None
     binary_loader._encoding = ""
     assert text_loader.load(b"abc") == ("load", b"abc", "latin-1")
     assert binary_loader.load(b"abc") == ("load", b"abc", "")
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"",
+        b"\x00\x01binary",
+        bytearray(b"bytearray-data"),
+        memoryview(b"memoryview-data"),
+    ],
+)
+def test_bytea_binary_helpers_equivalent(
+    payload: bytes | bytearray | memoryview,
+) -> None:
+    expected = bytes(payload)
+    for name, impl in _bytea_binary_impls():
+        assert impl.bytes_dump_binary(payload) == expected, name
+        assert impl.bytea_load_binary(payload) == expected, name
+
+
+def test_bytea_binary_dumper_prefers_ferrocopg(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = importlib.import_module("psycopg.types.string")
+
+    class StubRustModule:
+        @staticmethod
+        def bytes_dump_binary(data: object) -> tuple[str, object]:
+            return ("dump", data)
+
+    monkeypatch.setattr(module, "_rpsycopg", StubRustModule)
+    assert module.BytesBinaryDumper(bytes).dump(b"abc") == ("dump", b"abc")
+
+
+def test_bytea_binary_loader_prefers_ferrocopg(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = importlib.import_module("psycopg.types.string")
+
+    class StubRustModule:
+        @staticmethod
+        def bytea_load_binary(data: object) -> tuple[str, object]:
+            return ("load", data)
+
+    monkeypatch.setattr(module, "_rpsycopg", StubRustModule)
+    assert module.ByteaBinaryLoader(17).load(b"abc") == ("load", b"abc")
 
 
 def test_ferrocopg_unavailable(monkeypatch):

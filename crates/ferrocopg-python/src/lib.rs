@@ -409,6 +409,20 @@ fn text_load(py: Python<'_>, data: &Bound<'_, PyAny>, encoding: &str) -> PyResul
 }
 
 #[pyfunction]
+fn bytes_dump_binary(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    Ok(PyBytes::new(py, &bytes_like_to_vec(py, data)?)
+        .unbind()
+        .into_any())
+}
+
+#[pyfunction]
+fn bytea_load_binary(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    Ok(PyBytes::new(py, &bytes_like_to_vec(py, data)?)
+        .unbind()
+        .into_any())
+}
+
+#[pyfunction]
 fn format_row_text(
     py: Python<'_>,
     row: &Bound<'_, PyAny>,
@@ -790,6 +804,8 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(str_dump_binary, m)?)?;
     m.add_function(wrap_pyfunction!(str_dump_text, m)?)?;
     m.add_function(wrap_pyfunction!(text_load, m)?)?;
+    m.add_function(wrap_pyfunction!(bytes_dump_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(bytea_load_binary, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_text, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_binary, m)?)?;
     m.add_function(wrap_pyfunction!(send, m)?)?;
