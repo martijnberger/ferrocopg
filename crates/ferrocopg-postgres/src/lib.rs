@@ -85,6 +85,25 @@ pub struct TextQueryResult {
     pub rows: Vec<Vec<Option<String>>>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StatementParameter {
+    pub oid: u32,
+    pub type_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StatementColumn {
+    pub name: String,
+    pub oid: u32,
+    pub type_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StatementDescription {
+    pub params: Vec<StatementParameter>,
+    pub columns: Vec<StatementColumn>,
+}
+
 pub struct SyncNoTlsSession {
     client: Option<postgres::Client>,
 }
@@ -103,7 +122,10 @@ impl fmt::Display for ProbeError {
         match self {
             Self::Parse(err) => write!(f, "{err}"),
             Self::NoTlsNotSupported => {
-                write!(f, "conninfo requires TLS; no-TLS bootstrap is not supported")
+                write!(
+                    f,
+                    "conninfo requires TLS; no-TLS bootstrap is not supported"
+                )
             }
             Self::Connect(err) => write!(f, "{err}"),
             Self::Query(err) => write!(f, "{err}"),
@@ -211,6 +233,14 @@ pub fn connect_no_tls_session(conninfo: &str) -> Result<SyncNoTlsSession, ProbeE
     config.connect_no_tls_session()
 }
 
+pub fn describe_text_no_tls(
+    conninfo: &str,
+    query: &str,
+) -> Result<StatementDescription, ProbeError> {
+    let config = BootstrapConfig::parse(conninfo).map_err(ProbeError::Parse)?;
+    config.describe_text_no_tls(query)
+}
+
 impl BootstrapConfig {
     pub fn connect_plan(&self) -> ConnectPlan {
         let summary = self.summary();
@@ -302,6 +332,10 @@ impl BootstrapConfig {
         self.connect_no_tls_session()?.query_text(query)
     }
 
+    pub fn describe_text_no_tls(&self, query: &str) -> Result<StatementDescription, ProbeError> {
+        self.connect_no_tls_session()?.describe_text(query)
+    }
+
     pub fn connect_no_tls_session(&self) -> Result<SyncNoTlsSession, ProbeError> {
         if !self.connect_plan().can_bootstrap_with_no_tls {
             return Err(ProbeError::NoTlsNotSupported);
@@ -359,21 +393,59 @@ impl SyncNoTlsSession {
     }
 
     pub fn query_text(&mut self, query: &str) -> Result<TextQueryResult, ProbeError> {
-        let rows = self.client_mut()?.query(query, &[]).map_err(ProbeError::Query)?;
+        let rows = self
+            .client_mut()?
+            .query(query, &[])
+            .map_err(ProbeError::Query)?;
         let columns = rows
             .first()
-            .map(|row| row.columns().iter().map(|col| col.name().to_owned()).collect())
+            .map(|row| {
+                row.columns()
+                    .iter()
+                    .map(|col| col.name().to_owned())
+                    .collect()
+            })
             .unwrap_or_default();
         let rows = rows
             .into_iter()
             .map(|row| {
                 (0..row.len())
-                    .map(|index| row.try_get::<_, Option<String>>(index).map_err(ProbeError::Query))
+                    .map(|index| {
+                        row.try_get::<_, Option<String>>(index)
+                            .map_err(ProbeError::Query)
+                    })
                     .collect::<Result<Vec<_>, _>>()
             })
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(TextQueryResult { columns, rows })
+    }
+
+    pub fn describe_text(&mut self, query: &str) -> Result<StatementDescription, ProbeError> {
+        let statement = self
+            .client_mut()?
+            .prepare(query)
+            .map_err(ProbeError::Query)?;
+
+        Ok(StatementDescription {
+            params: statement
+                .params()
+                .iter()
+                .map(|ty| StatementParameter {
+                    oid: ty.oid(),
+                    type_name: ty.name().to_owned(),
+                })
+                .collect(),
+            columns: statement
+                .columns()
+                .iter()
+                .map(|column| StatementColumn {
+                    name: column.name().to_owned(),
+                    oid: column.type_().oid(),
+                    type_name: column.type_().name().to_owned(),
+                })
+                .collect(),
+        })
     }
 
     fn client_mut(&mut self) -> Result<&mut postgres::Client, ProbeError> {
@@ -517,10 +589,9 @@ mod tests {
 
     #[test]
     fn connect_target_preserves_host_port_and_hostaddr_pairs() {
-        let target = connect_target(
-            "host=a,b hostaddr=10.0.0.1,10.0.0.2 port=5433,5434 dbname=postgres",
-        )
-        .expect("conninfo should parse");
+        let target =
+            connect_target("host=a,b hostaddr=10.0.0.1,10.0.0.2 port=5433,5434 dbname=postgres")
+                .expect("conninfo should parse");
         assert_eq!(
             target.endpoints,
             vec![
@@ -547,7 +618,11 @@ mod tests {
         let target =
             connect_target("host=a,b,c port=6543 dbname=postgres").expect("conninfo should parse");
         assert_eq!(
-            target.endpoints.iter().map(|ep| ep.port).collect::<Vec<_>>(),
+            target
+                .endpoints
+                .iter()
+                .map(|ep| ep.port)
+                .collect::<Vec<_>>(),
             vec![6543, 6543, 6543]
         );
     }
@@ -573,7 +648,14 @@ mod tests {
     fn session_rejects_operations_after_close() {
         let mut session = SyncNoTlsSession { client: None };
         assert!(session.closed());
-        assert!(matches!(session.query_text("select 1"), Err(ProbeError::Closed)));
+        assert!(matches!(
+            session.query_text("select 1"),
+            Err(ProbeError::Closed)
+        ));
+        assert!(matches!(
+            session.describe_text("select 1"),
+            Err(ProbeError::Closed)
+        ));
         assert!(matches!(session.probe(), Err(ProbeError::Closed)));
     }
 }

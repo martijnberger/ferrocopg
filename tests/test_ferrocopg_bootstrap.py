@@ -2074,6 +2074,7 @@ def test_ferrocopg_unavailable(monkeypatch):
     assert module.connect_target("host=localhost") is None
     assert module.connect_no_tls_probe("host=localhost") is None
     assert module.query_text_no_tls("host=localhost", "select 1") is None
+    assert module.describe_text_no_tls("host=localhost", "select 1") is None
     assert module.no_tls_session("host=localhost") is None
 
 
@@ -2109,6 +2110,11 @@ def test_ferrocopg_wrapper(monkeypatch):
             return ("query", conninfo, query)
 
         @staticmethod
+        def describe_text_no_tls(conninfo: str, query: str) -> tuple[str, str, str]:
+            calls.append(("describe", conninfo))
+            return ("describe", conninfo, query)
+
+        @staticmethod
         def connect_no_tls_session(conninfo: str) -> tuple[str, str]:
             calls.append(("session", conninfo))
             return ("session", conninfo)
@@ -2125,6 +2131,11 @@ def test_ferrocopg_wrapper(monkeypatch):
         "host=localhost",
         "select 1",
     )
+    assert module.describe_text_no_tls("host=localhost", "select 1") == (
+        "describe",
+        "host=localhost",
+        "select 1",
+    )
     assert module.no_tls_session("host=localhost") == ("session", "host=localhost")
     assert calls == [
         ("summary", "host=localhost"),
@@ -2132,6 +2143,7 @@ def test_ferrocopg_wrapper(monkeypatch):
         ("target", "host=localhost"),
         ("probe", "host=localhost"),
         ("query", "host=localhost"),
+        ("describe", "host=localhost"),
         ("session", "host=localhost"),
     ]
 
@@ -2215,6 +2227,27 @@ def test_backend_query_text_no_tls_live(dsn: str) -> None:
     assert result.rows[0][1]
 
 
+def test_backend_describe_text_no_tls_live(dsn: str) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    description = module.describe_text_no_tls(
+        dsn,
+        "select $1::int4 as n, $2::text as t",
+    )
+    assert description is not None
+    assert [(param.oid, param.type_name) for param in description.params] == [
+        (23, "int4"),
+        (25, "text"),
+    ]
+    assert [(column.name, column.oid, column.type_name) for column in description.columns] == [
+        ("n", 23, "int4"),
+        ("t", 25, "text"),
+    ]
+
+
 def test_backend_no_tls_session_live(dsn: str) -> None:
     module = importlib.import_module("psycopg._ferrocopg")
 
@@ -2233,11 +2266,23 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
     assert len(result.rows) == 1
     assert result.rows[0][0]
 
+    description = session.describe_text("select $1::int4 as n, $2::text as t")
+    assert [(param.oid, param.type_name) for param in description.params] == [
+        (23, "int4"),
+        (25, "text"),
+    ]
+    assert [(column.name, column.oid, column.type_name) for column in description.columns] == [
+        ("n", 23, "int4"),
+        ("t", 25, "text"),
+    ]
+
     session.close()
     assert session.closed is True
 
     with pytest.raises(RuntimeError, match="closed"):
         session.query_text("select 1")
+    with pytest.raises(RuntimeError, match="closed"):
+        session.describe_text("select 1")
 
 
 def test_copy_base_prefers_c_copy_optimizations(monkeypatch):
