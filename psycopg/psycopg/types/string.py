@@ -177,6 +177,8 @@ class BytesBinaryDumper(Dumper):
     oid = _oids.BYTEA_OID
 
     def dump(self, obj: Buffer) -> Buffer | None:
+        if _rpsycopg and hasattr(_rpsycopg, "bytes_dump_binary"):
+            return cast(Buffer, _rpsycopg.bytes_dump_binary(obj))
         return obj
 
 
@@ -196,6 +198,8 @@ class ByteaBinaryLoader(Loader):
     format = Format.BINARY
 
     def load(self, data: Buffer) -> Buffer:
+        if _rpsycopg and hasattr(_rpsycopg, "bytea_load_binary"):
+            return cast(Buffer, _rpsycopg.bytea_load_binary(data))
         return data
 
 
