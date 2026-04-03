@@ -42,24 +42,24 @@ package defined in `crates/ferrocopg-python`.
 
 ## Building the ferrocopg scaffold
 
-Install the bootstrap extension into the active environment with `maturin`
-through `uv`:
+Install the bootstrap extension into the active uv-managed environment with
+`maturin`:
 
 ```bash
-uv run --with maturin maturin develop \
+uv run maturin develop \
     --manifest-path crates/ferrocopg-python/Cargo.toml
 ```
 
 You can then smoke test the import:
 
 ```bash
-python -c "import ferrocopg_rust; print(ferrocopg_rust.milestone())"
+uv run python -c "import ferrocopg_rust; print(ferrocopg_rust.milestone())"
 ```
 
 You can also inspect how the Rust backend currently parses conninfo:
 
 ```bash
-python - <<'PY'
+uv run python - <<'PY'
 import ferrocopg_rust
 
 summary = ferrocopg_rust.parse_conninfo_summary(
@@ -79,6 +79,7 @@ The bootstrap extension is intentionally small. It proves:
 - the Python import path for future `ferrocopg` acceleration work
 - the initial backend direction via the `rust-postgres` stack
 - a first real backend-facing parser around `tokio-postgres::Config`
+- a first Rust-backed COPY formatting/parsing seam behind `psycopg._copy_base`
 
 The next implementation slice should attach a narrow real helper behind this
 package, then begin replacing pieces of `_psycopg`.
