@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, DefaultDict, cast
 
 from .. import _oids
 from .. import errors as e
+from .._rmodule import _ferrocopg as _rpsycopg
 from .._struct import (
     pack_float4,
     pack_float8,
@@ -118,6 +119,8 @@ class DecimalDumper(_SpecialValuesDumper):
     oid = _oids.NUMERIC_OID
 
     def dump(self, obj: Decimal) -> Buffer | None:
+        if _rpsycopg and hasattr(_rpsycopg, "dump_decimal_to_text"):
+            return cast(Buffer, _rpsycopg.dump_decimal_to_text(obj))
         return dump_decimal_to_text(obj)
 
     _special = {
@@ -204,6 +207,8 @@ class IntNumericBinaryDumper(IntNumericDumper):
     format = Format.BINARY
 
     def dump(self, obj: int) -> Buffer | None:
+        if _rpsycopg and hasattr(_rpsycopg, "dump_int_to_numeric_binary"):
+            return cast(Buffer, _rpsycopg.dump_int_to_numeric_binary(obj))
         return dump_int_to_numeric_binary(obj)
 
 
@@ -279,6 +284,8 @@ class Float8BinaryLoader(Loader):
 
 class NumericLoader(Loader):
     def load(self, data: Buffer) -> Decimal:
+        if _rpsycopg and hasattr(_rpsycopg, "numeric_load_text"):
+            return cast(Decimal, _rpsycopg.numeric_load_text(data))
         if isinstance(data, memoryview):
             data = bytes(data)
         return Decimal(data.decode())
@@ -334,6 +341,8 @@ class NumericBinaryLoader(Loader):
     format = Format.BINARY
 
     def load(self, data: Buffer) -> Decimal:
+        if _rpsycopg and hasattr(_rpsycopg, "numeric_load_binary"):
+            return cast(Decimal, _rpsycopg.numeric_load_binary(data))
         ndigits, weight, sign, dscale = _unpack_numeric_head(data)
         if sign == NUMERIC_POS or sign == NUMERIC_NEG:
             val = 0
@@ -364,6 +373,8 @@ class DecimalBinaryDumper(Dumper):
     oid = _oids.NUMERIC_OID
 
     def dump(self, obj: Decimal) -> Buffer | None:
+        if _rpsycopg and hasattr(_rpsycopg, "dump_decimal_to_numeric_binary"):
+            return cast(Buffer, _rpsycopg.dump_decimal_to_numeric_binary(obj))
         return dump_decimal_to_numeric_binary(obj)
 
 
@@ -400,6 +411,8 @@ class NumericDumper(_MixedNumericDumper):
         if isinstance(obj, self.int_classes):
             return str(obj).encode()
         elif isinstance(obj, Decimal):
+            if _rpsycopg and hasattr(_rpsycopg, "dump_decimal_to_text"):
+                return cast(Buffer, _rpsycopg.dump_decimal_to_text(obj))
             return dump_decimal_to_text(obj)
         else:
             raise TypeError(
@@ -412,10 +425,16 @@ class NumericBinaryDumper(_MixedNumericDumper):
 
     def dump(self, obj: Decimal | int | numpy.integer[Any]) -> Buffer | None:
         if type(obj) is int:
+            if _rpsycopg and hasattr(_rpsycopg, "dump_int_to_numeric_binary"):
+                return cast(Buffer, _rpsycopg.dump_int_to_numeric_binary(obj))
             return dump_int_to_numeric_binary(obj)
         elif isinstance(obj, Decimal):
+            if _rpsycopg and hasattr(_rpsycopg, "dump_decimal_to_numeric_binary"):
+                return cast(Buffer, _rpsycopg.dump_decimal_to_numeric_binary(obj))
             return dump_decimal_to_numeric_binary(obj)
         elif isinstance(obj, self.int_classes):
+            if _rpsycopg and hasattr(_rpsycopg, "dump_int_to_numeric_binary"):
+                return cast(Buffer, _rpsycopg.dump_int_to_numeric_binary(int(obj)))
             return dump_int_to_numeric_binary(int(obj))
         else:
             raise TypeError(

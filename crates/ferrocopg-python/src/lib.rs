@@ -423,6 +423,43 @@ fn bytea_load_binary(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<Py<PyA
 }
 
 #[pyfunction]
+fn dump_decimal_to_text(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    if obj.call_method0("is_nan")?.is_truthy()? {
+        return Ok(PyBytes::new(py, b"NaN").unbind().into_any());
+    }
+
+    let text = obj.str()?.to_str()?.as_bytes().to_vec();
+    Ok(PyBytes::new(py, &text).unbind().into_any())
+}
+
+#[pyfunction]
+fn dump_decimal_to_numeric_binary(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let data = decimal_to_numeric_binary(py, obj)?;
+    Ok(PyBytes::new(py, &data).unbind().into_any())
+}
+
+#[pyfunction]
+fn dump_int_to_numeric_binary(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let data = int_to_numeric_binary(&obj.str()?.to_str()?);
+    Ok(PyBytes::new(py, &data).unbind().into_any())
+}
+
+#[pyfunction]
+fn numeric_load_text(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let text = String::from_utf8(bytes_like_to_vec(py, data)?)
+        .map_err(|err| PyErr::new::<PyValueError, _>(err.to_string()))?;
+    let decimal = py.import("decimal")?.getattr("Decimal")?.call1((text,))?;
+    Ok(decimal.unbind().into_any())
+}
+
+#[pyfunction]
+fn numeric_load_binary(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let raw = bytes_like_to_vec(py, data)?;
+    let decimal = numeric_binary_to_decimal(py, &raw)?;
+    Ok(decimal.unbind().into_any())
+}
+
+#[pyfunction]
 fn composite_dump_text_sequence(
     py: Python<'_>,
     seq: &Bound<'_, PyAny>,
@@ -933,6 +970,11 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(text_load, m)?)?;
     m.add_function(wrap_pyfunction!(bytes_dump_binary, m)?)?;
     m.add_function(wrap_pyfunction!(bytea_load_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(dump_decimal_to_text, m)?)?;
+    m.add_function(wrap_pyfunction!(dump_decimal_to_numeric_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(dump_int_to_numeric_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(numeric_load_text, m)?)?;
+    m.add_function(wrap_pyfunction!(numeric_load_binary, m)?)?;
     m.add_function(wrap_pyfunction!(composite_dump_text_sequence, m)?)?;
     m.add_function(wrap_pyfunction!(composite_dump_binary_sequence, m)?)?;
     m.add_function(wrap_pyfunction!(composite_parse_text_record, m)?)?;
@@ -1897,6 +1939,209 @@ fn composite_needs_quotes(raw: &[u8]) -> bool {
             || *byte == b')'
             || byte.is_ascii_whitespace()
     })
+}
+
+const NUMERIC_POS: u16 = 0x0000;
+const NUMERIC_NEG: u16 = 0x4000;
+const NUMERIC_NAN: u16 = 0xC000;
+const NUMERIC_PINF: u16 = 0xD000;
+const NUMERIC_NINF: u16 = 0xF000;
+const DEC_DIGITS: usize = 4;
+
+fn numeric_header(ndigits: u16, weight: i16, sign: u16, dscale: u16) -> [u8; 8] {
+    let mut out = [0_u8; 8];
+    out[..2].copy_from_slice(&ndigits.to_be_bytes());
+    out[2..4].copy_from_slice(&weight.to_be_bytes());
+    out[4..6].copy_from_slice(&sign.to_be_bytes());
+    out[6..8].copy_from_slice(&dscale.to_be_bytes());
+    out
+}
+
+fn decimal_to_numeric_binary(_py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
+    let tuple = obj.call_method0("as_tuple")?;
+    let sign = tuple.getattr("sign")?.extract::<u8>()? != 0;
+    let digits: Vec<u8> = tuple.getattr("digits")?.extract()?;
+    let exponent = tuple.getattr("exponent")?;
+
+    if let Ok(exp) = exponent.extract::<String>() {
+        let sign_code = match exp.as_str() {
+            "n" | "N" => NUMERIC_NAN,
+            "F" => {
+                if sign {
+                    NUMERIC_NINF
+                } else {
+                    NUMERIC_PINF
+                }
+            }
+            other => {
+                return Err(PyErr::new::<PyValueError, _>(format!(
+                    "unsupported Decimal exponent {other}"
+                )));
+            }
+        };
+        return Ok(numeric_header(0, 0, sign_code, 0).to_vec());
+    }
+
+    let exp = exponent.extract::<i32>()?;
+    let mut wi = 0_usize;
+    let weights = [1000_u16, 100_u16, 10_u16, 1_u16];
+    let mut ndigits = digits.len();
+    let mut nzdigits = digits.len();
+
+    while nzdigits > 0 && digits[nzdigits - 1] == 0 {
+        nzdigits -= 1;
+    }
+
+    let dscale = if exp <= 0 {
+        (-exp) as usize
+    } else {
+        ndigits += (exp as usize) % DEC_DIGITS;
+        0
+    };
+
+    if nzdigits == 0 {
+        return Ok(numeric_header(0, 0, NUMERIC_POS, dscale as u16).to_vec());
+    }
+
+    let rem = (ndigits as i32 - dscale as i32).rem_euclid(DEC_DIGITS as i32) as usize;
+    if rem != 0 {
+        wi = DEC_DIGITS - rem;
+        ndigits += wi;
+    }
+
+    let tmp = nzdigits + wi;
+    let out_ndigits = (tmp / DEC_DIGITS) + usize::from(tmp % DEC_DIGITS != 0);
+    let weight = ((ndigits as i32) + exp) / (DEC_DIGITS as i32) - 1;
+    let mut out = numeric_header(
+        u16::try_from(out_ndigits)
+            .map_err(|_| PyErr::new::<PyValueError, _>("numeric too large"))?,
+        i16::try_from(weight).map_err(|_| PyErr::new::<PyValueError, _>("numeric too large"))?,
+        if sign { NUMERIC_NEG } else { NUMERIC_POS },
+        u16::try_from(dscale).map_err(|_| PyErr::new::<PyValueError, _>("numeric too large"))?,
+    )
+    .to_vec();
+
+    let mut pgdigit = 0_u16;
+    for digit in digits.into_iter().take(nzdigits) {
+        pgdigit += weights[wi] * u16::from(digit);
+        wi += 1;
+        if wi >= DEC_DIGITS {
+            out.extend_from_slice(&pgdigit.to_be_bytes());
+            pgdigit = 0;
+            wi = 0;
+        }
+    }
+
+    if pgdigit != 0 {
+        out.extend_from_slice(&pgdigit.to_be_bytes());
+    }
+
+    Ok(out)
+}
+
+fn int_to_numeric_binary(text: &str) -> Vec<u8> {
+    let (sign, digits) = if let Some(rest) = text.strip_prefix('-') {
+        (NUMERIC_NEG, rest)
+    } else if let Some(rest) = text.strip_prefix('+') {
+        (NUMERIC_POS, rest)
+    } else {
+        (NUMERIC_POS, text)
+    };
+
+    let digits = digits.trim_start_matches('0');
+    if digits.is_empty() {
+        let mut out = numeric_header(1, 0, NUMERIC_POS, 0).to_vec();
+        out.extend_from_slice(&0_u16.to_be_bytes());
+        return out;
+    }
+
+    let groups = digits.len().div_ceil(DEC_DIGITS);
+    let mut out = numeric_header(groups as u16, groups as i16 - 1, sign, 0).to_vec();
+
+    let first_len = digits.len() % DEC_DIGITS;
+    let mut pos = 0_usize;
+    if first_len != 0 {
+        let chunk = digits[..first_len].parse::<u16>().unwrap_or(0);
+        out.extend_from_slice(&chunk.to_be_bytes());
+        pos = first_len;
+    }
+
+    while pos < digits.len() {
+        let chunk = digits[pos..pos + DEC_DIGITS].parse::<u16>().unwrap_or(0);
+        out.extend_from_slice(&chunk.to_be_bytes());
+        pos += DEC_DIGITS;
+    }
+
+    out
+}
+
+fn numeric_binary_to_decimal<'py>(py: Python<'py>, data: &[u8]) -> PyResult<Bound<'py, PyAny>> {
+    if data.len() < 8 {
+        return Err(PyErr::new::<PyValueError, _>(
+            "numeric binary payload is truncated",
+        ));
+    }
+
+    let ndigits = u16::from_be_bytes([data[0], data[1]]) as usize;
+    let weight = i16::from_be_bytes([data[2], data[3]]);
+    let sign = u16::from_be_bytes([data[4], data[5]]);
+    let dscale = u16::from_be_bytes([data[6], data[7]]) as usize;
+    if data.len() != 8 + ndigits * 2 {
+        return Err(PyErr::new::<PyValueError, _>(
+            "numeric binary payload has an invalid size",
+        ));
+    }
+
+    let decimal = py.import("decimal")?.getattr("Decimal")?;
+    match sign {
+        NUMERIC_NAN => return decimal.call1(("NaN",)),
+        NUMERIC_PINF => return decimal.call1(("Infinity",)),
+        NUMERIC_NINF => return decimal.call1(("-Infinity",)),
+        NUMERIC_POS | NUMERIC_NEG => {}
+        _ => {
+            let errors = py.import("psycopg.errors")?;
+            let data_error = errors.getattr("DataError")?;
+            return Err(psycopg_operational_error(
+                &data_error,
+                &format!("bad value for numeric sign: 0x{sign:X}"),
+            ));
+        }
+    }
+
+    let mut digits = String::new();
+    if weight < -1 {
+        digits.push_str(&"0".repeat(((-weight - 1) as usize) * DEC_DIGITS));
+    }
+    for chunk in data[8..].chunks_exact(2) {
+        let pgdigit = u16::from_be_bytes([chunk[0], chunk[1]]);
+        digits.push_str(&format!("{pgdigit:04}"));
+    }
+
+    let digits_before = if weight >= -1 {
+        ((i32::from(weight) + 1) as usize) * DEC_DIGITS
+    } else {
+        0
+    };
+    let target_len = digits_before + dscale;
+    if digits.len() < target_len {
+        digits.push_str(&"0".repeat(target_len - digits.len()));
+    }
+
+    let (int_raw, frac_raw) = digits.split_at(digits_before.min(digits.len()));
+    let int_part = int_raw.trim_start_matches('0');
+    let int_part = if int_part.is_empty() { "0" } else { int_part };
+
+    let mut text = String::new();
+    if sign == NUMERIC_NEG {
+        text.push('-');
+    }
+    text.push_str(int_part);
+    if dscale != 0 {
+        text.push('.');
+        text.push_str(&frac_raw[..dscale]);
+    }
+
+    decimal.call1((text,))
 }
 
 fn parse_composite_text_record(data: &[u8]) -> Vec<Option<Vec<u8>>> {
