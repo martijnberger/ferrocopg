@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyList};
+use pyo3::types::{PyBytes, PyList, PyTuple};
 use pyo3::wrap_pyfunction;
 use pyo3::{
     PyErr,
@@ -115,6 +115,18 @@ struct PipelineCommunicateGenerator {
     state: PipelineState,
 }
 
+#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+struct CancelGenerator {
+    cancel_conn: Py<PyAny>,
+    wait_r: Py<PyAny>,
+    wait_w: Py<PyAny>,
+    poll_ok: i32,
+    poll_reading: i32,
+    poll_writing: i32,
+    poll_failed: i32,
+    deadline: Option<f64>,
+}
+
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum SendState {
     StartOrFlush,
@@ -189,6 +201,39 @@ fn parse_connect_plan(conninfo: &str) -> PyResult<BackendConnectPlan> {
     ferrocopg_postgres::connect_plan(conninfo)
         .map(BackendConnectPlan::from)
         .map_err(|err| PyErr::new::<PyValueError, _>(err.to_string()))
+}
+
+#[pyfunction(signature = (cancel_conn, timeout=0.0))]
+fn cancel(
+    py: Python<'_>,
+    cancel_conn: &Bound<'_, PyAny>,
+    timeout: f64,
+) -> PyResult<CancelGenerator> {
+    let waiting = py.import("psycopg.waiting")?;
+    let pq = py.import("psycopg.pq")?;
+    let polling_status = pq.getattr("PollingStatus")?;
+    let deadline = if timeout > 0.0 {
+        Some(
+            py.import("time")?
+                .getattr("monotonic")?
+                .call0()?
+                .extract::<f64>()?
+                + timeout,
+        )
+    } else {
+        None
+    };
+
+    Ok(CancelGenerator {
+        cancel_conn: cancel_conn.clone().unbind(),
+        wait_r: waiting.getattr("WAIT_R")?.unbind(),
+        wait_w: waiting.getattr("WAIT_W")?.unbind(),
+        poll_ok: polling_status.getattr("OK")?.extract::<i32>()?,
+        poll_reading: polling_status.getattr("READING")?.extract::<i32>()?,
+        poll_writing: polling_status.getattr("WRITING")?.extract::<i32>()?,
+        poll_failed: polling_status.getattr("FAILED")?.extract::<i32>()?,
+        deadline,
+    })
 }
 
 #[pyfunction]
@@ -552,12 +597,14 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<FetchManyGenerator>()?;
     m.add_class::<ExecuteGenerator>()?;
     m.add_class::<PipelineCommunicateGenerator>()?;
+    m.add_class::<CancelGenerator>()?;
     m.add_function(wrap_pyfunction!(milestone, m)?)?;
     m.add_function(wrap_pyfunction!(scaffold_status, m)?)?;
     m.add_function(wrap_pyfunction!(backend_stack, m)?)?;
     m.add_function(wrap_pyfunction!(backend_core, m)?)?;
     m.add_function(wrap_pyfunction!(parse_conninfo_summary, m)?)?;
     m.add_function(wrap_pyfunction!(parse_connect_plan, m)?)?;
+    m.add_function(wrap_pyfunction!(cancel, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_text, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_binary, m)?)?;
     m.add_function(wrap_pyfunction!(send, m)?)?;
@@ -643,6 +690,21 @@ impl PipelineCommunicateGenerator {
 
     fn send(&mut self, py: Python<'_>, ready: Option<i32>) -> PyResult<Py<PyAny>> {
         self.advance(py, ready)
+    }
+}
+
+#[pymethods]
+impl CancelGenerator {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        self.advance(py)
+    }
+
+    fn send(&mut self, py: Python<'_>, _ready: Option<i32>) -> PyResult<Py<PyAny>> {
+        self.advance(py)
     }
 }
 
@@ -1077,6 +1139,76 @@ impl PipelineCommunicateGenerator {
             outer.append(inner)?;
         }
         Ok(outer.unbind().into_any())
+    }
+}
+
+impl CancelGenerator {
+    fn advance(&mut self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        if let Some(deadline) = self.deadline {
+            let now = py
+                .import("time")?
+                .getattr("monotonic")?
+                .call0()?
+                .extract::<f64>()?;
+            if now > deadline {
+                let errors = py.import("psycopg.errors")?;
+                return Err(psycopg_operational_error(
+                    &errors.getattr("CancellationTimeout")?,
+                    "cancellation timeout expired",
+                ));
+            }
+        }
+
+        let status = self
+            .cancel_conn
+            .bind(py)
+            .call_method0("poll")?
+            .extract::<i32>()?;
+        if status == self.poll_ok {
+            return Err(PyStopIteration::new_err((py.None(),)));
+        }
+        if status == self.poll_reading {
+            return Ok(PyTuple::new(
+                py,
+                [
+                    self.cancel_conn.bind(py).getattr("socket")?,
+                    self.wait_r.bind(py).clone(),
+                ],
+            )?
+            .unbind()
+            .into_any());
+        }
+        if status == self.poll_writing {
+            return Ok(PyTuple::new(
+                py,
+                [
+                    self.cancel_conn.bind(py).getattr("socket")?,
+                    self.wait_w.bind(py).clone(),
+                ],
+            )?
+            .unbind()
+            .into_any());
+        }
+        if status == self.poll_failed {
+            let errors = py.import("psycopg.errors")?;
+            let message = format!(
+                "cancellation failed: {}",
+                self.cancel_conn
+                    .bind(py)
+                    .call_method0("get_error_message")?
+                    .extract::<String>()?
+            );
+            return Err(psycopg_operational_error(
+                &errors.getattr("OperationalError")?,
+                &message,
+            ));
+        }
+
+        let errors = py.import("psycopg.errors")?;
+        Err(psycopg_operational_error(
+            &errors.getattr("InternalError")?,
+            &format!("unexpected poll status: {status}"),
+        ))
     }
 }
 

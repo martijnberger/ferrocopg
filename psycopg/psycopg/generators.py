@@ -390,7 +390,7 @@ if _psycopg:
 
 else:
     connect = _connect
-    cancel = _cancel
+    cancel = _rpsycopg.cancel if _rpsycopg and hasattr(_rpsycopg, "cancel") else _cancel
     execute = _rpsycopg.execute if _rpsycopg and hasattr(_rpsycopg, "execute") else _execute
     send = _rpsycopg.send if _rpsycopg and hasattr(_rpsycopg, "send") else _send
     fetch = _rpsycopg.fetch if _rpsycopg and hasattr(_rpsycopg, "fetch") else _fetch
