@@ -54,6 +54,10 @@ class FetchManyImpl(Protocol):
     def fetch_many(self, pgconn: object) -> object: ...
 
 
+class ExecuteImpl(Protocol):
+    def execute(self, pgconn: object) -> object: ...
+
+
 def _copy_impls() -> list[tuple[str, CopyImpl]]:
     ferrocopg = cast(CopyImpl, pytest.importorskip("ferrocopg_rust"))
     copy_base = importlib.import_module("psycopg._copy_base")
@@ -167,6 +171,8 @@ class StubFetchManyPgconn:
         self._current_notifies = (
             self._notifies_per_fetch.pop(0) if self._notifies_per_fetch else []
         )
+        self._flush_results: list[int] = []
+        self.flush_calls = 0
 
     def is_busy(self) -> bool:
         if self._current_busy:
@@ -175,6 +181,12 @@ class StubFetchManyPgconn:
 
     def consume_input(self) -> None:
         self.consume_input_calls += 1
+
+    def flush(self) -> int:
+        self.flush_calls += 1
+        if self._flush_results:
+            return self._flush_results.pop(0)
+        return 0
 
     def notifies(self) -> object | None:
         if self._current_notifies:
@@ -236,6 +248,20 @@ def _drive_fetch_many_generator(
     raise AssertionError("generator did not finish")
 
 
+def _drive_execute_generator(
+    gen: object, ready_values: list[int | None]
+) -> tuple[list[int], object]:
+    waits: list[int] = []
+    try:
+        waits.append(next(cast(Generator[int, int | None, object], gen)))
+        for ready in ready_values:
+            waits.append(cast(int, cast(Any, gen).send(ready)))
+    except StopIteration as ex:
+        return waits, ex.value
+
+    raise AssertionError("generator did not finish")
+
+
 def _send_impls() -> list[tuple[str, GeneratorImpl]]:
     ferrocopg = cast(GeneratorImpl, pytest.importorskip("ferrocopg_rust"))
     generators = importlib.import_module("psycopg.generators")
@@ -264,6 +290,29 @@ def _fetch_many_impls() -> list[tuple[str, FetchManyImpl]]:
             generators_any.fetch = original_fetch
 
     python_impl = cast(FetchManyImpl, SimpleNamespace(fetch_many=python_fetch_many))
+    return [("python", python_impl), ("rust", ferrocopg)]
+
+
+def _execute_impls() -> list[tuple[str, ExecuteImpl]]:
+    ferrocopg = cast(ExecuteImpl, pytest.importorskip("ferrocopg_rust"))
+    generators = importlib.import_module("psycopg.generators")
+    generators_any = cast(Any, generators)
+
+    def python_execute(pgconn: object) -> Generator[int, int | None, object]:
+        original_send = generators_any.send
+        original_fetch = generators_any.fetch
+        original_fetch_many = generators_any.fetch_many
+        generators_any.send = generators._send
+        generators_any.fetch = generators._fetch
+        generators_any.fetch_many = generators._fetch_many
+        try:
+            return (yield from generators._execute(pgconn))
+        finally:
+            generators_any.send = original_send
+            generators_any.fetch = original_fetch
+            generators_any.fetch_many = original_fetch_many
+
+    python_impl = cast(ExecuteImpl, SimpleNamespace(execute=python_execute))
     return [("python", python_impl), ("rust", ferrocopg)]
 
 
@@ -588,6 +637,68 @@ def test_generators_prefers_ferrocopg_fetch_many_when_available():
 
     ferrocopg = pytest.importorskip("ferrocopg_rust")
     assert generators.fetch_many is ferrocopg.fetch_many
+
+
+@pytest.mark.parametrize(
+    (
+        "flush_results",
+        "busy_sequences",
+        "ready_values",
+        "result_specs",
+        "expected_waits",
+        "expected_labels",
+        "expected_consume_calls",
+    ),
+    [
+        ([0], [[]], [], [None], [], [], 0),
+        ([1, 0], [[], []], [2], [("COMMAND_OK", "sent"), None], [3], ["sent"], 0),
+        ([0], [[True, False], []], [1], [("COMMAND_OK", "fetched"), None], [1], ["fetched"], 1),
+        (
+            [1, 0],
+            [[True, False], []],
+            [2, 1],
+            [("COMMAND_OK", "both"), None],
+            [3, 1],
+            ["both"],
+            1,
+        ),
+    ],
+)
+def test_execute_generator_equivalent(
+    flush_results: list[int],
+    busy_sequences: list[list[bool]],
+    ready_values: list[int | None],
+    result_specs: list[tuple[str, str] | None],
+    expected_waits: list[int],
+    expected_labels: list[str],
+    expected_consume_calls: int,
+) -> None:
+    wait_r = cast(int, importlib.import_module("psycopg.waiting").WAIT_R)
+    wait_rw = cast(int, importlib.import_module("psycopg.waiting").WAIT_RW)
+    exec_status = importlib.import_module("psycopg.pq").ExecStatus
+    results = [
+        None if spec is None else StubResult(getattr(exec_status, spec[0]), spec[1])
+        for spec in result_specs
+    ]
+
+    translated_waits = [wait_rw if wait == 3 else wait_r for wait in expected_waits]
+
+    for name, impl in _execute_impls():
+        pgconn = StubFetchManyPgconn(busy_sequences, results)
+        pgconn._flush_results = list(flush_results)
+        waits, got = _drive_execute_generator(impl.execute(pgconn), ready_values)
+        assert waits == translated_waits, name
+        assert [res.label for res in cast(list[StubResult], got)] == expected_labels, name
+        assert pgconn.consume_input_calls == expected_consume_calls, name
+
+
+def test_generators_prefers_ferrocopg_execute_when_available():
+    generators = importlib.import_module("psycopg.generators")
+    if generators._psycopg is not None:
+        pytest.skip("C accelerator installed")
+
+    ferrocopg = pytest.importorskip("ferrocopg_rust")
+    assert generators.execute is ferrocopg.execute
 
 
 def test_ferrocopg_unavailable(monkeypatch):
