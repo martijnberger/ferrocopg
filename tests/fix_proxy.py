@@ -128,16 +128,21 @@ class Proxy:
             return s.getsockname()[1]
 
     def _wait_listen(self):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            for i in range(20):
-                if 0 == sock.connect_ex((self.client_host, self.client_port)):
+        last_error = None
+        for i in range(20):
+            if self.proc and (rc := self.proc.poll()) is not None:
+                pytest.fail(f"the proxy exited before listening (exit code {rc})")
+
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                err = sock.connect_ex((self.client_host, self.client_port))
+                if err == 0:
                     break
-                time.sleep(0.1)
-            else:
-                # final shot at connecting, which will raise an exception
-                try:
-                    sock.connect((self.client_host, self.client_port))
-                except Exception as ex:
-                    pytest.fail(f"the proxy didn't start listening in time: {ex}")
+                last_error = OSError(err, os.strerror(err))
+
+            time.sleep(0.1)
+        else:
+            if last_error is not None:
+                pytest.fail(f"the proxy didn't start listening in time: {last_error}")
+            pytest.fail("the proxy didn't start listening in time")
 
         logging.info("proxy listening")

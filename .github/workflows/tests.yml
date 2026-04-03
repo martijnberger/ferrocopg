@@ -76,7 +76,6 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           allow-prereleases: true
-          cache: uv
 
       - uses: astral-sh/setup-uv@v6
         with:
@@ -170,7 +169,6 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
-          cache: uv
 
       - uses: astral-sh/setup-uv@v6
         with:
@@ -235,7 +233,6 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           allow-prereleases: true
-          cache: uv
 
       - uses: astral-sh/setup-uv@v6
         with:
@@ -313,7 +310,6 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           allow-prereleases: true
-          cache: uv
 
       - uses: astral-sh/setup-uv@v6
         with:
@@ -409,7 +405,6 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
-          cache: uv
 
       - uses: astral-sh/setup-uv@v6
         with:
