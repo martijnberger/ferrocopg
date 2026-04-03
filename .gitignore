@@ -23,5 +23,8 @@ build/
 scrap/
 target/
 .maturin/
+crates/ferrocopg-python/python/ferrocopg_rust/*.so
+crates/ferrocopg-python/python/ferrocopg_rust/*.dylib
+crates/ferrocopg-python/python/ferrocopg_rust/*.dSYM/
 
 target/

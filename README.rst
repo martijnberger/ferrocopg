@@ -83,9 +83,9 @@ The repository is also starting the ``ferrocopg`` Rust port. The initial Rust
 extension scaffold lives in ``crates/ferrocopg-python`` and is currently aimed
 at the `rust-postgres <https://github.com/rust-postgres/rust-postgres>`__
 stack, instead of a direct ``libpq`` wrapper. It can be installed into the
-active environment using::
+active uv-managed environment using::
 
-    uv run --with maturin maturin develop \
+    uv run maturin develop \
         --manifest-path crates/ferrocopg-python/Cargo.toml
 
 Now hack away! You can run the tests using a local Docker database::
