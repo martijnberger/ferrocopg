@@ -21,8 +21,8 @@ including optional test dependencies such as `gevent` and `shapely`. To run
 database-backed tests, point `pytest` at a working PostgreSQL database:
 
 ```bash
-createdb psycopg_test
-export PSYCOPG_TEST_DSN="postgresql:///psycopg_test"
+tools/test-db start
+export PSYCOPG_TEST_DSN="$(tools/test-db dsn)"
 uv run pytest --test-dsn "$PSYCOPG_TEST_DSN"
 ```
 

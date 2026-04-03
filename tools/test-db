@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+COMPOSE_FILE="$ROOT_DIR/tools/docker-compose.test-db.yml"
+
+PORT="${FERROCOPG_TEST_DB_PORT:-55432}"
+USER_NAME="${FERROCOPG_TEST_DB_USER:-postgres}"
+PASSWORD="${FERROCOPG_TEST_DB_PASSWORD:-postgres}"
+DB_NAME="${FERROCOPG_TEST_DB_NAME:-psycopg_test}"
+HOST_NAME="${FERROCOPG_TEST_DB_HOST:-127.0.0.1}"
+
+default_image() {
+  case "$(uname -m)" in
+    arm64|aarch64)
+      printf '%s\n' "nickblah/postgis:17-postgis-3.6"
+      ;;
+    *)
+      printf '%s\n' "postgis/postgis:17-3.5"
+      ;;
+  esac
+}
+
+IMAGE_NAME="${FERROCOPG_TEST_DB_IMAGE:-$(default_image)}"
+export FERROCOPG_TEST_DB_IMAGE="$IMAGE_NAME"
+
+compose() {
+  docker compose -f "$COMPOSE_FILE" "$@"
+}
+
+dsn() {
+  printf 'postgresql://%s:%s@%s:%s/%s\n' \
+    "$USER_NAME" "$PASSWORD" "$HOST_NAME" "$PORT" "$DB_NAME"
+}
+
+wait_for_db() {
+  local attempt
+  for attempt in $(seq 1 60); do
+    if compose exec -T postgres pg_isready -U "$USER_NAME" -d "$DB_NAME" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "database did not become ready in time" >&2
+  compose ps >&2 || true
+  return 1
+}
+
+cmd_start() {
+  compose up -d
+  wait_for_db
+  echo "test database is ready"
+  echo "PSYCOPG_TEST_DSN=$(dsn)"
+}
+
+cmd_stop() {
+  compose down
+}
+
+cmd_reset() {
+  compose down --volumes --remove-orphans
+}
+
+cmd_status() {
+  compose ps
+}
+
+cmd_logs() {
+  compose logs -f postgres
+}
+
+cmd_dsn() {
+  dsn
+}
+
+usage() {
+  cat <<EOF
+Usage: tools/test-db <command>
+
+Commands:
+  start   Start the PostgreSQL test database and wait until it is ready
+  stop    Stop the PostgreSQL test database
+  reset   Stop the database and remove its volume
+  status  Show docker compose status
+  logs    Follow PostgreSQL logs
+  dsn     Print the PSYCOPG_TEST_DSN value
+
+Environment overrides:
+  FERROCOPG_TEST_DB_HOST
+  FERROCOPG_TEST_DB_PORT
+  FERROCOPG_TEST_DB_USER
+  FERROCOPG_TEST_DB_PASSWORD
+  FERROCOPG_TEST_DB_NAME
+  FERROCOPG_TEST_DB_IMAGE
+EOF
+}
+
+main() {
+  local command="${1:-}"
+  case "$command" in
+    start) cmd_start ;;
+    stop) cmd_stop ;;
+    reset) cmd_reset ;;
+    status) cmd_status ;;
+    logs) cmd_logs ;;
+    dsn) cmd_dsn ;;
+    *)
+      usage
+      if [[ -n "$command" ]]; then
+        exit 1
+      fi
+      ;;
+  esac
+}
+
+main "$@"

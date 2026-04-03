@@ -83,10 +83,10 @@ active environment using::
     uv run --with maturin maturin develop \
         --manifest-path crates/ferrocopg-python/Cargo.toml
 
-Now hack away! You can run the tests using::
+Now hack away! You can run the tests using a local Docker database::
 
-    createdb psycopg_test
-    export PSYCOPG_TEST_DSN="postgresql:///psycopg_test"
+    tools/test-db start
+    export PSYCOPG_TEST_DSN="$(tools/test-db dsn)"
     uv run pytest --test-dsn "$PSYCOPG_TEST_DSN"
 
 The project includes some `pre-commit`__ hooks to check that the code is valid

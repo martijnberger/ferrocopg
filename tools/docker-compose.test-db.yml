@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: "${FERROCOPG_TEST_DB_IMAGE}"
+    container_name: ferrocopg-test-db
+    ports:
+      - "${FERROCOPG_TEST_DB_PORT:-55432}:5432"
+    environment:
+      POSTGRES_USER: "${FERROCOPG_TEST_DB_USER:-postgres}"
+      POSTGRES_PASSWORD: "${FERROCOPG_TEST_DB_PASSWORD:-postgres}"
+      POSTGRES_DB: "${FERROCOPG_TEST_DB_NAME:-psycopg_test}"
+    command:
+      - postgres
+      - -c
+      - max_prepared_transactions=10
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          pg_isready
+          -U "${FERROCOPG_TEST_DB_USER:-postgres}"
+          -d "${FERROCOPG_TEST_DB_NAME:-psycopg_test}"
+      interval: 1s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+    volumes:
+      - ferrocopg-test-db:/var/lib/postgresql/data
+
+volumes:
+  ferrocopg-test-db:
