@@ -2071,6 +2071,7 @@ def test_ferrocopg_unavailable(monkeypatch):
     assert module.is_available() is False
     assert module.conninfo_summary("host=localhost") is None
     assert module.connect_plan("host=localhost") is None
+    assert module.connect_target("host=localhost") is None
 
 
 def test_ferrocopg_wrapper(monkeypatch):
@@ -2089,15 +2090,60 @@ def test_ferrocopg_wrapper(monkeypatch):
             calls.append(("plan", conninfo))
             return ("plan", conninfo)
 
+        @staticmethod
+        def parse_connect_target(conninfo: str) -> tuple[str, str]:
+            calls.append(("target", conninfo))
+            return ("target", conninfo)
+
     monkeypatch.setattr(module, "_ferrocopg", StubRustModule)
 
     assert module.is_available() is True
     assert module.conninfo_summary("host=localhost") == ("summary", "host=localhost")
     assert module.connect_plan("host=localhost") == ("plan", "host=localhost")
+    assert module.connect_target("host=localhost") == ("target", "host=localhost")
     assert calls == [
         ("summary", "host=localhost"),
         ("plan", "host=localhost"),
+        ("target", "host=localhost"),
     ]
+
+
+def test_backend_connect_target_parses_endpoints() -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    target = module.connect_target(
+        "host=db1,db2 hostaddr=10.0.0.10,10.0.0.11 port=5433 dbname=postgres"
+    )
+    assert target is not None
+    assert target.backend_stack == "rust-postgres"
+    assert target.summary.dbname == "postgres"
+    assert len(target.endpoints) == 2
+    assert [endpoint.transport for endpoint in target.endpoints] == ["tcp", "tcp"]
+    assert [endpoint.target for endpoint in target.endpoints] == ["db1", "db2"]
+    assert [endpoint.hostaddr for endpoint in target.endpoints] == [
+        "10.0.0.10",
+        "10.0.0.11",
+    ]
+    assert [endpoint.port for endpoint in target.endpoints] == [5433, 5433]
+    assert target.endpoints[0].inferred is False
+
+
+def test_backend_connect_target_defaults_localhost() -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    target = module.connect_target("dbname=postgres")
+    assert target is not None
+    assert len(target.endpoints) == 1
+    assert target.endpoints[0].transport == "tcp"
+    assert target.endpoints[0].target == "localhost"
+    assert target.endpoints[0].port == 5432
+    assert target.endpoints[0].inferred is True
 
 
 def test_copy_base_prefers_c_copy_optimizations(monkeypatch):
