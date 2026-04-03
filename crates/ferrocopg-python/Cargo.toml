@@ -15,3 +15,5 @@ crate-type = ["cdylib"]
 [dependencies]
 ferrocopg-postgres = { path = "../ferrocopg-postgres" }
 pyo3 = { version = "0.24", features = ["extension-module"] }
+time = "0.3"
+uuid = "1"

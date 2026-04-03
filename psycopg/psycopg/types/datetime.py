@@ -583,6 +583,10 @@ class TimestamptzBinaryLoader(Loader):
         self._timezone = get_tzinfo(self.connection.pgconn if self.connection else None)
 
     def load(self, data: Buffer) -> datetime:
+        if _rpsycopg and hasattr(_rpsycopg, "timestamptz_load_binary"):
+            return cast(
+                datetime, _rpsycopg.timestamptz_load_binary(data, self._timezone)
+            )
         micros = unpack_int8(data)[0]
         try:
             ts = _pg_datetimetz_epoch + timedelta(microseconds=micros)
