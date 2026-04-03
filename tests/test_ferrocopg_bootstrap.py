@@ -114,6 +114,16 @@ class ByteaBinaryImpl(Protocol):
     def bytea_load_binary(self, data: object) -> object: ...
 
 
+class CompositeImpl(Protocol):
+    def composite_dump_text_sequence(self, seq: object, tx: object) -> object: ...
+
+    def composite_dump_binary_sequence(
+        self, seq: object, types: object, formats: object, tx: object
+    ) -> object: ...
+
+    def composite_parse_text_record(self, data: object) -> object: ...
+
+
 def _copy_impls() -> list[tuple[str, CopyImpl]]:
     ferrocopg = cast(CopyImpl, pytest.importorskip("ferrocopg_rust"))
     copy_base = importlib.import_module("psycopg._copy_base")
@@ -354,6 +364,30 @@ class StubArrayTransformer:
     def get_loader(self, oid: int, _format: object) -> StubArrayLoader:
         assert oid > 0
         return self._loader
+
+
+class StubDumper:
+    def __init__(self, values: dict[object, bytes | None]):
+        self._values = values
+
+    def dump(self, obj: object) -> bytes | None:
+        return self._values[obj]
+
+
+class StubCompositeTransformer:
+    def __init__(
+        self,
+        text_values: dict[object, bytes | None],
+        binary_values: list[bytes | None],
+    ):
+        self._text_values = text_values
+        self._binary_values = binary_values
+
+    def get_dumper(self, obj: object, _format: object) -> StubDumper:
+        return StubDumper(self._text_values)
+
+    def dump_sequence(self, _seq: object, _formats: object) -> list[bytes | None]:
+        return self._binary_values
 
 
 def _drive_send_generator(gen: object, ready_values: list[int | None]) -> tuple[list[int], object]:
@@ -626,6 +660,47 @@ def _bytea_binary_impls() -> list[tuple[str, ByteaBinaryImpl]]:
         SimpleNamespace(
             bytes_dump_binary=lambda data: bytes(data),
             bytea_load_binary=lambda data: bytes(data),
+        ),
+    )
+    return [("python", python_impl), ("rust", ferrocopg)]
+
+
+def _composite_impls() -> list[tuple[str, CompositeImpl]]:
+    ferrocopg = cast(CompositeImpl, pytest.importorskip("ferrocopg_rust"))
+    composite_mod = cast(Any, importlib.import_module("psycopg.types.composite"))
+
+    def python_dump_text_sequence(seq: object, tx: object) -> object:
+        original = composite_mod._rpsycopg
+        composite_mod._rpsycopg = None
+        try:
+            return composite_mod._dump_text_sequence(seq, tx)
+        finally:
+            composite_mod._rpsycopg = original
+
+    def python_dump_binary_sequence(
+        seq: object, types: object, formats: object, tx: object
+    ) -> object:
+        original = composite_mod._rpsycopg
+        composite_mod._rpsycopg = None
+        try:
+            return composite_mod._dump_binary_sequence(seq, types, formats, tx)
+        finally:
+            composite_mod._rpsycopg = original
+
+    def python_parse_text_record(data: object) -> object:
+        original = composite_mod._rpsycopg
+        composite_mod._rpsycopg = None
+        try:
+            return composite_mod._parse_text_record(data)
+        finally:
+            composite_mod._rpsycopg = original
+
+    python_impl = cast(
+        CompositeImpl,
+        SimpleNamespace(
+            composite_dump_text_sequence=python_dump_text_sequence,
+            composite_dump_binary_sequence=python_dump_binary_sequence,
+            composite_parse_text_record=python_parse_text_record,
         ),
     )
     return [("python", python_impl), ("rust", ferrocopg)]
@@ -1511,6 +1586,90 @@ def test_bytea_binary_loader_prefers_ferrocopg(
 
     monkeypatch.setattr(module, "_rpsycopg", StubRustModule)
     assert module.ByteaBinaryLoader(17).load(b"abc") == ("load", b"abc")
+
+
+def test_composite_dump_text_sequence_equivalent() -> None:
+    seq = ("plain", "needs,quotes", "say\"hi", None, "")
+    tx = StubCompositeTransformer(
+        {
+            "plain": b"plain",
+            "needs,quotes": b"needs,quotes",
+            'say"hi': b'say"hi',
+            "": b"",
+        },
+        [],
+    )
+
+    for name, impl in _composite_impls():
+        assert (
+            impl.composite_dump_text_sequence(seq, tx)
+            == b'(plain,"needs,quotes","say""hi",,"")'
+        ), name
+
+
+def test_composite_dump_binary_sequence_equivalent() -> None:
+    seq = ("alpha", None, "omega")
+    tx = StubCompositeTransformer({}, [b"a", None, b"xyz"])
+    types = [23, 25, 23]
+    formats = [object(), object(), object()]
+
+    expected = (
+        b"\x00\x00\x00\x03"
+        b"\x00\x00\x00\x17\x00\x00\x00\x01a"
+        b"\x00\x00\x00\x19\xff\xff\xff\xff"
+        b"\x00\x00\x00\x17\x00\x00\x00\x03xyz"
+    )
+    for name, impl in _composite_impls():
+        assert impl.composite_dump_binary_sequence(seq, types, formats, tx) == expected, name
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [
+        (b"foo,bar", [b"foo", b"bar"]),
+        (b'"a","b""c",', [b"a", b'b"c', None]),
+        (b',', [None, None]),
+        (b'"",plain', [b"", b"plain"]),
+    ],
+)
+def test_composite_parse_text_record_equivalent(
+    payload: bytes, expected: list[bytes | None]
+) -> None:
+    for name, impl in _composite_impls():
+        assert impl.composite_parse_text_record(payload) == expected, name
+
+
+def test_composite_helpers_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = importlib.import_module("psycopg.types.composite")
+    calls: list[tuple[str, object]] = []
+
+    class StubRustModule:
+        @staticmethod
+        def composite_dump_text_sequence(
+            seq: object, tx: object
+        ) -> tuple[str, object, object]:
+            return ("text", seq, tx)
+
+        @staticmethod
+        def composite_dump_binary_sequence(
+            seq: object, types: object, formats: object, tx: object
+        ) -> bytes:
+            calls.append(("binary", (seq, types, formats, tx)))
+            return b"rust-binary"
+
+        @staticmethod
+        def composite_parse_text_record(data: object) -> tuple[str, object]:
+            return ("parse", data)
+
+    monkeypatch.setattr(module, "_rpsycopg", StubRustModule)
+    tx = StubCompositeTransformer({}, [])
+    formats = [object()]
+    assert module._dump_text_sequence(("x",), tx) == ("text", ("x",), tx)
+    assert module._dump_binary_sequence(("x",), [1], formats, tx) == bytearray(
+        b"rust-binary"
+    )
+    assert calls == [("binary", (("x",), [1], formats, tx))]
+    assert module._parse_text_record(b"foo") == ("parse", b"foo")
 
 
 def test_ferrocopg_unavailable(monkeypatch):

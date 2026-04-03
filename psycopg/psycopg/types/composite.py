@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any, Generic, NamedTuple, TypeAlias, TypeVar, 
 from .. import abc, postgres, pq, sql
 from .._encodings import _as_python_identifier
 from .._oids import TEXT_OID
+from .._rmodule import _ferrocopg as _rpsycopg
 from .._struct import pack_len, unpack_len
 from .._typeinfo import TypeInfo
 from ..adapt import (
@@ -401,6 +402,9 @@ def _nt_from_info(info: CompositeInfo) -> type[NamedTuple]:
 
 
 def _dump_text_sequence(seq: Sequence[Any], tx: abc.Transformer) -> bytes:
+    if _rpsycopg and hasattr(_rpsycopg, "composite_dump_text_sequence"):
+        return cast(bytes, _rpsycopg.composite_dump_text_sequence(seq, tx))
+
     if not seq:
         return b"()"
 
@@ -437,6 +441,9 @@ def _dump_binary_sequence(
     formats: Sequence[PyFormat],
     tx: abc.Transformer,
 ) -> bytearray:
+    if _rpsycopg and hasattr(_rpsycopg, "composite_dump_binary_sequence"):
+        return bytearray(_rpsycopg.composite_dump_binary_sequence(seq, types, formats, tx))
+
     out = bytearray(pack_len(len(seq)))
     adapted = tx.dump_sequence(seq, formats)
     for i in range(len(seq)):
@@ -458,6 +465,9 @@ def _parse_text_record(data: abc.Buffer) -> list[bytes | None]:
     Terminators shouldn't be used in `!data` (so that both record and range
     representations can be parsed).
     """
+    if _rpsycopg and hasattr(_rpsycopg, "composite_parse_text_record"):
+        return cast(list[bytes | None], _rpsycopg.composite_parse_text_record(data))
+
     record: list[bytes | None] = []
     for m in _re_tokenize.finditer(data):
         if m.group(1):
