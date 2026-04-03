@@ -423,6 +423,133 @@ fn bytea_load_binary(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<Py<PyA
 }
 
 #[pyfunction]
+fn composite_dump_text_sequence(
+    py: Python<'_>,
+    seq: &Bound<'_, PyAny>,
+    tx: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    let seq_items: Vec<Py<PyAny>> = seq
+        .try_iter()?
+        .map(|item| item.map(Bound::unbind))
+        .collect::<PyResult<_>>()?;
+    if seq_items.is_empty() {
+        return Ok(PyBytes::new(py, b"()").unbind().into_any());
+    }
+
+    let pyformat_text = py
+        .import("psycopg.adapt")?
+        .getattr("PyFormat")?
+        .getattr("TEXT")?;
+    let mut out = Vec::from([b'(']);
+
+    for item in seq_items {
+        let bound = item.bind(py);
+        if bound.is_none() {
+            out.push(b',');
+            continue;
+        }
+
+        let dumper = tx.call_method1("get_dumper", (bound.clone(), pyformat_text.clone()))?;
+        let dumped = dumper.call_method1("dump", (bound.clone(),))?;
+        if dumped.is_none() {
+            out.extend_from_slice(b",");
+            continue;
+        }
+
+        let raw = bytes_like_to_vec(py, &dumped)?;
+        if raw.is_empty() {
+            out.push(b'"');
+            out.push(b'"');
+            out.push(b',');
+            continue;
+        }
+
+        if composite_needs_quotes(&raw) {
+            out.push(b'"');
+            for byte in raw {
+                if byte == b'\\' || byte == b'"' {
+                    out.push(byte);
+                }
+                out.push(byte);
+            }
+            out.push(b'"');
+        } else {
+            out.extend_from_slice(&raw);
+        }
+        out.push(b',');
+    }
+
+    if let Some(last) = out.last_mut() {
+        *last = b')';
+    }
+    Ok(PyBytes::new(py, &out).unbind().into_any())
+}
+
+#[pyfunction]
+fn composite_dump_binary_sequence(
+    py: Python<'_>,
+    seq: &Bound<'_, PyAny>,
+    types: &Bound<'_, PyAny>,
+    formats: &Bound<'_, PyAny>,
+    tx: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    let seq_len = seq.len()?;
+    let adapted: Vec<Option<Vec<u8>>> = tx
+        .call_method1("dump_sequence", (seq, formats))?
+        .try_iter()?
+        .map(|item| {
+            let item = item?;
+            if item.is_none() {
+                Ok(None)
+            } else {
+                bytes_like_to_vec(py, &item).map(Some)
+            }
+        })
+        .collect::<PyResult<_>>()?;
+
+    let mut out = Vec::new();
+    out.extend_from_slice(
+        &i32::try_from(seq_len)
+            .map_err(|_| PyErr::new::<PyValueError, _>("too many composite fields"))?
+            .to_be_bytes(),
+    );
+
+    for (index, oid_obj) in types.try_iter()?.enumerate() {
+        let oid = oid_obj?.extract::<u32>()?;
+        out.extend_from_slice(&oid.to_be_bytes());
+        match adapted.get(index).and_then(|item| item.as_ref()) {
+            Some(buf) => {
+                out.extend_from_slice(
+                    &i32::try_from(buf.len())
+                        .map_err(|_| {
+                            PyErr::new::<PyValueError, _>("composite field larger than i32")
+                        })?
+                        .to_be_bytes(),
+                );
+                out.extend_from_slice(buf);
+            }
+            None => out.extend_from_slice(&(-1_i32).to_be_bytes()),
+        }
+    }
+
+    Ok(PyBytes::new(py, &out).unbind().into_any())
+}
+
+#[pyfunction]
+fn composite_parse_text_record(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let data = bytes_like_to_vec(py, data)?;
+    let parsed = parse_composite_text_record(&data);
+    let out = PyList::empty(py);
+    for field in parsed {
+        match field {
+            Some(value) => out.append(PyBytes::new(py, &value))?,
+            None => out.append(py.None())?,
+        }
+    }
+    Ok(out.unbind().into_any())
+}
+
+#[pyfunction]
 fn format_row_text(
     py: Python<'_>,
     row: &Bound<'_, PyAny>,
@@ -806,6 +933,9 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(text_load, m)?)?;
     m.add_function(wrap_pyfunction!(bytes_dump_binary, m)?)?;
     m.add_function(wrap_pyfunction!(bytea_load_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(composite_dump_text_sequence, m)?)?;
+    m.add_function(wrap_pyfunction!(composite_dump_binary_sequence, m)?)?;
+    m.add_function(wrap_pyfunction!(composite_parse_text_record, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_text, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_binary, m)?)?;
     m.add_function(wrap_pyfunction!(send, m)?)?;
@@ -1756,6 +1886,74 @@ fn parse_text_array<'py>(
     }
 
     Ok(root.into_any())
+}
+
+fn composite_needs_quotes(raw: &[u8]) -> bool {
+    raw.iter().any(|byte| {
+        *byte == b'"'
+            || *byte == b','
+            || *byte == b'\\'
+            || *byte == b'('
+            || *byte == b')'
+            || byte.is_ascii_whitespace()
+    })
+}
+
+fn parse_composite_text_record(data: &[u8]) -> Vec<Option<Vec<u8>>> {
+    let mut fields = Vec::new();
+    let mut current = Vec::new();
+    let mut i = 0usize;
+    let mut saw_token = false;
+    let mut in_quotes = false;
+
+    while i < data.len() {
+        let ch = data[i];
+        if in_quotes {
+            if ch == b'"' {
+                if i + 1 < data.len() && data[i + 1] == b'"' {
+                    current.push(b'"');
+                    i += 2;
+                    continue;
+                }
+                in_quotes = false;
+                i += 1;
+                continue;
+            }
+            current.push(ch);
+            i += 1;
+            continue;
+        }
+
+        match ch {
+            b',' => {
+                if saw_token {
+                    fields.push(Some(std::mem::take(&mut current)));
+                } else {
+                    fields.push(None);
+                }
+                saw_token = false;
+                i += 1;
+            }
+            b'"' => {
+                saw_token = true;
+                in_quotes = true;
+                i += 1;
+            }
+            _ => {
+                saw_token = true;
+                current.push(ch);
+                i += 1;
+            }
+        }
+    }
+
+    if saw_token {
+        fields.push(Some(current));
+    } else if data.ends_with(b",") {
+        fields.push(None);
+    }
+
+    fields
 }
 
 fn parse_text_array_token(data: &[u8], start: usize, delim: u8) -> PyResult<(Vec<u8>, usize)> {
