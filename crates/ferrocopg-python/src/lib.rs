@@ -308,6 +308,22 @@ fn array_load_binary(
     Ok(value.unbind().into_any())
 }
 
+#[pyfunction(signature = (data, loader, delimiter=None))]
+fn array_load_text(
+    py: Python<'_>,
+    data: &Bound<'_, PyAny>,
+    loader: &Bound<'_, PyAny>,
+    delimiter: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>> {
+    let data = bytes_like_to_vec(py, data)?;
+    let delimiter = delimiter
+        .map(|value| bytes_like_to_vec(py, value))
+        .transpose()?
+        .unwrap_or_else(|| vec![b',']);
+    let value = parse_text_array(py, &data, loader, &delimiter)?;
+    Ok(value.unbind().into_any())
+}
+
 #[pyfunction]
 fn format_row_text(
     py: Python<'_>,
@@ -679,6 +695,7 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_connect_plan, m)?)?;
     m.add_function(wrap_pyfunction!(connect, m)?)?;
     m.add_function(wrap_pyfunction!(cancel, m)?)?;
+    m.add_function(wrap_pyfunction!(array_load_text, m)?)?;
     m.add_function(wrap_pyfunction!(array_load_binary, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_text, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_binary, m)?)?;
@@ -1557,6 +1574,127 @@ fn parse_binary_array<'py>(
     let load = loader.getattr("load")?;
     let mut cursor = dims_end;
     parse_binary_array_level(py, data, &dims, 0, &mut cursor, &load)
+}
+
+fn parse_text_array<'py>(
+    py: Python<'py>,
+    data: &[u8],
+    loader: &Bound<'py, PyAny>,
+    delimiter: &[u8],
+) -> PyResult<Bound<'py, PyAny>> {
+    if data.is_empty() {
+        return Err(PyErr::new::<PyValueError, _>("malformed array: empty data"));
+    }
+
+    let mut cursor = 0usize;
+    if data[0] == b'[' {
+        let Some(eq_pos) = data.iter().position(|&b| b == b'=') else {
+            return Err(PyErr::new::<PyValueError, _>(
+                "malformed array: no '=' after dimension information",
+            ));
+        };
+        cursor = eq_pos + 1;
+    }
+
+    let delim = delimiter.first().copied().unwrap_or(b',');
+    let mut stack: Vec<Bound<'py, PyList>> = Vec::new();
+    let mut current = PyList::empty(py);
+    let mut root = current.clone();
+
+    while cursor < data.len() {
+        match data[cursor] {
+            b'{' => {
+                if !stack.is_empty() {
+                    stack.last().expect("stack not empty").append(&current)?;
+                }
+                stack.push(current);
+                current = PyList::empty(py);
+                cursor += 1;
+            }
+            b'}' => {
+                if stack.is_empty() {
+                    return Err(PyErr::new::<PyValueError, _>(
+                        "malformed array: unexpected '}'",
+                    ));
+                }
+                root = stack.pop().expect("stack not empty");
+                cursor += 1;
+            }
+            c if c == delim => {
+                cursor += 1;
+            }
+            _ => {
+                let (token, next_cursor) = parse_text_array_token(data, cursor, delim)?;
+                cursor = next_cursor;
+                if stack.is_empty() {
+                    let wat = if token.len() > 10 {
+                        format!("{}...", String::from_utf8_lossy(&token[..10]))
+                    } else {
+                        String::from_utf8_lossy(&token).into_owned()
+                    };
+                    return Err(PyErr::new::<PyValueError, _>(format!(
+                        "malformed array: unexpected '{wat}'"
+                    )));
+                }
+                if token == b"NULL" {
+                    stack.last().expect("stack not empty").append(py.None())?;
+                } else {
+                    let item = loader.call_method1("load", (PyBytes::new(py, &token),))?;
+                    stack.last().expect("stack not empty").append(item)?;
+                }
+            }
+        }
+    }
+
+    Ok(root.into_any())
+}
+
+fn parse_text_array_token(data: &[u8], start: usize, delim: u8) -> PyResult<(Vec<u8>, usize)> {
+    let mut cursor = start;
+    let mut quoted = data[cursor] == b'"';
+    let mut token = Vec::new();
+    if quoted {
+        cursor += 1;
+    }
+
+    while cursor < data.len() {
+        let ch = data[cursor];
+        if quoted {
+            if ch == b'\\' {
+                cursor += 1;
+                if cursor >= data.len() {
+                    return Err(PyErr::new::<PyValueError, _>(
+                        "malformed array: hit the end of the buffer",
+                    ));
+                }
+                token.push(data[cursor]);
+                cursor += 1;
+                continue;
+            }
+            if ch == b'"' {
+                quoted = false;
+                cursor += 1;
+                continue;
+            }
+            token.push(ch);
+            cursor += 1;
+            continue;
+        }
+
+        if ch == delim || ch == b'}' {
+            break;
+        }
+        token.push(ch);
+        cursor += 1;
+    }
+
+    if quoted {
+        return Err(PyErr::new::<PyValueError, _>(
+            "malformed array: hit the end of the buffer",
+        ));
+    }
+
+    Ok((token, cursor))
 }
 
 fn parse_binary_array_level<'py>(
