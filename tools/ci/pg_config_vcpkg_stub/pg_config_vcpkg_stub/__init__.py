@@ -20,17 +20,38 @@ class ScriptError(Exception):
     """Controlled exception raised by the script."""
 
 
-def _main() -> None:
-    # only x64-windows
-    if not (sys.platform == "win32" and platform.machine() == "AMD64"):
-        raise ScriptError("this script should only be used in x64-windows")
-
+def get_vcpkg_platform_root() -> Path:
     vcpkg_root = os.environ.get(
         "VCPKG_ROOT", os.environ.get("VCPKG_INSTALLATION_ROOT", "")
     )
     if not vcpkg_root:
         raise ScriptError("VCPKG_ROOT/VCPKG_INSTALLATION_ROOT env var not specified")
-    vcpkg_platform_root = (Path(vcpkg_root) / "installed/x64-windows-release").resolve()
+    return (Path(vcpkg_root) / "installed/x64-windows-release").resolve()
+
+
+def get_bindir(vcpkg_platform_root: Path) -> Path:
+    candidates = (
+        vcpkg_platform_root / "bin",
+        vcpkg_platform_root / "tools/libpq/bin",
+        vcpkg_platform_root / "tools/postgresql/bin",
+    )
+
+    for bindir in candidates:
+        if (bindir / "libpq.dll").exists():
+            return bindir
+
+    raise ScriptError(
+        "libpq runtime directory not found under "
+        f"{vcpkg_platform_root}"
+    )
+
+
+def _main() -> None:
+    # only x64-windows
+    if not (sys.platform == "win32" and platform.machine() == "AMD64"):
+        raise ScriptError("this script should only be used in x64-windows")
+
+    vcpkg_platform_root = get_vcpkg_platform_root()
 
     args = parse_cmdline()
 
@@ -43,6 +64,9 @@ def _main() -> None:
         if not (d := vcpkg_platform_root / "include/libpq").is_dir():
             raise ScriptError(f"libpq include directory not found: {d}")
         print(vcpkg_platform_root.joinpath("include"))
+
+    elif args.bindir:
+        print(get_bindir(vcpkg_platform_root))
 
     else:
         raise ScriptError("command not handled")
@@ -62,6 +86,11 @@ def parse_cmdline() -> Namespace:
         "--includedir",
         action="store_true",
         help="show location of C header files of the client interfaces",
+    )
+    g.add_argument(
+        "--bindir",
+        action="store_true",
+        help="show location of runtime binaries such as libpq.dll",
     )
     opt = parser.parse_args()
     return opt
