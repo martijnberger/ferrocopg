@@ -17,6 +17,7 @@ import selectors
 import sys
 from asyncio import Event, TimeoutError, get_event_loop, wait_for
 from selectors import DefaultSelector
+from typing import Any
 
 from . import errors as e
 from ._cmodule import _psycopg
@@ -288,12 +289,17 @@ def wait_select(gen: PQGen[RV], fileno: int, interval: float = 0.0) -> RV:
 
 
 if hasattr(selectors, "EpollSelector"):
+    _epoll = getattr(select, "epoll", None)
+    _EPOLLONESHOT = int(getattr(select, "EPOLLONESHOT", 0))
+    _EPOLLIN = int(getattr(select, "EPOLLIN", 0))
+    _EPOLLOUT = int(getattr(select, "EPOLLOUT", 0))
     _epoll_evmasks = {
-        WAIT_R: select.EPOLLONESHOT | select.EPOLLIN,
-        WAIT_W: select.EPOLLONESHOT | select.EPOLLOUT,
-        WAIT_RW: select.EPOLLONESHOT | select.EPOLLIN | select.EPOLLOUT,
+        WAIT_R: _EPOLLONESHOT | _EPOLLIN,
+        WAIT_W: _EPOLLONESHOT | _EPOLLOUT,
+        WAIT_RW: _EPOLLONESHOT | _EPOLLIN | _EPOLLOUT,
     }
 else:
+    _epoll = None
     _epoll_evmasks = {}
 
 
@@ -321,7 +327,9 @@ def wait_epoll(gen: PQGen[RV], fileno: int, interval: float = 0.0) -> RV:
         if interval < 0:
             interval = 0.0
 
-        with select.epoll() as epoll:
+        assert _epoll is not None
+        epoll: Any
+        with _epoll() as epoll:
             evmask = _epoll_evmasks[s]
             epoll.register(fileno, evmask)
             while True:
@@ -331,9 +339,9 @@ def wait_epoll(gen: PQGen[RV], fileno: int, interval: float = 0.0) -> RV:
                     continue
                 ev = fileevs[0][1]
                 ready = 0
-                if ev & select.EPOLLIN:
+                if ev & _EPOLLIN:
                     ready = READY_R
-                if ev & select.EPOLLOUT:
+                if ev & _EPOLLOUT:
                     ready |= READY_W
                 s = gen.send(ready)
                 evmask = _epoll_evmasks[s]
