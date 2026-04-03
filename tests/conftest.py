@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.machinery
 import os
 import selectors
 import sys
@@ -12,8 +13,10 @@ import pytest
 
 def _has_in_place_psycopg_c_build(repo_root: Path) -> bool:
     package_root = repo_root / "psycopg_c" / "psycopg_c"
-    patterns = ("pq*.so", "pq*.pyd")
-    return any(package_root.glob(pattern) for pattern in patterns)
+    return any(
+        (package_root / f"pq{suffix}").exists()
+        for suffix in importlib.machinery.EXTENSION_SUFFIXES
+    )
 
 
 def _bootstrap_repo_packages() -> None:
