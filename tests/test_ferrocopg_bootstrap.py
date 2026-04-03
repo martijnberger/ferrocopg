@@ -1,4 +1,5 @@
 import importlib
+import socket
 from types import SimpleNamespace
 
 import pytest
@@ -42,6 +43,12 @@ def _expected_text_row(data: bytearray, tx: StubCopyTransformer) -> tuple[bytes 
         return ()
 
     return importlib.import_module("psycopg._copy_base")._parse_row_text(data, tx)
+
+
+def _wait_ready_gen(wait_state: int, expected_ready: int, result: str = "ok"):
+    ready = yield wait_state
+    assert ready == expected_ready
+    return result
 
 
 @pytest.mark.parametrize(
@@ -181,6 +188,56 @@ def test_copy_binary_helpers_equivalent_with_cython(row):
         impl.format_row_binary(row, tx, out)
         assert bytes(out) == bytes(expected_out), name
         assert impl.parse_row_binary(out, tx) == expected_row, name
+
+
+def test_wait_c_read_ready_equivalent():
+    ferrocopg = pytest.importorskip("ferrocopg_rust")
+    waiting = importlib.import_module("psycopg.waiting")
+
+    reader, writer = socket.socketpair()
+    try:
+        writer.sendall(b"x")
+
+        expected = waiting.wait_select(
+            _wait_ready_gen(waiting.WAIT_R, waiting.READY_R, "python"),
+            reader.fileno(),
+            interval=0.01,
+        )
+        got = ferrocopg.wait_c(
+            _wait_ready_gen(waiting.WAIT_R, waiting.READY_R, "rust"),
+            reader.fileno(),
+            interval=0.01,
+        )
+
+        assert expected == "python"
+        assert got == "rust"
+    finally:
+        reader.close()
+        writer.close()
+
+
+def test_wait_c_timeout_equivalent():
+    ferrocopg = pytest.importorskip("ferrocopg_rust")
+    waiting = importlib.import_module("psycopg.waiting")
+
+    reader, writer = socket.socketpair()
+    try:
+        expected = waiting.wait_select(
+            _wait_ready_gen(waiting.WAIT_R, waiting.READY_NONE, "python-timeout"),
+            reader.fileno(),
+            interval=0.0,
+        )
+        got = ferrocopg.wait_c(
+            _wait_ready_gen(waiting.WAIT_R, waiting.READY_NONE, "rust-timeout"),
+            reader.fileno(),
+            interval=0.0,
+        )
+
+        assert expected == "python-timeout"
+        assert got == "rust-timeout"
+    finally:
+        reader.close()
+        writer.close()
 
 
 def test_ferrocopg_unavailable(monkeypatch):

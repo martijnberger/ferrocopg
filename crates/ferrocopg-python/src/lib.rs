@@ -237,6 +237,98 @@ fn parse_row_binary(
     tx.call_method1("load_sequence", (row,)).map(Bound::unbind)
 }
 
+#[pyfunction(signature = (generator, fileno, interval=0.0))]
+fn wait_c(
+    py: Python<'_>,
+    generator: &Bound<'_, PyAny>,
+    fileno: i32,
+    interval: f64,
+) -> PyResult<Py<PyAny>> {
+    if interval.is_nan() {
+        return Err(PyErr::new::<PyValueError, _>("interval cannot be NaN"));
+    }
+    if interval.is_infinite() {
+        return Err(PyErr::new::<PyValueError, _>(
+            "indefinite wait not supported anymore",
+        ));
+    }
+
+    let waiting = py.import("psycopg.waiting")?;
+    let select = py.import("select")?;
+    let os = py.import("os")?;
+    let errors = py.import("psycopg.errors")?;
+    let operational_error = errors.getattr("OperationalError")?;
+
+    let wait_r = waiting.getattr("WAIT_R")?.extract::<i32>()?;
+    let wait_w = waiting.getattr("WAIT_W")?.extract::<i32>()?;
+    let ready_none = waiting.getattr("READY_NONE")?;
+    let ready_r = waiting.getattr("READY_R")?;
+    let ready_w = waiting.getattr("READY_W")?;
+    let ready_rw = waiting.getattr("READY_RW")?;
+    let send = generator.getattr("send")?;
+
+    let timeout = interval.max(0.0);
+    let mut wait = generator.call_method0("__next__")?;
+
+    loop {
+        let wait_mask = wait.extract::<i32>()?;
+        let wants_read = wait_mask & wait_r != 0;
+        let wants_write = wait_mask & wait_w != 0;
+
+        let read_fds = if wants_read { vec![fileno] } else { Vec::new() };
+        let write_fds = if wants_write {
+            vec![fileno]
+        } else {
+            Vec::new()
+        };
+        let except_fds = vec![fileno];
+
+        match select.call_method1("select", (read_fds, write_fds, except_fds, timeout)) {
+            Ok(ready_sets) => {
+                let (readable, writable, exceptional): (Vec<i32>, Vec<i32>, Vec<i32>) =
+                    ready_sets.extract()?;
+
+                let ready = if !exceptional.is_empty() {
+                    if os.call_method1("fstat", (fileno,)).is_err() {
+                        return Err(psycopg_operational_error(
+                            &operational_error,
+                            "connection socket closed",
+                        ));
+                    }
+                    return Err(psycopg_operational_error(
+                        &operational_error,
+                        "connection socket closed",
+                    ));
+                } else if !readable.is_empty() && !writable.is_empty() {
+                    ready_rw.clone()
+                } else if !readable.is_empty() {
+                    ready_r.clone()
+                } else if !writable.is_empty() {
+                    ready_w.clone()
+                } else {
+                    ready_none.clone()
+                };
+
+                match send.call1((ready,)) {
+                    Ok(next_wait) => wait = next_wait,
+                    Err(err) => {
+                        if err.is_instance_of::<pyo3::exceptions::PyStopIteration>(py) {
+                            let value = err
+                                .value(py)
+                                .getattr("value")
+                                .map(Bound::unbind)
+                                .unwrap_or_else(|_| py.None());
+                            return Ok(value);
+                        }
+                        return Err(err);
+                    }
+                }
+            }
+            Err(err) => return Err(err),
+        }
+    }
+}
+
 impl From<ferrocopg_postgres::ConninfoSummary> for BackendConninfoSummary {
     fn from(summary: ferrocopg_postgres::ConninfoSummary) -> Self {
         Self {
@@ -288,6 +380,7 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(format_row_binary, m)?)?;
     m.add_function(wrap_pyfunction!(parse_row_text, m)?)?;
     m.add_function(wrap_pyfunction!(parse_row_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(wait_c, m)?)?;
     Ok(())
 }
 
@@ -337,6 +430,13 @@ fn expected_field_count(tx: &Bound<'_, PyAny>) -> PyResult<usize> {
     }
 
     Ok(0)
+}
+
+fn psycopg_operational_error(exc_type: &Bound<'_, PyAny>, message: &str) -> PyErr {
+    let exc = exc_type
+        .call1((message,))
+        .expect("OperationalError constructor should succeed");
+    PyErr::from_value(exc)
 }
 
 fn extend_bytearray(out: &Bound<'_, PyAny>, data: &[u8]) -> PyResult<()> {

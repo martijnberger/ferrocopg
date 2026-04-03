@@ -23,6 +23,7 @@ from . import errors as e
 from ._cmodule import _psycopg
 from ._enums import Ready as Ready
 from ._enums import Wait as Wait  # re-exported
+from ._rmodule import _ferrocopg as _rpsycopg
 from .abc import RV, PQGen, PQGenConn, WaitFunc
 
 WAIT_R = Wait.R
@@ -431,6 +432,8 @@ def _is_select_patched() -> bool:
 
 if _psycopg:
     wait_c = _psycopg.wait_c
+elif _rpsycopg and hasattr(_rpsycopg, "wait_c"):
+    wait_c = _rpsycopg.wait_c
 
 
 # Choose the best wait strategy for the platform.
@@ -453,7 +456,11 @@ if "PSYCOPG_WAIT_FUNC" in os.environ:
 # On Windows, for the moment, avoid using wait_c, because it was reported to
 # use excessive CPU (see #645).
 # TODO: investigate why.
-elif _psycopg and sys.platform != "win32" and not _is_select_patched():
+elif (
+    (_psycopg or (_rpsycopg and hasattr(_rpsycopg, "wait_c")))
+    and sys.platform != "win32"
+    and not _is_select_patched()
+):
     wait = wait_c
 
 elif selectors.DefaultSelector is getattr(selectors, "SelectSelector", None):
