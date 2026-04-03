@@ -64,6 +64,17 @@ def query_text_no_tls(conninfo: str, query: str) -> object | None:
     return cast(object, _ferrocopg.query_text_no_tls(conninfo, query))
 
 
+def query_text_params_no_tls(
+    conninfo: str, query: str, params: list[str | None]
+) -> object | None:
+    """
+    Return a Rust-backed no-TLS text query result for bound text parameters.
+    """
+    if not _ferrocopg:
+        return None
+    return cast(object, _ferrocopg.query_text_params_no_tls(conninfo, query, params))
+
+
 def describe_text_no_tls(conninfo: str, query: str) -> object | None:
     """
     Return a Rust-backed no-TLS statement description if the extension is loaded.

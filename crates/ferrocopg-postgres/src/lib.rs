@@ -3,6 +3,7 @@
 //! The long-term plan is to build ferrocopg on the `rust-postgres` ecosystem
 //! instead of mirroring the current `libpq`/Cython transport layer.
 
+use postgres::types::{ToSql, Type};
 use std::error::Error;
 use std::fmt;
 use std::str::FromStr;
@@ -228,6 +229,15 @@ pub fn query_text_no_tls(conninfo: &str, query: &str) -> Result<TextQueryResult,
     config.query_text_no_tls(query)
 }
 
+pub fn query_text_params_no_tls(
+    conninfo: &str,
+    query: &str,
+    params: &[Option<String>],
+) -> Result<TextQueryResult, ProbeError> {
+    let config = BootstrapConfig::parse(conninfo).map_err(ProbeError::Parse)?;
+    config.query_text_params_no_tls(query, params)
+}
+
 pub fn connect_no_tls_session(conninfo: &str) -> Result<SyncNoTlsSession, ProbeError> {
     let config = BootstrapConfig::parse(conninfo).map_err(ProbeError::Parse)?;
     config.connect_no_tls_session()
@@ -332,6 +342,15 @@ impl BootstrapConfig {
         self.connect_no_tls_session()?.query_text(query)
     }
 
+    pub fn query_text_params_no_tls(
+        &self,
+        query: &str,
+        params: &[Option<String>],
+    ) -> Result<TextQueryResult, ProbeError> {
+        self.connect_no_tls_session()?
+            .query_text_params(query, params)
+    }
+
     pub fn describe_text_no_tls(&self, query: &str) -> Result<StatementDescription, ProbeError> {
         self.connect_no_tls_session()?.describe_text(query)
     }
@@ -397,28 +416,20 @@ impl SyncNoTlsSession {
             .client_mut()?
             .query(query, &[])
             .map_err(ProbeError::Query)?;
-        let columns = rows
-            .first()
-            .map(|row| {
-                row.columns()
-                    .iter()
-                    .map(|col| col.name().to_owned())
-                    .collect()
-            })
-            .unwrap_or_default();
-        let rows = rows
-            .into_iter()
-            .map(|row| {
-                (0..row.len())
-                    .map(|index| {
-                        row.try_get::<_, Option<String>>(index)
-                            .map_err(ProbeError::Query)
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        text_query_result(rows)
+    }
 
-        Ok(TextQueryResult { columns, rows })
+    pub fn query_text_params(
+        &mut self,
+        query: &str,
+        params: &[Option<String>],
+    ) -> Result<TextQueryResult, ProbeError> {
+        let params = typed_text_query_params(params);
+        let rows = self
+            .client_mut()?
+            .query_typed(query, &params)
+            .map_err(ProbeError::Query)?;
+        text_query_result(rows)
     }
 
     pub fn describe_text(&mut self, query: &str) -> Result<StatementDescription, ProbeError> {
@@ -458,6 +469,38 @@ fn normalize_connect_timeout(timeout_seconds: Option<u64>) -> u64 {
         None | Some(0) => DEFAULT_CONNECT_TIMEOUT_SECS,
         Some(timeout) => timeout.max(MIN_CONNECT_TIMEOUT_SECS),
     }
+}
+
+fn typed_text_query_params(params: &[Option<String>]) -> Vec<(&(dyn ToSql + Sync), Type)> {
+    params
+        .iter()
+        .map(|value| (value as &(dyn ToSql + Sync), Type::TEXT))
+        .collect()
+}
+
+fn text_query_result(rows: Vec<postgres::Row>) -> Result<TextQueryResult, ProbeError> {
+    let columns = rows
+        .first()
+        .map(|row| {
+            row.columns()
+                .iter()
+                .map(|col| col.name().to_owned())
+                .collect()
+        })
+        .unwrap_or_default();
+    let rows = rows
+        .into_iter()
+        .map(|row| {
+            (0..row.len())
+                .map(|index| {
+                    row.try_get::<_, Option<String>>(index)
+                        .map_err(ProbeError::Query)
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(TextQueryResult { columns, rows })
 }
 
 fn sync_client() -> &'static str {
