@@ -39,6 +39,7 @@ repos:
         name: mypy
         language: system
         entry: mypy --pretty --follow-imports=silent
+        pass_filenames: false
         files: \.py[i]?$
         exclude: tests/test_tstring(_async)?.py
 

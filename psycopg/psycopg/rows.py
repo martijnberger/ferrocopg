@@ -237,10 +237,12 @@ def no_result(values: Sequence[Any]) -> NoReturn:
 def _get_names(cursor: BaseCursor[Any, Any]) -> list[str] | None:
     if (res := cursor.pgresult) and (nfields := _get_nfields(res)) is not None:
         enc = cursor._encoding
-        return [
-            res.fname(i).decode(enc)
-            for i in range(nfields)  # type: ignore[union-attr]
-        ]
+        names = []
+        for i in range(nfields):
+            name = res.fname(i)
+            assert name is not None
+            names.append(name.decode(enc))
+        return names
     else:
         return None
 

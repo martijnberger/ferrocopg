@@ -8,6 +8,8 @@ extension to be present in every environment.
 
 from __future__ import annotations
 
+from typing import cast
+
 from ._rmodule import __version__ as __version__
 from ._rmodule import _ferrocopg
 
@@ -23,7 +25,7 @@ def conninfo_summary(conninfo: str) -> object | None:
     """
     if not _ferrocopg:
         return None
-    return _ferrocopg.parse_conninfo_summary(conninfo)
+    return cast(object, _ferrocopg.parse_conninfo_summary(conninfo))
 
 
 def connect_plan(conninfo: str) -> object | None:
@@ -32,4 +34,4 @@ def connect_plan(conninfo: str) -> object | None:
     """
     if not _ferrocopg:
         return None
-    return _ferrocopg.parse_connect_plan(conninfo)
+    return cast(object, _ferrocopg.parse_connect_plan(conninfo))
