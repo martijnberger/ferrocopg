@@ -1,6 +1,52 @@
+[project]
+name = "ferrocopg-workspace"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "psycopg",
+    "psycopg-c",
+    "psycopg-pool",
+]
+
+[dependency-groups]
+dev = [
+    "anyio >= 4.0",
+    "ast-comments >= 1.1.2",
+    "black >= 26.1.0",
+    "codespell >= 2.2",
+    "cython-lint >= 0.16",
+    "dnspython >= 2.1",
+    "flake8 >= 4.0",
+    "gevent",
+    "isort[colors] >= 6.0",
+    "isort-psycopg",
+    "mypy >= 1.19.0; implementation_name != 'pypy'",
+    "pproxy >= 2.7",
+    "pre-commit >= 4.0.1",
+    "pytest >= 6.2.5",
+    "pytest-cov >= 3.0",
+    "pytest-randomly >= 3.5",
+    "shapely",
+    "types-setuptools >= 57.4",
+    "types-shapely >= 2.0",
+    "wheel >= 0.37",
+]
+
 [build-system]
 requires = ["setuptools>=49.2.0", "wheel>=0.37"]
 build-backend = "setuptools.build_meta"
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+psycopg = { workspace = true }
+psycopg-c = { path = "./psycopg_c", editable = false }
+psycopg-binary = { path = "./psycopg_binary", package = false }
+psycopg-pool = { workspace = true }
+
+[tool.uv.workspace]
+members = ["psycopg", "psycopg_pool"]
 
 [tool.pytest.ini_options]
 addopts = "-ra"

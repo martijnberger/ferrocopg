@@ -38,8 +38,38 @@ def get_requires_for_build_wheel(config_settings: Any = None) -> list[str]:
 
 
 get_requires_for_build_sdist = get_requires_for_build_wheel
+get_requires_for_build_editable = get_requires_for_build_wheel
 
-# For the rest, behave like the rest of setuptoos.build_meta
+
+def _editable_config_settings(config_settings: Any = None) -> dict[str, Any]:
+    rv = dict(config_settings or {})
+    rv.setdefault("editable_mode", "strict")
+    return rv
+
+
+# For the rest, behave like the rest of setuptools.build_meta
 prepare_metadata_for_build_wheel = build_meta.prepare_metadata_for_build_wheel
 build_wheel = build_meta.build_wheel
 build_sdist = build_meta.build_sdist
+
+
+def prepare_metadata_for_build_editable(
+    metadata_directory: str,
+    config_settings: Any = None,
+) -> str:
+    return build_meta.prepare_metadata_for_build_editable(
+        metadata_directory,
+        _editable_config_settings(config_settings),
+    )
+
+
+def build_editable(
+    wheel_directory: str,
+    config_settings: Any = None,
+    metadata_directory: str | None = None,
+) -> str:
+    return build_meta.build_editable(
+        wheel_directory,
+        _editable_config_settings(config_settings),
+        metadata_directory,
+    )

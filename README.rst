@@ -61,19 +61,18 @@ packages, which may have different requirements:
 
 You can create a local virtualenv and install the packages `in
 development mode`__, together with their development and testing
-requirements::
+requirements. The workspace requires Python 3.10 or newer::
 
     uv venv
     source .venv/bin/activate
 
-    # Install the base Psycopg package in editable mode
-    uv pip install --config-settings editable_mode=strict -e "./psycopg[dev,test]"
+    # Install the workspace, including the Cython speedup package
+    uv sync
 
-    # Install the connection pool package in editable mode
-    uv pip install --config-settings editable_mode=strict -e ./psycopg_pool
-
-    # Install the C speedup extension
-    uv pip install ./psycopg_c
+The root ``uv sync`` command is the recommended way to get a working
+development environment for the current implementation. It installs the local
+``psycopg``, ``psycopg_pool``, and ``psycopg_c`` projects together with the
+development and test dependencies needed to run the Cython-backed test suite.
 
 The repository is also starting the ``ferrocopg`` Rust port. The initial Rust
 extension scaffold lives in ``crates/ferrocopg-python`` and is currently aimed
@@ -84,18 +83,11 @@ active environment using::
     uv run --with maturin maturin develop \
         --manifest-path crates/ferrocopg-python/Cargo.toml
 
-.. __: https://pip.pypa.io/en/stable/topics/local-project-installs/#editable-installs
-
-The ``--config-settings editable_mode=strict`` will be probably required
-to work around the problem of the `editable mode broken`__.
-
-.. __: https://github.com/pypa/setuptools/issues/3557
-
 Now hack away! You can run the tests using::
 
-    psql -c 'create database psycopg_test'
-    export PSYCOPG_TEST_DSN="dbname=psycopg_test"
-    pytest
+    createdb psycopg_test
+    export PSYCOPG_TEST_DSN="postgresql:///psycopg_test"
+    uv run pytest --test-dsn "$PSYCOPG_TEST_DSN"
 
 The project includes some `pre-commit`__ hooks to check that the code is valid
 according to the project coding convention. Please make sure to install them
