@@ -298,6 +298,17 @@ fn cancel(
 }
 
 #[pyfunction]
+fn array_load_binary(
+    py: Python<'_>,
+    data: &Bound<'_, PyAny>,
+    tx: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    let data = bytes_like_to_vec(py, data)?;
+    let value = parse_binary_array(py, &data, tx)?;
+    Ok(value.unbind().into_any())
+}
+
+#[pyfunction]
 fn format_row_text(
     py: Python<'_>,
     row: &Bound<'_, PyAny>,
@@ -668,6 +679,7 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_connect_plan, m)?)?;
     m.add_function(wrap_pyfunction!(connect, m)?)?;
     m.add_function(wrap_pyfunction!(cancel, m)?)?;
+    m.add_function(wrap_pyfunction!(array_load_binary, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_text, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_binary, m)?)?;
     m.add_function(wrap_pyfunction!(send, m)?)?;
@@ -1502,4 +1514,98 @@ fn unescape_text_field(field: &[u8]) -> Vec<u8> {
     }
 
     out
+}
+
+fn parse_binary_array<'py>(
+    py: Python<'py>,
+    data: &[u8],
+    tx: &Bound<'py, PyAny>,
+) -> PyResult<Bound<'py, PyAny>> {
+    if data.len() < 12 {
+        return Err(PyErr::new::<PyValueError, _>(
+            "binary array payload is truncated",
+        ));
+    }
+
+    let ndims = u32::from_be_bytes([data[0], data[1], data[2], data[3]]) as usize;
+    if ndims == 0 {
+        return Ok(PyList::empty(py).into_any());
+    }
+
+    let oid = u32::from_be_bytes([data[8], data[9], data[10], data[11]]);
+    let dims_end = 12 + ndims * 8;
+    if data.len() < dims_end {
+        return Err(PyErr::new::<PyValueError, _>(
+            "binary array dimensions are truncated",
+        ));
+    }
+
+    let mut dims = Vec::with_capacity(ndims);
+    let mut pos = 12;
+    for _ in 0..ndims {
+        dims.push(
+            u32::from_be_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]]) as usize,
+        );
+        pos += 8;
+    }
+
+    let pq_binary = py
+        .import("psycopg.pq")?
+        .getattr("Format")?
+        .getattr("BINARY")?;
+    let loader = tx.call_method1("get_loader", (oid, pq_binary))?;
+    let load = loader.getattr("load")?;
+    let mut cursor = dims_end;
+    parse_binary_array_level(py, data, &dims, 0, &mut cursor, &load)
+}
+
+fn parse_binary_array_level<'py>(
+    py: Python<'py>,
+    data: &[u8],
+    dims: &[usize],
+    dim_index: usize,
+    cursor: &mut usize,
+    load: &Bound<'py, PyAny>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let out = PyList::empty(py);
+    let nelems = dims[dim_index];
+
+    if dim_index == dims.len() - 1 {
+        for _ in 0..nelems {
+            if data.len().saturating_sub(*cursor) < 4 {
+                return Err(PyErr::new::<PyValueError, _>(
+                    "binary array element length is truncated",
+                ));
+            }
+            let size = i32::from_be_bytes([
+                data[*cursor],
+                data[*cursor + 1],
+                data[*cursor + 2],
+                data[*cursor + 3],
+            ]);
+            *cursor += 4;
+            if size == -1 {
+                out.append(py.None())?;
+                continue;
+            }
+            let size = usize::try_from(size).map_err(|_| {
+                PyErr::new::<PyValueError, _>("binary array element length is invalid")
+            })?;
+            if data.len().saturating_sub(*cursor) < size {
+                return Err(PyErr::new::<PyValueError, _>(
+                    "binary array element payload is truncated",
+                ));
+            }
+            let item = load.call1((PyBytes::new(py, &data[*cursor..*cursor + size]),))?;
+            *cursor += size;
+            out.append(item)?;
+        }
+    } else {
+        for _ in 0..nelems {
+            let item = parse_binary_array_level(py, data, dims, dim_index + 1, cursor, load)?;
+            out.append(item)?;
+        }
+    }
+
+    Ok(out.into_any())
 }

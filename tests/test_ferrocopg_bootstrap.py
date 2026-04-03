@@ -71,6 +71,10 @@ class ConnectImpl(Protocol):
     def connect(self, conninfo: str, *, timeout: float = 0.0) -> object: ...
 
 
+class ArrayBinaryImpl(Protocol):
+    def array_load_binary(self, data: object, tx: object) -> object: ...
+
+
 def _copy_impls() -> list[tuple[str, CopyImpl]]:
     ferrocopg = cast(CopyImpl, pytest.importorskip("ferrocopg_rust"))
     copy_base = importlib.import_module("psycopg._copy_base")
@@ -299,6 +303,20 @@ class StubConnectConn:
         return self.error_message
 
 
+class StubArrayLoader:
+    def __init__(self, loadfunc: Callable[[bytes], object]):
+        self.load = loadfunc
+
+
+class StubArrayTransformer:
+    def __init__(self, loadfunc: Callable[[bytes], object]):
+        self._loader = StubArrayLoader(loadfunc)
+
+    def get_loader(self, oid: int, _format: object) -> StubArrayLoader:
+        assert oid > 0
+        return self._loader
+
+
 def _drive_send_generator(gen: object, ready_values: list[int | None]) -> tuple[list[int], object]:
     waits: list[int] = []
     try:
@@ -486,6 +504,16 @@ def _connect_impls(
     monkeypatch.setattr(generators.e, "finish_pgconn", lambda pgconn: pgconn)
 
     python_impl = cast(ConnectImpl, SimpleNamespace(connect=generators._connect))
+    return [("python", python_impl), ("rust", ferrocopg)]
+
+
+def _array_binary_impls() -> list[tuple[str, ArrayBinaryImpl]]:
+    ferrocopg = cast(ArrayBinaryImpl, pytest.importorskip("ferrocopg_rust"))
+    array_mod = importlib.import_module("psycopg.types.array")
+    python_impl = cast(
+        ArrayBinaryImpl,
+        SimpleNamespace(array_load_binary=array_mod._load_binary),
+    )
     return [("python", python_impl), ("rust", ferrocopg)]
 
 
@@ -1045,6 +1073,58 @@ def test_generators_prefers_ferrocopg_connect_when_available():
 
     ferrocopg = pytest.importorskip("ferrocopg_rust")
     assert generators.connect is ferrocopg.connect
+
+
+@pytest.mark.parametrize(
+    ("dims", "values", "expected"),
+    [
+        ([], [], []),
+        ([3], [1, None, 7], [1, None, 7]),
+        ([2, 2], [1, 2, 3, 4], [[1, 2], [3, 4]]),
+    ],
+)
+def test_array_load_binary_equivalent(
+    dims: list[int],
+    values: list[int | None],
+    expected: list[object],
+) -> None:
+    def pack_array_payload() -> bytes:
+        oid = 23
+        data = bytearray()
+        data.extend(len(dims).to_bytes(4, "big"))
+        data.extend(int(any(v is None for v in values)).to_bytes(4, "big"))
+        data.extend(oid.to_bytes(4, "big"))
+        for dim in dims:
+            data.extend(dim.to_bytes(4, "big"))
+            data.extend((1).to_bytes(4, "big"))
+        for value in values:
+            if value is None:
+                data.extend((-1).to_bytes(4, "big", signed=True))
+            else:
+                payload = int(value).to_bytes(4, "big", signed=True)
+                data.extend(len(payload).to_bytes(4, "big", signed=True))
+                data.extend(payload)
+        return bytes(data)
+
+    tx = StubArrayTransformer(lambda data: int.from_bytes(data, "big", signed=True))
+    payload = pack_array_payload()
+
+    for name, impl in _array_binary_impls():
+        assert impl.array_load_binary(payload, tx) == expected, name
+
+
+def test_array_binary_loader_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = importlib.import_module("psycopg.types.array")
+
+    class StubRustModule:
+        @staticmethod
+        def array_load_binary(data: object, tx: object) -> tuple[str, object, object]:
+            return ("rust", data, tx)
+
+    monkeypatch.setattr(module, "_rpsycopg", StubRustModule)
+    loader = module.ArrayBinaryLoader(None)
+    loader._tx = "tx"
+    assert loader.load(b"abc") == ("rust", b"abc", "tx")
 
 
 def test_ferrocopg_unavailable(monkeypatch):

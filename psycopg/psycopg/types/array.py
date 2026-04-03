@@ -17,6 +17,7 @@ from .. import errors as e
 from .. import postgres, pq
 from .._cmodule import _psycopg
 from .._oids import INVALID_OID, TEXT_ARRAY_OID, TEXT_OID
+from .._rmodule import _ferrocopg as _rpsycopg
 from .._struct import pack_len, unpack_len
 from .._typeinfo import TypeInfo
 from ..abc import AdaptContext, Buffer, Dumper, DumperKey, Loader, NoneType, Transformer
@@ -305,6 +306,8 @@ class ArrayBinaryLoader(RecursiveLoader):
     format = pq.Format.BINARY
 
     def load(self, data: Buffer) -> list[Any]:
+        if _rpsycopg and hasattr(_rpsycopg, "array_load_binary"):
+            return cast(list[Any], _rpsycopg.array_load_binary(data, self._tx))
         return _load_binary(data, self._tx)
 
 
