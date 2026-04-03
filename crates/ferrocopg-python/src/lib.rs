@@ -14,13 +14,13 @@ fn scaffold_status() -> &'static str {
 }
 
 #[pyfunction]
-fn libpq_binding() -> &'static str {
-    ferrocopg_pq::binding_name()
+fn backend_stack() -> &'static str {
+    ferrocopg_postgres::backend_stack()
 }
 
 #[pyfunction]
-fn libpq_version() -> i32 {
-    ferrocopg_pq::libpq_version()
+fn backend_core() -> &'static str {
+    ferrocopg_postgres::backend_core()
 }
 
 #[pymodule]
@@ -28,7 +28,7 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", VERSION)?;
     m.add_function(wrap_pyfunction!(milestone, m)?)?;
     m.add_function(wrap_pyfunction!(scaffold_status, m)?)?;
-    m.add_function(wrap_pyfunction!(libpq_binding, m)?)?;
-    m.add_function(wrap_pyfunction!(libpq_version, m)?)?;
+    m.add_function(wrap_pyfunction!(backend_stack, m)?)?;
+    m.add_function(wrap_pyfunction!(backend_core, m)?)?;
     Ok(())
 }

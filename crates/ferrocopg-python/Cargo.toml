@@ -13,5 +13,5 @@ name = "_ferrocopg"
 crate-type = ["cdylib"]
 
 [dependencies]
-ferrocopg-pq = { path = "../ferrocopg-pq" }
+ferrocopg-postgres = { path = "../ferrocopg-postgres" }
 pyo3 = { version = "0.24", features = ["extension-module"] }

@@ -2,8 +2,9 @@
 
 The repository still contains the upstream Python and Cython packaging, but the
 initial `ferrocopg` Rust port scaffold now lives in `crates/ferrocopg-python`.
-The low-level libpq direction is now anchored on `pq-sys` through the
-`crates/ferrocopg-pq` crate.
+The backend direction is now anchored on the `rust-postgres` ecosystem through
+the `crates/ferrocopg-postgres` crate, with `tokio-postgres` as the intended
+transport core.
 
 ## Python environment
 
@@ -47,7 +48,7 @@ The bootstrap extension is intentionally small. It proves:
 - the Rust workspace layout
 - the `maturin` integration path
 - the Python import path for future `ferrocopg` acceleration work
-- the initial libpq binding direction via `pq-sys`
+- the initial backend direction via the `rust-postgres` stack
 
 The next implementation slice should attach a narrow real helper behind this
 package, then begin replacing pieces of `_psycopg`.

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/ferrocopg-pq", "crates/ferrocopg-python"]
+members = ["crates/ferrocopg-postgres", "crates/ferrocopg-python"]
 resolver = "3"
 
 [workspace.package]

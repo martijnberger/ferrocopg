@@ -4,16 +4,16 @@ Bootstrap Rust extension package for ferrocopg.
 
 from ._ferrocopg import (
     __version__,
-    libpq_binding,
-    libpq_version,
+    backend_core,
+    backend_stack,
     milestone,
     scaffold_status,
 )
 
 __all__ = [
     "__version__",
-    "libpq_binding",
-    "libpq_version",
+    "backend_core",
+    "backend_stack",
     "milestone",
     "scaffold_status",
 ]

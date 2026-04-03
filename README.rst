@@ -76,8 +76,10 @@ requirements::
     uv pip install ./psycopg_c
 
 The repository is also starting the ``ferrocopg`` Rust port. The initial Rust
-extension scaffold lives in ``crates/ferrocopg-python`` and can be installed
-into the active environment using::
+extension scaffold lives in ``crates/ferrocopg-python`` and is currently aimed
+at the `rust-postgres <https://github.com/rust-postgres/rust-postgres>`__
+stack, instead of a direct ``libpq`` wrapper. It can be installed into the
+active environment using::
 
     uv run --with maturin maturin develop \
         --manifest-path crates/ferrocopg-python/Cargo.toml
