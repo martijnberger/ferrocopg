@@ -3,6 +3,7 @@ import socket
 import uuid
 from collections import deque
 from collections.abc import Callable, Generator
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, Protocol, cast
 
@@ -122,6 +123,18 @@ class CompositeImpl(Protocol):
     ) -> object: ...
 
     def composite_parse_text_record(self, data: object) -> object: ...
+
+
+class NumericImpl(Protocol):
+    def dump_decimal_to_text(self, obj: object) -> object: ...
+
+    def dump_decimal_to_numeric_binary(self, obj: object) -> object: ...
+
+    def dump_int_to_numeric_binary(self, obj: object) -> object: ...
+
+    def numeric_load_text(self, data: object) -> object: ...
+
+    def numeric_load_binary(self, data: object) -> object: ...
 
 
 def _copy_impls() -> list[tuple[str, CopyImpl]]:
@@ -701,6 +714,31 @@ def _composite_impls() -> list[tuple[str, CompositeImpl]]:
             composite_dump_text_sequence=python_dump_text_sequence,
             composite_dump_binary_sequence=python_dump_binary_sequence,
             composite_parse_text_record=python_parse_text_record,
+        ),
+    )
+    return [("python", python_impl), ("rust", ferrocopg)]
+
+
+def _numeric_impls() -> list[tuple[str, NumericImpl]]:
+    ferrocopg = cast(NumericImpl, pytest.importorskip("ferrocopg_rust"))
+    numeric_mod = cast(Any, importlib.import_module("psycopg.types.numeric"))
+
+    def python_numeric_load_binary(data: object) -> object:
+        original = numeric_mod._rpsycopg
+        numeric_mod._rpsycopg = None
+        try:
+            return numeric_mod.NumericBinaryLoader(0).load(data)
+        finally:
+            numeric_mod._rpsycopg = original
+
+    python_impl = cast(
+        NumericImpl,
+        SimpleNamespace(
+            dump_decimal_to_text=numeric_mod.dump_decimal_to_text,
+            dump_decimal_to_numeric_binary=numeric_mod.dump_decimal_to_numeric_binary,
+            dump_int_to_numeric_binary=numeric_mod.dump_int_to_numeric_binary,
+            numeric_load_text=lambda data: Decimal(bytes(data).decode()),
+            numeric_load_binary=python_numeric_load_binary,
         ),
     )
     return [("python", python_impl), ("rust", ferrocopg)]
@@ -1670,6 +1708,101 @@ def test_composite_helpers_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) ->
     )
     assert calls == [("binary", (("x",), [1], formats, tx))]
     assert module._parse_text_record(b"foo") == ("parse", b"foo")
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (Decimal("12.3400"), b"12.3400"),
+        (Decimal("-0.0012"), b"-0.0012"),
+        (Decimal("NaN"), b"NaN"),
+    ],
+)
+def test_numeric_decimal_text_equivalent(value: Decimal, expected: bytes) -> None:
+    for name, impl in _numeric_impls():
+        assert impl.dump_decimal_to_text(value) == expected, name
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        Decimal("0"),
+        Decimal("12.3400"),
+        Decimal("-0.0012"),
+        Decimal("10000"),
+        Decimal("Infinity"),
+        Decimal("-Infinity"),
+        Decimal("NaN"),
+    ],
+)
+def test_numeric_decimal_binary_equivalent(value: Decimal) -> None:
+    for name, impl in _numeric_impls():
+        assert (
+            impl.dump_decimal_to_numeric_binary(value)
+            == importlib.import_module("psycopg.types.numeric").dump_decimal_to_numeric_binary(
+                value
+            )
+        ), name
+
+
+@pytest.mark.parametrize("value", [0, 42, -10000, 10**30 + 12345])
+def test_numeric_int_binary_equivalent(value: int) -> None:
+    for name, impl in _numeric_impls():
+        assert (
+            impl.dump_int_to_numeric_binary(value)
+            == importlib.import_module("psycopg.types.numeric").dump_int_to_numeric_binary(value)
+        ), name
+
+
+@pytest.mark.parametrize("payload", [b"123.45", memoryview(b"-0.0012")])
+def test_numeric_text_load_equivalent(payload: bytes | memoryview) -> None:
+    for name, impl in _numeric_impls():
+        assert impl.numeric_load_text(payload) == Decimal(bytes(payload).decode()), name
+
+
+@pytest.mark.parametrize("value", [Decimal("12.34"), Decimal("-0.0012"), Decimal("NaN")])
+def test_numeric_binary_load_equivalent(value: Decimal) -> None:
+    payload = importlib.import_module("psycopg.types.numeric").dump_decimal_to_numeric_binary(
+        value
+    )
+    for name, impl in _numeric_impls():
+        result = cast(Decimal, impl.numeric_load_binary(payload))
+        if value.is_nan():
+            assert result.is_nan(), name
+        else:
+            assert result == value, name
+
+
+def test_numeric_helpers_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = importlib.import_module("psycopg.types.numeric")
+
+    class StubRustModule:
+        @staticmethod
+        def dump_decimal_to_text(obj: object) -> tuple[str, object]:
+            return ("text", obj)
+
+        @staticmethod
+        def dump_decimal_to_numeric_binary(obj: object) -> bytes:
+            return b"decimal-binary"
+
+        @staticmethod
+        def dump_int_to_numeric_binary(obj: object) -> bytes:
+            return b"int-binary"
+
+        @staticmethod
+        def numeric_load_text(data: object) -> tuple[str, object]:
+            return ("load-text", data)
+
+        @staticmethod
+        def numeric_load_binary(data: object) -> tuple[str, object]:
+            return ("load-binary", data)
+
+    monkeypatch.setattr(module, "_rpsycopg", StubRustModule)
+    assert module.DecimalDumper(Decimal).dump(Decimal("1.2")) == ("text", Decimal("1.2"))
+    assert module.DecimalBinaryDumper(Decimal).dump(Decimal("1.2")) == b"decimal-binary"
+    assert module.IntNumericBinaryDumper(int).dump(42) == b"int-binary"
+    assert module.NumericLoader(0).load(b"12.3") == ("load-text", b"12.3")
+    assert module.NumericBinaryLoader(0).load(b"payload") == ("load-binary", b"payload")
 
 
 def test_ferrocopg_unavailable(monkeypatch):
