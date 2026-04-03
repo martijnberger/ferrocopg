@@ -20,48 +20,94 @@ concurrency:
 
 jobs:
 
-  linux:  # {{{
+  linux-matrix:  # {{{
     runs-on: ubuntu-latest
     if: true
+    name: linux matrix / ${{ matrix.impl }} / py${{ matrix.pair.python }} / pg${{ matrix.pair.postgres }}
+
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        impl: [python, c]
+        pair:
+          - {python: "3.10", postgres: "10"}
+          - {python: "3.11", postgres: "12"}
+          - {python: "3.12", postgres: "14"}
+          - {python: "3.13", postgres: "16"}
+          - {python: "3.14", postgres: "10"}
+          - {python: "3.14", postgres: "18"}
+
+    env:
+      PSYCOPG_IMPL: ${{ matrix.impl }}
+      PSYCOPG_TEST_DSN: "postgresql://postgres:password@127.0.0.1:5432/postgres"
+      MARKERS: ""
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.pair.python }}
+          allow-prereleases: true
+
+      - name: Start PostgreSQL service
+        run: |
+          docker pull postgres:${{ matrix.pair.postgres }}
+          docker run --rm -d --name postgres -p 5432:5432 \
+            -e POSTGRES_PASSWORD=password postgres:${{ matrix.pair.postgres }} \
+            -c max_prepared_transactions=10
+
+      - name: Install uv
+        run: python -m pip install uv
+
+      - name: Install the workspace
+        run: uv sync --dev --locked
+
+      - name: Run tests
+        run: uv run ./tools/ci/ci_test.sh
+
+
+  # }}}
+
+  linux-special:  # {{{
+    runs-on: ubuntu-latest
+    if: true
+    name: linux special / ${{ matrix.impl }} / py${{ matrix.python }} / ${{ matrix.name }}
 
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Test different combinations of Python, Postgres, libpq.
-          - {impl: python, python: "3.10", postgres: "postgres:18", libpq: oldest}
-          - {impl: python, python: "3.11", postgres: "postgres:17", libpq: master}
-          - {impl: python, python: "3.12", postgres: "postgres:16", libpq: newest}
-          - {impl: python, python: "3.13", postgres: "postgres:13"}
-          - {impl: python, python: "3.14", postgres: "postgres:14"}
-          - {impl: python, python: "3.14t", postgres: "postgres:14"}
+          - {name: "libpq-oldest", impl: python, python: "3.10", postgres: "postgres:18", libpq: oldest}
+          - {name: "libpq-master", impl: python, python: "3.11", postgres: "postgres:17", libpq: master}
+          - {name: "libpq-newest", impl: python, python: "3.12", postgres: "postgres:16", libpq: newest}
+          - {name: "ft-enabled", impl: python, python: "3.14t", postgres: "postgres:14"}
 
-          - {impl: c, python: "3.10", postgres: "postgres:13", libpq: master}
-          - {impl: c, python: "3.11", postgres: "postgres:15", libpq: oldest}
-          - {impl: c, python: "3.12", postgres: "postgres:16"}
-          - {impl: c, python: "3.13", postgres: "postgres:17", libpq: newest}
-          - {impl: c, python: "3.14", postgres: "postgres:18"}
-          - {impl: c, python: "3.14t", postgres: "postgres:18"}
+          - {name: "libpq-master", impl: c, python: "3.10", postgres: "postgres:13", libpq: master}
+          - {name: "libpq-oldest", impl: c, python: "3.11", postgres: "postgres:15", libpq: oldest}
+          - {name: "libpq-newest", impl: c, python: "3.13", postgres: "postgres:17", libpq: newest}
+          - {name: "ft-enabled", impl: c, python: "3.14t", postgres: "postgres:18"}
 
-          - {impl: python, python: "3.10", ext: gevent, postgres: "postgres:17"}
-          - {impl: python, python: "3.10", ext: dns, postgres: "postgres:14"}
-          - {impl: python, python: "3.12", ext: postgis, postgres: "postgis/postgis"}
-          - {impl: python, python: "3.10", ext: numpy, postgres: "postgres:15"}
-          - {impl: c, python: "3.12", ext: numpy, postgres: "postgres:17"}
-          - {impl: c, python: "3.13", ext: gevent, postgres: "postgres:18"}
+          - {name: "gevent", impl: python, python: "3.10", ext: gevent, postgres: "postgres:17"}
+          - {name: "dns", impl: python, python: "3.10", ext: dns, postgres: "postgres:14"}
+          - {name: "postgis", impl: python, python: "3.12", ext: postgis, postgres: "postgis/postgis"}
+          - {name: "numpy", impl: python, python: "3.10", ext: numpy, postgres: "postgres:15"}
+          - {name: "numpy", impl: c, python: "3.12", ext: numpy, postgres: "postgres:17"}
+          - {name: "gevent", impl: c, python: "3.13", ext: gevent, postgres: "postgres:18"}
 
           # Test with minimum dependencies versions
           # WARNING: when bumping min version, make sure that the dependencies
           # in tests/constraints.txt are updated and that binary packages
           # are available for such version.
-          - {impl: c, python: "3.10", ext: min, postgres: "postgres:15"}
+          - {name: "min-deps", impl: c, python: "3.10", ext: min, postgres: "postgres:15"}
 
           # Test memory alignment
-          - {impl: c, python: "3.12", ext: align, postgres: "postgres:17"}
+          - {name: "alignment", impl: c, python: "3.12", ext: align, postgres: "postgres:17"}
 
           # Test with PyPy.
-          - {impl: python, python: "pypy3.10", postgres: "postgres:14"}
-          - {impl: python, python: "pypy3.11", postgres: "postgres:15"}
+          - {name: "pypy", impl: python, python: "pypy3.10", postgres: "postgres:14"}
+          - {name: "pypy", impl: python, python: "pypy3.11", postgres: "postgres:15"}
 
     env:
       PSYCOPG_IMPL: ${{ matrix.impl }}
@@ -78,8 +124,6 @@ jobs:
           allow-prereleases: true
 
       - name: Start PostgreSQL service
-        # Note: this would love to be a service, but I don't see a way to pass
-        # the args to the docker run command line.
         run: |
           docker pull ${{ matrix.postgres }}
           docker run --rm -d --name postgres -p 5432:5432 \
