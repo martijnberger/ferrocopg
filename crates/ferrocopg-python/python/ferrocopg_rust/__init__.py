@@ -11,10 +11,10 @@ from ._ferrocopg import (
     format_row_binary,
     format_row_text,
     milestone,
-    parse_row_binary,
-    parse_row_text,
     parse_connect_plan,
     parse_conninfo_summary,
+    parse_row_binary,
+    parse_row_text,
     scaffold_status,
 )
 

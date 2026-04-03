@@ -156,10 +156,15 @@ fn parse_row_text(
     data: &Bound<'_, PyAny>,
     tx: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
-    let mut fields = bytes_like_to_vec(py, data)?
-        .split(|byte| *byte == b'\t')
-        .map(|field| field.to_vec())
-        .collect::<Vec<_>>();
+    let raw = bytes_like_to_vec(py, data)?;
+    let expected_fields = expected_field_count(tx).unwrap_or_default();
+    let mut fields = if expected_fields == 0 && raw == b"\n" {
+        Vec::new()
+    } else {
+        raw.split(|byte| *byte == b'\t')
+            .map(|field| field.to_vec())
+            .collect::<Vec<_>>()
+    };
 
     if let Some(last) = fields.last_mut() {
         if last.last() == Some(&b'\n') {
@@ -320,6 +325,18 @@ fn bytes_like_to_vec(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Vec<u8>
         .getattr("bytes")?
         .call1((obj,))?
         .extract()
+}
+
+fn expected_field_count(tx: &Bound<'_, PyAny>) -> PyResult<usize> {
+    if let Ok(value) = tx.getattr("_nfields") {
+        return value.extract();
+    }
+
+    if let Ok(loaders) = tx.getattr("_row_loaders") {
+        return loaders.len();
+    }
+
+    Ok(0)
 }
 
 fn extend_bytearray(out: &Bound<'_, PyAny>, data: &[u8]) -> PyResult<()> {

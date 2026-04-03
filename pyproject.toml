@@ -11,6 +11,9 @@ dependencies = [
 c = [
     "psycopg-c",
 ]
+rust = [
+    "ferrocopg-rust",
+]
 dev = [
     "anyio >= 4.0",
     "ast-comments >= 1.1.2",
@@ -41,6 +44,7 @@ build-backend = "setuptools.build_meta"
 package = false
 
 [tool.uv.sources]
+ferrocopg-rust = { path = "./crates/ferrocopg-python" }
 psycopg = { workspace = true }
 psycopg-c = { path = "./psycopg_c", editable = false }
 psycopg-binary = { path = "./psycopg_binary", package = false }
