@@ -16,6 +16,7 @@ from ._ferrocopg import (
     parse_row_binary,
     parse_row_text,
     scaffold_status,
+    send,
     wait_c,
 )
 
@@ -33,5 +34,6 @@ __all__ = [
     "parse_connect_plan",
     "parse_conninfo_summary",
     "scaffold_status",
+    "send",
     "wait_c",
 ]

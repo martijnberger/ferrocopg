@@ -25,11 +25,13 @@ from __future__ import annotations
 import logging
 from collections import deque
 from time import monotonic
+from typing import cast
 
 from . import errors as e
 from . import pq
 from ._cmodule import _psycopg
 from ._encodings import conninfo_encoding
+from ._rmodule import _ferrocopg as _rpsycopg
 from .abc import Buffer, PipelineCommand, PQGen, PQGenConn
 from .pq.abc import PGcancelConn, PGconn, PGresult
 from .waiting import Ready, Wait
@@ -141,9 +143,9 @@ def _execute(pgconn: PGconn) -> PQGen[list[PGresult]]:
     Return the list of results returned by the database (whether success
     or error).
     """
-    yield from _send(pgconn)
-    rv = yield from _fetch_many(pgconn)
-    return rv
+    yield from send(pgconn)
+    rv = yield from fetch_many(pgconn)
+    return cast(list[PGresult], rv)
 
 
 def _send(pgconn: PGconn) -> PQGen[None]:
@@ -180,7 +182,7 @@ def _fetch_many(pgconn: PGconn) -> PQGen[list[PGresult]]:
     results: list[PGresult] = []
     while True:
         try:
-            res = yield from _fetch(pgconn)
+            res = yield from fetch(pgconn)
         except e.DatabaseError:
             # What might have happened here is that a previuos error disconnected
             # the connection, for example a idle in transaction timeout.
@@ -390,7 +392,7 @@ else:
     connect = _connect
     cancel = _cancel
     execute = _execute
-    send = _send
+    send = _rpsycopg.send if _rpsycopg and hasattr(_rpsycopg, "send") else _send
     fetch_many = _fetch_many
     fetch = _fetch
     pipeline_communicate = _pipeline_communicate

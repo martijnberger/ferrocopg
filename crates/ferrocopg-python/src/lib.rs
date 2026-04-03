@@ -1,7 +1,10 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyList};
 use pyo3::wrap_pyfunction;
-use pyo3::{PyErr, exceptions::PyValueError};
+use pyo3::{
+    PyErr,
+    exceptions::{PyStopIteration, PyValueError},
+};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -57,6 +60,21 @@ struct BackendConnectPlan {
     requires_external_tls_connector: bool,
     #[pyo3(get)]
     summary: BackendConninfoSummary,
+}
+
+#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+struct SendGenerator {
+    pgconn: Py<PyAny>,
+    wait_rw: Py<PyAny>,
+    ready_r: i32,
+    state: SendState,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum SendState {
+    StartOrFlush,
+    AwaitReady,
+    Done,
 }
 
 #[pyfunction]
@@ -182,6 +200,20 @@ fn parse_row_text(
     }
 
     tx.call_method1("load_sequence", (row,)).map(Bound::unbind)
+}
+
+#[pyfunction]
+fn send(py: Python<'_>, pgconn: &Bound<'_, PyAny>) -> PyResult<SendGenerator> {
+    let waiting = py.import("psycopg.waiting")?;
+    let wait_rw = waiting.getattr("WAIT_RW")?.unbind();
+    let ready_r = waiting.getattr("READY_R")?.extract::<i32>()?;
+
+    Ok(SendGenerator {
+        pgconn: pgconn.clone().unbind(),
+        wait_rw,
+        ready_r,
+        state: SendState::StartOrFlush,
+    })
 }
 
 #[pyfunction]
@@ -370,6 +402,7 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", VERSION)?;
     m.add_class::<BackendConninfoSummary>()?;
     m.add_class::<BackendConnectPlan>()?;
+    m.add_class::<SendGenerator>()?;
     m.add_function(wrap_pyfunction!(milestone, m)?)?;
     m.add_function(wrap_pyfunction!(scaffold_status, m)?)?;
     m.add_function(wrap_pyfunction!(backend_stack, m)?)?;
@@ -378,10 +411,26 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_connect_plan, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_text, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(send, m)?)?;
     m.add_function(wrap_pyfunction!(parse_row_text, m)?)?;
     m.add_function(wrap_pyfunction!(parse_row_binary, m)?)?;
     m.add_function(wrap_pyfunction!(wait_c, m)?)?;
     Ok(())
+}
+
+#[pymethods]
+impl SendGenerator {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        self.advance(py, None)
+    }
+
+    fn send(&mut self, py: Python<'_>, ready: Option<i32>) -> PyResult<Py<PyAny>> {
+        self.advance(py, ready)
+    }
 }
 
 fn dump_sequence(
@@ -437,6 +486,43 @@ fn psycopg_operational_error(exc_type: &Bound<'_, PyAny>, message: &str) -> PyEr
         .call1((message,))
         .expect("OperationalError constructor should succeed");
     PyErr::from_value(exc)
+}
+
+impl SendGenerator {
+    fn advance(&mut self, py: Python<'_>, ready: Option<i32>) -> PyResult<Py<PyAny>> {
+        loop {
+            match self.state {
+                SendState::Done => {
+                    return Err(PyStopIteration::new_err((py.None(),)));
+                }
+                SendState::StartOrFlush => {
+                    let flush = self
+                        .pgconn
+                        .bind(py)
+                        .call_method0("flush")?
+                        .extract::<i32>()?;
+                    if flush == 0 {
+                        self.state = SendState::Done;
+                        return Err(PyStopIteration::new_err((py.None(),)));
+                    }
+                    self.state = SendState::AwaitReady;
+                    return Ok(self.wait_rw.clone_ref(py));
+                }
+                SendState::AwaitReady => {
+                    let ready = ready.unwrap_or_default();
+                    if ready == 0 {
+                        return Ok(self.wait_rw.clone_ref(py));
+                    }
+
+                    if ready & self.ready_r != 0 {
+                        self.pgconn.bind(py).call_method0("consume_input")?;
+                    }
+
+                    self.state = SendState::StartOrFlush;
+                }
+            }
+        }
+    }
 }
 
 fn extend_bytearray(out: &Bound<'_, PyAny>, data: &[u8]) -> PyResult<()> {
