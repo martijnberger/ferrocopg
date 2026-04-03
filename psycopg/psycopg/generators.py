@@ -391,7 +391,7 @@ if _psycopg:
 else:
     connect = _connect
     cancel = _cancel
-    execute = _execute
+    execute = _rpsycopg.execute if _rpsycopg and hasattr(_rpsycopg, "execute") else _execute
     send = _rpsycopg.send if _rpsycopg and hasattr(_rpsycopg, "send") else _send
     fetch = _rpsycopg.fetch if _rpsycopg and hasattr(_rpsycopg, "fetch") else _fetch
     fetch_many = (
