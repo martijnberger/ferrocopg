@@ -7,9 +7,10 @@ Adapters for the UUID type.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from .. import _oids
+from .._rmodule import _ferrocopg as _rpsycopg
 from ..abc import AdaptContext
 from ..adapt import Buffer, Dumper, Loader
 from ..pq import Format
@@ -43,6 +44,8 @@ class UUIDLoader(Loader):
             from uuid import UUID
 
     def load(self, data: Buffer) -> uuid.UUID:
+        if _rpsycopg and hasattr(_rpsycopg, "uuid_load_text"):
+            return cast("uuid.UUID", _rpsycopg.uuid_load_text(data))
         return UUID((bytes(data) if isinstance(data, memoryview) else data).decode())
 
 
@@ -50,6 +53,8 @@ class UUIDBinaryLoader(UUIDLoader):
     format = Format.BINARY
 
     def load(self, data: Buffer) -> uuid.UUID:
+        if _rpsycopg and hasattr(_rpsycopg, "uuid_load_binary"):
+            return cast("uuid.UUID", _rpsycopg.uuid_load_binary(data))
         return UUID(bytes=(bytes(data) if isinstance(data, memoryview) else data))
 
 

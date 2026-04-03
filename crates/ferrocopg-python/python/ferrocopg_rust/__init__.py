@@ -25,6 +25,8 @@ from ._ferrocopg import (
     pipeline_communicate,
     scaffold_status,
     send,
+    uuid_load_binary,
+    uuid_load_text,
     wait_c,
 )
 
@@ -51,5 +53,7 @@ __all__ = [
     "scaffold_status",
     "pipeline_communicate",
     "send",
+    "uuid_load_binary",
+    "uuid_load_text",
     "wait_c",
 ]
