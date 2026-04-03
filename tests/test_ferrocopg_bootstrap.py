@@ -2074,6 +2074,7 @@ def test_ferrocopg_unavailable(monkeypatch):
     assert module.connect_target("host=localhost") is None
     assert module.connect_no_tls_probe("host=localhost") is None
     assert module.query_text_no_tls("host=localhost", "select 1") is None
+    assert module.no_tls_session("host=localhost") is None
 
 
 def test_ferrocopg_wrapper(monkeypatch):
@@ -2107,6 +2108,11 @@ def test_ferrocopg_wrapper(monkeypatch):
             calls.append(("query", conninfo))
             return ("query", conninfo, query)
 
+        @staticmethod
+        def connect_no_tls_session(conninfo: str) -> tuple[str, str]:
+            calls.append(("session", conninfo))
+            return ("session", conninfo)
+
     monkeypatch.setattr(module, "_ferrocopg", StubRustModule)
 
     assert module.is_available() is True
@@ -2119,12 +2125,14 @@ def test_ferrocopg_wrapper(monkeypatch):
         "host=localhost",
         "select 1",
     )
+    assert module.no_tls_session("host=localhost") == ("session", "host=localhost")
     assert calls == [
         ("summary", "host=localhost"),
         ("plan", "host=localhost"),
         ("target", "host=localhost"),
         ("probe", "host=localhost"),
         ("query", "host=localhost"),
+        ("session", "host=localhost"),
     ]
 
 
@@ -2205,6 +2213,31 @@ def test_backend_query_text_no_tls_live(dsn: str) -> None:
     assert len(result.rows) == 1
     assert result.rows[0][0]
     assert result.rows[0][1]
+
+
+def test_backend_no_tls_session_live(dsn: str) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    session = module.no_tls_session(dsn)
+    assert session is not None
+    assert session.closed is False
+
+    probe = session.probe()
+    assert probe.backend_pid > 0
+
+    result = session.query_text("select current_database()::text as db")
+    assert result.columns == ["db"]
+    assert len(result.rows) == 1
+    assert result.rows[0][0]
+
+    session.close()
+    assert session.closed is True
+
+    with pytest.raises(RuntimeError, match="closed"):
+        session.query_text("select 1")
 
 
 def test_copy_base_prefers_c_copy_optimizations(monkeypatch):

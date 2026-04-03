@@ -62,3 +62,12 @@ def query_text_no_tls(conninfo: str, query: str) -> object | None:
     if not _ferrocopg:
         return None
     return cast(object, _ferrocopg.query_text_no_tls(conninfo, query))
+
+
+def no_tls_session(conninfo: str) -> object | None:
+    """
+    Return a live Rust-backed reusable no-TLS backend session if the extension is loaded.
+    """
+    if not _ferrocopg:
+        return None
+    return cast(object, _ferrocopg.connect_no_tls_session(conninfo))

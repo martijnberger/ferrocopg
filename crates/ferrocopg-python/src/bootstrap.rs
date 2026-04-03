@@ -1,6 +1,7 @@
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
+use std::sync::Mutex;
 
 #[derive(Clone)]
 #[pyclass(module = "ferrocopg_rust._ferrocopg")]
@@ -132,6 +133,11 @@ struct BackendTextQueryResult {
     rows: Vec<Vec<Option<String>>>,
 }
 
+#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+struct BackendSyncNoTlsSession {
+    inner: Mutex<ferrocopg_postgres::SyncNoTlsSession>,
+}
+
 #[pyfunction]
 fn milestone() -> &'static str {
     "milestone-1-bootstrap"
@@ -184,6 +190,15 @@ fn probe_connect_no_tls(conninfo: &str) -> PyResult<BackendSyncNoTlsProbe> {
 fn query_text_no_tls(conninfo: &str, query: &str) -> PyResult<BackendTextQueryResult> {
     ferrocopg_postgres::query_text_no_tls(conninfo, query)
         .map(BackendTextQueryResult::from)
+        .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+}
+
+#[pyfunction]
+fn connect_no_tls_session(conninfo: &str) -> PyResult<BackendSyncNoTlsSession> {
+    ferrocopg_postgres::connect_no_tls_session(conninfo)
+        .map(|session| BackendSyncNoTlsSession {
+            inner: Mutex::new(session),
+        })
         .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
 }
 
@@ -279,6 +294,60 @@ impl From<ferrocopg_postgres::TextQueryResult> for BackendTextQueryResult {
     }
 }
 
+#[pymethods]
+impl BackendSyncNoTlsSession {
+    #[getter]
+    fn closed(&self) -> PyResult<bool> {
+        Ok(self
+            .inner
+            .lock()
+            .map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    "backend session mutex is poisoned",
+                )
+            })?
+            .closed())
+    }
+
+    fn close(&self) -> PyResult<()> {
+        self.inner
+            .lock()
+            .map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    "backend session mutex is poisoned",
+                )
+            })?
+            .close();
+        Ok(())
+    }
+
+    fn probe(&self) -> PyResult<BackendSyncNoTlsProbe> {
+        self.inner
+            .lock()
+            .map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    "backend session mutex is poisoned",
+                )
+            })?
+            .probe()
+            .map(BackendSyncNoTlsProbe::from)
+            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    }
+
+    fn query_text(&self, query: &str) -> PyResult<BackendTextQueryResult> {
+        self.inner
+            .lock()
+            .map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    "backend session mutex is poisoned",
+                )
+            })?
+            .query_text(query)
+            .map(BackendTextQueryResult::from)
+            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    }
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<BackendConninfoSummary>()?;
     m.add_class::<BackendConnectPlan>()?;
@@ -286,6 +355,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<BackendConnectTarget>()?;
     m.add_class::<BackendSyncNoTlsProbe>()?;
     m.add_class::<BackendTextQueryResult>()?;
+    m.add_class::<BackendSyncNoTlsSession>()?;
     m.add_function(wrap_pyfunction!(milestone, m)?)?;
     m.add_function(wrap_pyfunction!(scaffold_status, m)?)?;
     m.add_function(wrap_pyfunction!(backend_stack, m)?)?;
@@ -295,5 +365,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_connect_target, m)?)?;
     m.add_function(wrap_pyfunction!(probe_connect_no_tls, m)?)?;
     m.add_function(wrap_pyfunction!(query_text_no_tls, m)?)?;
+    m.add_function(wrap_pyfunction!(connect_no_tls_session, m)?)?;
     Ok(())
 }
