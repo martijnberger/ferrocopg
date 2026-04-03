@@ -75,6 +75,12 @@ class ArrayBinaryImpl(Protocol):
     def array_load_binary(self, data: object, tx: object) -> object: ...
 
 
+class ArrayTextImpl(Protocol):
+    def array_load_text(
+        self, data: object, loader: object, delimiter: bytes = b","
+    ) -> object: ...
+
+
 def _copy_impls() -> list[tuple[str, CopyImpl]]:
     ferrocopg = cast(CopyImpl, pytest.importorskip("ferrocopg_rust"))
     copy_base = importlib.import_module("psycopg._copy_base")
@@ -513,6 +519,16 @@ def _array_binary_impls() -> list[tuple[str, ArrayBinaryImpl]]:
     python_impl = cast(
         ArrayBinaryImpl,
         SimpleNamespace(array_load_binary=array_mod._load_binary),
+    )
+    return [("python", python_impl), ("rust", ferrocopg)]
+
+
+def _array_text_impls() -> list[tuple[str, ArrayTextImpl]]:
+    ferrocopg = cast(ArrayTextImpl, pytest.importorskip("ferrocopg_rust"))
+    array_mod = importlib.import_module("psycopg.types.array")
+    python_impl = cast(
+        ArrayTextImpl,
+        SimpleNamespace(array_load_text=array_mod._load_text),
     )
     return [("python", python_impl), ("rust", ferrocopg)]
 
@@ -1125,6 +1141,42 @@ def test_array_binary_loader_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) 
     loader = module.ArrayBinaryLoader(None)
     loader._tx = "tx"
     assert loader.load(b"abc") == ("rust", b"abc", "tx")
+
+
+@pytest.mark.parametrize(
+    ("payload", "delimiter", "expected"),
+    [
+        (b"{}", b",", []),
+        (b"{1,NULL,7}", b",", [1, None, 7]),
+        (b'{{1,2},{3,4}}', b",", [[1, 2], [3, 4]]),
+        (b'[1:2]={1;2}', b";", [1, 2]),
+        (b'{"a,b","c\\\\d"}', b",", ["a,b", "c\\d"]),
+    ],
+)
+def test_array_load_text_equivalent(
+    payload: bytes, delimiter: bytes, expected: list[object]
+) -> None:
+    loader = StubArrayLoader(lambda data: int(data) if data.isdigit() else data.decode())
+    for name, impl in _array_text_impls():
+        assert impl.array_load_text(payload, loader, delimiter) == expected, name
+
+
+def test_array_text_loader_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = importlib.import_module("psycopg.types.array")
+
+    class StubRustModule:
+        @staticmethod
+        def array_load_text(
+            data: object, loader: object, delimiter: bytes = b","
+        ) -> tuple[str, object, object, bytes]:
+            return ("rust", data, loader, delimiter)
+
+    monkeypatch.setattr(module, "_rpsycopg", StubRustModule)
+    loader = module.ArrayLoader(None)
+    loader._tx = SimpleNamespace(get_loader=lambda oid, fmt: ("loader", oid, fmt))
+    loader.base_oid = 23
+    loader.delimiter = b";"
+    assert loader.load(b"abc") == ("rust", b"abc", ("loader", 23, loader.format), b";")
 
 
 def test_ferrocopg_unavailable(monkeypatch):

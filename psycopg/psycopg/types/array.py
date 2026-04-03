@@ -298,6 +298,8 @@ class ArrayLoader(RecursiveLoader):
     base_oid: int
 
     def load(self, data: Buffer) -> list[Any]:
+        if _rpsycopg and hasattr(_rpsycopg, "array_load_text"):
+            return cast(list[Any], _rpsycopg.array_load_text(data, self._tx.get_loader(self.base_oid, self.format), self.delimiter))
         loader = self._tx.get_loader(self.base_oid, self.format)
         return _load_text(data, loader, self.delimiter)
 
