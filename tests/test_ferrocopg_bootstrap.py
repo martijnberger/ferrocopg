@@ -90,6 +90,16 @@ class UUIDBinaryImpl(Protocol):
     def uuid_load_binary(self, data: object) -> object: ...
 
 
+class BoolImpl(Protocol):
+    def bool_dump_text(self, obj: bool) -> object: ...
+
+    def bool_dump_binary(self, obj: bool) -> object: ...
+
+    def bool_load_text(self, data: object) -> object: ...
+
+    def bool_load_binary(self, data: object) -> object: ...
+
+
 def _copy_impls() -> list[tuple[str, CopyImpl]]:
     ferrocopg = cast(CopyImpl, pytest.importorskip("ferrocopg_rust"))
     copy_base = importlib.import_module("psycopg._copy_base")
@@ -563,6 +573,20 @@ def _uuid_binary_impls() -> list[tuple[str, UUIDBinaryImpl]]:
             uuid_load_binary=lambda data: uuid.UUID(
                 bytes=(bytes(data) if isinstance(data, memoryview) else data)
             )
+        ),
+    )
+    return [("python", python_impl), ("rust", ferrocopg)]
+
+
+def _bool_impls() -> list[tuple[str, BoolImpl]]:
+    ferrocopg = cast(BoolImpl, pytest.importorskip("ferrocopg_rust"))
+    python_impl = cast(
+        BoolImpl,
+        SimpleNamespace(
+            bool_dump_text=lambda obj: b"t" if obj else b"f",
+            bool_dump_binary=lambda obj: b"\x01" if obj else b"\x00",
+            bool_load_text=lambda data: data == b"t",
+            bool_load_binary=lambda data: data != b"\x00",
         ),
     )
     return [("python", python_impl), ("rust", ferrocopg)]
@@ -1264,6 +1288,51 @@ def test_uuid_binary_loader_prefers_ferrocopg(
 
     monkeypatch.setattr(module, "_rpsycopg", StubRustModule)
     assert module.UUIDBinaryLoader(2950).load(b"abc") == ("rust", b"abc")
+
+
+@pytest.mark.parametrize("value", [True, False])
+def test_bool_helpers_equivalent(value: bool) -> None:
+    for name, impl in _bool_impls():
+        expected_text = b"t" if value else b"f"
+        expected_binary = b"\x01" if value else b"\x00"
+        assert impl.bool_dump_text(value) == expected_text, name
+        assert impl.bool_dump_binary(value) == expected_binary, name
+        assert impl.bool_load_text(expected_text) is value, name
+        assert impl.bool_load_binary(expected_binary) is value, name
+
+
+def test_bool_dumpers_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = importlib.import_module("psycopg.types.bool")
+
+    class StubRustModule:
+        @staticmethod
+        def bool_dump_text(obj: bool) -> tuple[str, bool]:
+            return ("text", obj)
+
+        @staticmethod
+        def bool_dump_binary(obj: bool) -> tuple[str, bool]:
+            return ("binary", obj)
+
+    monkeypatch.setattr(module, "_rpsycopg", StubRustModule)
+    assert module.BoolDumper(bool).dump(True) == ("text", True)
+    assert module.BoolBinaryDumper(bool).dump(False) == ("binary", False)
+
+
+def test_bool_loaders_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = importlib.import_module("psycopg.types.bool")
+
+    class StubRustModule:
+        @staticmethod
+        def bool_load_text(data: object) -> tuple[str, object]:
+            return ("text", data)
+
+        @staticmethod
+        def bool_load_binary(data: object) -> tuple[str, object]:
+            return ("binary", data)
+
+    monkeypatch.setattr(module, "_rpsycopg", StubRustModule)
+    assert module.BoolLoader(16).load(b"t") == ("text", b"t")
+    assert module.BoolBinaryLoader(16).load(b"\x01") == ("binary", b"\x01")
 
 
 def test_ferrocopg_unavailable(monkeypatch):

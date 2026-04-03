@@ -350,6 +350,26 @@ fn uuid_load_binary(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<Py<PyAn
 }
 
 #[pyfunction]
+fn bool_dump_text(obj: bool) -> &'static [u8] {
+    if obj { b"t" } else { b"f" }
+}
+
+#[pyfunction]
+fn bool_dump_binary(obj: bool) -> &'static [u8] {
+    if obj { b"\x01" } else { b"\x00" }
+}
+
+#[pyfunction]
+fn bool_load_text(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<bool> {
+    Ok(bytes_like_to_vec(py, data)? == b"t")
+}
+
+#[pyfunction]
+fn bool_load_binary(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<bool> {
+    Ok(bytes_like_to_vec(py, data)? != b"\x00")
+}
+
+#[pyfunction]
 fn format_row_text(
     py: Python<'_>,
     row: &Bound<'_, PyAny>,
@@ -724,6 +744,10 @@ fn _ferrocopg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(array_load_binary, m)?)?;
     m.add_function(wrap_pyfunction!(uuid_load_text, m)?)?;
     m.add_function(wrap_pyfunction!(uuid_load_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(bool_dump_text, m)?)?;
+    m.add_function(wrap_pyfunction!(bool_dump_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(bool_load_text, m)?)?;
+    m.add_function(wrap_pyfunction!(bool_load_binary, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_text, m)?)?;
     m.add_function(wrap_pyfunction!(format_row_binary, m)?)?;
     m.add_function(wrap_pyfunction!(send, m)?)?;
