@@ -13,6 +13,7 @@ from typing import NamedTuple, Protocol, cast
 
 from ._rmodule import __version__ as __version__
 from ._rmodule import _ferrocopg
+from .transaction import Rollback
 
 
 class _ResultSetLike(Protocol):
@@ -451,6 +452,8 @@ class NoTlsConnectionAdapter:
     def __init__(self, session: NoTlsSessionAdapter):
         self._session = session
         self._prepared: dict[str, int] = {}
+        self._tx_depth = 0
+        self._savepoint_counter = 0
 
     @property
     def closed(self) -> bool:
@@ -482,6 +485,11 @@ class NoTlsConnectionAdapter:
     def rollback(self) -> None:
         self._session.rollback()
 
+    def transaction(
+        self, savepoint_name: str | None = None, force_rollback: bool = False
+    ) -> NoTlsTransactionAdapter:
+        return NoTlsTransactionAdapter(self, savepoint_name, force_rollback)
+
     def __enter__(self) -> NoTlsConnectionAdapter:
         return self
 
@@ -507,6 +515,73 @@ class NoTlsConnectionAdapter:
             return self._session.execute_prepared(statement_id, params)
 
         return self._session.execute_params(query, params)
+
+
+class NoTlsTransactionAdapter:
+    """Experimental transaction context over the ferrocopg connection adapter."""
+
+    def __init__(
+        self,
+        conn: NoTlsConnectionAdapter,
+        savepoint_name: str | None = None,
+        force_rollback: bool = False,
+    ):
+        self._conn = conn
+        self._savepoint_name = savepoint_name
+        self.force_rollback = force_rollback
+        self._outer = False
+        self._entered = False
+
+    @property
+    def savepoint_name(self) -> str | None:
+        return self._savepoint_name
+
+    def __enter__(self) -> NoTlsTransactionAdapter:
+        if self._entered:
+            raise TypeError("transaction blocks can be used only once")
+        self._entered = True
+
+        if self._conn._tx_depth == 0:
+            self._outer = True
+            self._conn.begin()
+        else:
+            if self._savepoint_name is None:
+                self._conn._savepoint_counter += 1
+                self._savepoint_name = f"_ferrocopg_{self._conn._savepoint_counter}"
+            self._conn.execute(_savepoint_sql("SAVEPOINT", self._savepoint_name))
+
+        self._conn._tx_depth += 1
+        return self
+
+    def __exit__(self, exc_type: object, exc: BaseException | None, tb: object) -> bool:
+        self._conn._tx_depth -= 1
+        should_rollback = exc is not None or self.force_rollback
+
+        if should_rollback:
+            if self._outer:
+                self._conn.rollback()
+            else:
+                assert self._savepoint_name is not None
+                self._conn.execute(_savepoint_sql("ROLLBACK TO", self._savepoint_name))
+                self._conn.execute(_savepoint_sql("RELEASE", self._savepoint_name))
+        else:
+            if self._outer:
+                self._conn.commit()
+            else:
+                assert self._savepoint_name is not None
+                self._conn.execute(_savepoint_sql("RELEASE", self._savepoint_name))
+
+        if isinstance(exc, Rollback):
+            target = cast(object | None, exc.transaction)
+            if target is None or target is self:
+                return True
+
+        return False
+
+
+def _savepoint_sql(command: str, name: str) -> str:
+    quoted = name.replace('"', '""')
+    return f'{command} "{quoted}"'
 
 
 def no_tls_session_adapter(conninfo: str) -> NoTlsSessionAdapter | None:
