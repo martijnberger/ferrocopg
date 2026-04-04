@@ -1,7 +1,7 @@
 use crate::error::ProbeError;
 use crate::model::{
-    BackendNotification, CopyOutResult, ExecuteResult, PreparedStatementInfo, StatementColumn,
-    StatementDescription, StatementParameter, SyncNoTlsProbe, TextQueryResult,
+    BackendNotification, CopyOutResult, ExecuteResult, PreparedStatementInfo, SimpleQueryMessage,
+    StatementColumn, StatementDescription, StatementParameter, SyncNoTlsProbe, TextQueryResult,
 };
 use crate::params::{parsed_query_params, query_param_refs};
 use fallible_iterator::FallibleIterator;
@@ -99,6 +99,14 @@ impl SyncNoTlsSession {
             .query(query, &[])
             .map_err(ProbeError::Query)?;
         text_query_result(rows)
+    }
+
+    pub fn simple_query(&mut self, query: &str) -> Result<Vec<SimpleQueryMessage>, ProbeError> {
+        let messages = self
+            .client_mut()?
+            .simple_query(query)
+            .map_err(ProbeError::Query)?;
+        simple_query_messages(messages)
     }
 
     pub fn query_text_params(
@@ -354,6 +362,58 @@ fn text_query_result(rows: Vec<postgres::Row>) -> Result<TextQueryResult, ProbeE
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(TextQueryResult { columns, rows })
+}
+
+fn simple_query_messages(
+    messages: Vec<postgres::SimpleQueryMessage>,
+) -> Result<Vec<SimpleQueryMessage>, ProbeError> {
+    messages.into_iter().map(simple_query_message).collect()
+}
+
+fn simple_query_message(
+    message: postgres::SimpleQueryMessage,
+) -> Result<SimpleQueryMessage, ProbeError> {
+    match message {
+        postgres::SimpleQueryMessage::RowDescription(columns) => Ok(SimpleQueryMessage {
+            kind: "row_description",
+            columns: columns
+                .iter()
+                .map(|column| column.name().to_owned())
+                .collect(),
+            values: Vec::new(),
+            rows_affected: None,
+        }),
+        postgres::SimpleQueryMessage::Row(row) => {
+            let columns = row
+                .columns()
+                .iter()
+                .map(|column| column.name().to_owned())
+                .collect();
+            let values = (0..row.len())
+                .map(|index| {
+                    row.try_get(index)
+                        .map(|value| value.map(str::to_owned))
+                        .map_err(ProbeError::Query)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
+            Ok(SimpleQueryMessage {
+                kind: "row",
+                columns,
+                values,
+                rows_affected: None,
+            })
+        }
+        postgres::SimpleQueryMessage::CommandComplete(rows_affected) => Ok(SimpleQueryMessage {
+            kind: "command_complete",
+            columns: Vec::new(),
+            values: Vec::new(),
+            rows_affected: Some(rows_affected),
+        }),
+        _ => Err(ProbeError::BadParam(
+            "unsupported simple query message from backend".to_owned(),
+        )),
+    }
 }
 
 fn backend_notification(notification: postgres::Notification) -> BackendNotification {

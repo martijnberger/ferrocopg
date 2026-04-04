@@ -109,6 +109,14 @@ pub struct CopyOutResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SimpleQueryMessage {
+    pub kind: &'static str,
+    pub columns: Vec<String>,
+    pub values: Vec<Option<String>>,
+    pub rows_affected: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedStatementInfo {
     pub statement_id: u64,
     pub description: StatementDescription,

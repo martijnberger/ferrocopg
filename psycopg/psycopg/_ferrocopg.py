@@ -64,6 +64,15 @@ def query_text_no_tls(conninfo: str, query: str) -> object | None:
     return cast(object, _ferrocopg.query_text_no_tls(conninfo, query))
 
 
+def simple_query_no_tls(conninfo: str, query: str) -> object | None:
+    """
+    Return structured simple-query messages from the Rust backend if available.
+    """
+    if not _ferrocopg:
+        return None
+    return cast(object, _ferrocopg.simple_query_no_tls(conninfo, query))
+
+
 def query_text_params_no_tls(
     conninfo: str, query: str, params: list[str | None]
 ) -> object | None:
