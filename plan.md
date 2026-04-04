@@ -169,6 +169,28 @@ Expected result:
 - The backend session API is sufficiently complete and tested to support a
   future integration into the main execution path.
 
+## Backend Equivalency Matrix
+
+This table tracks the intended coexistence and parity story across the three
+implementation modes.
+
+| Capability | Pure Python | Cython/C | ferrocopg | Notes |
+| --- | --- | --- | --- | --- |
+| Conninfo parsing and connect planning | Available | Available | Available | `ferrocopg-postgres` now exposes explicit connect target planning. |
+| Session bootstrap and connect | Available | Available | Available | Rust path is still optional and no-TLS-first. |
+| Simple query execution | Available | Available | Available | Covered through backend simple-query facades and adapter tests. |
+| Parameterized query execution | Available | Available | Available | Bound text execution is present on the Rust backend. |
+| Statement describe and metadata | Available | Available | Available | Parameter and column metadata are exposed on the Rust path. |
+| Prepared statements | Available | Available | Available | Rust backend has prepared statement caching and reuse. |
+| Transactions and savepoints | Available | Available | Partial | Backend transactions exist; adapter-side transaction parity is still being expanded. |
+| Cancellation | Available | Available | Available | Explicit backend cancel handle exists with live coverage. |
+| COPY in/out | Available | Available | Available | Backend COPY facades exist and are exercised in focused tests. |
+| LISTEN/NOTIFY | Available | Available | Available | Live backend notification coverage exists. |
+| Result-set shaping | Available | Available | Available | Rust backend exposes unified result-set and simple-query result blocks. |
+| Cursor-like adapter bridge | Available | Available | In progress | Experimental adapter exists in `psycopg._ferrocopg`, but is not the default path. |
+| Pipeline mode | Available | Available | Not started | Still an explicit parity gap for the Rust-native backend. |
+| Default-path integration | Available | Available | Not started | Cutover stays blocked until selector and compatibility gates are met. |
+
 ## Milestones
 
 ### Milestone 0: Rebaseline the migration contract
