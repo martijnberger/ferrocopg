@@ -2383,6 +2383,40 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
     )
     assert after_commit.rows == [["10", "row"], ["11", None], ["13", "committed"]]
 
+    prepared_insert = session.prepare_text(
+        "insert into ferrocopg_session_test (id, label) values ($1::int4, $2::text)"
+    )
+    assert prepared_insert.statement_id > 0
+    assert [(param.oid, param.type_name) for param in prepared_insert.description.params] == [
+        (23, "int4"),
+        (25, "text"),
+    ]
+    assert prepared_insert.description.columns == []
+    described_insert = session.describe_prepared(prepared_insert.statement_id)
+    assert [(param.oid, param.type_name) for param in described_insert.params] == [
+        (23, "int4"),
+        (25, "text"),
+    ]
+    inserted_prepared = session.execute_prepared_text_params(
+        prepared_insert.statement_id,
+        ["14", "prepared"],
+    )
+    assert inserted_prepared.rows_affected == 1
+
+    prepared_query = session.prepare_text(
+        "select id::text as id, label from ferrocopg_session_test where id >= $1::int4 order by id"
+    )
+    assert prepared_query.statement_id > prepared_insert.statement_id
+    assert [(param.oid, param.type_name) for param in prepared_query.description.params] == [
+        (23, "int4"),
+    ]
+    queried_prepared = session.query_prepared_text_params(prepared_query.statement_id, ["13"])
+    assert queried_prepared.columns == ["id", "label"]
+    assert queried_prepared.rows == [["13", "committed"], ["14", "prepared"]]
+    session.close_prepared(prepared_query.statement_id)
+    with pytest.raises(RuntimeError, match="unknown prepared statement id"):
+        session.describe_prepared(prepared_query.statement_id)
+
     description = session.describe_text("select $1::int4 as n, $2::text as t")
     assert [(param.oid, param.type_name) for param in description.params] == [
         (23, "int4"),
