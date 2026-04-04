@@ -1,6 +1,6 @@
 use crate::error::ProbeError;
 use crate::model::{
-    ConnectEndpoint, ConnectPlan, ConnectTarget, ConninfoSummary, ExecuteResult,
+    ConnectEndpoint, ConnectPlan, ConnectTarget, ConninfoSummary, ExecuteResult, ResultSet,
     SimpleQueryMessage, SimpleQueryResult, StatementDescription, SyncNoTlsProbe, TextQueryResult,
 };
 use crate::session::SyncNoTlsSession;
@@ -177,6 +177,15 @@ impl BootstrapConfig {
             .query_text_params(query, params)
     }
 
+    pub fn run_text_params_no_tls(
+        &self,
+        query: &str,
+        params: &[Option<String>],
+    ) -> Result<ResultSet, ProbeError> {
+        self.connect_no_tls_session()?
+            .run_text_params(query, params)
+    }
+
     pub fn describe_text_no_tls(&self, query: &str) -> Result<StatementDescription, ProbeError> {
         self.connect_no_tls_session()?.describe_text(query)
     }
@@ -251,6 +260,15 @@ pub fn query_text_params_no_tls(
 ) -> Result<TextQueryResult, ProbeError> {
     let config = BootstrapConfig::parse(conninfo).map_err(ProbeError::Parse)?;
     config.query_text_params_no_tls(query, params)
+}
+
+pub fn run_text_params_no_tls(
+    conninfo: &str,
+    query: &str,
+    params: &[Option<String>],
+) -> Result<ResultSet, ProbeError> {
+    let config = BootstrapConfig::parse(conninfo).map_err(ProbeError::Parse)?;
+    config.run_text_params_no_tls(query, params)
 }
 
 pub fn connect_no_tls_session(conninfo: &str) -> Result<SyncNoTlsSession, ProbeError> {

@@ -93,6 +93,17 @@ def query_text_params_no_tls(
     return cast(object, _ferrocopg.query_text_params_no_tls(conninfo, query, params))
 
 
+def run_text_params_no_tls(
+    conninfo: str, query: str, params: list[str | None]
+) -> object | None:
+    """
+    Return a unified Rust-backed result set for a bound text statement.
+    """
+    if not _ferrocopg:
+        return None
+    return cast(object, _ferrocopg.run_text_params_no_tls(conninfo, query, params))
+
+
 def execute_text_params_no_tls(
     conninfo: str, query: str, params: list[str | None]
 ) -> object | None:
