@@ -2389,6 +2389,75 @@ def test_no_tls_connection_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
     ]
 
 
+def test_no_tls_connection_adapter_row_factories(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubSession:
+        closed = False
+
+        def close(self) -> None:
+            pass
+
+        def begin(self) -> None:
+            pass
+
+        def commit(self) -> None:
+            pass
+
+        def rollback(self) -> None:
+            pass
+
+        def prepare_text(self, query: str) -> object:
+            return SimpleNamespace(statement_id=99)
+
+        def simple_query_results(self, query: str) -> list[object]:
+            return [
+                SimpleNamespace(
+                    columns=["id", "label"],
+                    rows=[["1", "one"], ["2", "two"]],
+                    rows_affected=2,
+                )
+            ]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            return SimpleNamespace(columns=["value"], rows=[["3"]], rows_affected=1)
+
+        def run_prepared_text_params(
+            self, statement_id: int, params: list[str | None]
+        ) -> object:
+            return SimpleNamespace(columns=["value"], rows=[["4"]], rows_affected=1)
+
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: StubSession())
+
+    conn = module.no_tls_connection_adapter("host=localhost")
+    assert conn is not None
+
+    default_cur = conn.execute("select 1")
+    assert default_cur.description == [
+        module.BackendColumn("id"),
+        module.BackendColumn("label"),
+    ]
+    assert default_cur.fetchall() == [["1", "one"], ["2", "two"]]
+    assert default_cur.rownumber == 2
+
+    tuple_cur = conn.execute("select 1", row_factory=module.tuple_row)
+    assert tuple_cur.fetchall() == [("1", "one"), ("2", "two")]
+
+    dict_cur = conn.execute("select 1", row_factory=module.dict_row)
+    assert dict_cur.fetchall() == [
+        {"id": "1", "label": "one"},
+        {"id": "2", "label": "two"},
+    ]
+
+    scalar_cur = conn.execute(
+        "select $1::text",
+        ["3"],
+        row_factory=module.scalar_row,
+        prepare=True,
+    )
+    assert scalar_cur.fetchone() == "4"
+
+
 def test_backend_connect_target_parses_endpoints() -> None:
     module = importlib.import_module("psycopg._ferrocopg")
 
@@ -2875,8 +2944,13 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
             "select ($1::int4 + $2::int4)::text as total, $3::text as label",
             ["2", "5", "sum"],
         )
+        assert cur2.description == [
+            module.BackendColumn("total"),
+            module.BackendColumn("label"),
+        ]
         assert cur2.rowcount == 1
         assert cur2.fetchall() == [["7", "sum"]]
+        assert cur2.rownumber == 1
 
     prep_query = (
         "select id::text as id, label from "
@@ -2887,6 +2961,18 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
     second = conn.execute(prep_query, ["2"], prepare=True)
     assert first.fetchall() == [["1", "one"], ["2", "two"]]
     assert second.fetchall() == [["2", "two"]]
+
+    dict_cur = conn.execute(
+        "select 10::text as id, 'ten'::text as label",
+        row_factory=module.dict_row,
+    )
+    assert dict_cur.fetchall() == [{"id": "10", "label": "ten"}]
+
+    scalar_cur = conn.execute(
+        "select 42::text as answer",
+        row_factory=module.scalar_row,
+    )
+    assert scalar_cur.fetchone() == "42"
 
     conn.begin()
     conn.execute("create temporary table ferrocopg_conn_adapter_test (id int4)")

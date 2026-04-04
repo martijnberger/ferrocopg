@@ -8,8 +8,8 @@ extension to be present in every environment.
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
-from typing import Protocol, cast
+from collections.abc import Callable, Iterator, Sequence
+from typing import NamedTuple, Protocol, cast
 
 from ._rmodule import __version__ as __version__
 from ._rmodule import _ferrocopg
@@ -23,6 +23,37 @@ class _ResultSetLike(Protocol):
 
 class _PreparedStatementLike(Protocol):
     statement_id: int
+
+
+class BackendColumn(NamedTuple):
+    name: str
+    type_code: None = None
+    display_size: None = None
+    internal_size: None = None
+    precision: None = None
+    scale: None = None
+    null_ok: None = None
+
+
+RowFactory = Callable[[list[str], list[str | None]], object]
+
+
+def list_row(columns: list[str], row: list[str | None]) -> list[str | None]:
+    return list(row)
+
+
+def tuple_row(columns: list[str], row: list[str | None]) -> tuple[str | None, ...]:
+    return tuple(row)
+
+
+def dict_row(columns: list[str], row: list[str | None]) -> dict[str, str | None]:
+    return dict(zip(columns, row, strict=False))
+
+
+def scalar_row(columns: list[str], row: list[str | None]) -> str | None:
+    if len(row) != 1:
+        raise RuntimeError(f"scalar_row requires exactly 1 column, got {len(row)}")
+    return row[0]
 
 
 class _NoTlsSessionLike(Protocol):
@@ -294,10 +325,17 @@ class NoTlsSessionAdapter:
 class NoTlsCursorAdapter:
     """Experimental cursor-like bridge over the ferrocopg session adapter."""
 
-    def __init__(self, conn: NoTlsConnectionAdapter):
+    def __init__(
+        self,
+        conn: NoTlsConnectionAdapter,
+        *,
+        row_factory: RowFactory = list_row,
+    ):
         self._conn = conn
         self._result: BackendResultCursor | None = None
         self._closed = False
+        self._row_factory = row_factory
+        self._rownumber = 0
 
     @property
     def closed(self) -> bool:
@@ -308,6 +346,16 @@ class NoTlsCursorAdapter:
         if self._result is None:
             return -1
         return self._result.rows_affected
+
+    @property
+    def rownumber(self) -> int:
+        return self._rownumber
+
+    @property
+    def description(self) -> list[BackendColumn] | None:
+        if self._result is None:
+            return None
+        return [BackendColumn(name) for name in self._result.columns]
 
     def close(self) -> None:
         self._closed = True
@@ -322,17 +370,24 @@ class NoTlsCursorAdapter:
     ) -> NoTlsCursorAdapter:
         self._check_closed()
         self._result = self._conn._execute(query, params, prepare=prepare)
+        self._rownumber = 0
         return self
 
-    def fetchone(self) -> list[str | None] | None:
+    def fetchone(self) -> object | None:
         if self._result is None:
             return None
-        return self._result.fetchone()
+        row = self._result.fetchone()
+        if row is None:
+            return None
+        self._rownumber += 1
+        return self._row_factory(self._result.columns, row)
 
-    def fetchall(self) -> list[list[str | None]]:
+    def fetchall(self) -> list[object]:
         if self._result is None:
             return []
-        return self._result.fetchall()
+        rows = self._result.fetchall()
+        self._rownumber += len(rows)
+        return [self._row_factory(self._result.columns, row) for row in rows]
 
     def nextset(self) -> bool | None:
         if self._result is None:
@@ -365,8 +420,8 @@ class NoTlsConnectionAdapter:
     def close(self) -> None:
         self._session.close()
 
-    def cursor(self) -> NoTlsCursorAdapter:
-        return NoTlsCursorAdapter(self)
+    def cursor(self, *, row_factory: RowFactory = list_row) -> NoTlsCursorAdapter:
+        return NoTlsCursorAdapter(self, row_factory=row_factory)
 
     def execute(
         self,
@@ -374,8 +429,9 @@ class NoTlsConnectionAdapter:
         params: list[str | None] | None = None,
         *,
         prepare: bool = False,
+        row_factory: RowFactory = list_row,
     ) -> NoTlsCursorAdapter:
-        cur = self.cursor()
+        cur = self.cursor(row_factory=row_factory)
         return cur.execute(query, params, prepare=prepare)
 
     def begin(self) -> None:
