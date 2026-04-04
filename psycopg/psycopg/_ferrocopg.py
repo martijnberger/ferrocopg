@@ -21,10 +21,22 @@ class _ResultSetLike(Protocol):
     rows_affected: int
 
 
+class _PreparedStatementLike(Protocol):
+    statement_id: int
+
+
 class _NoTlsSessionLike(Protocol):
     closed: bool
 
     def close(self) -> None: ...
+
+    def begin(self) -> None: ...
+
+    def commit(self) -> None: ...
+
+    def rollback(self) -> None: ...
+
+    def prepare_text(self, query: str) -> _PreparedStatementLike: ...
 
     def simple_query_results(self, query: str) -> list[_ResultSetLike]: ...
 
@@ -263,8 +275,143 @@ class NoTlsSessionAdapter:
             [self._session.run_prepared_text_params(statement_id, params)]
         )
 
+    def begin(self) -> None:
+        self._session.begin()
+
+    def commit(self) -> None:
+        self._session.commit()
+
+    def rollback(self) -> None:
+        self._session.rollback()
+
+    def prepare_text(self, query: str) -> _PreparedStatementLike:
+        return self._session.prepare_text(query)
+
     def __getattr__(self, name: str) -> object:
         return getattr(self._session, name)
+
+
+class NoTlsCursorAdapter:
+    """Experimental cursor-like bridge over the ferrocopg session adapter."""
+
+    def __init__(self, conn: NoTlsConnectionAdapter):
+        self._conn = conn
+        self._result: BackendResultCursor | None = None
+        self._closed = False
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    @property
+    def rowcount(self) -> int:
+        if self._result is None:
+            return -1
+        return self._result.rows_affected
+
+    def close(self) -> None:
+        self._closed = True
+        self._result = None
+
+    def execute(
+        self,
+        query: str,
+        params: list[str | None] | None = None,
+        *,
+        prepare: bool = False,
+    ) -> NoTlsCursorAdapter:
+        self._check_closed()
+        self._result = self._conn._execute(query, params, prepare=prepare)
+        return self
+
+    def fetchone(self) -> list[str | None] | None:
+        if self._result is None:
+            return None
+        return self._result.fetchone()
+
+    def fetchall(self) -> list[list[str | None]]:
+        if self._result is None:
+            return []
+        return self._result.fetchall()
+
+    def nextset(self) -> bool | None:
+        if self._result is None:
+            return None
+        return self._result.nextset()
+
+    def __enter__(self) -> NoTlsCursorAdapter:
+        self._check_closed()
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+        self.close()
+
+    def _check_closed(self) -> None:
+        if self._closed:
+            raise RuntimeError("cursor is closed")
+
+
+class NoTlsConnectionAdapter:
+    """Experimental connection-like bridge over the ferrocopg session adapter."""
+
+    def __init__(self, session: NoTlsSessionAdapter):
+        self._session = session
+        self._prepared: dict[str, int] = {}
+
+    @property
+    def closed(self) -> bool:
+        return self._session.closed
+
+    def close(self) -> None:
+        self._session.close()
+
+    def cursor(self) -> NoTlsCursorAdapter:
+        return NoTlsCursorAdapter(self)
+
+    def execute(
+        self,
+        query: str,
+        params: list[str | None] | None = None,
+        *,
+        prepare: bool = False,
+    ) -> NoTlsCursorAdapter:
+        cur = self.cursor()
+        return cur.execute(query, params, prepare=prepare)
+
+    def begin(self) -> None:
+        self._session.begin()
+
+    def commit(self) -> None:
+        self._session.commit()
+
+    def rollback(self) -> None:
+        self._session.rollback()
+
+    def __enter__(self) -> NoTlsConnectionAdapter:
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+        self.close()
+
+    def _execute(
+        self,
+        query: str,
+        params: list[str | None] | None,
+        *,
+        prepare: bool,
+    ) -> BackendResultCursor:
+        if params is None:
+            return self._session.execute_simple(query)
+
+        if prepare:
+            statement_id = self._prepared.get(query)
+            if statement_id is None:
+                prepared = self._session.prepare_text(query)
+                statement_id = prepared.statement_id
+                self._prepared[query] = statement_id
+            return self._session.execute_prepared(statement_id, params)
+
+        return self._session.execute_params(query, params)
 
 
 def no_tls_session_adapter(conninfo: str) -> NoTlsSessionAdapter | None:
@@ -275,3 +422,13 @@ def no_tls_session_adapter(conninfo: str) -> NoTlsSessionAdapter | None:
     if session is None:
         return None
     return NoTlsSessionAdapter(cast(_NoTlsSessionLike, session))
+
+
+def no_tls_connection_adapter(conninfo: str) -> NoTlsConnectionAdapter | None:
+    """
+    Return an experimental connection-like adapter over the Rust backend session.
+    """
+    session = no_tls_session_adapter(conninfo)
+    if session is None:
+        return None
+    return NoTlsConnectionAdapter(session)

@@ -2309,6 +2309,86 @@ def test_no_tls_session_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
     ]
 
 
+def test_no_tls_connection_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubPrepared:
+        def __init__(self, statement_id: int) -> None:
+            self.statement_id = statement_id
+
+    class StubSession:
+        closed = False
+
+        def __init__(self) -> None:
+            self.calls: list[object] = []
+
+        def close(self) -> None:
+            self.calls.append(("close",))
+            self.closed = True
+
+        def begin(self) -> None:
+            self.calls.append(("begin",))
+
+        def commit(self) -> None:
+            self.calls.append(("commit",))
+
+        def rollback(self) -> None:
+            self.calls.append(("rollback",))
+
+        def prepare_text(self, query: str) -> StubPrepared:
+            self.calls.append(("prepare", query))
+            return StubPrepared(11)
+
+        def simple_query_results(self, query: str) -> list[object]:
+            self.calls.append(("simple", query))
+            return [SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            self.calls.append(("params", query, params))
+            return SimpleNamespace(columns=["b"], rows=[["two"]], rows_affected=1)
+
+        def run_prepared_text_params(
+            self, statement_id: int, params: list[str | None]
+        ) -> object:
+            self.calls.append(("prepared", statement_id, params))
+            return SimpleNamespace(columns=["c"], rows=[["three"]], rows_affected=1)
+
+    stub = StubSession()
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: stub)
+
+    conn = module.no_tls_connection_adapter("host=localhost")
+    assert conn is not None
+    assert conn.closed is False
+
+    assert conn.execute("select 1").fetchall() == [["one"]]
+    assert conn.execute("select $1::text", ["x"]).fetchall() == [["two"]]
+    assert conn.execute("select $1::text", ["x"], prepare=True).fetchall() == [["three"]]
+    assert conn.execute("select $1::text", ["y"], prepare=True).fetchall() == [["three"]]
+
+    with conn.cursor() as cur:
+        assert cur.execute("select 1").fetchone() == ["one"]
+        assert cur.rowcount == 1
+
+    conn.begin()
+    conn.commit()
+    conn.rollback()
+    conn.close()
+    assert conn.closed is True
+
+    assert stub.calls == [
+        ("simple", "select 1"),
+        ("params", "select $1::text", ["x"]),
+        ("prepare", "select $1::text"),
+        ("prepared", 11, ["x"]),
+        ("prepared", 11, ["y"]),
+        ("simple", "select 1"),
+        ("begin",),
+        ("commit",),
+        ("rollback",),
+        ("close",),
+    ]
+
+
 def test_backend_connect_target_parses_endpoints() -> None:
     module = importlib.import_module("psycopg._ferrocopg")
 
@@ -2771,6 +2851,56 @@ def test_backend_no_tls_session_adapter_live(dsn: str) -> None:
 
     adapter.close()
     assert adapter.closed is True
+
+
+def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    conn = module.no_tls_connection_adapter(dsn)
+    assert conn is not None
+    assert conn.closed is False
+
+    cur = conn.execute(
+        "select 'first'::text as label; select 'second'::text as label"
+    )
+    assert cur.fetchall() == [["first"]]
+    assert cur.nextset() is True
+    assert cur.fetchall() == [["second"]]
+
+    with conn.cursor() as cur2:
+        cur2.execute(
+            "select ($1::int4 + $2::int4)::text as total, $3::text as label",
+            ["2", "5", "sum"],
+        )
+        assert cur2.rowcount == 1
+        assert cur2.fetchall() == [["7", "sum"]]
+
+    prep_query = (
+        "select id::text as id, label from "
+        "(values (1, 'one'), (2, 'two')) as t(id, label) "
+        "where id >= $1::int4 order by id"
+    )
+    first = conn.execute(prep_query, ["1"], prepare=True)
+    second = conn.execute(prep_query, ["2"], prepare=True)
+    assert first.fetchall() == [["1", "one"], ["2", "two"]]
+    assert second.fetchall() == [["2", "two"]]
+
+    conn.begin()
+    conn.execute("create temporary table ferrocopg_conn_adapter_test (id int4)")
+    conn.execute(
+        "insert into ferrocopg_conn_adapter_test (id) values ($1::int4)", ["1"]
+    )
+    conn.rollback()
+    check = conn.execute(
+        "select count(*)::text as n from pg_tables where tablename = 'ferrocopg_conn_adapter_test'"
+    )
+    assert check.fetchall() == [["0"]]
+
+    conn.close()
+    assert conn.closed is True
 
 
 def test_backend_no_tls_cancel_handle_live(dsn: str) -> None:
