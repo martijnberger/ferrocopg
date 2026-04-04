@@ -20,7 +20,7 @@ pub use model::{
     ExecuteResult, PreparedStatementInfo, StatementColumn, StatementDescription,
     StatementParameter, SyncNoTlsProbe, TextQueryResult,
 };
-pub use session::SyncNoTlsSession;
+pub use session::{SyncNoTlsCancelHandle, SyncNoTlsSession};
 
 #[cfg(test)]
 mod tests {
@@ -98,6 +98,7 @@ mod tests {
     fn session_rejects_operations_after_close() {
         let mut session = SyncNoTlsSession::closed_for_tests();
         assert!(session.closed());
+        assert!(matches!(session.cancel_handle(), Err(ProbeError::Closed)));
         assert!(matches!(
             session.query_text("select 1"),
             Err(ProbeError::Closed)

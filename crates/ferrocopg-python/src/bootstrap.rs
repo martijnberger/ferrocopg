@@ -190,8 +190,57 @@ struct BackendPreparedStatementInfo {
 }
 
 #[pyclass(module = "ferrocopg_rust._ferrocopg")]
+struct BackendSyncNoTlsCancelHandle {
+    inner: Mutex<ferrocopg_postgres::SyncNoTlsCancelHandle>,
+}
+
+#[pyclass(module = "ferrocopg_rust._ferrocopg")]
 struct BackendSyncNoTlsSession {
     inner: Mutex<ferrocopg_postgres::SyncNoTlsSession>,
+}
+
+fn backend_runtime_error(message: impl Into<String>) -> PyErr {
+    PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(message.into())
+}
+
+fn with_session<T, F>(py: Python<'_>, session: &BackendSyncNoTlsSession, f: F) -> PyResult<T>
+where
+    T: Send,
+    F: FnOnce(
+            &mut ferrocopg_postgres::SyncNoTlsSession,
+        ) -> Result<T, ferrocopg_postgres::ProbeError>
+        + Send,
+{
+    py.allow_threads(|| {
+        let mut inner = session
+            .inner
+            .lock()
+            .map_err(|_| "backend session mutex is poisoned".to_owned())?;
+        f(&mut inner).map_err(|err| err.to_string())
+    })
+    .map_err(backend_runtime_error)
+}
+
+fn with_cancel_handle<T, F>(
+    py: Python<'_>,
+    handle: &BackendSyncNoTlsCancelHandle,
+    f: F,
+) -> PyResult<T>
+where
+    T: Send,
+    F: FnOnce(
+            &ferrocopg_postgres::SyncNoTlsCancelHandle,
+        ) -> Result<T, ferrocopg_postgres::ProbeError>
+        + Send,
+{
+    py.allow_threads(|| {
+        let inner = handle
+            .inner
+            .lock()
+            .map_err(|_| "backend cancel handle mutex is poisoned".to_owned())?;
+        f(&inner).map_err(|err| err.to_string())
+    })
+    .map_err(backend_runtime_error)
 }
 
 #[pyfunction]
@@ -447,6 +496,13 @@ impl From<ferrocopg_postgres::PreparedStatementInfo> for BackendPreparedStatemen
 }
 
 #[pymethods]
+impl BackendSyncNoTlsCancelHandle {
+    fn cancel(&self, py: Python<'_>) -> PyResult<()> {
+        with_cancel_handle(py, self, |handle| handle.cancel())
+    }
+}
+
+#[pymethods]
 impl BackendSyncNoTlsSession {
     #[getter]
     fn closed(&self) -> PyResult<bool> {
@@ -473,252 +529,149 @@ impl BackendSyncNoTlsSession {
         Ok(())
     }
 
-    fn probe(&self) -> PyResult<BackendSyncNoTlsProbe> {
-        self.inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "backend session mutex is poisoned",
-                )
-            })?
-            .probe()
-            .map(BackendSyncNoTlsProbe::from)
-            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    fn probe(&self, py: Python<'_>) -> PyResult<BackendSyncNoTlsProbe> {
+        with_session(py, self, |session| session.probe()).map(BackendSyncNoTlsProbe::from)
     }
 
-    fn query_text(&self, query: &str) -> PyResult<BackendTextQueryResult> {
-        self.inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "backend session mutex is poisoned",
-                )
-            })?
-            .query_text(query)
+    fn cancel_handle(&self, py: Python<'_>) -> PyResult<BackendSyncNoTlsCancelHandle> {
+        with_session(py, self, |session| session.cancel_handle()).map(|handle| {
+            BackendSyncNoTlsCancelHandle {
+                inner: Mutex::new(handle),
+            }
+        })
+    }
+
+    fn query_text(&self, py: Python<'_>, query: &str) -> PyResult<BackendTextQueryResult> {
+        let query = query.to_owned();
+        with_session(py, self, move |session| session.query_text(&query))
             .map(BackendTextQueryResult::from)
-            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
     }
 
     fn query_text_params(
         &self,
+        py: Python<'_>,
         query: &str,
         params: Vec<Option<String>>,
     ) -> PyResult<BackendTextQueryResult> {
-        self.inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "backend session mutex is poisoned",
-                )
-            })?
-            .query_text_params(query, &params)
-            .map(BackendTextQueryResult::from)
-            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+        let query = query.to_owned();
+        with_session(py, self, move |session| {
+            session.query_text_params(&query, &params)
+        })
+        .map(BackendTextQueryResult::from)
     }
 
     fn execute_text_params(
         &self,
+        py: Python<'_>,
         query: &str,
         params: Vec<Option<String>>,
     ) -> PyResult<BackendExecuteResult> {
-        self.inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "backend session mutex is poisoned",
-                )
-            })?
-            .execute_text_params(query, &params)
-            .map(BackendExecuteResult::from)
-            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+        let query = query.to_owned();
+        with_session(py, self, move |session| {
+            session.execute_text_params(&query, &params)
+        })
+        .map(BackendExecuteResult::from)
     }
 
-    fn begin(&self) -> PyResult<()> {
-        self.inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "backend session mutex is poisoned",
-                )
-            })?
-            .begin()
-            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    fn begin(&self, py: Python<'_>) -> PyResult<()> {
+        with_session(py, self, |session| session.begin())
     }
 
-    fn commit(&self) -> PyResult<()> {
-        self.inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "backend session mutex is poisoned",
-                )
-            })?
-            .commit()
-            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    fn commit(&self, py: Python<'_>) -> PyResult<()> {
+        with_session(py, self, |session| session.commit())
     }
 
-    fn rollback(&self) -> PyResult<()> {
-        self.inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "backend session mutex is poisoned",
-                )
-            })?
-            .rollback()
-            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    fn rollback(&self, py: Python<'_>) -> PyResult<()> {
+        with_session(py, self, |session| session.rollback())
     }
 
-    fn listen(&self, channel: &str) -> PyResult<()> {
-        self.inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "backend session mutex is poisoned",
-                )
-            })?
-            .listen(channel)
-            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    fn listen(&self, py: Python<'_>, channel: &str) -> PyResult<()> {
+        let channel = channel.to_owned();
+        with_session(py, self, move |session| session.listen(&channel))
     }
 
-    fn unlisten(&self, channel: &str) -> PyResult<()> {
-        self.inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "backend session mutex is poisoned",
-                )
-            })?
-            .unlisten(channel)
-            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    fn unlisten(&self, py: Python<'_>, channel: &str) -> PyResult<()> {
+        let channel = channel.to_owned();
+        with_session(py, self, move |session| session.unlisten(&channel))
     }
 
-    fn notify(&self, channel: &str, payload: &str) -> PyResult<()> {
-        self.inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "backend session mutex is poisoned",
-                )
-            })?
-            .notify(channel, payload)
-            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    fn notify(&self, py: Python<'_>, channel: &str, payload: &str) -> PyResult<()> {
+        let channel = channel.to_owned();
+        let payload = payload.to_owned();
+        with_session(py, self, move |session| session.notify(&channel, &payload))
     }
 
-    fn drain_notifications(&self) -> PyResult<Vec<BackendNotification>> {
-        self.inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "backend session mutex is poisoned",
-                )
-            })?
-            .drain_notifications()
-            .map(|notifications| {
-                notifications
-                    .into_iter()
-                    .map(BackendNotification::from)
-                    .collect()
-            })
-            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    fn drain_notifications(&self, py: Python<'_>) -> PyResult<Vec<BackendNotification>> {
+        with_session(py, self, |session| session.drain_notifications()).map(|notifications| {
+            notifications
+                .into_iter()
+                .map(BackendNotification::from)
+                .collect()
+        })
     }
 
-    fn wait_for_notification(&self, timeout_ms: u64) -> PyResult<Option<BackendNotification>> {
-        self.inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "backend session mutex is poisoned",
-                )
-            })?
-            .wait_for_notification(timeout_ms)
-            .map(|notification| notification.map(BackendNotification::from))
-            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    fn wait_for_notification(
+        &self,
+        py: Python<'_>,
+        timeout_ms: u64,
+    ) -> PyResult<Option<BackendNotification>> {
+        with_session(py, self, move |session| {
+            session.wait_for_notification(timeout_ms)
+        })
+        .map(|notification| notification.map(BackendNotification::from))
     }
 
-    fn describe_text(&self, query: &str) -> PyResult<BackendStatementDescription> {
-        self.inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "backend session mutex is poisoned",
-                )
-            })?
-            .describe_text(query)
+    fn describe_text(&self, py: Python<'_>, query: &str) -> PyResult<BackendStatementDescription> {
+        let query = query.to_owned();
+        with_session(py, self, move |session| session.describe_text(&query))
             .map(BackendStatementDescription::from)
-            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
     }
 
-    fn prepare_text(&self, query: &str) -> PyResult<BackendPreparedStatementInfo> {
-        self.inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "backend session mutex is poisoned",
-                )
-            })?
-            .prepare_text(query)
+    fn prepare_text(&self, py: Python<'_>, query: &str) -> PyResult<BackendPreparedStatementInfo> {
+        let query = query.to_owned();
+        with_session(py, self, move |session| session.prepare_text(&query))
             .map(BackendPreparedStatementInfo::from)
-            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
     }
 
-    fn describe_prepared(&self, statement_id: u64) -> PyResult<BackendStatementDescription> {
-        self.inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "backend session mutex is poisoned",
-                )
-            })?
-            .describe_prepared(statement_id)
-            .map(BackendStatementDescription::from)
-            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    fn describe_prepared(
+        &self,
+        py: Python<'_>,
+        statement_id: u64,
+    ) -> PyResult<BackendStatementDescription> {
+        with_session(py, self, move |session| {
+            session.describe_prepared(statement_id)
+        })
+        .map(BackendStatementDescription::from)
     }
 
     fn query_prepared_text_params(
         &self,
+        py: Python<'_>,
         statement_id: u64,
         params: Vec<Option<String>>,
     ) -> PyResult<BackendTextQueryResult> {
-        self.inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "backend session mutex is poisoned",
-                )
-            })?
-            .query_prepared_text_params(statement_id, &params)
-            .map(BackendTextQueryResult::from)
-            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+        with_session(py, self, move |session| {
+            session.query_prepared_text_params(statement_id, &params)
+        })
+        .map(BackendTextQueryResult::from)
     }
 
     fn execute_prepared_text_params(
         &self,
+        py: Python<'_>,
         statement_id: u64,
         params: Vec<Option<String>>,
     ) -> PyResult<BackendExecuteResult> {
-        self.inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "backend session mutex is poisoned",
-                )
-            })?
-            .execute_prepared_text_params(statement_id, &params)
-            .map(BackendExecuteResult::from)
-            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+        with_session(py, self, move |session| {
+            session.execute_prepared_text_params(statement_id, &params)
+        })
+        .map(BackendExecuteResult::from)
     }
 
-    fn close_prepared(&self, statement_id: u64) -> PyResult<()> {
-        self.inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "backend session mutex is poisoned",
-                )
-            })?
-            .close_prepared(statement_id)
-            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    fn close_prepared(&self, py: Python<'_>, statement_id: u64) -> PyResult<()> {
+        with_session(py, self, move |session| {
+            session.close_prepared(statement_id)
+        })
     }
 }
 
@@ -735,6 +688,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<BackendStatementColumn>()?;
     m.add_class::<BackendStatementDescription>()?;
     m.add_class::<BackendPreparedStatementInfo>()?;
+    m.add_class::<BackendSyncNoTlsCancelHandle>()?;
     m.add_class::<BackendSyncNoTlsSession>()?;
     m.add_function(wrap_pyfunction!(milestone, m)?)?;
     m.add_function(wrap_pyfunction!(scaffold_status, m)?)?;

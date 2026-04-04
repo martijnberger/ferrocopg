@@ -1,5 +1,6 @@
 import importlib
 import socket
+import threading
 import uuid
 from collections import deque
 from collections.abc import Callable, Generator
@@ -2432,21 +2433,26 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
 
     sender.notify(listener_channel, "second")
     sender.notify(listener_channel, "third")
-    next_notification = session.wait_for_notification(1_000)
-    assert next_notification is not None
-    drained_notifications = session.drain_notifications()
-    observed_payloads = sorted(
-        [next_notification.payload, *[notification.payload for notification in drained_notifications]]
-    )
+    second_notification = session.wait_for_notification(1_000)
+    third_notification = session.wait_for_notification(1_000)
+    assert second_notification is not None
+    assert third_notification is not None
+    observed_payloads = sorted([second_notification.payload, third_notification.payload])
     assert observed_payloads == ["second", "third"]
     assert all(
         notification.channel == listener_channel
-        for notification in [next_notification, *drained_notifications]
+        for notification in [second_notification, third_notification]
     )
     assert all(
         notification.process_id == sender.probe().backend_pid
-        for notification in [next_notification, *drained_notifications]
+        for notification in [second_notification, third_notification]
     )
+
+    sender.notify(listener_channel, "drained")
+    drained_notification = session.wait_for_notification(1_000)
+    assert drained_notification is not None
+    assert drained_notification.payload == "drained"
+    assert session.drain_notifications() == []
 
     session.unlisten(listener_channel)
     sender.notify(listener_channel, "ignored")
@@ -2471,6 +2477,59 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
         session.query_text("select 1")
     with pytest.raises(RuntimeError, match="closed"):
         session.describe_text("select 1")
+
+
+def test_backend_no_tls_cancel_handle_live(dsn: str) -> None:
+    import time as pytime
+
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    session = module.no_tls_session(dsn)
+    blocker = module.no_tls_session(dsn)
+    assert session is not None
+    assert blocker is not None
+
+    cancel_handle = session.cancel_handle()
+    errors: deque[str] = deque()
+    lock_id = uuid.uuid4().int % (2**31)
+
+    try:
+        blocker.query_text(
+            f"select 'locked'::text from (select pg_advisory_lock({lock_id})) as _"
+        )
+
+        def run_sleep_query() -> None:
+            try:
+                session.query_text(
+                    f"select 'done'::text from (select pg_advisory_lock({lock_id})) as _"
+                )
+            except RuntimeError as exc:
+                errors.append(str(exc))
+            else:
+                errors.append("query unexpectedly completed")
+
+        worker = threading.Thread(target=run_sleep_query)
+        worker.start()
+
+        for _ in range(20):
+            pytime.sleep(0.05)
+            cancel_handle.cancel()
+            worker.join(timeout=0.1)
+            if not worker.is_alive():
+                break
+        else:
+            worker.join(timeout=5)
+
+        assert not worker.is_alive()
+        assert errors
+        assert "canceling statement due to user request" in errors[0]
+    finally:
+        blocker.query_text(f"select pg_advisory_unlock({lock_id})::text as unlocked")
+        blocker.close()
+        session.close()
 
 
 def test_copy_base_prefers_c_copy_optimizations(monkeypatch):

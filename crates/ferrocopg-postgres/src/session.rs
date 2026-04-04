@@ -8,6 +8,19 @@ use fallible_iterator::FallibleIterator;
 use std::collections::HashMap;
 use std::time::Duration;
 
+#[derive(Clone)]
+pub struct SyncNoTlsCancelHandle {
+    inner: postgres::CancelToken,
+}
+
+impl SyncNoTlsCancelHandle {
+    pub fn cancel(&self) -> Result<(), ProbeError> {
+        self.inner
+            .cancel_query(postgres::NoTls)
+            .map_err(ProbeError::Connect)
+    }
+}
+
 pub struct SyncNoTlsSession {
     client: Option<postgres::Client>,
     prepared: HashMap<u64, postgres::Statement>,
@@ -39,6 +52,13 @@ impl SyncNoTlsSession {
     pub fn close(&mut self) {
         self.prepared.clear();
         self.client.take();
+    }
+
+    pub fn cancel_handle(&self) -> Result<SyncNoTlsCancelHandle, ProbeError> {
+        let client = self.client.as_ref().ok_or(ProbeError::Closed)?;
+        Ok(SyncNoTlsCancelHandle {
+            inner: client.cancel_token(),
+        })
     }
 
     pub fn probe(&mut self) -> Result<SyncNoTlsProbe, ProbeError> {
