@@ -5,458 +5,330 @@
 Turn this fork into `ferrocopg`: a Psycopg-compatible PostgreSQL adapter for
 Python with no Cython left in the tree.
 
-The immediate objective is not to redesign the public Python API. The
-objective is to replace the current Cython/C acceleration and binding layers
-with Rust while preserving behavior, test coverage, and packaging ergonomics.
+The current objective remains the same: preserve Psycopg's Python-facing API
+while replacing the current Cython/C acceleration and transport layers with
+Rust, using the existing test suite as the compatibility contract.
 
-For now, this plan assumes:
+## Summary
 
-- We keep the existing Python-facing APIs and compatibility expectations.
-- We focus on Cython removal first while moving the Rust backend toward the
-  `rust-postgres` ecosystem instead of mirroring `libpq`.
-- We expect the Rust side to be transport-native rather than a one-for-one
-  port of the existing `libpq` wrapper layer.
+This repository is no longer in the bootstrap stage described by the original
+plan.
 
-## Non-goals for the first phase
+The following foundation work is already in place:
 
-- Redesigning the connection/cursor API.
-- Rewriting the whole library into Rust.
-- Removing Python from high-level orchestration code.
-- Requiring an immediate flag-day rewrite of every `psycopg.pq` caller.
+- `uv` is the documented Python workflow.
+- `maturin` is wired for the Rust extension package.
+- A pinned Rust toolchain is present.
+- A Cargo workspace exists.
+- The optional Rust path is already integrated into several Python seams.
+- A Rust-native backend session API has started behind the optional
+  `ferrocopg` path.
+
+The next phase should optimize for finishing the optional Rust path safely
+before attempting any default-path cutover.
+
+## Non-goals For The Next Phase
+
+- Redesigning the public Python connection or cursor APIs.
+- Replacing `_cmodule.py` as the default implementation selector yet.
+- Deleting Cython before Rust parity gates are met.
+- Treating the current `ferrocopg_rust` module as a final public API.
 
 ## Current Architecture Summary
 
-The repository is already split in a way that supports a staged migration:
+The repository now has three active migration layers:
 
-- `psycopg/` contains the pure Python implementation and public API.
-- `psycopg_c/` contains the optional Cython/C acceleration package.
-- `psycopg_pool/` contains pool implementations and is largely unaffected by
-  the Cython-to-Rust port except for integration testing.
+- `psycopg/`
+  The main Python package and compatibility surface.
+- `psycopg_c/`
+  The existing Cython/C accelerated implementation, still the primary optional
+  optimized path.
+- `crates/ferrocopg-python/`
+  The PyO3 Rust extension package exposed as `ferrocopg_rust`.
+- `crates/ferrocopg-postgres/`
+  The Rust-native backend/session crate based on the `rust-postgres`
+  ecosystem.
 
-The main technical seams are:
+The current Python integration points for the optional Rust path include:
 
-- `psycopg/psycopg/pq/`
-  This is the low-level PostgreSQL wrapper contract used by the higher layers.
-- `psycopg/psycopg/_cmodule.py`
-  This chooses the optimized `_psycopg` implementation when available.
-- `psycopg/psycopg/_transformer.py`, `generators.py`, `_copy_base.py`,
-  `waiting.py`
-  These already support swapping between a Python implementation and an
-  optimized implementation.
+- `psycopg/psycopg/_rmodule.py`
+  Optional import boundary for `ferrocopg_rust`.
+- `psycopg/psycopg/_ferrocopg.py`
+  Transitional helper access to the Rust path.
+- `psycopg/psycopg/_copy_base.py`
+  Rust-backed COPY formatting/parsing helpers when available.
+- `psycopg/psycopg/waiting.py`
+  Rust-backed `wait_c` when available.
+- `psycopg/psycopg/generators.py`
+  Rust-backed generator helpers when available.
+- `psycopg/psycopg/_transformer.py`
+  Rust-backed transformer selection when C is absent.
+- `psycopg/psycopg/types/*`
+  Rust-backed helpers for selected adaptation paths.
 
-This is good news for `ferrocopg`: we do not need a flag day rewrite.
+This means the migration is already underway and the plan should focus on
+parity, CI enforcement, and cutover readiness.
 
 ## Guiding Principles
 
 1. Preserve the current Python API until the Rust port is stable.
 2. Use the existing test suite as the migration contract.
-3. Replace one seam at a time.
-4. Make `uv` and Rust tooling first-class early so later work lands on the
-   final build path.
-5. Delete Cython only after equivalent Rust-backed behavior is passing in CI.
+3. Finish parity behind the optional Rust path before changing defaults.
+4. Keep cutover gates explicit and evidence-based.
+5. Delete Cython only after Rust-backed behavior is passing in CI and the
+   default-path transition is complete.
 
 ## Desired End State
 
-At the end of this program:
+At the end of the program:
 
 - There are no `.pyx` or `.pxd` files left in the repository.
-- There are no generated C sources retained for extension builds.
-- The accelerated implementation is built with Rust tooling via `maturin`.
-- The contributor workflow uses `uv` as the standard Python environment and
-  command runner.
-- A pinned Rust toolchain is part of the repository.
-- The test matrix passes against the Rust-backed implementation.
+- There are no Cython-specific build steps left in packaging or CI.
+- Rust is the supported accelerated build path.
+- The contributor workflow uses `uv` as the standard Python workflow.
+- The repository uses a pinned Rust toolchain.
+- CI exercises and validates the Rust-backed path.
+- The Python-facing Psycopg behavior remains compatible.
 
-## Proposed Repository Shape
+## Migration Tracks
 
-This is a first-cut target structure, not a commitment to exact names:
+The migration should proceed on two explicit tracks.
 
-```text
-.
-├── Cargo.toml
-├── rust-toolchain.toml
-├── plan.md
-├── pyproject.toml
-├── crates/
-│   ├── ferrocopg-core/
-│   ├── ferrocopg-postgres/
-│   ├── ferrocopg-encode/
-│   └── ferrocopg-python/
-├── psycopg/
-├── psycopg_pool/
-└── python/
-    └── ferrocopg_rust/   # if a dedicated Python package wrapper is useful
-```
+### Track A: Optional Rust helper parity
 
-A likely split of responsibilities:
-
-- `ferrocopg-core`
-  Shared Rust data structures, errors, buffer helpers, and utilities.
-- `ferrocopg-postgres`
-  Rust backend layer built on the `rust-postgres` ecosystem, likely centered
-  on `tokio-postgres` plus lower-level `postgres-protocol` and
-  `postgres-types` helpers where needed.
-- `ferrocopg-encode`
-  Fast-path binary/text adaptation helpers, copy formatting/parsing, array
-  helpers, and transformer-related internals.
-- `ferrocopg-python`
-  PyO3 bindings that expose Python modules/classes matching what `psycopg`
-  expects today.
-
-Depending on complexity, `ferrocopg-encode` may collapse into
-`ferrocopg-python` initially and be split later if needed.
-
-## Packaging and Tooling Plan
-
-### Step 1: Standardize on `uv`
-
-Make `uv` the official Python workflow for local development and CI:
-
-- Define canonical commands for dependency sync, tests, linting, and typing.
-- Update contributor docs to prefer `uv` over ad hoc `pip`/venv flows.
-- Keep editable installs working for the Python packages during the
-  transition.
-- Decide whether the repo remains a multi-package Python workspace or is
-  unified behind a top-level `uv` workflow with per-package install targets.
-
-Deliverables:
-
-- Updated root documentation for `uv`-based setup.
-- `uv`-based CI commands.
-- Removal of redundant setup instructions over time.
-
-### Step 2: Add `maturin`
-
-Introduce `maturin` as the supported build path for Rust extensions:
-
-- Add `maturin` to the build/development workflow.
-- Decide whether Rust-backed artifacts live in the existing `psycopg_c`
-  package name during transition or under a temporary `ferrocopg_*` name.
-- Support local editable development and wheel builds through `maturin`.
-
-Deliverables:
-
-- `maturin` build integration.
-- One minimal Rust extension module building in CI.
-- Documentation for local Rust extension builds.
-
-### Step 3: Add a pinned Rust toolchain
-
-Add `rust-toolchain.toml` early:
-
-- Pin a stable Rust channel.
-- Document required components such as `rustfmt` and `clippy`.
-- Ensure CI and local developer setup use the same toolchain.
-
-Deliverables:
-
-- `rust-toolchain.toml`
-- Rust formatting/linting commands in CI or pre-commit.
-
-## Migration Strategy
-
-The migration should happen in two technical layers.
-
-### Layer A: Replace `_psycopg` first
-
-This is the acceleration layer currently surfaced through `_cmodule.py`.
+This track finishes the optional Rust seams already wired into Python.
 
 Scope includes:
 
+- COPY row formatting and parsing
+- `wait_c`
+- generator helpers such as `connect`, `cancel`, `send`, `fetch`,
+  `fetch_many`, `execute`, and `pipeline_communicate`
 - `Transformer`
-- nonblocking generator helpers in `generators.py`
-- wait helpers used by `waiting.py`
-- copy row format/parse helpers in `_copy_base.py`
-- type adaptation fast paths currently in `psycopg_c/_psycopg/*`
-- optimized type loaders/dumpers such as arrays, strings, numerics, UUID,
-  datetime, bool, numpy if still worth keeping as accelerated paths
-
-Why start here:
-
-- The Python fallback implementations already exist.
-- The interface boundary is narrower than the full transport layer.
-- We can remove a large amount of Cython before doing the harder work of
-  mapping Psycopg semantics onto `rust-postgres`.
+- accelerated adaptation helpers currently exposed through selected
+  `psycopg.types.*` modules
 
 Expected result:
 
-- `_cmodule.py` imports a Rust-backed optimized module instead of Cython.
-- Pure Python remains the fallback where necessary.
+- The optional Rust path is behaviorally interchangeable with the current
+  Python/Cython helper seams for covered scenarios.
+- The test suite can validate the Rust helpers side by side with Python and
+  Cython implementations.
 
-### Layer B: Introduce a Rust-native PostgreSQL backend
+### Track B: Rust-native backend session parity
 
-This replaces the current Cython/libpq-oriented transport implementation with
-an internal backend built on the `rust-postgres` stack.
+This track continues the internal backend work currently exposed through
+`psycopg._ferrocopg` and `ferrocopg_rust`.
 
 Scope includes:
 
-- backend connection state
-- query execution and prepared statement flow
+- connection planning and target parsing
+- connect/query/describe/execute flows
+- prepared statements
+- transaction control
 - cancellation
-- COPY operations
-- LISTEN/NOTIFY support
-- pipeline support
-- row and type metadata exposure needed by higher layers
-- adaptation hooks needed to preserve Psycopg behavior
-- transitional compatibility shims for current `psycopg.pq` callers
-
-Why second:
-
-- It has a larger and more stateful contract.
-- Pipeline, copy, and notify semantics are subtle and heavily tested.
-- It is easier to reason about once the higher-level fast-path module has
-  already moved to Rust.
+- COPY in/out
+- LISTEN/NOTIFY
 
 Expected result:
 
-- `ferrocopg` can route database operations through a Rust-native backend while
-  preserving Psycopg's Python-facing behavior.
+- The backend session API is sufficiently complete and tested to support a
+  future integration into the main execution path.
 
 ## Milestones
 
-### Milestone 0: Baseline and inventory
+### Milestone 0: Rebaseline the migration contract
 
 Objective:
-Establish a known-good baseline before code motion.
+Rewrite the plan and milestone language around the current repository state.
 
 Tasks:
 
-- Identify all current Cython/C artifacts under `psycopg_c/`.
-- Map each Cython module to its Python import surface and tests.
-- Define the acceptance matrix for sync, async, pool, copy, notify, pipeline,
-  typing, and packaging.
-- Decide on temporary naming for Rust extension modules during transition.
+- Mark toolchain/bootstrap work as complete.
+- Record which Python seams already support the optional Rust path.
+- Record which backend session capabilities already exist.
+- Define cutover gates before any default-path change.
 
 Definition of done:
 
-- We have a module-by-module inventory.
-- We have a written compatibility target for the port.
+- The plan reflects reality instead of future bootstrap intent.
+- The next slices are framed around parity and cutover readiness.
 
-### Milestone 1: Toolchain foundation
+### Milestone 1: Finish optional Rust helper parity
 
 Objective:
-Make `uv`, `maturin`, and Rust available before feature porting starts.
+Close the remaining parity gaps in the helper-level Rust path.
 
 Tasks:
 
-- Add `rust-toolchain.toml`.
-- Add `Cargo.toml` workspace.
-- Add a minimal PyO3 extension wired through `maturin`.
-- Update docs to use `uv`.
-- Update CI to install Rust and exercise the minimal Rust extension build.
+- Finish parity for COPY helpers.
+- Finish parity for `wait_c`.
+- Finish parity for generator helpers.
+- Finish parity for `Transformer` and selected adaptation fast paths.
+- Keep Python and Cython fallbacks intact where Rust is absent.
 
 Definition of done:
 
-- A no-op Rust extension builds locally and in CI.
-- Contributors have one documented Python workflow and one documented Rust
-  workflow.
+- Focused helper-parity tests pass with the Rust path enabled.
+- Python behavior remains unchanged when Rust is absent.
 
-### Milestone 2: Rust `_psycopg` skeleton
+### Milestone 2: Finish backend session parity
 
 Objective:
-Replace the import surface of `_psycopg` without feature completeness yet.
+Continue the Rust-native backend session until the core behavior contract is
+covered.
 
 Tasks:
 
-- Expose a Rust module matching the expected `_psycopg` import surface.
-- Stub or implement `Transformer`, generator helpers, wait helpers, and copy
-  helpers incrementally.
-- Keep Python fallbacks active where Rust functionality is not implemented.
+- Complete and harden session APIs for query, parameter binding, describe,
+  prepare, execute, transactions, cancel, COPY, and notify flows.
+- Preserve expected Python-facing error mapping and encoding behavior.
+- Keep the backend session path optional and isolated from default execution.
 
 Definition of done:
 
-- The Rust extension can be imported in place of the current optimized module.
-- A focused subset of tests passes against the Rust-backed `_psycopg`.
+- DSN-backed backend tests pass for the session contract.
+- Known unsupported cases are documented explicitly.
 
-### Milestone 3: Port adaptation and copy fast paths
+### Milestone 3: Add CI enforcement for the Rust path
 
 Objective:
-Move the hottest `_psycopg` pieces first.
+Make the Rust path part of normal repository validation.
 
 Tasks:
 
-- Port transformer internals used for dumping/loading.
-- Port text/binary row formatting and parsing helpers.
-- Port array fast paths and other high-value type helpers.
-- Validate behavior against adaptation and copy tests.
+- Install the Rust extension path in CI.
+- Run focused `ferrocopg` parity tests in CI.
+- Run Rust crate tests in CI.
+- Keep this coverage independent from the future default-path cutover.
 
 Definition of done:
 
-- Adaptation and copy tests pass with Rust-backed implementations.
-- The Python fallback remains available only where needed.
+- CI fails if the optional Rust path regresses.
+- Rust-specific tests are not documentation-only anymore.
 
-### Milestone 4: Port wait/generator helpers
+### Milestone 4: Define cutover readiness
 
 Objective:
-Move the remaining `_psycopg` operational helpers.
+Create explicit criteria for moving Rust into the main implementation path.
 
 Tasks:
 
-- Port `connect`, `cancel`, `execute`, `send`, `fetch`, `fetch_many`, and
-  `pipeline_communicate` helpers where Rust implementations still make sense.
-- Port `wait_c` and ensure it integrates cleanly with existing sync/async
-  waiting code.
-- Validate gevent- and platform-related behavior where relevant.
+- Define the exact behavioral gates required before touching `_cmodule.py`.
+- Decide whether cutover happens through compatibility naming or selector
+  expansion.
+- Decide which unsupported features block cutover and which can remain on
+  fallback paths.
 
 Definition of done:
 
-- Waiting and generator tests pass with the Rust module enabled.
+- There is a written, test-backed cutover contract.
+- No one needs to infer readiness from momentum alone.
 
-### Milestone 5: Build the Rust-native backend layer
-
-Objective:
-Replace the Cython/libpq-oriented transport path with a backend built on
-`rust-postgres`.
-
-Tasks:
-
-- Introduce a backend abstraction that is not tied to `libpq` naming.
-- Build the transport around `tokio-postgres`.
-- Use `postgres-protocol`/`postgres-types` where lower-level protocol or type
-  support is needed.
-- Map notice/notify, copy, cancellation, and pipeline behavior into the
-  semantics expected by the Python layer.
-- Preserve error mapping and encoding behavior expected by higher layers.
-
-Definition of done:
-
-- The Rust backend can drive the core connection/cursor flows.
-- The relevant integration tests pass against it.
-
-### Milestone 6: Packaging cutover
+### Milestone 5: Packaging cutover
 
 Objective:
 Make Rust the supported accelerated build path.
 
 Tasks:
 
-- Replace Cython build backend usage with `maturin`.
-- Update package metadata and wheel build jobs.
-- Decide whether to keep compatibility package names temporarily.
-- Remove Cython from dev dependencies once it is no longer needed.
+- Replace Cython-first accelerated packaging with Rust-first packaging.
+- Update wheel build jobs and contributor docs.
+- Remove Cython from dev/build requirements once no longer needed.
 
 Definition of done:
 
-- Wheels are built from Rust sources, not Cython.
-- CI no longer depends on Cython to build the accelerated implementation.
+- Wheels build from Rust sources instead of Cython.
+- CI no longer depends on Cython to build the accelerated path.
 
-### Milestone 7: Delete Cython
+### Milestone 6: Delete Cython
 
 Objective:
-Remove the old implementation cleanly.
+Remove the old implementation only after cutover is complete.
 
 Tasks:
 
-- Delete `.pyx`, `.pxd`, generated `.c`, and Cython-specific build code.
+- Delete `.pyx`, `.pxd`, generated C files, and Cython-specific build code.
 - Remove dead compatibility shims and docs.
-- Update documentation to describe the Rust-based accelerated implementation.
+- Update repository docs to describe the Rust-based accelerated path.
 
 Definition of done:
 
 - There is no Cython left in the repository.
 - The repository and CI pass without Cython installed.
 
-### Milestone 8: Post-port optimization and cleanup
+## Compatibility Decisions
 
-Objective:
-Decide what, if anything, should move from pure Python to Rust after the port.
-
-Tasks:
-
-- Profile real workloads and test bottlenecks.
-- Identify pure-Python hotspots still worth porting.
-- Keep orchestration code in Python unless data shows clear benefit.
-
-Definition of done:
-
-- Further Rust work is driven by profiling, not by aesthetic preference.
-
-## First Implementation Slice
-
-The first slice should be intentionally small and irreversible in the right
-direction.
-
-Recommended first slice:
-
-1. Add `rust-toolchain.toml`.
-2. Add a Cargo workspace and a minimal PyO3 crate.
-3. Add `maturin` build wiring.
-4. Update the docs and local workflow to use `uv`.
-5. Make the minimal extension importable from Python.
-6. Add one tiny Rust-backed helper behind `_cmodule.py` to prove the plumbing.
-
-Good first feature candidates after plumbing:
-
-- copy row formatting/parsing helpers
-- a narrow `Transformer` helper
-- a simple waiting helper
-
-These are easier than starting with full `PGconn`.
-
-## Risk Areas
-
-### Behavioral compatibility
-
-The biggest risk is subtle incompatibility rather than obvious build failure.
-Particular hotspots:
-
-- error translation
-- encoding behavior
-- memory ownership and object lifetime across Python/Rust boundaries
-- callback behavior for notices and notifies
-- copy protocol semantics
-- pipeline ordering and aborted-pipeline edge cases
-
-### Packaging complexity
-
-The project currently has multiple Python packages and an optional accelerated
-path. Introducing Rust without making local development painful is a real
-design task, not clerical work.
-
-### Platform support
-
-Wheel building across Linux, macOS, Windows, CPython versions, and possibly
-PyPy still needs an explicit support decision. Moving away from `libpq`
-removes one axis of native dependency management, but runtime integration and
-TLS choices become more important.
-
-## Compatibility Decisions To Make Early
-
-These do not need to block Milestone 1, but they should be settled early:
+These should be settled before default-path cutover, but they do not need to
+block the current optional-path work.
 
 1. Naming
-   Decide where the `ferrocopg` name appears first: repository branding only,
-   package names, import names, or all of the above.
+   Keep transitional names (`ferrocopg_rust`, `psycopg._ferrocopg`) for now,
+   then decide when and where `ferrocopg` branding becomes the primary package
+   or import surface.
 
-2. Transitional package layout
-   Decide whether Rust temporarily lives under `psycopg_c` compatibility names
-   or under new `ferrocopg_*` names with adapters.
+2. Cutover mechanics
+   Decide whether Rust becomes selectable through the current implementation
+   selector or replaces the current accelerated path outright.
 
 3. PyPy support
-   Decide whether the Rust accelerated path will target CPython only at first,
-   with Python fallback on PyPy.
+   Decide whether Rust acceleration remains CPython-only at first, with Python
+   fallback on PyPy.
 
-4. Runtime strategy
-   Decide how `ferrocopg` owns or shares its async runtime around a
-   `tokio-postgres`-based backend, especially for the sync API.
+4. Backend scope
+   Decide whether pipeline behavior is required for backend cutover or remains
+   on a later milestone with explicit fallback behavior.
+
+## Test Plan
+
+The migration should use layered validation instead of a single “it builds”
+gate.
+
+Required validation buckets:
+
+- helper parity tests for COPY, waiting, generators, transformer, and selected
+  type helpers
+- DSN-backed backend tests for connect/query/prepare/transaction/cancel/COPY/
+  notify behavior
+- Rust crate tests for backend internals
+- existing Python API tests to ensure behavior does not regress when Rust is
+  absent
+
+Minimum CI coverage for the Rust path should include:
+
+- `uv sync --dev --group rust --locked`
+- `uv run maturin develop --manifest-path crates/ferrocopg-python/Cargo.toml`
+- `uv run pytest tests/test_ferrocopg_bootstrap.py -q`
+- `cargo test -p ferrocopg-postgres`
+
+## Cutover Gates
+
+No default-path change should happen until all of the following are true:
+
+- The optional Rust helper path is green in CI.
+- The backend session live tests are green against a real PostgreSQL DSN.
+- Error mapping, encoding behavior, cancel semantics, COPY semantics, and
+  notify behavior have explicit parity coverage.
+- The fallback story is documented for unsupported or deferred features.
+- Packaging and contributor workflow are ready for a Rust-first path.
 
 ## Success Criteria
 
 The migration is successful when all of the following are true:
 
-- `ferrocopg` has no Cython left in the repository.
-- Rust-backed accelerated modules pass the existing behavior contract.
+- There is no Cython left in the repository.
+- Rust-backed accelerated behavior passes the existing compatibility contract.
 - `uv` is the standard contributor workflow.
 - `maturin` is the standard extension build path.
 - A pinned Rust toolchain is part of the repository.
-- CI builds and tests the Rust-backed implementation across the supported
-  matrix.
+- CI validates the Rust-backed implementation.
+- The Python-facing Psycopg API remains compatible.
 
 ## Recommended Next Actions
 
-1. Create the Rust workspace and `rust-toolchain.toml`.
-2. Decide the temporary module/package naming for the Rust extension.
-3. Wire `maturin` into the repo.
-4. Rewrite contributor setup docs around `uv`.
-5. Implement the smallest possible Rust extension import path.
-6. Port `_psycopg` helpers before touching the `pq` layer.
+1. Update `plan.md` to reflect the repository's current state.
+2. Finish the remaining optional Rust helper parity work.
+3. Expand backend session coverage and DSN-backed tests.
+4. Add CI enforcement for the Rust path.
+5. Define explicit cutover gates before changing the default implementation
+   path.
