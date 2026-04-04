@@ -153,6 +153,13 @@ struct BackendExecuteResult {
 
 #[derive(Clone)]
 #[pyclass(module = "ferrocopg_rust._ferrocopg", skip_from_py_object)]
+struct BackendCopyOutResult {
+    #[pyo3(get)]
+    data: Vec<u8>,
+}
+
+#[derive(Clone)]
+#[pyclass(module = "ferrocopg_rust._ferrocopg", skip_from_py_object)]
 struct BackendStatementParameter {
     #[pyo3(get)]
     oid: u32,
@@ -450,6 +457,12 @@ impl From<ferrocopg_postgres::ExecuteResult> for BackendExecuteResult {
     }
 }
 
+impl From<ferrocopg_postgres::CopyOutResult> for BackendCopyOutResult {
+    fn from(result: ferrocopg_postgres::CopyOutResult) -> Self {
+        Self { data: result.data }
+    }
+}
+
 impl From<ferrocopg_postgres::StatementParameter> for BackendStatementParameter {
     fn from(param: ferrocopg_postgres::StatementParameter) -> Self {
         Self {
@@ -585,6 +598,19 @@ impl BackendSyncNoTlsSession {
         with_session(py, self, |session| session.rollback())
     }
 
+    fn copy_from_stdin(&self, py: Python<'_>, query: &str, data: Vec<u8>) -> PyResult<u64> {
+        let query = query.to_owned();
+        with_session(py, self, move |session| {
+            session.copy_from_stdin(&query, &data)
+        })
+    }
+
+    fn copy_to_stdout(&self, py: Python<'_>, query: &str) -> PyResult<BackendCopyOutResult> {
+        let query = query.to_owned();
+        with_session(py, self, move |session| session.copy_to_stdout(&query))
+            .map(BackendCopyOutResult::from)
+    }
+
     fn listen(&self, py: Python<'_>, channel: &str) -> PyResult<()> {
         let channel = channel.to_owned();
         with_session(py, self, move |session| session.listen(&channel))
@@ -684,6 +710,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<BackendNotification>()?;
     m.add_class::<BackendTextQueryResult>()?;
     m.add_class::<BackendExecuteResult>()?;
+    m.add_class::<BackendCopyOutResult>()?;
     m.add_class::<BackendStatementParameter>()?;
     m.add_class::<BackendStatementColumn>()?;
     m.add_class::<BackendStatementDescription>()?;

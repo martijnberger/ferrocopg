@@ -1,11 +1,12 @@
 use crate::error::ProbeError;
 use crate::model::{
-    BackendNotification, ExecuteResult, PreparedStatementInfo, StatementColumn,
+    BackendNotification, CopyOutResult, ExecuteResult, PreparedStatementInfo, StatementColumn,
     StatementDescription, StatementParameter, SyncNoTlsProbe, TextQueryResult,
 };
 use crate::params::{parsed_query_params, query_param_refs};
 use fallible_iterator::FallibleIterator;
 use std::collections::HashMap;
+use std::io::{Read, Write};
 use std::time::Duration;
 
 #[derive(Clone)]
@@ -222,6 +223,29 @@ impl SyncNoTlsSession {
             .map_err(ProbeError::Query)
     }
 
+    pub fn copy_from_stdin(&mut self, query: &str, data: &[u8]) -> Result<u64, ProbeError> {
+        let mut writer = self
+            .client_mut()?
+            .copy_in(query)
+            .map_err(ProbeError::Query)?;
+        writer
+            .write_all(data)
+            .map_err(io_error_as_postgres_bad_param)?;
+        writer.finish().map_err(ProbeError::Query)
+    }
+
+    pub fn copy_to_stdout(&mut self, query: &str) -> Result<CopyOutResult, ProbeError> {
+        let mut reader = self
+            .client_mut()?
+            .copy_out(query)
+            .map_err(ProbeError::Query)?;
+        let mut data = Vec::new();
+        reader
+            .read_to_end(&mut data)
+            .map_err(io_error_as_postgres_bad_param)?;
+        Ok(CopyOutResult { data })
+    }
+
     pub fn listen(&mut self, channel: &str) -> Result<(), ProbeError> {
         let query = format!("listen {}", quoted_identifier(channel));
         self.client_mut()?
@@ -347,4 +371,8 @@ fn quoted_identifier(identifier: &str) -> String {
 
 fn missing_statement(statement_id: u64) -> ProbeError {
     ProbeError::BadParam(format!("unknown prepared statement id: {statement_id}"))
+}
+
+fn io_error_as_postgres_bad_param(err: std::io::Error) -> ProbeError {
+    ProbeError::BadParam(err.to_string())
 }

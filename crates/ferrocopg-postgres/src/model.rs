@@ -104,6 +104,11 @@ pub struct ExecuteResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CopyOutResult {
+    pub data: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedStatementInfo {
     pub statement_id: u64,
     pub description: StatementDescription,

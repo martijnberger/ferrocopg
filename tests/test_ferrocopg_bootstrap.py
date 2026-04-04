@@ -2470,6 +2470,16 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
         ("t", 25, "text"),
     ]
 
+    copy_in_count = session.copy_from_stdin(
+        "copy ferrocopg_session_test (id, label) from stdin",
+        b"15\tcopied in\n16\tcopied out\n",
+    )
+    assert copy_in_count == 2
+    copied_out = session.copy_to_stdout(
+        "copy (select id, label from ferrocopg_session_test where id >= 15 order by id) to stdout"
+    )
+    assert copied_out.data == b"15\tcopied in\n16\tcopied out\n"
+
     session.close()
     assert session.closed is True
 
