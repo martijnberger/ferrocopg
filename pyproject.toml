@@ -1,6 +1,7 @@
 [project]
 name = "ferrocopg-workspace"
 version = "0.1.0"
+description = "Development workspace for the ferrocopg repository"
 requires-python = ">=3.10"
 dependencies = [
     "psycopg",
@@ -8,32 +9,25 @@ dependencies = [
 ]
 
 [dependency-groups]
-c = [
-    "psycopg-c",
-]
-rust = [
-    "ferrocopg-rust",
-]
+test = ["psycopg[test]", "psycopg-pool[test]"]
+lint = ["psycopg[dev]"]
+docs = ["psycopg[docs]", "psycopg-pool"]
+dns = ["dnspython >= 2.1"]
+gevent = ["gevent"]
+numpy = ["numpy"]
+postgis = ["shapely"]
+sqlalchemy = ["greenlet", "pytest-xdist"]
+c = ["psycopg-c"]
+rust = ["ferrocopg-rust", "maturin >= 1.8, < 2.0"]
 dev = [
-    "anyio >= 4.0",
-    "ast-comments >= 1.1.2",
-    "codespell >= 2.2",
-    "cython-lint >= 0.16",
+    "psycopg[test]",
+    "psycopg[dev]",
+    "psycopg[docs]",
+    "psycopg-pool[test]",
+    "psycopg-pool",
     "dnspython >= 2.1",
-    "gevent",
-    "maturin >= 1.8, < 2.0",
-    "mypy >= 1.19.0; implementation_name != 'pypy'",
     "numpy",
-    "pproxy >= 2.7",
-    "pre-commit >= 4.0.1",
-    "pytest >= 6.2.5",
-    "pytest-cov >= 3.0",
-    "pytest-randomly >= 3.5",
-    "ruff >= 0.11.0",
-    "shapely",
-    "types-setuptools >= 57.4",
-    "types-shapely >= 2.0",
-    "wheel >= 0.37",
+    "maturin >= 1.8, < 2.0",
 ]
 
 [build-system]
@@ -42,6 +36,8 @@ build-backend = "setuptools.build_meta"
 
 [tool.uv]
 package = false
+default-groups = ["dev"]
+resolution = "highest"
 
 [tool.uv.sources]
 ferrocopg-rust = { path = "./crates/ferrocopg-python" }
