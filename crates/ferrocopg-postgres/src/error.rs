@@ -21,8 +21,8 @@ impl fmt::Display for ProbeError {
                     "conninfo requires TLS; no-TLS bootstrap is not supported"
                 )
             }
-            Self::Connect(err) => write!(f, "{err}"),
-            Self::Query(err) => write!(f, "{err}"),
+            Self::Connect(err) => write!(f, "{}", postgres_error_message(err)),
+            Self::Query(err) => write!(f, "{}", postgres_error_message(err)),
             Self::BadParam(msg) => write!(f, "{msg}"),
             Self::Closed => write!(f, "backend session is closed"),
         }
@@ -38,4 +38,10 @@ impl Error for ProbeError {
             Self::BadParam(_) | Self::NoTlsNotSupported | Self::Closed => None,
         }
     }
+}
+
+fn postgres_error_message(err: &postgres::Error) -> String {
+    err.as_db_error()
+        .map(|db_err| db_err.message().to_owned())
+        .unwrap_or_else(|| err.to_string())
 }
