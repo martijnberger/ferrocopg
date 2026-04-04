@@ -1,8 +1,8 @@
 use crate::error::ProbeError;
 use crate::model::{
-    BackendNotification, CopyOutResult, ExecuteResult, PreparedStatementInfo, SimpleQueryMessage,
-    SimpleQueryResult, StatementColumn, StatementDescription, StatementParameter, SyncNoTlsProbe,
-    TextQueryResult,
+    BackendNotification, CopyOutResult, ExecuteResult, PreparedStatementInfo, ResultSet,
+    SimpleQueryMessage, SimpleQueryResult, StatementColumn, StatementDescription,
+    StatementParameter, SyncNoTlsProbe, TextQueryResult,
 };
 use crate::params::{parsed_query_params, query_param_refs};
 use fallible_iterator::FallibleIterator;
@@ -139,6 +139,18 @@ impl SyncNoTlsSession {
         text_query_result(rows)
     }
 
+    pub fn run_text_params(
+        &mut self,
+        query: &str,
+        params: &[Option<String>],
+    ) -> Result<ResultSet, ProbeError> {
+        let statement = self
+            .client_mut()?
+            .prepare(query)
+            .map_err(ProbeError::Query)?;
+        self.run_statement_params(&statement, params)
+    }
+
     pub fn describe_text(&mut self, query: &str) -> Result<StatementDescription, ProbeError> {
         let statement = self
             .client_mut()?
@@ -201,6 +213,15 @@ impl SyncNoTlsSession {
             .query(&statement, &refs)
             .map_err(ProbeError::Query)?;
         text_query_result(rows)
+    }
+
+    pub fn run_prepared_text_params(
+        &mut self,
+        statement_id: u64,
+        params: &[Option<String>],
+    ) -> Result<ResultSet, ProbeError> {
+        let statement = self.prepared_statement(statement_id)?.clone();
+        self.run_statement_params(&statement, params)
     }
 
     pub fn execute_prepared_text_params(
@@ -327,6 +348,33 @@ impl SyncNoTlsSession {
             .get(&statement_id)
             .ok_or_else(|| missing_statement(statement_id))
     }
+
+    fn run_statement_params(
+        &mut self,
+        statement: &postgres::Statement,
+        params: &[Option<String>],
+    ) -> Result<ResultSet, ProbeError> {
+        let params = parsed_query_params(statement, params)?;
+        let refs = query_param_refs(&params);
+
+        if statement.columns().is_empty() {
+            let rows_affected = self
+                .client_mut()?
+                .execute(statement, &refs)
+                .map_err(ProbeError::Query)?;
+            Ok(ResultSet {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                rows_affected,
+            })
+        } else {
+            let rows = self
+                .client_mut()?
+                .query(statement, &refs)
+                .map_err(ProbeError::Query)?;
+            result_set_from_rows(rows)
+        }
+    }
 }
 
 pub(crate) fn statement_description(statement: &postgres::Statement) -> StatementDescription {
@@ -374,6 +422,16 @@ fn text_query_result(rows: Vec<postgres::Row>) -> Result<TextQueryResult, ProbeE
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(TextQueryResult { columns, rows })
+}
+
+fn result_set_from_rows(rows: Vec<postgres::Row>) -> Result<ResultSet, ProbeError> {
+    let result = text_query_result(rows)?;
+    let rows_affected = result.rows.len() as u64;
+    Ok(ResultSet {
+        columns: result.columns,
+        rows: result.rows,
+        rows_affected,
+    })
 }
 
 fn simple_query_messages(
