@@ -153,6 +153,14 @@ jobs:
     runs-on: ubuntu-latest
     if: true
 
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {python: "3.10", postgres: "postgres:14", libpq: oldest}
+          - {python: "3.11", postgres: "postgres:17", libpq: newest}
+          - {python: "3.13", postgres: "postgres:18", libpq: newest}
+
     env:
       PSYCOPG_IMPL: python
       PSYCOPG_TEST_DSN: "host=127.0.0.1 user=postgres password=password"
@@ -162,7 +170,7 @@ jobs:
 
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python }}
 
       - uses: astral-sh/setup-uv@v6
         with:
@@ -170,13 +178,13 @@ jobs:
 
       - name: Start PostgreSQL service
         run: |
-          docker pull postgres:17
+          docker pull ${{ matrix.postgres }}
           docker run --rm -d --name postgres -p 5432:5432 \
-            -e POSTGRES_PASSWORD=password postgres:17 \
+            -e POSTGRES_PASSWORD=password ${{ matrix.postgres }} \
             -c max_prepared_transactions=10
 
       - name: Install the wanted libpq version
-        run: sudo ./tools/ci/ci_install_libpq.sh newest
+        run: sudo ./tools/ci/ci_install_libpq.sh ${{ matrix.libpq }}
 
       - name: Sync uv environment for the Rust path
         run: uv sync --no-default-groups --group test --group rust --locked
