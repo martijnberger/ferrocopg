@@ -8,10 +8,33 @@ extension to be present in every environment.
 
 from __future__ import annotations
 
-from typing import cast
+from collections.abc import Iterator, Sequence
+from typing import Protocol, cast
 
 from ._rmodule import __version__ as __version__
 from ._rmodule import _ferrocopg
+
+
+class _ResultSetLike(Protocol):
+    columns: list[str]
+    rows: list[list[str | None]]
+    rows_affected: int
+
+
+class _NoTlsSessionLike(Protocol):
+    closed: bool
+
+    def close(self) -> None: ...
+
+    def simple_query_results(self, query: str) -> list[_ResultSetLike]: ...
+
+    def run_text_params(
+        self, query: str, params: list[str | None]
+    ) -> _ResultSetLike: ...
+
+    def run_prepared_text_params(
+        self, statement_id: int, params: list[str | None]
+    ) -> _ResultSetLike: ...
 
 
 def is_available() -> bool:
@@ -131,3 +154,124 @@ def no_tls_session(conninfo: str) -> object | None:
     if not _ferrocopg:
         return None
     return cast(object, _ferrocopg.connect_no_tls_session(conninfo))
+
+
+class BackendResultCursor:
+    """Small cursor-like wrapper over ferrocopg backend result sets."""
+
+    def __init__(self, results: Sequence[_ResultSetLike]):
+        self._results = list(results)
+        self._index = 0 if self._results else -1
+        self._pos = 0
+
+    @property
+    def current_result(self) -> _ResultSetLike | None:
+        if self._index < 0:
+            return None
+        return self._results[self._index]
+
+    @property
+    def columns(self) -> list[str]:
+        result = self.current_result
+        if result is None:
+            return []
+        return result.columns
+
+    @property
+    def rows_affected(self) -> int:
+        result = self.current_result
+        if result is None:
+            return -1
+        return result.rows_affected
+
+    def fetchone(self) -> list[str | None] | None:
+        result = self.current_result
+        if result is None:
+            return None
+
+        rows = result.rows
+        if self._pos >= len(rows):
+            return None
+
+        row = rows[self._pos]
+        self._pos += 1
+        return row
+
+    def fetchall(self) -> list[list[str | None]]:
+        result = self.current_result
+        if result is None:
+            return []
+
+        rows = result.rows
+        rv = rows[self._pos :]
+        self._pos = len(rows)
+        return rv
+
+    def nextset(self) -> bool | None:
+        if self._index < 0 or self._index + 1 >= len(self._results):
+            return None
+
+        self._index += 1
+        self._pos = 0
+        return True
+
+    def set_result(self, index: int) -> BackendResultCursor:
+        if not -len(self._results) <= index < len(self._results):
+            raise IndexError(
+                f"index {index} out of range: {len(self._results)} result(s) available"
+            )
+        if index < 0:
+            index += len(self._results)
+
+        self._index = index
+        self._pos = 0
+        return self
+
+    def results(self) -> Iterator[BackendResultCursor]:
+        if self.current_result is not None:
+            while True:
+                yield self
+                if not self.nextset():
+                    break
+
+
+class NoTlsSessionAdapter:
+    """Thin Python adapter over the Rust no-TLS backend session."""
+
+    def __init__(self, session: _NoTlsSessionLike):
+        self._session = session
+
+    @property
+    def closed(self) -> bool:
+        return self._session.closed
+
+    def close(self) -> None:
+        self._session.close()
+
+    def execute_simple(self, query: str) -> BackendResultCursor:
+        return BackendResultCursor(self._session.simple_query_results(query))
+
+    def execute_params(
+        self, query: str, params: list[str | None]
+    ) -> BackendResultCursor:
+        return BackendResultCursor([self._session.run_text_params(query, params)])
+
+    def execute_prepared(
+        self, statement_id: int, params: list[str | None]
+    ) -> BackendResultCursor:
+        return BackendResultCursor(
+            [self._session.run_prepared_text_params(statement_id, params)]
+        )
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._session, name)
+
+
+def no_tls_session_adapter(conninfo: str) -> NoTlsSessionAdapter | None:
+    """
+    Return a small Python-side adapter over the Rust backend session if loaded.
+    """
+    session = no_tls_session(conninfo)
+    if session is None:
+        return None
+    return NoTlsSessionAdapter(cast(_NoTlsSessionLike, session))

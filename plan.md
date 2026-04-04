@@ -27,6 +27,31 @@ The following foundation work is already in place:
 The next phase should optimize for finishing the optional Rust path safely
 before attempting any default-path cutover.
 
+## Coexistence Policy
+
+During the migration, `ferrocopg` must support three coexisting
+implementation modes:
+
+- the existing Cython/C accelerated path in `psycopg_c/`
+- the pure Python path in `psycopg/`
+- the Rust-backed path exposed through `ferrocopg_rust` and
+  `psycopg._ferrocopg`
+
+This coexistence is not a temporary accident. It is part of the migration
+strategy.
+
+The plan assumes that:
+
+- the Cython/C path remains available as the stable baseline until Rust cutover
+  gates are met
+- the pure Python path remains available as the portability and fallback path
+- the Rust path grows behind explicit selectors, helper seams, and backend
+  adapters until it is ready to become the default
+
+No implementation should be removed merely because another one exists. Removal
+only happens after the replacement has explicit parity evidence and the
+fallback story is clear.
+
 ## Non-goals For The Next Phase
 
 - Redesigning the public Python connection or cursor APIs.
@@ -39,7 +64,7 @@ before attempting any default-path cutover.
 The repository now has three active migration layers:
 
 - `psycopg/`
-  The main Python package and compatibility surface.
+  The main Python package, compatibility surface, and pure Python fallback.
 - `psycopg_c/`
   The existing Cython/C accelerated implementation, still the primary optional
   optimized path.
@@ -69,13 +94,22 @@ The current Python integration points for the optional Rust path include:
 This means the migration is already underway and the plan should focus on
 parity, CI enforcement, and cutover readiness.
 
+Operationally, this means the repository should continue to support:
+
+- Python-only execution without Rust or Cython acceleration
+- Cython/C acceleration where `psycopg_c` is installed and selected
+- Rust-backed helpers and backend flows where `ferrocopg_rust` is installed
+  and selected
+
 ## Guiding Principles
 
 1. Preserve the current Python API until the Rust port is stable.
 2. Use the existing test suite as the migration contract.
-3. Finish parity behind the optional Rust path before changing defaults.
-4. Keep cutover gates explicit and evidence-based.
-5. Delete Cython only after Rust-backed behavior is passing in CI and the
+3. Keep the Python, Cython/C, and Rust implementations simultaneously usable
+   during the migration.
+4. Finish parity behind the optional Rust path before changing defaults.
+5. Keep cutover gates explicit and evidence-based.
+6. Delete Cython only after Rust-backed behavior is passing in CI and the
    default-path transition is complete.
 
 ## Desired End State
@@ -113,7 +147,7 @@ Expected result:
 - The optional Rust path is behaviorally interchangeable with the current
   Python/Cython helper seams for covered scenarios.
 - The test suite can validate the Rust helpers side by side with Python and
-  Cython implementations.
+  Cython implementations instead of replacing either one prematurely.
 
 ### Track B: Rust-native backend session parity
 
@@ -184,6 +218,8 @@ Tasks:
   prepare, execute, transactions, cancel, COPY, and notify flows.
 - Preserve expected Python-facing error mapping and encoding behavior.
 - Keep the backend session path optional and isolated from default execution.
+- Keep the backend work compatible with continued coexistence of the pure
+  Python and Cython/C implementations.
 
 Definition of done:
 
@@ -219,6 +255,8 @@ Tasks:
   expansion.
 - Decide which unsupported features block cutover and which can remain on
   fallback paths.
+- Define the coexistence period explicitly, including which selectors or
+  packaging combinations continue to expose Python, Cython/C, and Rust paths.
 
 Definition of done:
 
@@ -269,7 +307,8 @@ block the current optional-path work.
 
 2. Cutover mechanics
    Decide whether Rust becomes selectable through the current implementation
-   selector or replaces the current accelerated path outright.
+   selector, becomes an additional selectable backend, or replaces the current
+   accelerated path outright after the coexistence period.
 
 3. PyPy support
    Decide whether Rust acceleration remains CPython-only at first, with Python
@@ -293,6 +332,8 @@ Required validation buckets:
 - Rust crate tests for backend internals
 - existing Python API tests to ensure behavior does not regress when Rust is
   absent
+- selector and packaging tests to ensure Python, Cython/C, and Rust modes can
+  coexist without import-path or runtime conflicts
 
 Minimum CI coverage for the Rust path should include:
 
@@ -309,6 +350,9 @@ No default-path change should happen until all of the following are true:
 - The backend session live tests are green against a real PostgreSQL DSN.
 - Error mapping, encoding behavior, cancel semantics, COPY semantics, and
   notify behavior have explicit parity coverage.
+- The coexistence story is proven: Python-only, Cython/C, and Rust-backed
+  modes all still work as intended under supported selectors and packaging
+  layouts.
 - The fallback story is documented for unsupported or deferred features.
 - Packaging and contributor workflow are ready for a Rust-first path.
 
