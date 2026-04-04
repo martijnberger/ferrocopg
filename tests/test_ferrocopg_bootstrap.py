@@ -2359,6 +2359,30 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
     assert stored.columns == ["id", "label"]
     assert stored.rows == [["10", "row"], ["11", None]]
 
+    session.begin()
+    tx_inserted = session.execute_text_params(
+        "insert into ferrocopg_session_test (id, label) values ($1::int4, $2::text)",
+        ["12", "rolled back"],
+    )
+    assert tx_inserted.rows_affected == 1
+    session.rollback()
+    after_rollback = session.query_text(
+        "select id::text as id, label from ferrocopg_session_test order by id"
+    )
+    assert after_rollback.rows == [["10", "row"], ["11", None]]
+
+    session.begin()
+    tx_committed = session.execute_text_params(
+        "insert into ferrocopg_session_test (id, label) values ($1::int4, $2::text)",
+        ["13", "committed"],
+    )
+    assert tx_committed.rows_affected == 1
+    session.commit()
+    after_commit = session.query_text(
+        "select id::text as id, label from ferrocopg_session_test order by id"
+    )
+    assert after_commit.rows == [["10", "row"], ["11", None], ["13", "committed"]]
+
     description = session.describe_text("select $1::int4 as n, $2::text as t")
     assert [(param.oid, param.type_name) for param in description.params] == [
         (23, "int4"),

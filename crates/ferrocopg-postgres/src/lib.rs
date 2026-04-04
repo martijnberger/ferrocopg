@@ -508,6 +508,24 @@ impl SyncNoTlsSession {
         Ok(ExecuteResult { rows_affected })
     }
 
+    pub fn begin(&mut self) -> Result<(), ProbeError> {
+        self.client_mut()?
+            .batch_execute("begin")
+            .map_err(ProbeError::Query)
+    }
+
+    pub fn commit(&mut self) -> Result<(), ProbeError> {
+        self.client_mut()?
+            .batch_execute("commit")
+            .map_err(ProbeError::Query)
+    }
+
+    pub fn rollback(&mut self) -> Result<(), ProbeError> {
+        self.client_mut()?
+            .batch_execute("rollback")
+            .map_err(ProbeError::Query)
+    }
+
     fn client_mut(&mut self) -> Result<&mut postgres::Client, ProbeError> {
         self.client.as_mut().ok_or(ProbeError::Closed)
     }
@@ -852,6 +870,9 @@ mod tests {
             session.execute_text_params("select 1", &[]),
             Err(ProbeError::Closed)
         ));
+        assert!(matches!(session.begin(), Err(ProbeError::Closed)));
+        assert!(matches!(session.commit(), Err(ProbeError::Closed)));
+        assert!(matches!(session.rollback(), Err(ProbeError::Closed)));
         assert!(matches!(
             session.describe_text("select 1"),
             Err(ProbeError::Closed)
