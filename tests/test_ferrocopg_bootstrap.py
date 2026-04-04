@@ -2082,6 +2082,7 @@ def test_ferrocopg_unavailable(monkeypatch):
     assert module.execute_text_params_no_tls("host=localhost", "select 1", []) is None
     assert module.describe_text_no_tls("host=localhost", "select 1") is None
     assert module.no_tls_session("host=localhost") is None
+    assert module.no_tls_session_adapter("host=localhost") is None
 
 
 def test_ferrocopg_wrapper(monkeypatch):
@@ -2206,6 +2207,8 @@ def test_ferrocopg_wrapper(monkeypatch):
         "select 1",
     )
     assert module.no_tls_session("host=localhost") == ("session", "host=localhost")
+    adapter = module.no_tls_session_adapter("host=localhost")
+    assert adapter is not None
     assert calls == [
         ("summary", "host=localhost"),
         ("plan", "host=localhost"),
@@ -2219,6 +2222,90 @@ def test_ferrocopg_wrapper(monkeypatch):
         ("execute-params", "host=localhost"),
         ("describe", "host=localhost"),
         ("session", "host=localhost"),
+        ("session", "host=localhost"),
+    ]
+
+
+def test_backend_result_cursor_navigation() -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    results = [
+        SimpleNamespace(columns=["a"], rows=[["one"], ["two"]], rows_affected=2),
+        SimpleNamespace(columns=["b"], rows=[["three"]], rows_affected=1),
+    ]
+
+    cur = module.BackendResultCursor(results)
+    assert cur.columns == ["a"]
+    assert cur.rows_affected == 2
+    assert cur.fetchone() == ["one"]
+    assert cur.fetchall() == [["two"]]
+    assert cur.nextset() is True
+    assert cur.columns == ["b"]
+    assert cur.fetchall() == [["three"]]
+    assert cur.nextset() is None
+    assert cur.set_result(0) is cur
+    assert cur.fetchall() == [["one"], ["two"]]
+    assert cur.set_result(-1) is cur
+    assert cur.fetchall() == [["three"]]
+
+
+def test_backend_result_cursor_results_iterator() -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    results = [
+        SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1),
+        SimpleNamespace(columns=["b"], rows=[["two"]], rows_affected=1),
+    ]
+
+    cur = module.BackendResultCursor(results)
+    observed = [res.fetchall() for res in cur.results()]
+    assert observed == [[["one"]], [["two"]]]
+
+
+def test_no_tls_session_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubSession:
+        closed = False
+
+        def __init__(self) -> None:
+            self.calls: list[object] = []
+
+        def close(self) -> None:
+            self.calls.append(("close",))
+
+        def simple_query_results(self, query: str) -> list[object]:
+            self.calls.append(("simple", query))
+            return [
+                SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1),
+                SimpleNamespace(columns=["b"], rows=[["two"]], rows_affected=1),
+            ]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            self.calls.append(("params", query, params))
+            return SimpleNamespace(columns=["c"], rows=[["three"]], rows_affected=1)
+
+        def run_prepared_text_params(
+            self, statement_id: int, params: list[str | None]
+        ) -> object:
+            self.calls.append(("prepared", statement_id, params))
+            return SimpleNamespace(columns=["d"], rows=[["four"]], rows_affected=1)
+
+    stub = StubSession()
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: stub)
+
+    adapter = module.no_tls_session_adapter("host=localhost")
+    assert adapter is not None
+    assert adapter.closed is False
+    assert adapter.execute_simple("select 1").fetchall() == [["one"]]
+    assert adapter.execute_params("select $1::text", ["x"]).fetchall() == [["three"]]
+    assert adapter.execute_prepared(7, ["y"]).fetchall() == [["four"]]
+    adapter.close()
+    assert stub.calls == [
+        ("simple", "select 1"),
+        ("params", "select $1::text", ["x"]),
+        ("prepared", 7, ["y"]),
+        ("close",),
     ]
 
 
@@ -2648,6 +2735,42 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
         session.query_text("select 1")
     with pytest.raises(RuntimeError, match="closed"):
         session.describe_text("select 1")
+
+
+def test_backend_no_tls_session_adapter_live(dsn: str) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    adapter = module.no_tls_session_adapter(dsn)
+    assert adapter is not None
+    assert adapter.closed is False
+
+    simple = adapter.execute_simple(
+        "select 'first'::text as label; select 'second'::text as label"
+    )
+    assert simple.fetchall() == [["first"]]
+    assert simple.nextset() is True
+    assert simple.fetchall() == [["second"]]
+    assert simple.nextset() is None
+
+    bound = adapter.execute_params(
+        "select ($1::int4 + $2::int4)::text as total, $3::text as label",
+        ["2", "5", "sum"],
+    )
+    assert bound.columns == ["total", "label"]
+    assert bound.rows_affected == 1
+    assert bound.fetchall() == [["7", "sum"]]
+
+    prepared = adapter.prepare_text(
+        "select id::text as id, label from (values (1, 'one'), (2, 'two')) as t(id, label) where id >= $1::int4 order by id"
+    )
+    prepared_cur = adapter.execute_prepared(prepared.statement_id, ["2"])
+    assert prepared_cur.fetchall() == [["2", "two"]]
+
+    adapter.close()
+    assert adapter.closed is True
 
 
 def test_backend_no_tls_cancel_handle_live(dsn: str) -> None:
