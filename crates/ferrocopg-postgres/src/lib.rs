@@ -17,7 +17,7 @@ pub use bootstrap::{
 pub use error::ProbeError;
 pub use model::{
     BackendNotification, ConnectEndpoint, ConnectPlan, ConnectTarget, ConninfoSummary,
-    ExecuteResult, PreparedStatementInfo, StatementColumn, StatementDescription,
+    CopyOutResult, ExecuteResult, PreparedStatementInfo, StatementColumn, StatementDescription,
     StatementParameter, SyncNoTlsProbe, TextQueryResult,
 };
 pub use session::{SyncNoTlsCancelHandle, SyncNoTlsSession};
@@ -110,6 +110,14 @@ mod tests {
         assert!(matches!(session.begin(), Err(ProbeError::Closed)));
         assert!(matches!(session.commit(), Err(ProbeError::Closed)));
         assert!(matches!(session.rollback(), Err(ProbeError::Closed)));
+        assert!(matches!(
+            session.copy_from_stdin("copy demo from stdin", b""),
+            Err(ProbeError::Closed)
+        ));
+        assert!(matches!(
+            session.copy_to_stdout("copy demo to stdout"),
+            Err(ProbeError::Closed)
+        ));
         assert!(matches!(
             session.listen("ferrocopg"),
             Err(ProbeError::Closed)
