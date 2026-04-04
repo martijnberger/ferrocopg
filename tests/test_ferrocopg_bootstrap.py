@@ -2605,6 +2605,59 @@ def test_no_tls_connection_adapter_transaction(monkeypatch: pytest.MonkeyPatch) 
     ]
 
 
+def test_no_tls_connection_adapter_exceptions(monkeypatch: pytest.MonkeyPatch) -> None:
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubSession:
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+        def begin(self) -> None:
+            pass
+
+        def commit(self) -> None:
+            pass
+
+        def rollback(self) -> None:
+            pass
+
+        def prepare_text(self, query: str) -> object:
+            return SimpleNamespace(statement_id=1)
+
+        def simple_query_results(self, query: str) -> list[object]:
+            return [SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            return SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)
+
+        def run_prepared_text_params(
+            self, statement_id: int, params: list[str | None]
+        ) -> object:
+            return SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)
+
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: StubSession())
+
+    conn = module.no_tls_connection_adapter("host=localhost")
+    assert conn is not None
+
+    cur = conn.cursor()
+    with pytest.raises(psycopg.ProgrammingError, match="no result available"):
+        cur.fetchone()
+    cur.close()
+    with pytest.raises(psycopg.InterfaceError, match="cursor is closed"):
+        cur.execute("select 1")
+
+    conn.close()
+    with pytest.raises(psycopg.OperationalError, match="connection is closed"):
+        conn.cursor()
+    with pytest.raises(psycopg.OperationalError, match="connection is closed"):
+        conn.execute("select 1")
+
+
 def test_backend_connect_target_parses_endpoints() -> None:
     module = importlib.import_module("psycopg._ferrocopg")
 
@@ -3070,6 +3123,8 @@ def test_backend_no_tls_session_adapter_live(dsn: str) -> None:
 
 
 def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
+    import psycopg
+
     module = importlib.import_module("psycopg._ferrocopg")
 
     if not module.is_available():
@@ -3197,6 +3252,9 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
 
     conn.close()
     assert conn.closed is True
+
+    with pytest.raises(psycopg.OperationalError, match="connection is closed"):
+        conn.execute("select 1")
 
 
 def test_backend_no_tls_cancel_handle_live(dsn: str) -> None:

@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator, Sequence
 from typing import NamedTuple, Protocol, cast
 
+from . import errors as e
 from ._rmodule import __version__ as __version__
 from ._rmodule import _ferrocopg
 from .transaction import Rollback
@@ -382,6 +383,7 @@ class NoTlsCursorAdapter:
         prepare: bool = False,
     ) -> NoTlsCursorAdapter:
         self._check_closed()
+        self._conn._check_closed()
         self._result = self._conn._execute(query, params, prepare=prepare)
         self._rownumber = 0
         return self
@@ -395,6 +397,7 @@ class NoTlsCursorAdapter:
         prepare: bool = False,
     ) -> NoTlsCursorAdapter:
         self._check_closed()
+        self._conn._check_closed()
         if returning:
             results = [
                 self._conn._execute(query, params, prepare=prepare).current_result
@@ -414,25 +417,22 @@ class NoTlsCursorAdapter:
         return self
 
     def fetchone(self) -> object | None:
-        if self._result is None:
-            return None
-        row = self._result.fetchone()
+        result = self._require_result()
+        row = result.fetchone()
         if row is None:
             return None
         self._rownumber += 1
-        return self._row_factory(self._result.columns, row)
+        return self._row_factory(result.columns, row)
 
     def fetchall(self) -> list[object]:
-        if self._result is None:
-            return []
-        rows = self._result.fetchall()
+        result = self._require_result()
+        rows = result.fetchall()
         self._rownumber += len(rows)
-        return [self._row_factory(self._result.columns, row) for row in rows]
+        return [self._row_factory(result.columns, row) for row in rows]
 
     def nextset(self) -> bool | None:
-        if self._result is None:
-            return None
-        return self._result.nextset()
+        result = self._require_result()
+        return result.nextset()
 
     def __enter__(self) -> NoTlsCursorAdapter:
         self._check_closed()
@@ -443,7 +443,14 @@ class NoTlsCursorAdapter:
 
     def _check_closed(self) -> None:
         if self._closed:
-            raise RuntimeError("cursor is closed")
+            raise e.InterfaceError("the cursor is closed")
+
+    def _require_result(self) -> BackendResultCursor:
+        self._check_closed()
+        self._conn._check_closed()
+        if self._result is None:
+            raise e.ProgrammingError("no result available")
+        return self._result
 
 
 class NoTlsConnectionAdapter:
@@ -463,6 +470,7 @@ class NoTlsConnectionAdapter:
         self._session.close()
 
     def cursor(self, *, row_factory: RowFactory = list_row) -> NoTlsCursorAdapter:
+        self._check_closed()
         return NoTlsCursorAdapter(self, row_factory=row_factory)
 
     def execute(
@@ -473,16 +481,20 @@ class NoTlsConnectionAdapter:
         prepare: bool = False,
         row_factory: RowFactory = list_row,
     ) -> NoTlsCursorAdapter:
+        self._check_closed()
         cur = self.cursor(row_factory=row_factory)
         return cur.execute(query, params, prepare=prepare)
 
     def begin(self) -> None:
+        self._check_closed()
         self._session.begin()
 
     def commit(self) -> None:
+        self._check_closed()
         self._session.commit()
 
     def rollback(self) -> None:
+        self._check_closed()
         self._session.rollback()
 
     def transaction(
@@ -515,6 +527,10 @@ class NoTlsConnectionAdapter:
             return self._session.execute_prepared(statement_id, params)
 
         return self._session.execute_params(query, params)
+
+    def _check_closed(self) -> None:
+        if self.closed:
+            raise e.OperationalError("the connection is closed")
 
 
 class NoTlsTransactionAdapter:
