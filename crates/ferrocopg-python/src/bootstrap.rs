@@ -126,6 +126,17 @@ struct BackendSyncNoTlsProbe {
 
 #[derive(Clone)]
 #[pyclass(module = "ferrocopg_rust._ferrocopg")]
+struct BackendNotification {
+    #[pyo3(get)]
+    process_id: i32,
+    #[pyo3(get)]
+    channel: String,
+    #[pyo3(get)]
+    payload: String,
+}
+
+#[derive(Clone)]
+#[pyclass(module = "ferrocopg_rust._ferrocopg")]
 struct BackendTextQueryResult {
     #[pyo3(get)]
     columns: Vec<String>,
@@ -363,6 +374,16 @@ impl From<ferrocopg_postgres::SyncNoTlsProbe> for BackendSyncNoTlsProbe {
     }
 }
 
+impl From<ferrocopg_postgres::BackendNotification> for BackendNotification {
+    fn from(notification: ferrocopg_postgres::BackendNotification) -> Self {
+        Self {
+            process_id: notification.process_id,
+            channel: notification.channel,
+            payload: notification.payload,
+        }
+    }
+}
+
 impl From<ferrocopg_postgres::TextQueryResult> for BackendTextQueryResult {
     fn from(result: ferrocopg_postgres::TextQueryResult) -> Self {
         Self {
@@ -548,6 +569,73 @@ impl BackendSyncNoTlsSession {
             .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
     }
 
+    fn listen(&self, channel: &str) -> PyResult<()> {
+        self.inner
+            .lock()
+            .map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    "backend session mutex is poisoned",
+                )
+            })?
+            .listen(channel)
+            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    }
+
+    fn unlisten(&self, channel: &str) -> PyResult<()> {
+        self.inner
+            .lock()
+            .map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    "backend session mutex is poisoned",
+                )
+            })?
+            .unlisten(channel)
+            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    }
+
+    fn notify(&self, channel: &str, payload: &str) -> PyResult<()> {
+        self.inner
+            .lock()
+            .map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    "backend session mutex is poisoned",
+                )
+            })?
+            .notify(channel, payload)
+            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    }
+
+    fn drain_notifications(&self) -> PyResult<Vec<BackendNotification>> {
+        self.inner
+            .lock()
+            .map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    "backend session mutex is poisoned",
+                )
+            })?
+            .drain_notifications()
+            .map(|notifications| {
+                notifications
+                    .into_iter()
+                    .map(BackendNotification::from)
+                    .collect()
+            })
+            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    }
+
+    fn wait_for_notification(&self, timeout_ms: u64) -> PyResult<Option<BackendNotification>> {
+        self.inner
+            .lock()
+            .map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    "backend session mutex is poisoned",
+                )
+            })?
+            .wait_for_notification(timeout_ms)
+            .map(|notification| notification.map(BackendNotification::from))
+            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    }
+
     fn describe_text(&self, query: &str) -> PyResult<BackendStatementDescription> {
         self.inner
             .lock()
@@ -640,6 +728,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<BackendConnectEndpoint>()?;
     m.add_class::<BackendConnectTarget>()?;
     m.add_class::<BackendSyncNoTlsProbe>()?;
+    m.add_class::<BackendNotification>()?;
     m.add_class::<BackendTextQueryResult>()?;
     m.add_class::<BackendExecuteResult>()?;
     m.add_class::<BackendStatementParameter>()?;

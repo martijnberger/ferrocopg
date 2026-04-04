@@ -1,10 +1,12 @@
 use crate::error::ProbeError;
 use crate::model::{
-    ExecuteResult, PreparedStatementInfo, StatementColumn, StatementDescription,
-    StatementParameter, SyncNoTlsProbe, TextQueryResult,
+    BackendNotification, ExecuteResult, PreparedStatementInfo, StatementColumn,
+    StatementDescription, StatementParameter, SyncNoTlsProbe, TextQueryResult,
 };
 use crate::params::{parsed_query_params, query_param_refs};
+use fallible_iterator::FallibleIterator;
 use std::collections::HashMap;
+use std::time::Duration;
 
 pub struct SyncNoTlsSession {
     client: Option<postgres::Client>,
@@ -200,6 +202,54 @@ impl SyncNoTlsSession {
             .map_err(ProbeError::Query)
     }
 
+    pub fn listen(&mut self, channel: &str) -> Result<(), ProbeError> {
+        let query = format!("listen {}", quoted_identifier(channel));
+        self.client_mut()?
+            .batch_execute(&query)
+            .map_err(ProbeError::Query)
+    }
+
+    pub fn unlisten(&mut self, channel: &str) -> Result<(), ProbeError> {
+        let query = format!("unlisten {}", quoted_identifier(channel));
+        self.client_mut()?
+            .batch_execute(&query)
+            .map_err(ProbeError::Query)
+    }
+
+    pub fn notify(&mut self, channel: &str, payload: &str) -> Result<(), ProbeError> {
+        self.client_mut()?
+            .execute(
+                "select pg_notify($1::text, $2::text)",
+                &[&channel, &payload],
+            )
+            .map(|_| ())
+            .map_err(ProbeError::Query)
+    }
+
+    pub fn drain_notifications(&mut self) -> Result<Vec<BackendNotification>, ProbeError> {
+        let mut notifications = self.client_mut()?.notifications();
+        let mut iter = notifications.iter();
+        let mut drained = Vec::new();
+
+        while let Some(notification) = iter.next().map_err(ProbeError::Query)? {
+            drained.push(backend_notification(notification));
+        }
+
+        Ok(drained)
+    }
+
+    pub fn wait_for_notification(
+        &mut self,
+        timeout_ms: u64,
+    ) -> Result<Option<BackendNotification>, ProbeError> {
+        let mut notifications = self.client_mut()?.notifications();
+        notifications
+            .timeout_iter(Duration::from_millis(timeout_ms))
+            .next()
+            .map_err(ProbeError::Query)
+            .map(|notification| notification.map(backend_notification))
+    }
+
     fn client_mut(&mut self) -> Result<&mut postgres::Client, ProbeError> {
         self.client.as_mut().ok_or(ProbeError::Closed)
     }
@@ -260,6 +310,19 @@ fn text_query_result(rows: Vec<postgres::Row>) -> Result<TextQueryResult, ProbeE
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(TextQueryResult { columns, rows })
+}
+
+fn backend_notification(notification: postgres::Notification) -> BackendNotification {
+    BackendNotification {
+        process_id: notification.process_id(),
+        channel: notification.channel().to_owned(),
+        payload: notification.payload().to_owned(),
+    }
+}
+
+fn quoted_identifier(identifier: &str) -> String {
+    let escaped = identifier.replace('"', "\"\"");
+    format!("\"{escaped}\"")
 }
 
 fn missing_statement(statement_id: u64) -> ProbeError {

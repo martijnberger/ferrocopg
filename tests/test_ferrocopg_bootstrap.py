@@ -2417,6 +2417,43 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
     with pytest.raises(RuntimeError, match="unknown prepared statement id"):
         session.describe_prepared(prepared_query.statement_id)
 
+    listener_channel = f"ferrocopg_backend_notify_{uuid.uuid4().hex}"
+    sender = module.no_tls_session(dsn)
+    assert sender is not None
+    listener_probe = session.probe()
+
+    session.listen(listener_channel)
+    sender.notify(listener_channel, "first")
+    first_notification = session.wait_for_notification(1_000)
+    assert first_notification is not None
+    assert first_notification.channel == listener_channel
+    assert first_notification.payload == "first"
+    assert first_notification.process_id == sender.probe().backend_pid
+
+    sender.notify(listener_channel, "second")
+    sender.notify(listener_channel, "third")
+    next_notification = session.wait_for_notification(1_000)
+    assert next_notification is not None
+    drained_notifications = session.drain_notifications()
+    observed_payloads = sorted(
+        [next_notification.payload, *[notification.payload for notification in drained_notifications]]
+    )
+    assert observed_payloads == ["second", "third"]
+    assert all(
+        notification.channel == listener_channel
+        for notification in [next_notification, *drained_notifications]
+    )
+    assert all(
+        notification.process_id == sender.probe().backend_pid
+        for notification in [next_notification, *drained_notifications]
+    )
+
+    session.unlisten(listener_channel)
+    sender.notify(listener_channel, "ignored")
+    assert session.wait_for_notification(150) is None
+    assert session.probe().backend_pid == listener_probe.backend_pid
+    sender.close()
+
     description = session.describe_text("select $1::int4 as n, $2::text as t")
     assert [(param.oid, param.type_name) for param in description.params] == [
         (23, "int4"),
