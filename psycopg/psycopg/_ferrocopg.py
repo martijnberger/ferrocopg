@@ -21,6 +21,18 @@ class _ResultSetLike(Protocol):
     rows_affected: int
 
 
+class _SyntheticResult:
+    def __init__(
+        self,
+        columns: list[str] | None = None,
+        rows: list[list[str | None]] | None = None,
+        rows_affected: int = 0,
+    ):
+        self.columns = columns or []
+        self.rows = rows or []
+        self.rows_affected = rows_affected
+
+
 class _PreparedStatementLike(Protocol):
     statement_id: int
 
@@ -370,6 +382,33 @@ class NoTlsCursorAdapter:
     ) -> NoTlsCursorAdapter:
         self._check_closed()
         self._result = self._conn._execute(query, params, prepare=prepare)
+        self._rownumber = 0
+        return self
+
+    def executemany(
+        self,
+        query: str,
+        params_seq: Sequence[list[str | None]],
+        *,
+        returning: bool = False,
+        prepare: bool = False,
+    ) -> NoTlsCursorAdapter:
+        self._check_closed()
+        if returning:
+            results = [
+                self._conn._execute(query, params, prepare=prepare).current_result
+                for params in params_seq
+            ]
+            self._result = BackendResultCursor(
+                [result for result in results if result is not None]
+            )
+        else:
+            total = 0
+            for params in params_seq:
+                result = self._conn._execute(query, params, prepare=prepare).current_result
+                if result is not None:
+                    total += result.rows_affected
+            self._result = BackendResultCursor([_SyntheticResult(rows_affected=total)])
         self._rownumber = 0
         return self
 

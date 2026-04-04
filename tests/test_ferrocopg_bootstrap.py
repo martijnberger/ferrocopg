@@ -2458,6 +2458,72 @@ def test_no_tls_connection_adapter_row_factories(monkeypatch: pytest.MonkeyPatch
     assert scalar_cur.fetchone() == "4"
 
 
+def test_no_tls_cursor_adapter_executemany(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubSession:
+        closed = False
+
+        def close(self) -> None:
+            pass
+
+        def begin(self) -> None:
+            pass
+
+        def commit(self) -> None:
+            pass
+
+        def rollback(self) -> None:
+            pass
+
+        def prepare_text(self, query: str) -> object:
+            return SimpleNamespace(statement_id=17)
+
+        def simple_query_results(self, query: str) -> list[object]:
+            return [SimpleNamespace(columns=["v"], rows=[["simple"]], rows_affected=1)]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            return SimpleNamespace(
+                columns=["value"],
+                rows=[[params[0]]],
+                rows_affected=1,
+            )
+
+        def run_prepared_text_params(
+            self, statement_id: int, params: list[str | None]
+        ) -> object:
+            return SimpleNamespace(
+                columns=["value"],
+                rows=[[params[0]]],
+                rows_affected=1,
+            )
+
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: StubSession())
+
+    conn = module.no_tls_connection_adapter("host=localhost")
+    assert conn is not None
+
+    with conn.cursor() as cur:
+        cur.executemany(
+            "insert into demo values ($1::text)",
+            [["one"], ["two"]],
+        )
+        assert cur.rowcount == 2
+        assert cur.fetchall() == []
+
+    with conn.cursor(row_factory=module.scalar_row) as cur:
+        cur.executemany(
+            "select $1::text as value",
+            [["one"], ["two"]],
+            returning=True,
+            prepare=True,
+        )
+        assert cur.fetchone() == "one"
+        assert cur.nextset() is True
+        assert cur.fetchone() == "two"
+        assert cur.nextset() is None
+
+
 def test_backend_connect_target_parses_endpoints() -> None:
     module = importlib.import_module("psycopg._ferrocopg")
 
@@ -2973,6 +3039,31 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
         row_factory=module.scalar_row,
     )
     assert scalar_cur.fetchone() == "42"
+
+    conn.execute("create temporary table ferrocopg_conn_execmany_test (id int4)")
+    with conn.cursor() as cur3:
+        cur3.executemany(
+            "insert into ferrocopg_conn_execmany_test (id) values ($1::int4)",
+            [["1"], ["2"], ["3"]],
+        )
+        assert cur3.rowcount == 3
+
+    verify_many = conn.execute(
+        "select id::text as id from ferrocopg_conn_execmany_test order by id"
+    )
+    assert verify_many.fetchall() == [["1"], ["2"], ["3"]]
+
+    with conn.cursor(row_factory=module.scalar_row) as cur4:
+        cur4.executemany(
+            "select $1::text as label",
+            [["alpha"], ["beta"]],
+            returning=True,
+            prepare=True,
+        )
+        assert cur4.fetchone() == "alpha"
+        assert cur4.nextset() is True
+        assert cur4.fetchone() == "beta"
+        assert cur4.nextset() is None
 
     conn.begin()
     conn.execute("create temporary table ferrocopg_conn_adapter_test (id int4)")
