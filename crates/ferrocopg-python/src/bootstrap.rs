@@ -146,6 +146,19 @@ struct BackendTextQueryResult {
 
 #[derive(Clone)]
 #[pyclass(module = "ferrocopg_rust._ferrocopg", skip_from_py_object)]
+struct BackendSimpleQueryMessage {
+    #[pyo3(get)]
+    kind: String,
+    #[pyo3(get)]
+    columns: Vec<String>,
+    #[pyo3(get)]
+    values: Vec<Option<String>>,
+    #[pyo3(get)]
+    rows_affected: Option<u64>,
+}
+
+#[derive(Clone)]
+#[pyclass(module = "ferrocopg_rust._ferrocopg", skip_from_py_object)]
 struct BackendExecuteResult {
     #[pyo3(get)]
     rows_affected: u64,
@@ -306,6 +319,18 @@ fn query_text_no_tls(conninfo: &str, query: &str) -> PyResult<BackendTextQueryRe
 }
 
 #[pyfunction]
+fn simple_query_no_tls(conninfo: &str, query: &str) -> PyResult<Vec<BackendSimpleQueryMessage>> {
+    ferrocopg_postgres::simple_query_no_tls(conninfo, query)
+        .map(|messages| {
+            messages
+                .into_iter()
+                .map(BackendSimpleQueryMessage::from)
+                .collect()
+        })
+        .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+}
+
+#[pyfunction]
 fn query_text_params_no_tls(
     conninfo: &str,
     query: &str,
@@ -449,6 +474,17 @@ impl From<ferrocopg_postgres::TextQueryResult> for BackendTextQueryResult {
     }
 }
 
+impl From<ferrocopg_postgres::SimpleQueryMessage> for BackendSimpleQueryMessage {
+    fn from(message: ferrocopg_postgres::SimpleQueryMessage) -> Self {
+        Self {
+            kind: message.kind.to_owned(),
+            columns: message.columns,
+            values: message.values,
+            rows_affected: message.rows_affected,
+        }
+    }
+}
+
 impl From<ferrocopg_postgres::ExecuteResult> for BackendExecuteResult {
     fn from(result: ferrocopg_postgres::ExecuteResult) -> Self {
         Self {
@@ -558,6 +594,20 @@ impl BackendSyncNoTlsSession {
         let query = query.to_owned();
         with_session(py, self, move |session| session.query_text(&query))
             .map(BackendTextQueryResult::from)
+    }
+
+    fn simple_query(
+        &self,
+        py: Python<'_>,
+        query: &str,
+    ) -> PyResult<Vec<BackendSimpleQueryMessage>> {
+        let query = query.to_owned();
+        with_session(py, self, move |session| session.simple_query(&query)).map(|messages| {
+            messages
+                .into_iter()
+                .map(BackendSimpleQueryMessage::from)
+                .collect()
+        })
     }
 
     fn query_text_params(
@@ -709,6 +759,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<BackendSyncNoTlsProbe>()?;
     m.add_class::<BackendNotification>()?;
     m.add_class::<BackendTextQueryResult>()?;
+    m.add_class::<BackendSimpleQueryMessage>()?;
     m.add_class::<BackendExecuteResult>()?;
     m.add_class::<BackendCopyOutResult>()?;
     m.add_class::<BackendStatementParameter>()?;
@@ -726,6 +777,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_connect_target, m)?)?;
     m.add_function(wrap_pyfunction!(probe_connect_no_tls, m)?)?;
     m.add_function(wrap_pyfunction!(query_text_no_tls, m)?)?;
+    m.add_function(wrap_pyfunction!(simple_query_no_tls, m)?)?;
     m.add_function(wrap_pyfunction!(query_text_params_no_tls, m)?)?;
     m.add_function(wrap_pyfunction!(execute_text_params_no_tls, m)?)?;
     m.add_function(wrap_pyfunction!(describe_text_no_tls, m)?)?;

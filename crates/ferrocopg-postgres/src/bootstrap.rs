@@ -1,7 +1,7 @@
 use crate::error::ProbeError;
 use crate::model::{
     ConnectEndpoint, ConnectPlan, ConnectTarget, ConninfoSummary, ExecuteResult,
-    StatementDescription, SyncNoTlsProbe, TextQueryResult,
+    SimpleQueryMessage, StatementDescription, SyncNoTlsProbe, TextQueryResult,
 };
 use crate::session::SyncNoTlsSession;
 use std::str::FromStr;
@@ -157,6 +157,10 @@ impl BootstrapConfig {
         self.connect_no_tls_session()?.query_text(query)
     }
 
+    pub fn simple_query_no_tls(&self, query: &str) -> Result<Vec<SimpleQueryMessage>, ProbeError> {
+        self.connect_no_tls_session()?.simple_query(query)
+    }
+
     pub fn query_text_params_no_tls(
         &self,
         query: &str,
@@ -215,6 +219,14 @@ pub fn connect_no_tls_probe(conninfo: &str) -> Result<SyncNoTlsProbe, ProbeError
 pub fn query_text_no_tls(conninfo: &str, query: &str) -> Result<TextQueryResult, ProbeError> {
     let config = BootstrapConfig::parse(conninfo).map_err(ProbeError::Parse)?;
     config.query_text_no_tls(query)
+}
+
+pub fn simple_query_no_tls(
+    conninfo: &str,
+    query: &str,
+) -> Result<Vec<SimpleQueryMessage>, ProbeError> {
+    let config = BootstrapConfig::parse(conninfo).map_err(ProbeError::Parse)?;
+    config.simple_query_no_tls(query)
 }
 
 pub fn query_text_params_no_tls(

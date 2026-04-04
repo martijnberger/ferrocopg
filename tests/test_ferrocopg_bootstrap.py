@@ -2075,6 +2075,7 @@ def test_ferrocopg_unavailable(monkeypatch):
     assert module.connect_target("host=localhost") is None
     assert module.connect_no_tls_probe("host=localhost") is None
     assert module.query_text_no_tls("host=localhost", "select 1") is None
+    assert module.simple_query_no_tls("host=localhost", "select 1") is None
     assert module.query_text_params_no_tls("host=localhost", "select $1::text", ["x"]) is None
     assert module.execute_text_params_no_tls("host=localhost", "select 1", []) is None
     assert module.describe_text_no_tls("host=localhost", "select 1") is None
@@ -2113,6 +2114,11 @@ def test_ferrocopg_wrapper(monkeypatch):
             return ("query", conninfo, query)
 
         @staticmethod
+        def simple_query_no_tls(conninfo: str, query: str) -> tuple[str, str, str]:
+            calls.append(("simple-query", conninfo))
+            return ("simple-query", conninfo, query)
+
+        @staticmethod
         def query_text_params_no_tls(
             conninfo: str, query: str, params: list[str | None]
         ) -> tuple[str, str, str, list[str | None]]:
@@ -2148,6 +2154,11 @@ def test_ferrocopg_wrapper(monkeypatch):
         "host=localhost",
         "select 1",
     )
+    assert module.simple_query_no_tls("host=localhost", "select 1") == (
+        "simple-query",
+        "host=localhost",
+        "select 1",
+    )
     assert module.query_text_params_no_tls("host=localhost", "select $1::text", ["x", None]) == (
         "query-params",
         "host=localhost",
@@ -2176,6 +2187,7 @@ def test_ferrocopg_wrapper(monkeypatch):
         ("target", "host=localhost"),
         ("probe", "host=localhost"),
         ("query", "host=localhost"),
+        ("simple-query", "host=localhost"),
         ("query-params", "host=localhost"),
         ("execute-params", "host=localhost"),
         ("describe", "host=localhost"),
@@ -2262,6 +2274,27 @@ def test_backend_query_text_no_tls_live(dsn: str) -> None:
     assert result.rows[0][1]
 
 
+def test_backend_simple_query_no_tls_live(dsn: str) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    messages = module.simple_query_no_tls(
+        dsn,
+        "select 'alpha'::text as label; select 'beta'::text as label",
+    )
+    assert messages is not None
+    assert [(message.kind, message.columns, message.values, message.rows_affected) for message in messages] == [
+        ("row_description", ["label"], [], None),
+        ("row", ["label"], ["alpha"], None),
+        ("command_complete", [], [], 1),
+        ("row_description", ["label"], [], None),
+        ("row", ["label"], ["beta"], None),
+        ("command_complete", [], [], 1),
+    ]
+
+
 def test_backend_query_text_params_no_tls_live(dsn: str) -> None:
     module = importlib.import_module("psycopg._ferrocopg")
 
@@ -2331,6 +2364,21 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
     assert result.columns == ["db"]
     assert len(result.rows) == 1
     assert result.rows[0][0]
+
+    simple_messages = session.simple_query(
+        "select 'first'::text as label; select 'second'::text as label"
+    )
+    assert [
+        (message.kind, message.columns, message.values, message.rows_affected)
+        for message in simple_messages
+    ] == [
+        ("row_description", ["label"], [], None),
+        ("row", ["label"], ["first"], None),
+        ("command_complete", [], [], 1),
+        ("row_description", ["label"], [], None),
+        ("row", ["label"], ["second"], None),
+        ("command_complete", [], [], 1),
+    ]
 
     bound = session.query_text_params(
         "select ($1::int4 + $2::int4)::text as total, $3::text as label, $4::text as nullable",
