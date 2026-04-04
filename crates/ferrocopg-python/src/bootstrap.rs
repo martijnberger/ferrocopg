@@ -494,6 +494,42 @@ impl BackendSyncNoTlsSession {
             .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
     }
 
+    fn begin(&self) -> PyResult<()> {
+        self.inner
+            .lock()
+            .map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    "backend session mutex is poisoned",
+                )
+            })?
+            .begin()
+            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    }
+
+    fn commit(&self) -> PyResult<()> {
+        self.inner
+            .lock()
+            .map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    "backend session mutex is poisoned",
+                )
+            })?
+            .commit()
+            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    }
+
+    fn rollback(&self) -> PyResult<()> {
+        self.inner
+            .lock()
+            .map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    "backend session mutex is poisoned",
+                )
+            })?
+            .rollback()
+            .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    }
+
     fn describe_text(&self, query: &str) -> PyResult<BackendStatementDescription> {
         self.inner
             .lock()
