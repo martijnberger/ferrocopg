@@ -4,6 +4,7 @@
 //! instead of mirroring the current `libpq`/Cython transport layer.
 
 use postgres::types::{ToSql, Type};
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::str::FromStr;
@@ -110,8 +111,16 @@ pub struct ExecuteResult {
     pub rows_affected: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreparedStatementInfo {
+    pub statement_id: u64,
+    pub description: StatementDescription,
+}
+
 pub struct SyncNoTlsSession {
     client: Option<postgres::Client>,
+    prepared: HashMap<u64, postgres::Statement>,
+    next_statement_id: u64,
 }
 
 #[derive(Debug)]
@@ -393,6 +402,8 @@ impl BootstrapConfig {
 
         Ok(SyncNoTlsSession {
             client: Some(client),
+            prepared: HashMap::new(),
+            next_statement_id: 1,
         })
     }
 }
@@ -403,6 +414,7 @@ impl SyncNoTlsSession {
     }
 
     pub fn close(&mut self) {
+        self.prepared.clear();
         self.client.take();
     }
 
@@ -468,26 +480,7 @@ impl SyncNoTlsSession {
             .client_mut()?
             .prepare(query)
             .map_err(ProbeError::Query)?;
-
-        Ok(StatementDescription {
-            params: statement
-                .params()
-                .iter()
-                .map(|ty| StatementParameter {
-                    oid: ty.oid(),
-                    type_name: ty.name().to_owned(),
-                })
-                .collect(),
-            columns: statement
-                .columns()
-                .iter()
-                .map(|column| StatementColumn {
-                    name: column.name().to_owned(),
-                    oid: column.type_().oid(),
-                    type_name: column.type_().name().to_owned(),
-                })
-                .collect(),
-        })
+        Ok(statement_description(&statement))
     }
 
     pub fn execute_text_params(
@@ -506,6 +499,66 @@ impl SyncNoTlsSession {
             .execute(&statement, &refs)
             .map_err(ProbeError::Query)?;
         Ok(ExecuteResult { rows_affected })
+    }
+
+    pub fn prepare_text(&mut self, query: &str) -> Result<PreparedStatementInfo, ProbeError> {
+        let statement = self
+            .client_mut()?
+            .prepare(query)
+            .map_err(ProbeError::Query)?;
+        let statement_id = self.next_statement_id;
+        self.next_statement_id += 1;
+        let description = statement_description(&statement);
+        self.prepared.insert(statement_id, statement);
+        Ok(PreparedStatementInfo {
+            statement_id,
+            description,
+        })
+    }
+
+    pub fn describe_prepared(
+        &mut self,
+        statement_id: u64,
+    ) -> Result<StatementDescription, ProbeError> {
+        let statement = self.prepared_statement(statement_id)?;
+        Ok(statement_description(statement))
+    }
+
+    pub fn query_prepared_text_params(
+        &mut self,
+        statement_id: u64,
+        params: &[Option<String>],
+    ) -> Result<TextQueryResult, ProbeError> {
+        let statement = self.prepared_statement(statement_id)?.clone();
+        let params = parsed_query_params(&statement, params)?;
+        let refs = query_param_refs(&params);
+        let rows = self
+            .client_mut()?
+            .query(&statement, &refs)
+            .map_err(ProbeError::Query)?;
+        text_query_result(rows)
+    }
+
+    pub fn execute_prepared_text_params(
+        &mut self,
+        statement_id: u64,
+        params: &[Option<String>],
+    ) -> Result<ExecuteResult, ProbeError> {
+        let statement = self.prepared_statement(statement_id)?.clone();
+        let params = parsed_query_params(&statement, params)?;
+        let refs = query_param_refs(&params);
+        let rows_affected = self
+            .client_mut()?
+            .execute(&statement, &refs)
+            .map_err(ProbeError::Query)?;
+        Ok(ExecuteResult { rows_affected })
+    }
+
+    pub fn close_prepared(&mut self, statement_id: u64) -> Result<(), ProbeError> {
+        self.prepared
+            .remove(&statement_id)
+            .map(|_| ())
+            .ok_or_else(|| missing_statement(statement_id))
     }
 
     pub fn begin(&mut self) -> Result<(), ProbeError> {
@@ -528,6 +581,16 @@ impl SyncNoTlsSession {
 
     fn client_mut(&mut self) -> Result<&mut postgres::Client, ProbeError> {
         self.client.as_mut().ok_or(ProbeError::Closed)
+    }
+
+    fn prepared_statement(&self, statement_id: u64) -> Result<&postgres::Statement, ProbeError> {
+        if self.closed() {
+            return Err(ProbeError::Closed);
+        }
+
+        self.prepared
+            .get(&statement_id)
+            .ok_or_else(|| missing_statement(statement_id))
     }
 }
 
@@ -672,6 +735,32 @@ fn text_query_result(rows: Vec<postgres::Row>) -> Result<TextQueryResult, ProbeE
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(TextQueryResult { columns, rows })
+}
+
+fn statement_description(statement: &postgres::Statement) -> StatementDescription {
+    StatementDescription {
+        params: statement
+            .params()
+            .iter()
+            .map(|ty| StatementParameter {
+                oid: ty.oid(),
+                type_name: ty.name().to_owned(),
+            })
+            .collect(),
+        columns: statement
+            .columns()
+            .iter()
+            .map(|column| StatementColumn {
+                name: column.name().to_owned(),
+                oid: column.type_().oid(),
+                type_name: column.type_().name().to_owned(),
+            })
+            .collect(),
+    }
+}
+
+fn missing_statement(statement_id: u64) -> ProbeError {
+    ProbeError::BadParam(format!("unknown prepared statement id: {statement_id}"))
 }
 
 fn sync_client() -> &'static str {
@@ -860,7 +949,11 @@ mod tests {
 
     #[test]
     fn session_rejects_operations_after_close() {
-        let mut session = SyncNoTlsSession { client: None };
+        let mut session = SyncNoTlsSession {
+            client: None,
+            prepared: HashMap::new(),
+            next_statement_id: 1,
+        };
         assert!(session.closed());
         assert!(matches!(
             session.query_text("select 1"),
