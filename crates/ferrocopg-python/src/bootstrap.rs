@@ -4,7 +4,7 @@ use pyo3::wrap_pyfunction;
 use std::sync::Mutex;
 
 #[derive(Clone)]
-#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+#[pyclass(module = "ferrocopg_rust._ferrocopg", skip_from_py_object)]
 struct BackendConninfoSummary {
     #[pyo3(get)]
     user: Option<String>,
@@ -27,7 +27,7 @@ struct BackendConninfoSummary {
 }
 
 #[derive(Clone)]
-#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+#[pyclass(module = "ferrocopg_rust._ferrocopg", skip_from_py_object)]
 struct BackendConnectPlan {
     #[pyo3(get)]
     backend_stack: String,
@@ -58,7 +58,7 @@ struct BackendConnectPlan {
 }
 
 #[derive(Clone)]
-#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+#[pyclass(module = "ferrocopg_rust._ferrocopg", skip_from_py_object)]
 struct BackendConnectEndpoint {
     #[pyo3(get)]
     transport: String,
@@ -73,7 +73,7 @@ struct BackendConnectEndpoint {
 }
 
 #[derive(Clone)]
-#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+#[pyclass(module = "ferrocopg_rust._ferrocopg", skip_from_py_object)]
 struct BackendConnectTarget {
     #[pyo3(get)]
     backend_stack: String,
@@ -106,7 +106,7 @@ struct BackendConnectTarget {
 }
 
 #[derive(Clone)]
-#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+#[pyclass(module = "ferrocopg_rust._ferrocopg", skip_from_py_object)]
 struct BackendSyncNoTlsProbe {
     #[pyo3(get)]
     backend_pid: i32,
@@ -125,7 +125,7 @@ struct BackendSyncNoTlsProbe {
 }
 
 #[derive(Clone)]
-#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+#[pyclass(module = "ferrocopg_rust._ferrocopg", skip_from_py_object)]
 struct BackendNotification {
     #[pyo3(get)]
     process_id: i32,
@@ -136,7 +136,7 @@ struct BackendNotification {
 }
 
 #[derive(Clone)]
-#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+#[pyclass(module = "ferrocopg_rust._ferrocopg", skip_from_py_object)]
 struct BackendTextQueryResult {
     #[pyo3(get)]
     columns: Vec<String>,
@@ -145,14 +145,14 @@ struct BackendTextQueryResult {
 }
 
 #[derive(Clone)]
-#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+#[pyclass(module = "ferrocopg_rust._ferrocopg", skip_from_py_object)]
 struct BackendExecuteResult {
     #[pyo3(get)]
     rows_affected: u64,
 }
 
 #[derive(Clone)]
-#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+#[pyclass(module = "ferrocopg_rust._ferrocopg", skip_from_py_object)]
 struct BackendStatementParameter {
     #[pyo3(get)]
     oid: u32,
@@ -161,7 +161,7 @@ struct BackendStatementParameter {
 }
 
 #[derive(Clone)]
-#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+#[pyclass(module = "ferrocopg_rust._ferrocopg", skip_from_py_object)]
 struct BackendStatementColumn {
     #[pyo3(get)]
     name: String,
@@ -172,7 +172,7 @@ struct BackendStatementColumn {
 }
 
 #[derive(Clone)]
-#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+#[pyclass(module = "ferrocopg_rust._ferrocopg", skip_from_py_object)]
 struct BackendStatementDescription {
     #[pyo3(get)]
     params: Vec<BackendStatementParameter>,
@@ -181,7 +181,7 @@ struct BackendStatementDescription {
 }
 
 #[derive(Clone)]
-#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+#[pyclass(module = "ferrocopg_rust._ferrocopg", skip_from_py_object)]
 struct BackendPreparedStatementInfo {
     #[pyo3(get)]
     statement_id: u64,
@@ -211,7 +211,7 @@ where
         ) -> Result<T, ferrocopg_postgres::ProbeError>
         + Send,
 {
-    py.allow_threads(|| {
+    py.detach(|| {
         let mut inner = session
             .inner
             .lock()
@@ -233,7 +233,7 @@ where
         ) -> Result<T, ferrocopg_postgres::ProbeError>
         + Send,
 {
-    py.allow_threads(|| {
+    py.detach(|| {
         let inner = handle
             .inner
             .lock()
