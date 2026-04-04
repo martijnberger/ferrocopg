@@ -1,0 +1,267 @@
+use crate::error::ProbeError;
+use crate::model::{
+    ExecuteResult, PreparedStatementInfo, StatementColumn, StatementDescription,
+    StatementParameter, SyncNoTlsProbe, TextQueryResult,
+};
+use crate::params::{parsed_query_params, query_param_refs};
+use std::collections::HashMap;
+
+pub struct SyncNoTlsSession {
+    client: Option<postgres::Client>,
+    prepared: HashMap<u64, postgres::Statement>,
+    next_statement_id: u64,
+}
+
+impl SyncNoTlsSession {
+    pub(crate) fn from_client(client: postgres::Client) -> Self {
+        Self {
+            client: Some(client),
+            prepared: HashMap::new(),
+            next_statement_id: 1,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn closed_for_tests() -> Self {
+        Self {
+            client: None,
+            prepared: HashMap::new(),
+            next_statement_id: 1,
+        }
+    }
+
+    pub fn closed(&self) -> bool {
+        self.client.is_none()
+    }
+
+    pub fn close(&mut self) {
+        self.prepared.clear();
+        self.client.take();
+    }
+
+    pub fn probe(&mut self) -> Result<SyncNoTlsProbe, ProbeError> {
+        let row = self
+            .client_mut()?
+            .query_one(
+                "select \
+                    pg_backend_pid(), \
+                    current_user::text, \
+                    current_database()::text, \
+                    current_setting('server_version_num')::int4, \
+                    coalesce(current_setting('application_name', true), '')::text, \
+                    inet_server_addr()::text, \
+                    inet_server_port()",
+                &[],
+            )
+            .map_err(ProbeError::Query)?;
+
+        let server_port = row
+            .get::<_, Option<i32>>(6)
+            .and_then(|port| u16::try_from(port).ok());
+
+        Ok(SyncNoTlsProbe {
+            backend_pid: row.get(0),
+            current_user: row.get(1),
+            current_database: row.get(2),
+            server_version_num: row.get(3),
+            application_name: row.get(4),
+            server_address: row.get(5),
+            server_port,
+        })
+    }
+
+    pub fn query_text(&mut self, query: &str) -> Result<TextQueryResult, ProbeError> {
+        let rows = self
+            .client_mut()?
+            .query(query, &[])
+            .map_err(ProbeError::Query)?;
+        text_query_result(rows)
+    }
+
+    pub fn query_text_params(
+        &mut self,
+        query: &str,
+        params: &[Option<String>],
+    ) -> Result<TextQueryResult, ProbeError> {
+        let statement = self
+            .client_mut()?
+            .prepare(query)
+            .map_err(ProbeError::Query)?;
+        let params = parsed_query_params(&statement, params)?;
+        let refs = query_param_refs(&params);
+        let rows = self
+            .client_mut()?
+            .query(&statement, &refs)
+            .map_err(ProbeError::Query)?;
+        text_query_result(rows)
+    }
+
+    pub fn describe_text(&mut self, query: &str) -> Result<StatementDescription, ProbeError> {
+        let statement = self
+            .client_mut()?
+            .prepare(query)
+            .map_err(ProbeError::Query)?;
+        Ok(statement_description(&statement))
+    }
+
+    pub fn execute_text_params(
+        &mut self,
+        query: &str,
+        params: &[Option<String>],
+    ) -> Result<ExecuteResult, ProbeError> {
+        let statement = self
+            .client_mut()?
+            .prepare(query)
+            .map_err(ProbeError::Query)?;
+        let params = parsed_query_params(&statement, params)?;
+        let refs = query_param_refs(&params);
+        let rows_affected = self
+            .client_mut()?
+            .execute(&statement, &refs)
+            .map_err(ProbeError::Query)?;
+        Ok(ExecuteResult { rows_affected })
+    }
+
+    pub fn prepare_text(&mut self, query: &str) -> Result<PreparedStatementInfo, ProbeError> {
+        let statement = self
+            .client_mut()?
+            .prepare(query)
+            .map_err(ProbeError::Query)?;
+        let statement_id = self.next_statement_id;
+        self.next_statement_id += 1;
+        let description = statement_description(&statement);
+        self.prepared.insert(statement_id, statement);
+        Ok(PreparedStatementInfo {
+            statement_id,
+            description,
+        })
+    }
+
+    pub fn describe_prepared(
+        &mut self,
+        statement_id: u64,
+    ) -> Result<StatementDescription, ProbeError> {
+        let statement = self.prepared_statement(statement_id)?;
+        Ok(statement_description(statement))
+    }
+
+    pub fn query_prepared_text_params(
+        &mut self,
+        statement_id: u64,
+        params: &[Option<String>],
+    ) -> Result<TextQueryResult, ProbeError> {
+        let statement = self.prepared_statement(statement_id)?.clone();
+        let params = parsed_query_params(&statement, params)?;
+        let refs = query_param_refs(&params);
+        let rows = self
+            .client_mut()?
+            .query(&statement, &refs)
+            .map_err(ProbeError::Query)?;
+        text_query_result(rows)
+    }
+
+    pub fn execute_prepared_text_params(
+        &mut self,
+        statement_id: u64,
+        params: &[Option<String>],
+    ) -> Result<ExecuteResult, ProbeError> {
+        let statement = self.prepared_statement(statement_id)?.clone();
+        let params = parsed_query_params(&statement, params)?;
+        let refs = query_param_refs(&params);
+        let rows_affected = self
+            .client_mut()?
+            .execute(&statement, &refs)
+            .map_err(ProbeError::Query)?;
+        Ok(ExecuteResult { rows_affected })
+    }
+
+    pub fn close_prepared(&mut self, statement_id: u64) -> Result<(), ProbeError> {
+        self.prepared
+            .remove(&statement_id)
+            .map(|_| ())
+            .ok_or_else(|| missing_statement(statement_id))
+    }
+
+    pub fn begin(&mut self) -> Result<(), ProbeError> {
+        self.client_mut()?
+            .batch_execute("begin")
+            .map_err(ProbeError::Query)
+    }
+
+    pub fn commit(&mut self) -> Result<(), ProbeError> {
+        self.client_mut()?
+            .batch_execute("commit")
+            .map_err(ProbeError::Query)
+    }
+
+    pub fn rollback(&mut self) -> Result<(), ProbeError> {
+        self.client_mut()?
+            .batch_execute("rollback")
+            .map_err(ProbeError::Query)
+    }
+
+    fn client_mut(&mut self) -> Result<&mut postgres::Client, ProbeError> {
+        self.client.as_mut().ok_or(ProbeError::Closed)
+    }
+
+    fn prepared_statement(&self, statement_id: u64) -> Result<&postgres::Statement, ProbeError> {
+        if self.closed() {
+            return Err(ProbeError::Closed);
+        }
+
+        self.prepared
+            .get(&statement_id)
+            .ok_or_else(|| missing_statement(statement_id))
+    }
+}
+
+pub(crate) fn statement_description(statement: &postgres::Statement) -> StatementDescription {
+    StatementDescription {
+        params: statement
+            .params()
+            .iter()
+            .map(|ty| StatementParameter {
+                oid: ty.oid(),
+                type_name: ty.name().to_owned(),
+            })
+            .collect(),
+        columns: statement
+            .columns()
+            .iter()
+            .map(|column| StatementColumn {
+                name: column.name().to_owned(),
+                oid: column.type_().oid(),
+                type_name: column.type_().name().to_owned(),
+            })
+            .collect(),
+    }
+}
+
+fn text_query_result(rows: Vec<postgres::Row>) -> Result<TextQueryResult, ProbeError> {
+    let columns = rows
+        .first()
+        .map(|row| {
+            row.columns()
+                .iter()
+                .map(|col| col.name().to_owned())
+                .collect()
+        })
+        .unwrap_or_default();
+    let rows = rows
+        .into_iter()
+        .map(|row| {
+            (0..row.len())
+                .map(|index| {
+                    row.try_get::<_, Option<String>>(index)
+                        .map_err(ProbeError::Query)
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(TextQueryResult { columns, rows })
+}
+
+fn missing_statement(statement_id: u64) -> ProbeError {
+    ProbeError::BadParam(format!("unknown prepared statement id: {statement_id}"))
+}
