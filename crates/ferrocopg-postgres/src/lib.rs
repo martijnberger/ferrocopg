@@ -13,12 +13,13 @@ pub use bootstrap::{
     BootstrapConfig, backend_core, backend_stack, bootstrap_summary, connect_no_tls_probe,
     connect_no_tls_session, connect_plan, connect_target, describe_text_no_tls,
     execute_text_params_no_tls, query_text_no_tls, query_text_params_no_tls, simple_query_no_tls,
+    simple_query_results_no_tls,
 };
 pub use error::ProbeError;
 pub use model::{
     BackendNotification, ConnectEndpoint, ConnectPlan, ConnectTarget, ConninfoSummary,
-    CopyOutResult, ExecuteResult, PreparedStatementInfo, SimpleQueryMessage, StatementColumn,
-    StatementDescription, StatementParameter, SyncNoTlsProbe, TextQueryResult,
+    CopyOutResult, ExecuteResult, PreparedStatementInfo, SimpleQueryMessage, SimpleQueryResult,
+    StatementColumn, StatementDescription, StatementParameter, SyncNoTlsProbe, TextQueryResult,
 };
 pub use session::{SyncNoTlsCancelHandle, SyncNoTlsSession};
 
@@ -105,6 +106,10 @@ mod tests {
         ));
         assert!(matches!(
             session.simple_query("select 1"),
+            Err(ProbeError::Closed)
+        ));
+        assert!(matches!(
+            session.simple_query_results("select 1"),
             Err(ProbeError::Closed)
         ));
         assert!(matches!(

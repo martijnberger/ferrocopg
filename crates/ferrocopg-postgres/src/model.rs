@@ -117,6 +117,13 @@ pub struct SimpleQueryMessage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SimpleQueryResult {
+    pub columns: Vec<String>,
+    pub rows: Vec<Vec<Option<String>>>,
+    pub rows_affected: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedStatementInfo {
     pub statement_id: u64,
     pub description: StatementDescription,
