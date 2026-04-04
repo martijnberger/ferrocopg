@@ -69,6 +69,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
       - name: Setup PG
         env:
           PGPASSWORD: password
@@ -86,11 +90,11 @@ jobs:
           echo "DEPS=$DEPS ./psycopg_c" >> $GITHUB_ENV
 
       - name: Install pycopg packages
-        run: pip install $DEPS
+        run: uv pip install --system $DEPS
 
       - name: Setup and install sqlalchemy
         run: |
-          pip download --no-deps --no-binary :all: ${{ matrix.pip_sqlalchemy }}
+          uv pip download --no-deps --no-binary :all: ${{ matrix.pip_sqlalchemy }}
           mkdir sa_home
           case $(file --brief --mime-type sqlalchemy*) in
             application/gzip)
@@ -106,13 +110,13 @@ jobs:
           esac
           mv sa_home/$( ls sa_home ) sa_home/sa
           cd sa_home/sa
-          pip install .
+          uv pip install --system .
 
       - name: Run sqlalchemy tests
         env:
           URL: postgresql+psycopg://postgres:password@127.0.0.1/test
         working-directory: sa_home/sa
-        run: pytest -n 2 -q --dburi $URL --backend-only --dropfirst --color=yes --dbdriver psycopg_async
+        run: python -m pytest -n 2 -q --dburi $URL --backend-only --dropfirst --color=yes --dbdriver psycopg_async
 
   django:
     # linux should be enough to test if everything works.
@@ -185,6 +189,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
       - name: Setup PG
         env:
           PGPASSWORD: password
@@ -199,11 +207,11 @@ jobs:
           echo "DEPS=$DEPS ./psycopg_c" >> $GITHUB_ENV
 
       - name: Install pycopg packages
-        run: pip install $DEPS
+        run: uv pip install --system $DEPS
 
       - name: Download and configure Django
         run: |
-          pip download --no-deps --no-binary :all: ${{ matrix.pip_django }}
+          uv pip download --no-deps --no-binary :all: ${{ matrix.pip_django }}
           mkdir workdir
           case $(file --brief --mime-type [Dd]jango*) in
             application/gzip)
@@ -261,8 +269,8 @@ jobs:
           # https://github.com/django/django/blob/main/tests/requirements/py3.txt#L12
           # (You can check the above in case it gets dropped in the future).
           sudo apt-get install -y libmemcached-dev
-          pip install .
-          pip install -r tests/requirements/py3.txt
+          uv pip install --system .
+          uv pip install --system -r tests/requirements/py3.txt
 
       - name: Run Django tests
         working-directory: workdir/django/tests

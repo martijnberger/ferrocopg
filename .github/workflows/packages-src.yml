@@ -29,22 +29,33 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Install the build package
-        run: pip install build
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
 
       - name: Create the package
-        run: python -m build -o dist --${{ matrix.format }} ${{ matrix.package }}
+        run: uv build -o dist --${{ matrix.format }} ${{ matrix.package }}
 
       - name: Install the Python package and test requirements
-        run: pip install `ls dist/*`[test] ./psycopg_pool
+        run: |
+          uv pip install --system "$(ls dist/*)" ./psycopg_pool
+          uv pip install --system \
+            "anyio >= 4.0" \
+            gevent \
+            "mypy >= 1.19.0; implementation_name != 'pypy'" \
+            "pproxy >= 2.7" \
+            "pytest >= 6.2.5" \
+            "pytest-cov >= 3.0" \
+            "pytest-randomly >= 3.5" \
+            shapely
         if: ${{ matrix.package == 'psycopg' }}
 
       - name: Install the C package and test requirements
-        run: pip install dist/* ./psycopg[test] ./psycopg_pool
+        run: uv pip install --system dist/* ./psycopg[test] ./psycopg_pool
         if: ${{ matrix.package == 'psycopg_c' }}
 
       - name: Test the sdist package
-        run: pytest -m 'not slow and not flakey' --color yes
+        run: python -m pytest -m 'not slow and not flakey' --color yes
         env:
           PSYCOPG_IMPL: ${{ matrix.impl }}
           PSYCOPG_TEST_DSN: "host=127.0.0.1 user=postgres"

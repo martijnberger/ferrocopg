@@ -27,17 +27,18 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Install the build package
-        run: pip install build
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
 
       - name: Create the package
-        run: python -m build -o dist --${{ matrix.format }} ${{ matrix.package }}
+        run: uv build -o dist --${{ matrix.format }} ${{ matrix.package }}
 
       - name: Install the Python pool package and test requirements
-        run: pip install psycopg[test] dist/*
+        run: uv pip install --system ./psycopg[test] dist/*
 
       - name: Test the package
-        run: pytest -m 'pool and not slow and not flakey' --color yes
+        run: python -m pytest -m 'pool and not slow and not flakey' --color yes
         env:
           PSYCOPG_TEST_DSN: "host=127.0.0.1 user=postgres"
           PGPASSWORD: password

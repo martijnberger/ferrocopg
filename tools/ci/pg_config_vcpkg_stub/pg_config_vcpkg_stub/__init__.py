@@ -43,6 +43,19 @@ def get_bindir(vcpkg_platform_root: Path) -> Path:
     raise ScriptError(f"libpq runtime directory not found under {vcpkg_platform_root}")
 
 
+def get_includedir(vcpkg_platform_root: Path) -> Path:
+    candidates = (
+        vcpkg_platform_root / "include",
+        vcpkg_platform_root / "include/libpq",
+    )
+
+    for includedir in candidates:
+        if (includedir / "libpq-fe.h").exists():
+            return includedir
+
+    raise ScriptError(f"libpq include directory not found under {vcpkg_platform_root}")
+
+
 def _main() -> None:
     # only x64-windows
     if not (sys.platform == "win32" and platform.machine() == "AMD64"):
@@ -58,9 +71,7 @@ def _main() -> None:
         print(vcpkg_platform_root.joinpath("lib"))
 
     elif args.includedir:
-        if not (d := vcpkg_platform_root / "include/libpq").is_dir():
-            raise ScriptError(f"libpq include directory not found: {d}")
-        print(vcpkg_platform_root.joinpath("include"))
+        print(get_includedir(vcpkg_platform_root))
 
     elif args.bindir:
         print(get_bindir(vcpkg_platform_root))

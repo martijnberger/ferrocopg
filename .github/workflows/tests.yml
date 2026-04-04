@@ -67,7 +67,7 @@ jobs:
       PSYCOPG_IMPL: ${{ matrix.impl }}
       PSYCOPG_TEST_DSN: "host=127.0.0.1 user=postgres password=password"
       MARKERS: ""
-      UV_SYNC_ARGS: "--dev --locked"
+      UV_SYNC_ARGS: "--no-default-groups --group test --locked"
 
     steps:
       - uses: actions/checkout@v6
@@ -101,20 +101,24 @@ jobs:
       - name: Include gevent test marker
         if: ${{ matrix.ext == 'gevent' }}
         run: |
+          echo "UV_SYNC_ARGS=$UV_SYNC_ARGS --group gevent" >> $GITHUB_ENV
           echo "MARKERS=$MARKERS gevent" >> $GITHUB_ENV
 
       - name: Include dnspython test marker
         if: ${{ matrix.ext == 'dns' }}
         run: |
+          echo "UV_SYNC_ARGS=$UV_SYNC_ARGS --group dns" >> $GITHUB_ENV
           echo "MARKERS=$MARKERS dns" >> $GITHUB_ENV
 
       - name: Include shapely test marker
         if: ${{ matrix.ext == 'postgis' }}
         run: |
+          echo "UV_SYNC_ARGS=$UV_SYNC_ARGS --group postgis" >> $GITHUB_ENV
           echo "MARKERS=$MARKERS postgis" >> $GITHUB_ENV
 
       - if: ${{ matrix.ext == 'numpy' }}
         run: |
+          echo "UV_SYNC_ARGS=$UV_SYNC_ARGS --group numpy" >> $GITHUB_ENV
           echo "MARKERS=$MARKERS numpy" >> $GITHUB_ENV
 
       - name: Exclude certain tests from pypy
@@ -125,7 +129,7 @@ jobs:
       - name: Configure to use the oldest dependencies
         if: ${{ matrix.ext == 'min' }}
         run: |
-          echo "UV_SYNC_ARGS=--dev --group c --resolution lowest-direct" \
+          echo "UV_SYNC_ARGS=--no-default-groups --group test --group c --locked --resolution lowest-direct" \
             >> $GITHUB_ENV
 
       - name: Configure memory alignment tests
@@ -140,7 +144,51 @@ jobs:
         run: uv sync $UV_SYNC_ARGS
 
       - name: Run tests
-        run: ./tools/ci/ci_test.sh
+        run: uv run --no-sync ./tools/ci/ci_test.sh
+
+
+  # }}}
+
+  ferrocopg-rust:  # {{{
+    runs-on: ubuntu-latest
+    if: true
+
+    env:
+      PSYCOPG_IMPL: python
+      PSYCOPG_TEST_DSN: "host=127.0.0.1 user=postgres password=password"
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Start PostgreSQL service
+        run: |
+          docker pull postgres:17
+          docker run --rm -d --name postgres -p 5432:5432 \
+            -e POSTGRES_PASSWORD=password postgres:17 \
+            -c max_prepared_transactions=10
+
+      - name: Install the wanted libpq version
+        run: sudo ./tools/ci/ci_install_libpq.sh newest
+
+      - name: Sync uv environment for the Rust path
+        run: uv sync --no-default-groups --group test --group rust --locked
+
+      - name: Run ferrocopg backend crate tests
+        run: cargo test -p ferrocopg-postgres
+
+      - name: Install ferrocopg Rust extension
+        run: uv run --no-sync maturin develop --manifest-path crates/ferrocopg-python/Cargo.toml
+
+      - name: Run ferrocopg bootstrap tests
+        run: uv run --no-sync pytest --test-dsn "$PSYCOPG_TEST_DSN" tests/test_ferrocopg_bootstrap.py -q
 
 
   # }}}
@@ -189,10 +237,10 @@ jobs:
             | tr -d '.' >> $GITHUB_ENV
 
       - name: Sync uv environment
-        run: uv sync --project "$UV_PROJECT" $UV_SYNC_ARGS
+        run: uv sync --project "$UV_PROJECT" --locked $UV_SYNC_ARGS
 
       - name: Run tests
-        run: ./tools/ci/ci_test.sh
+        run: uv run --no-sync ./tools/ci/ci_test.sh
 
 
   # }}}
@@ -224,7 +272,7 @@ jobs:
       # pproxy-based tests fail too, with the proxy not coming up in 2s.
       NOT_MARKERS: "timing proxy mypy"
       PG_VERSION: "18"
-      UV_SYNC_ARGS: "--dev --locked"
+      UV_SYNC_ARGS: "--no-default-groups --group test --locked"
 
     steps:
       - uses: actions/checkout@v6
@@ -263,7 +311,7 @@ jobs:
         run: uv sync $UV_SYNC_ARGS
 
       - name: Run tests
-        run: ./tools/ci/ci_test.sh
+        run: uv run --no-sync ./tools/ci/ci_test.sh
 
 
   # }}}
@@ -290,7 +338,7 @@ jobs:
 
     env:
       PSYCOPG_IMPL: ${{ matrix.impl }}
-      DEPS: ./psycopg[test] ./psycopg_pool
+      DEPS: ./psycopg_pool
       PSYCOPG_TEST_DSN: "host=127.0.0.1 dbname=postgres"
       # On windows pproxy doesn't seem very happy. Also a few timing test fail.
       NOT_MARKERS: "timing proxy mypy"
@@ -357,7 +405,12 @@ jobs:
           echo "DEPS=$DEPS $(ls ./wheelhouse/*.whl)" >> $GITHUB_ENV
 
       - name: Install Python packages
-        run: pip install $DEPS
+        if: ${{ matrix.impl == 'python' }}
+        run: uv pip install --system ./psycopg[test] $DEPS
+
+      - name: Install Python packages with psycopg-c
+        if: ${{ matrix.impl == 'c' }}
+        run: uv pip install --system ./psycopg[test] $DEPS
 
       - name: Run tests
         run: ./tools/ci/ci_test.sh
@@ -394,7 +447,7 @@ jobs:
       # the test suite assumption.
       # https://www.cockroachlabs.com/docs/stable/online-schema-changes#enable-automatic-commit-before-running-schema-changes-inside-transactions
       PGOPTIONS: "-c autocommit_before_ddl=off"
-      UV_SYNC_ARGS: "--dev --locked"
+      UV_SYNC_ARGS: "--no-default-groups --group test --locked"
 
     steps:
       - uses: actions/checkout@v6
@@ -432,7 +485,7 @@ jobs:
         run: uv sync $UV_SYNC_ARGS
 
       - name: Run tests
-        run: ./tools/ci/ci_test.sh
+        run: uv run --no-sync ./tools/ci/ci_test.sh
 
 
   # }}}

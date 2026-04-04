@@ -26,20 +26,24 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: install packages to tests
-        run: pip install ./psycopg[dev,test]
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Sync uv environment for lint
+        run: uv sync --no-default-groups --group lint --group test --locked
 
       - name: Lint codebase
-        run: pre-commit run -a --color=always
+        run: uv run --no-sync pre-commit run -a --color=always
 
       - name: Check for sync/async inconsistencies
-        run: ./tools/async_to_sync.py --check --all
+        run: uv run --no-sync ./tools/async_to_sync.py --check --all
 
       - name: Install requirements to generate docs
         run: sudo apt-get install -y libgeos-dev
 
-      - name: Install Python packages to generate docs
-        run: pip install ./psycopg[docs] ./psycopg_pool
+      - name: Sync uv environment for docs
+        run: uv sync --no-default-groups --group docs --locked
 
       - name: Check documentation
-        run: sphinx-build -W -T -b html docs docs/_build/html
+        run: uv run --no-sync sphinx-build -W -T -b html docs docs/_build/html
