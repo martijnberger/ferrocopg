@@ -16,9 +16,9 @@ pub use bootstrap::{
 };
 pub use error::ProbeError;
 pub use model::{
-    ConnectEndpoint, ConnectPlan, ConnectTarget, ConninfoSummary, ExecuteResult,
-    PreparedStatementInfo, StatementColumn, StatementDescription, StatementParameter,
-    SyncNoTlsProbe, TextQueryResult,
+    BackendNotification, ConnectEndpoint, ConnectPlan, ConnectTarget, ConninfoSummary,
+    ExecuteResult, PreparedStatementInfo, StatementColumn, StatementDescription,
+    StatementParameter, SyncNoTlsProbe, TextQueryResult,
 };
 pub use session::SyncNoTlsSession;
 
@@ -109,6 +109,26 @@ mod tests {
         assert!(matches!(session.begin(), Err(ProbeError::Closed)));
         assert!(matches!(session.commit(), Err(ProbeError::Closed)));
         assert!(matches!(session.rollback(), Err(ProbeError::Closed)));
+        assert!(matches!(
+            session.listen("ferrocopg"),
+            Err(ProbeError::Closed)
+        ));
+        assert!(matches!(
+            session.unlisten("ferrocopg"),
+            Err(ProbeError::Closed)
+        ));
+        assert!(matches!(
+            session.notify("ferrocopg", "payload"),
+            Err(ProbeError::Closed)
+        ));
+        assert!(matches!(
+            session.drain_notifications(),
+            Err(ProbeError::Closed)
+        ));
+        assert!(matches!(
+            session.wait_for_notification(10),
+            Err(ProbeError::Closed)
+        ));
         assert!(matches!(
             session.describe_text("select 1"),
             Err(ProbeError::Closed)

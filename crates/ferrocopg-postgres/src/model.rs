@@ -67,6 +67,13 @@ pub struct SyncNoTlsProbe {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BackendNotification {
+    pub process_id: i32,
+    pub channel: String,
+    pub payload: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextQueryResult {
     pub columns: Vec<String>,
     pub rows: Vec<Vec<Option<String>>>,

@@ -9,5 +9,6 @@ publish = false
 description = "ferrocopg backend layer built on rust-postgres"
 
 [dependencies]
+fallible-iterator = "0.2"
 postgres = "0.19.12"
 tokio-postgres = "0.7.16"
