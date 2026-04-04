@@ -2524,6 +2524,87 @@ def test_no_tls_cursor_adapter_executemany(monkeypatch: pytest.MonkeyPatch) -> N
         assert cur.nextset() is None
 
 
+def test_no_tls_connection_adapter_transaction(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubSession:
+        closed = False
+
+        def __init__(self) -> None:
+            self.calls: list[object] = []
+
+        def close(self) -> None:
+            self.calls.append(("close",))
+
+        def begin(self) -> None:
+            self.calls.append(("begin",))
+
+        def commit(self) -> None:
+            self.calls.append(("commit",))
+
+        def rollback(self) -> None:
+            self.calls.append(("rollback",))
+
+        def prepare_text(self, query: str) -> object:
+            self.calls.append(("prepare", query))
+            return SimpleNamespace(statement_id=23)
+
+        def simple_query_results(self, query: str) -> list[object]:
+            self.calls.append(("simple", query))
+            return [SimpleNamespace(columns=[], rows=[], rows_affected=0)]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            self.calls.append(("params", query, params))
+            return SimpleNamespace(columns=[], rows=[], rows_affected=1)
+
+        def run_prepared_text_params(
+            self, statement_id: int, params: list[str | None]
+        ) -> object:
+            self.calls.append(("prepared", statement_id, params))
+            return SimpleNamespace(columns=[], rows=[], rows_affected=1)
+
+    stub = StubSession()
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: stub)
+
+    conn = module.no_tls_connection_adapter("host=localhost")
+    assert conn is not None
+
+    with conn.transaction():
+        conn.execute("select 1")
+
+    with conn.transaction(force_rollback=True):
+        conn.execute("select 2")
+
+    with conn.transaction():
+        conn.execute("select outer")
+        with conn.transaction("s1"):
+            conn.execute("select inner")
+
+    with conn.transaction():
+        with conn.transaction() as inner:
+            raise module.Rollback(inner)
+
+    assert stub.calls == [
+        ("begin",),
+        ("simple", "select 1"),
+        ("commit",),
+        ("begin",),
+        ("simple", "select 2"),
+        ("rollback",),
+        ("begin",),
+        ("simple", "select outer"),
+        ("simple", 'SAVEPOINT "s1"'),
+        ("simple", "select inner"),
+        ("simple", 'RELEASE "s1"'),
+        ("commit",),
+        ("begin",),
+        ("simple", 'SAVEPOINT "_ferrocopg_1"'),
+        ("simple", 'ROLLBACK TO "_ferrocopg_1"'),
+        ("simple", 'RELEASE "_ferrocopg_1"'),
+        ("commit",),
+    ]
+
+
 def test_backend_connect_target_parses_endpoints() -> None:
     module = importlib.import_module("psycopg._ferrocopg")
 
@@ -3075,6 +3156,44 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
         "select count(*)::text as n from pg_tables where tablename = 'ferrocopg_conn_adapter_test'"
     )
     assert check.fetchall() == [["0"]]
+
+    with conn.transaction():
+        conn.execute("create temporary table ferrocopg_conn_tx_test (id int4)")
+        conn.execute("insert into ferrocopg_conn_tx_test (id) values ($1::int4)", ["1"])
+        with conn.transaction("inner_tx"):
+            conn.execute(
+                "insert into ferrocopg_conn_tx_test (id) values ($1::int4)", ["2"]
+            )
+
+    committed = conn.execute(
+        "select id::text as id from ferrocopg_conn_tx_test order by id"
+    )
+    assert committed.fetchall() == [["1"], ["2"]]
+
+    with conn.transaction():
+        conn.execute(
+            "insert into ferrocopg_conn_tx_test (id) values ($1::int4)", ["3"]
+        )
+        with conn.transaction():
+            conn.execute(
+                "insert into ferrocopg_conn_tx_test (id) values ($1::int4)", ["4"]
+            )
+            raise module.Rollback()
+
+    after_inner_rollback = conn.execute(
+        "select id::text as id from ferrocopg_conn_tx_test order by id"
+    )
+    assert after_inner_rollback.fetchall() == [["1"], ["2"], ["3"]]
+
+    with conn.transaction(force_rollback=True):
+        conn.execute(
+            "insert into ferrocopg_conn_tx_test (id) values ($1::int4)", ["5"]
+        )
+
+    after_force_rollback = conn.execute(
+        "select id::text as id from ferrocopg_conn_tx_test order by id"
+    )
+    assert after_force_rollback.fetchall() == [["1"], ["2"], ["3"]]
 
     conn.close()
     assert conn.closed is True
