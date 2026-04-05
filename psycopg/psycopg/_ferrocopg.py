@@ -350,6 +350,7 @@ class NoTlsCursorAdapter:
         self._closed = False
         self._row_factory = row_factory
         self._rownumber = 0
+        self.arraysize = 1
 
     @property
     def closed(self) -> bool:
@@ -430,9 +431,47 @@ class NoTlsCursorAdapter:
         self._rownumber += len(rows)
         return [self._row_factory(result.columns, row) for row in rows]
 
+    def fetchmany(self, size: int | None = None) -> list[object]:
+        result = self._require_result()
+        if size is None:
+            size = self.arraysize
+        rows: list[object] = []
+        while len(rows) < size:
+            row = result.fetchone()
+            if row is None:
+                break
+            self._rownumber += 1
+            rows.append(self._row_factory(result.columns, row))
+        return rows
+
     def nextset(self) -> bool | None:
         result = self._require_result()
-        return result.nextset()
+        rv = result.nextset()
+        if rv:
+            self._rownumber = 0
+        return rv
+
+    def set_result(self, index: int) -> NoTlsCursorAdapter:
+        result = self._require_result()
+        result.set_result(index)
+        self._rownumber = 0
+        return self
+
+    def results(self) -> Iterator[NoTlsCursorAdapter]:
+        self._require_result()
+        while True:
+            yield self
+            if not self.nextset():
+                break
+
+    def __iter__(self) -> Iterator[object]:
+        return self
+
+    def __next__(self) -> object:
+        row = self.fetchone()
+        if row is None:
+            raise StopIteration
+        return row
 
     def __enter__(self) -> NoTlsCursorAdapter:
         self._check_closed()

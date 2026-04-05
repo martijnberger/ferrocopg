@@ -2457,6 +2457,13 @@ def test_no_tls_connection_adapter_row_factories(monkeypatch: pytest.MonkeyPatch
     )
     assert scalar_cur.fetchone() == "4"
 
+    iter_cur = conn.execute("select 1", row_factory=module.tuple_row)
+    assert list(iter_cur) == [("1", "one"), ("2", "two")]
+
+    many_cur = conn.execute("select 1")
+    many_cur.arraysize = 2
+    assert many_cur.fetchmany() == [["1", "one"], ["2", "two"]]
+
 
 def test_no_tls_cursor_adapter_executemany(monkeypatch: pytest.MonkeyPatch) -> None:
     module = importlib.import_module("psycopg._ferrocopg")
@@ -2522,6 +2529,53 @@ def test_no_tls_cursor_adapter_executemany(monkeypatch: pytest.MonkeyPatch) -> N
         assert cur.nextset() is True
         assert cur.fetchone() == "two"
         assert cur.nextset() is None
+
+
+def test_no_tls_cursor_adapter_result_navigation(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubSession:
+        closed = False
+
+        def close(self) -> None:
+            pass
+
+        def begin(self) -> None:
+            pass
+
+        def commit(self) -> None:
+            pass
+
+        def rollback(self) -> None:
+            pass
+
+        def prepare_text(self, query: str) -> object:
+            return SimpleNamespace(statement_id=1)
+
+        def simple_query_results(self, query: str) -> list[object]:
+            return [
+                SimpleNamespace(columns=["a"], rows=[["one"], ["two"]], rows_affected=2),
+                SimpleNamespace(columns=["b"], rows=[["three"]], rows_affected=1),
+            ]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            return SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)
+
+        def run_prepared_text_params(
+            self, statement_id: int, params: list[str | None]
+        ) -> object:
+            return SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)
+
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: StubSession())
+
+    conn = module.no_tls_connection_adapter("host=localhost")
+    assert conn is not None
+
+    cur = conn.execute("select 1")
+    assert cur.fetchmany(1) == [["one"]]
+    assert cur.rownumber == 1
+    assert cur.set_result(0) is cur
+    assert [res.fetchall() for res in cur.results()] == [[["one"], ["two"]], [["three"]]]
 
 
 def test_no_tls_connection_adapter_transaction(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -3140,6 +3194,8 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
     assert cur.fetchall() == [["first"]]
     assert cur.nextset() is True
     assert cur.fetchall() == [["second"]]
+    assert cur.set_result(0) is cur
+    assert [res.fetchall() for res in cur.results()] == [[["first"]], [["second"]]]
 
     with conn.cursor() as cur2:
         cur2.execute(
@@ -3151,6 +3207,12 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
             module.BackendColumn("label"),
         ]
         assert cur2.rowcount == 1
+        assert cur2.fetchmany(1) == [["7", "sum"]]
+        assert cur2.fetchone() is None
+        cur2.execute(
+            "select ($1::int4 + $2::int4)::text as total, $3::text as label",
+            ["2", "5", "sum"],
+        )
         assert cur2.fetchall() == [["7", "sum"]]
         assert cur2.rownumber == 1
 
@@ -3169,6 +3231,12 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
         row_factory=module.dict_row,
     )
     assert dict_cur.fetchall() == [{"id": "10", "label": "ten"}]
+
+    tuple_cur = conn.execute(
+        "select 1::text as id, 'one'::text as label union all select 2::text, 'two'::text order by id",
+        row_factory=module.tuple_row,
+    )
+    assert list(tuple_cur) == [("1", "one"), ("2", "two")]
 
     scalar_cur = conn.execute(
         "select 42::text as answer",
