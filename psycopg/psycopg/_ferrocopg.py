@@ -448,7 +448,9 @@ class NoTlsCursorAdapter:
         else:
             total = 0
             for params in params_seq:
-                result = self._conn._execute(query, params, prepare=prepare).current_result
+                result = self._conn._execute(
+                    query, params, prepare=prepare
+                ).current_result
                 if result is not None:
                     total += result.rows_affected
             synthetic = _SyntheticResult(rows_affected=total)

@@ -444,7 +444,9 @@ def _dump_binary_sequence(
     tx: abc.Transformer,
 ) -> bytearray:
     if _rpsycopg and hasattr(_rpsycopg, "composite_dump_binary_sequence"):
-        return bytearray(_rpsycopg.composite_dump_binary_sequence(seq, types, formats, tx))
+        return bytearray(
+            _rpsycopg.composite_dump_binary_sequence(seq, types, formats, tx)
+        )
 
     out = bytearray(pack_len(len(seq)))
     adapted = tx.dump_sequence(seq, formats)

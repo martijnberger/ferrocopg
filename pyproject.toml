@@ -101,6 +101,7 @@ sqlite_cache = false
 [[tool.mypy.overrides]]
 module = [
     "numpy.*",
+    "psycopg_binary.*",
     "shapely.*",
 ]
 ignore_missing_imports = true

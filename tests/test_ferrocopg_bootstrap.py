@@ -361,7 +361,9 @@ class StubPipelinePgconn:
 
 
 class StubCancelConn:
-    def __init__(self, statuses: list[int], socket: int = 42, error_message: str = "boom"):
+    def __init__(
+        self, statuses: list[int], socket: int = 42, error_message: str = "boom"
+    ):
         self._statuses = list(statuses)
         self.socket = socket
         self._error_message = error_message
@@ -437,7 +439,9 @@ class StubCompositeTransformer:
         return self._binary_values
 
 
-def _drive_send_generator(gen: object, ready_values: list[int | None]) -> tuple[list[int], object]:
+def _drive_send_generator(
+    gen: object, ready_values: list[int | None]
+) -> tuple[list[int], object]:
     waits: list[int] = []
     try:
         waits.append(next(cast(Generator[int, int | None, object], gen)))
@@ -619,7 +623,11 @@ def _connect_impls(
     fake_pgconn = SimpleNamespace(
         connect_start=staticmethod(lambda _conninfo: conn_factory())
     )
-    monkeypatch.setattr(generators, "pq", SimpleNamespace(**{**generators.pq.__dict__, "PGconn": fake_pgconn}))
+    monkeypatch.setattr(
+        generators,
+        "pq",
+        SimpleNamespace(**{**generators.pq.__dict__, "PGconn": fake_pgconn}),
+    )
     monkeypatch.setattr(pq_module, "PGconn", fake_pgconn)
     monkeypatch.setattr(generators.e, "finish_pgconn", lambda pgconn: pgconn)
 
@@ -846,9 +854,7 @@ def _datetime_impls() -> list[tuple[str, DateTimeImpl]]:
 def _python_str_dump_text(obj: str, encoding: str) -> bytes:
     if "\x00" in obj:
         errors = importlib.import_module("psycopg.errors")
-        raise errors.DataError(
-            "PostgreSQL text fields cannot contain NUL (0x00) bytes"
-        )
+        raise errors.DataError("PostgreSQL text fields cannot contain NUL (0x00) bytes")
     return obj.encode(encoding)
 
 
@@ -1141,7 +1147,14 @@ def test_generators_prefers_ferrocopg_fetch_when_available():
     [
         ([[]], [], [None], [], [], 0),
         ([[], []], [], [("COMMAND_OK", "ok"), None], [], ["ok"], 0),
-        ([[True, False], []], [1], [("COMMAND_OK", "waited"), None], [1], ["waited"], 1),
+        (
+            [[True, False], []],
+            [1],
+            [("COMMAND_OK", "waited"), None],
+            [1],
+            ["waited"],
+            1,
+        ),
         ([[]], [], [("COPY_OUT", "copy")], [], ["copy"], 0),
         ([[]], [], [("PIPELINE_SYNC", "pipeline")], [], ["pipeline"], 0),
     ],
@@ -1167,7 +1180,9 @@ def test_fetch_many_generator_equivalent(
         pgconn = StubFetchManyPgconn(busy_sequences, results)
         waits, got = _drive_fetch_many_generator(impl.fetch_many(pgconn), ready_values)
         assert waits == expected_waits, name
-        assert [res.label for res in cast(list[StubResult], got)] == expected_labels, name
+        assert [res.label for res in cast(list[StubResult], got)] == expected_labels, (
+            name
+        )
         assert pgconn.consume_input_calls == expected_consume_calls, name
 
 
@@ -1193,7 +1208,15 @@ def test_generators_prefers_ferrocopg_fetch_many_when_available():
     [
         ([0], [[]], [], [None], [], [], 0),
         ([1, 0], [[], []], [2], [("COMMAND_OK", "sent"), None], [3], ["sent"], 0),
-        ([0], [[True, False], []], [1], [("COMMAND_OK", "fetched"), None], [1], ["fetched"], 1),
+        (
+            [0],
+            [[True, False], []],
+            [1],
+            [("COMMAND_OK", "fetched"), None],
+            [1],
+            ["fetched"],
+            1,
+        ),
         (
             [1, 0],
             [[True, False], []],
@@ -1229,7 +1252,9 @@ def test_execute_generator_equivalent(
         pgconn._flush_results = list(flush_results)
         waits, got = _drive_execute_generator(impl.execute(pgconn), ready_values)
         assert waits == translated_waits, name
-        assert [res.label for res in cast(list[StubResult], got)] == expected_labels, name
+        assert [res.label for res in cast(list[StubResult], got)] == expected_labels, (
+            name
+        )
         assert pgconn.consume_input_calls == expected_consume_calls, name
 
 
@@ -1279,9 +1304,7 @@ def test_generators_prefers_ferrocopg_execute_when_available():
 )
 def test_pipeline_communicate_equivalent(
     ready_values: list[int | None],
-    read_cycles: list[
-        tuple[list[bool], list[tuple[str, str] | None], list[object]]
-    ],
+    read_cycles: list[tuple[list[bool], list[tuple[str, str] | None], list[object]]],
     expected_waits: list[int],
     expected_labels: list[list[str]],
     expected_command_calls: list[str],
@@ -1297,14 +1320,19 @@ def test_pipeline_communicate_equivalent(
     for name, impl in _pipeline_impls():
         command_calls: list[str] = []
         commands = deque(
-            [(lambda label=label: command_calls.append(label)) for label in expected_command_calls]
+            [
+                (lambda label=label: command_calls.append(label))
+                for label in expected_command_calls
+            ]
         )
         pgconn = StubPipelinePgconn(
             [
                 (
                     busy,
                     [
-                        None if result is None else StubResult(getattr(exec_status, result[0]), result[1])
+                        None
+                        if result is None
+                        else StubResult(getattr(exec_status, result[0]), result[1])
                         for result in results
                     ],
                     notifies,
@@ -1317,8 +1345,7 @@ def test_pipeline_communicate_equivalent(
         )
         assert waits == expected_waits, name
         assert [
-            [res.label for res in batch]
-            for batch in cast(list[list[StubResult]], got)
+            [res.label for res in batch] for batch in cast(list[list[StubResult]], got)
         ] == expected_labels, name
         assert command_calls == expected_command_calls, name
         assert pgconn.consume_input_calls == expected_consume_calls, name
@@ -1357,7 +1384,9 @@ def test_cancel_generator_equivalent(
 
     for name, impl in _cancel_impls():
         cancel_conn = StubCancelConn(cancel_statuses)
-        waits, result = _drive_cancel_generator(impl.cancel(cancel_conn), [1] * len(expected_waits))
+        waits, result = _drive_cancel_generator(
+            impl.cancel(cancel_conn), [1] * len(expected_waits)
+        )
         assert waits == translated_waits, name
         assert result is None, name
 
@@ -1472,15 +1501,17 @@ def test_array_binary_loader_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) 
     [
         (b"{}", b",", []),
         (b"{1,NULL,7}", b",", [1, None, 7]),
-        (b'{{1,2},{3,4}}', b",", [[1, 2], [3, 4]]),
-        (b'[1:2]={1;2}', b";", [1, 2]),
+        (b"{{1,2},{3,4}}", b",", [[1, 2], [3, 4]]),
+        (b"[1:2]={1;2}", b";", [1, 2]),
         (b'{"a,b","c\\\\d"}', b",", ["a,b", "c\\d"]),
     ],
 )
 def test_array_load_text_equivalent(
     payload: bytes, delimiter: bytes, expected: list[object]
 ) -> None:
-    loader = StubArrayLoader(lambda data: int(data) if data.isdigit() else data.decode())
+    loader = StubArrayLoader(
+        lambda data: int(data) if data.isdigit() else data.decode()
+    )
     for name, impl in _array_text_impls():
         assert impl.array_load_text(payload, loader, delimiter) == expected, name
 
@@ -1513,7 +1544,9 @@ def test_array_text_loader_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) ->
 )
 def test_uuid_load_text_equivalent(payload: bytes | memoryview) -> None:
     for name, impl in _uuid_text_impls():
-        assert impl.uuid_load_text(payload) == uuid.UUID("12345678-1234-5678-1234-567812345678"), name
+        assert impl.uuid_load_text(payload) == uuid.UUID(
+            "12345678-1234-5678-1234-567812345678"
+        ), name
 
 
 @pytest.mark.parametrize(
@@ -1726,7 +1759,7 @@ def test_bytea_binary_loader_prefers_ferrocopg(
 
 
 def test_composite_dump_text_sequence_equivalent() -> None:
-    seq = ("plain", "needs,quotes", "say\"hi", None, "")
+    seq = ("plain", "needs,quotes", 'say"hi', None, "")
     tx = StubCompositeTransformer(
         {
             "plain": b"plain",
@@ -1757,7 +1790,9 @@ def test_composite_dump_binary_sequence_equivalent() -> None:
         b"\x00\x00\x00\x17\x00\x00\x00\x03xyz"
     )
     for name, impl in _composite_impls():
-        assert impl.composite_dump_binary_sequence(seq, types, formats, tx) == expected, name
+        assert (
+            impl.composite_dump_binary_sequence(seq, types, formats, tx) == expected
+        ), name
 
 
 @pytest.mark.parametrize(
@@ -1765,7 +1800,7 @@ def test_composite_dump_binary_sequence_equivalent() -> None:
     [
         (b"foo,bar", [b"foo", b"bar"]),
         (b'"a","b""c",', [b"a", b'b"c', None]),
-        (b',', [None, None]),
+        (b",", [None, None]),
         (b'"",plain', [b"", b"plain"]),
     ],
 )
@@ -1836,21 +1871,17 @@ def test_numeric_decimal_text_equivalent(value: Decimal, expected: bytes) -> Non
 )
 def test_numeric_decimal_binary_equivalent(value: Decimal) -> None:
     for name, impl in _numeric_impls():
-        assert (
-            impl.dump_decimal_to_numeric_binary(value)
-            == importlib.import_module("psycopg.types.numeric").dump_decimal_to_numeric_binary(
-                value
-            )
-        ), name
+        assert impl.dump_decimal_to_numeric_binary(value) == importlib.import_module(
+            "psycopg.types.numeric"
+        ).dump_decimal_to_numeric_binary(value), name
 
 
 @pytest.mark.parametrize("value", [0, 42, -10000, 10**30 + 12345])
 def test_numeric_int_binary_equivalent(value: int) -> None:
     for name, impl in _numeric_impls():
-        assert (
-            impl.dump_int_to_numeric_binary(value)
-            == importlib.import_module("psycopg.types.numeric").dump_int_to_numeric_binary(value)
-        ), name
+        assert impl.dump_int_to_numeric_binary(value) == importlib.import_module(
+            "psycopg.types.numeric"
+        ).dump_int_to_numeric_binary(value), name
 
 
 @pytest.mark.parametrize("payload", [b"123.45", memoryview(b"-0.0012")])
@@ -1859,11 +1890,13 @@ def test_numeric_text_load_equivalent(payload: bytes | memoryview) -> None:
         assert impl.numeric_load_text(payload) == Decimal(bytes(payload).decode()), name
 
 
-@pytest.mark.parametrize("value", [Decimal("12.34"), Decimal("-0.0012"), Decimal("NaN")])
+@pytest.mark.parametrize(
+    "value", [Decimal("12.34"), Decimal("-0.0012"), Decimal("NaN")]
+)
 def test_numeric_binary_load_equivalent(value: Decimal) -> None:
-    payload = importlib.import_module("psycopg.types.numeric").dump_decimal_to_numeric_binary(
-        value
-    )
+    payload = importlib.import_module(
+        "psycopg.types.numeric"
+    ).dump_decimal_to_numeric_binary(value)
     for name, impl in _numeric_impls():
         result = cast(Decimal, impl.numeric_load_binary(payload))
         if value.is_nan():
@@ -1897,7 +1930,10 @@ def test_numeric_helpers_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> N
             return ("load-binary", data)
 
     monkeypatch.setattr(module, "_rpsycopg", StubRustModule)
-    assert module.DecimalDumper(Decimal).dump(Decimal("1.2")) == ("text", Decimal("1.2"))
+    assert module.DecimalDumper(Decimal).dump(Decimal("1.2")) == (
+        "text",
+        Decimal("1.2"),
+    )
     assert module.DecimalBinaryDumper(Decimal).dump(Decimal("1.2")) == b"decimal-binary"
     assert module.IntNumericBinaryDumper(int).dump(42) == b"int-binary"
     assert module.NumericLoader(0).load(b"12.3") == ("load-text", b"12.3")
@@ -1937,9 +1973,9 @@ def test_datetime_timestamp_helpers_equivalent() -> None:
         naive_payload = impl.datetime_notz_dump_binary(naive)
         aware_payload = impl.datetime_dump_binary(aware)
         assert impl.timestamp_load_binary(naive_payload) == naive, name
-        assert impl.timestamptz_load_binary(aware_payload, target_tz) == aware.astimezone(
-            target_tz
-        ), name
+        assert impl.timestamptz_load_binary(
+            aware_payload, target_tz
+        ) == aware.astimezone(target_tz), name
 
 
 def test_datetime_interval_helpers_equivalent() -> None:
@@ -2002,7 +2038,9 @@ def test_datetime_helpers_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> 
             return ("timestamp-load", data)
 
         @staticmethod
-        def timestamptz_load_binary(data: object, timezone_obj: object) -> tuple[str, object, object]:
+        def timestamptz_load_binary(
+            data: object, timezone_obj: object
+        ) -> tuple[str, object, object]:
             return ("timestamptz-load", data, timezone_obj)
 
         @staticmethod
@@ -2014,7 +2052,10 @@ def test_datetime_helpers_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> 
             return ("interval-load", data)
 
     monkeypatch.setattr(module, "_rpsycopg", StubRustModule)
-    assert module.DateDumper(date).dump(date(2024, 1, 2)) == ("date-text", date(2024, 1, 2))
+    assert module.DateDumper(date).dump(date(2024, 1, 2)) == (
+        "date-text",
+        date(2024, 1, 2),
+    )
     assert module.DateBinaryDumper(date).dump(date(2024, 1, 2)) == b"date-binary"
     assert module.DateBinaryLoader(0).load(b"x") == ("date-load", b"x")
     assert module.TimeDumper(time).dump(time(1, 2, 3)) == ("time-text", time(1, 2, 3))
@@ -2025,9 +2066,9 @@ def test_datetime_helpers_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> 
         == b"timetz-binary"
     )
     assert module.TimetzBinaryLoader(0).load(b"x") == ("timetz-load", b"x")
-    assert (
-        module.DatetimeDumper(datetime).dump(datetime(2024, 1, 2, 3, 4, 5))
-        == ("datetime-text", datetime(2024, 1, 2, 3, 4, 5))
+    assert module.DatetimeDumper(datetime).dump(datetime(2024, 1, 2, 3, 4, 5)) == (
+        "datetime-text",
+        datetime(2024, 1, 2, 3, 4, 5),
     )
     assert (
         module.DatetimeBinaryDumper(datetime).dump(
@@ -2043,11 +2084,16 @@ def test_datetime_helpers_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> 
     ts_loader = module.TimestamptzBinaryLoader(0)
     ts_loader._timezone = timezone.utc
     assert ts_loader.load(b"x") == ("timestamptz-load", b"x", timezone.utc)
-    assert module.TimedeltaBinaryDumper(timedelta).dump(timedelta(seconds=1)) == b"interval-binary"
+    assert (
+        module.TimedeltaBinaryDumper(timedelta).dump(timedelta(seconds=1))
+        == b"interval-binary"
+    )
     assert module.IntervalBinaryLoader(0).load(b"x") == ("interval-load", b"x")
 
 
-def test_transformer_prefers_ferrocopg_when_c_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_transformer_prefers_ferrocopg_when_c_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     module = cast(Any, importlib.import_module("psycopg._transformer"))
     py_transformer = importlib.import_module("psycopg._py_transformer")
 
@@ -2077,8 +2123,14 @@ def test_ferrocopg_unavailable(monkeypatch):
     assert module.query_text_no_tls("host=localhost", "select 1") is None
     assert module.simple_query_no_tls("host=localhost", "select 1") is None
     assert module.simple_query_results_no_tls("host=localhost", "select 1") is None
-    assert module.query_text_params_no_tls("host=localhost", "select $1::text", ["x"]) is None
-    assert module.run_text_params_no_tls("host=localhost", "select $1::text", ["x"]) is None
+    assert (
+        module.query_text_params_no_tls("host=localhost", "select $1::text", ["x"])
+        is None
+    )
+    assert (
+        module.run_text_params_no_tls("host=localhost", "select $1::text", ["x"])
+        is None
+    )
     assert module.execute_text_params_no_tls("host=localhost", "select 1", []) is None
     assert module.describe_text_no_tls("host=localhost", "select 1") is None
     assert module.no_tls_session("host=localhost") is None
@@ -2122,7 +2174,9 @@ def test_ferrocopg_wrapper(monkeypatch):
             return ("simple-query", conninfo, query)
 
         @staticmethod
-        def simple_query_results_no_tls(conninfo: str, query: str) -> tuple[str, str, str]:
+        def simple_query_results_no_tls(
+            conninfo: str, query: str
+        ) -> tuple[str, str, str]:
             calls.append(("simple-query-results", conninfo))
             return ("simple-query-results", conninfo, query)
 
@@ -2179,13 +2233,17 @@ def test_ferrocopg_wrapper(monkeypatch):
         "host=localhost",
         "select 1",
     )
-    assert module.query_text_params_no_tls("host=localhost", "select $1::text", ["x", None]) == (
+    assert module.query_text_params_no_tls(
+        "host=localhost", "select $1::text", ["x", None]
+    ) == (
         "query-params",
         "host=localhost",
         "select $1::text",
         ["x", None],
     )
-    assert module.run_text_params_no_tls("host=localhost", "select $1::text", ["x", None]) == (
+    assert module.run_text_params_no_tls(
+        "host=localhost", "select $1::text", ["x", None]
+    ) == (
         "run-params",
         "host=localhost",
         "select $1::text",
@@ -2363,8 +2421,12 @@ def test_no_tls_connection_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert conn.execute("select 1").fetchall() == [["one"]]
     assert conn.execute("select $1::text", ["x"]).fetchall() == [["two"]]
-    assert conn.execute("select $1::text", ["x"], prepare=True).fetchall() == [["three"]]
-    assert conn.execute("select $1::text", ["y"], prepare=True).fetchall() == [["three"]]
+    assert conn.execute("select $1::text", ["x"], prepare=True).fetchall() == [
+        ["three"]
+    ]
+    assert conn.execute("select $1::text", ["y"], prepare=True).fetchall() == [
+        ["three"]
+    ]
 
     with conn.cursor() as cur:
         assert cur.execute("select 1").fetchone() == ["one"]
@@ -2390,7 +2452,9 @@ def test_no_tls_connection_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
     ]
 
 
-def test_no_tls_connection_adapter_row_factories(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_no_tls_connection_adapter_row_factories(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     module = importlib.import_module("psycopg._ferrocopg")
 
     class StubSession:
@@ -2535,7 +2599,9 @@ def test_no_tls_cursor_adapter_executemany(monkeypatch: pytest.MonkeyPatch) -> N
         assert cur.nextset() is None
 
 
-def test_no_tls_cursor_adapter_result_navigation(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_no_tls_cursor_adapter_result_navigation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     module = importlib.import_module("psycopg._ferrocopg")
 
     class StubSession:
@@ -2558,7 +2624,9 @@ def test_no_tls_cursor_adapter_result_navigation(monkeypatch: pytest.MonkeyPatch
 
         def simple_query_results(self, query: str) -> list[object]:
             return [
-                SimpleNamespace(columns=["a"], rows=[["one"], ["two"]], rows_affected=2),
+                SimpleNamespace(
+                    columns=["a"], rows=[["one"], ["two"]], rows_affected=2
+                ),
                 SimpleNamespace(columns=["b"], rows=[["three"]], rows_affected=1),
             ]
 
@@ -2579,7 +2647,10 @@ def test_no_tls_cursor_adapter_result_navigation(monkeypatch: pytest.MonkeyPatch
     assert cur.fetchmany(1) == [["one"]]
     assert cur.rownumber == 1
     assert cur.set_result(0) is cur
-    assert [res.fetchall() for res in cur.results()] == [[["one"], ["two"]], [["three"]]]
+    assert [res.fetchall() for res in cur.results()] == [
+        [["one"], ["two"]],
+        [["three"]],
+    ]
 
 
 def test_no_tls_connection_adapter_transaction(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2808,7 +2879,10 @@ def test_backend_simple_query_no_tls_live(dsn: str) -> None:
         "select 'alpha'::text as label; select 'beta'::text as label",
     )
     assert messages is not None
-    assert [(message.kind, message.columns, message.values, message.rows_affected) for message in messages] == [
+    assert [
+        (message.kind, message.columns, message.values, message.rows_affected)
+        for message in messages
+    ] == [
         ("row_description", ["label"], [], None),
         ("row", ["label"], ["alpha"], None),
         ("command_complete", [], [], 1),
@@ -2829,7 +2903,9 @@ def test_backend_simple_query_results_no_tls_live(dsn: str) -> None:
         "select 'alpha'::text as label; select 'beta'::text as label",
     )
     assert results is not None
-    assert [(result.columns, result.rows, result.rows_affected) for result in results] == [
+    assert [
+        (result.columns, result.rows, result.rows_affected) for result in results
+    ] == [
         (["label"], [["alpha"]], 1),
         (["label"], [["beta"]], 1),
     ]
@@ -2874,7 +2950,11 @@ def test_backend_run_text_params_no_tls_live(dsn: str) -> None:
         "create temporary table ferrocopg_run_result_test (id int4, label text)",
         [],
     )
-    assert (command_result.columns, command_result.rows, command_result.rows_affected) == (
+    assert (
+        command_result.columns,
+        command_result.rows,
+        command_result.rows_affected,
+    ) == (
         [],
         [],
         0,
@@ -2911,7 +2991,9 @@ def test_backend_describe_text_no_tls_live(dsn: str) -> None:
         (23, "int4"),
         (25, "text"),
     ]
-    assert [(column.name, column.oid, column.type_name) for column in description.columns] == [
+    assert [
+        (column.name, column.oid, column.type_name) for column in description.columns
+    ] == [
         ("n", 23, "int4"),
         ("t", 25, "text"),
     ]
@@ -2954,8 +3036,7 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
         "select 'first'::text as label; select 'second'::text as label"
     )
     assert [
-        (result.columns, result.rows, result.rows_affected)
-        for result in simple_results
+        (result.columns, result.rows, result.rows_affected) for result in simple_results
     ] == [
         (["label"], [["first"]], 1),
         (["label"], [["second"]], 1),
@@ -3036,7 +3117,9 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
         "insert into ferrocopg_session_test (id, label) values ($1::int4, $2::text)"
     )
     assert prepared_insert.statement_id > 0
-    assert [(param.oid, param.type_name) for param in prepared_insert.description.params] == [
+    assert [
+        (param.oid, param.type_name) for param in prepared_insert.description.params
+    ] == [
         (23, "int4"),
         (25, "text"),
     ]
@@ -3056,10 +3139,14 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
         "select id::text as id, label from ferrocopg_session_test where id >= $1::int4 order by id"
     )
     assert prepared_query.statement_id > prepared_insert.statement_id
-    assert [(param.oid, param.type_name) for param in prepared_query.description.params] == [
+    assert [
+        (param.oid, param.type_name) for param in prepared_query.description.params
+    ] == [
         (23, "int4"),
     ]
-    queried_prepared = session.query_prepared_text_params(prepared_query.statement_id, ["13"])
+    queried_prepared = session.query_prepared_text_params(
+        prepared_query.statement_id, ["13"]
+    )
     assert queried_prepared.columns == ["id", "label"]
     assert queried_prepared.rows == [["13", "committed"], ["14", "prepared"]]
     queried_prepared_result = session.run_prepared_text_params(
@@ -3094,7 +3181,9 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
     third_notification = session.wait_for_notification(1_000)
     assert second_notification is not None
     assert third_notification is not None
-    observed_payloads = sorted([second_notification.payload, third_notification.payload])
+    observed_payloads = sorted(
+        [second_notification.payload, third_notification.payload]
+    )
     assert observed_payloads == ["second", "third"]
     assert all(
         notification.channel == listener_channel
@@ -3122,7 +3211,9 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
         (23, "int4"),
         (25, "text"),
     ]
-    assert [(column.name, column.oid, column.type_name) for column in description.columns] == [
+    assert [
+        (column.name, column.oid, column.type_name) for column in description.columns
+    ] == [
         ("n", 23, "int4"),
         ("t", 25, "text"),
     ]
@@ -3194,9 +3285,7 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
     assert conn is not None
     assert conn.closed is False
 
-    cur = conn.execute(
-        "select 'first'::text as label; select 'second'::text as label"
-    )
+    cur = conn.execute("select 'first'::text as label; select 'second'::text as label")
     assert cur.statusmessage == "SELECT 1"
     assert cur.fetchall() == [["first"]]
     assert cur.nextset() is True
@@ -3305,9 +3394,7 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
     assert committed.fetchall() == [["1"], ["2"]]
 
     with conn.transaction():
-        conn.execute(
-            "insert into ferrocopg_conn_tx_test (id) values ($1::int4)", ["3"]
-        )
+        conn.execute("insert into ferrocopg_conn_tx_test (id) values ($1::int4)", ["3"])
         with conn.transaction():
             conn.execute(
                 "insert into ferrocopg_conn_tx_test (id) values ($1::int4)", ["4"]
@@ -3320,9 +3407,7 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
     assert after_inner_rollback.fetchall() == [["1"], ["2"], ["3"]]
 
     with conn.transaction(force_rollback=True):
-        conn.execute(
-            "insert into ferrocopg_conn_tx_test (id) values ($1::int4)", ["5"]
-        )
+        conn.execute("insert into ferrocopg_conn_tx_test (id) values ($1::int4)", ["5"])
 
     after_force_rollback = conn.execute(
         "select id::text as id from ferrocopg_conn_tx_test order by id"

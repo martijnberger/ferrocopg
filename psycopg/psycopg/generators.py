@@ -389,9 +389,13 @@ if _psycopg:
     pipeline_communicate = _psycopg.pipeline_communicate
 
 else:
-    connect = _rpsycopg.connect if _rpsycopg and hasattr(_rpsycopg, "connect") else _connect
+    connect = (
+        _rpsycopg.connect if _rpsycopg and hasattr(_rpsycopg, "connect") else _connect
+    )
     cancel = _rpsycopg.cancel if _rpsycopg and hasattr(_rpsycopg, "cancel") else _cancel
-    execute = _rpsycopg.execute if _rpsycopg and hasattr(_rpsycopg, "execute") else _execute
+    execute = (
+        _rpsycopg.execute if _rpsycopg and hasattr(_rpsycopg, "execute") else _execute
+    )
     send = _rpsycopg.send if _rpsycopg and hasattr(_rpsycopg, "send") else _send
     fetch = _rpsycopg.fetch if _rpsycopg and hasattr(_rpsycopg, "fetch") else _fetch
     fetch_many = (
