@@ -70,14 +70,12 @@ pool = [
 ]
 test = [
     "anyio >= 4.0",
-    "gevent >= 22.10.2",
     # Mypy >= 1.19 depends on librt, not available for PyPy.
     "mypy >= 2.1.0; implementation_name != \"pypy\"",
     "pproxy >= 2.7",
     "pytest >= 6.2.5",
     "pytest-cov >= 3.0",
     "pytest-randomly >= 3.5",
-    "shapely >= 1.8.0",
 ]
 dev = [
     "ast-comments >= 1.1.2",
