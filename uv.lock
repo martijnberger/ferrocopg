@@ -538,7 +538,7 @@ c = [{ name = "psycopg-c", directory = "psycopg_c" }]
 dev = [
     { name = "dnspython", specifier = ">=2.1" },
     { name = "maturin", specifier = ">=1.8,<2.0" },
-    { name = "numpy" },
+    { name = "numpy", specifier = ">=1.22.0" },
     { name = "psycopg", extras = ["dev"], editable = "psycopg" },
     { name = "psycopg", extras = ["docs"], editable = "psycopg" },
     { name = "psycopg", extras = ["test"], editable = "psycopg" },
@@ -550,17 +550,17 @@ docs = [
     { name = "psycopg", extras = ["docs"], editable = "psycopg" },
     { name = "psycopg-pool", editable = "psycopg_pool" },
 ]
-gevent = [{ name = "gevent" }]
+gevent = [{ name = "gevent", specifier = ">=22.10.2" }]
 lint = [{ name = "psycopg", extras = ["dev"], editable = "psycopg" }]
-numpy = [{ name = "numpy" }]
-postgis = [{ name = "shapely" }]
+numpy = [{ name = "numpy", specifier = ">=1.22.0" }]
+postgis = [{ name = "shapely", specifier = ">=1.8.0" }]
 rust = [
     { name = "ferrocopg-rust", directory = "crates/ferrocopg-python" },
     { name = "maturin", specifier = ">=1.8,<2.0" },
 ]
 sqlalchemy = [
-    { name = "greenlet" },
-    { name = "pytest-xdist" },
+    { name = "greenlet", specifier = ">=1.1.3" },
+    { name = "pytest-xdist", specifier = ">=3.0" },
 ]
 test = [
     { name = "psycopg", extras = ["test"], editable = "psycopg" },
@@ -1295,7 +1295,7 @@ requires-dist = [
     { name = "cython-lint", marker = "extra == 'dev'", specifier = ">=0.16" },
     { name = "dnspython", marker = "extra == 'dev'", specifier = ">=2.1" },
     { name = "furo", marker = "extra == 'docs'", specifier = "==2022.6.21" },
-    { name = "gevent", marker = "extra == 'test'" },
+    { name = "gevent", marker = "extra == 'test'", specifier = ">=22.10.2" },
     { name = "mypy", marker = "implementation_name != 'pypy' and extra == 'test'", specifier = ">=1.19.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.19.0" },
     { name = "pproxy", marker = "extra == 'test'", specifier = ">=2.7" },
@@ -1307,14 +1307,14 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=3.0" },
     { name = "pytest-randomly", marker = "extra == 'test'", specifier = ">=3.5" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.11.0" },
-    { name = "shapely", marker = "extra == 'test'" },
+    { name = "shapely", marker = "extra == 'test'", specifier = ">=1.8.0" },
     { name = "sphinx", marker = "extra == 'docs'", specifier = ">=5.0" },
     { name = "sphinx-autobuild", marker = "extra == 'docs'", specifier = ">=2021.3.14" },
     { name = "sphinx-autodoc-typehints", marker = "extra == 'docs'", specifier = ">=1.12" },
     { name = "types-setuptools", marker = "extra == 'dev'", specifier = ">=57.4" },
     { name = "types-shapely", marker = "extra == 'dev'", specifier = ">=2.0" },
     { name = "typing-extensions", marker = "python_full_version < '3.13'", specifier = ">=4.6" },
-    { name = "tzdata", marker = "sys_platform == 'win32'" },
+    { name = "tzdata", marker = "sys_platform == 'win32'", specifier = ">=2022.1" },
     { name = "wheel", marker = "extra == 'dev'", specifier = ">=0.37" },
 ]
 provides-extras = ["c", "binary", "pool", "test", "dev", "docs"]

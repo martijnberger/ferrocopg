@@ -79,7 +79,7 @@ jobs:
           python-version: ${{ matrix.python }}
           allow-prereleases: true
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
@@ -131,7 +131,8 @@ jobs:
       - name: Configure to use the oldest dependencies
         if: ${{ matrix.ext == 'min' }}
         run: |
-          echo "UV_SYNC_ARGS=--no-default-groups --group test --group c --locked --resolution lowest-direct" \
+          echo "UV_CONSTRAINT=${{ github.workspace }}/tests/constraints.txt" >> $GITHUB_ENV
+          echo "UV_SYNC_ARGS=--no-default-groups --group test --group c --resolution lowest-direct" \
             >> $GITHUB_ENV
 
       - name: Configure memory alignment tests
@@ -174,7 +175,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
@@ -228,7 +229,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
@@ -292,7 +293,7 @@ jobs:
           python-version: ${{ matrix.python }}
           allow-prereleases: true
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
@@ -369,7 +370,7 @@ jobs:
           python-version: ${{ matrix.python }}
           allow-prereleases: true
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
@@ -466,7 +467,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
