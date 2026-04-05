@@ -29,10 +29,12 @@ class _SyntheticResult:
         columns: list[str] | None = None,
         rows: list[list[str | None]] | None = None,
         rows_affected: int = 0,
+        statusmessage: str | None = None,
     ):
         self.columns = columns or []
         self.rows = rows or []
         self.rows_affected = rows_affected
+        self.statusmessage = statusmessage
 
 
 class _PreparedStatementLike(Protocol):
@@ -216,8 +218,18 @@ def no_tls_session(conninfo: str) -> object | None:
 class BackendResultCursor:
     """Small cursor-like wrapper over ferrocopg backend result sets."""
 
-    def __init__(self, results: Sequence[_ResultSetLike]):
+    def __init__(
+        self,
+        results: Sequence[_ResultSetLike],
+        statusmessages: Sequence[str | None] | None = None,
+    ):
         self._results = list(results)
+        if statusmessages is None:
+            self._statusmessages = [
+                getattr(result, "statusmessage", None) for result in self._results
+            ]
+        else:
+            self._statusmessages = list(statusmessages)
         self._index = 0 if self._results else -1
         self._pos = 0
 
@@ -240,6 +252,12 @@ class BackendResultCursor:
         if result is None:
             return -1
         return result.rows_affected
+
+    @property
+    def statusmessage(self) -> str | None:
+        if self._index < 0 or self._index >= len(self._statusmessages):
+            return None
+        return self._statusmessages[self._index]
 
     def fetchone(self) -> list[str | None] | None:
         result = self.current_result
@@ -306,19 +324,25 @@ class NoTlsSessionAdapter:
         self._session.close()
 
     def execute_simple(self, query: str) -> BackendResultCursor:
-        return BackendResultCursor(self._session.simple_query_results(query))
+        results = self._session.simple_query_results(query)
+        statuses = [_statusmessage_for_query(query, result) for result in results]
+        return BackendResultCursor(results, statuses)
 
     def execute_params(
         self, query: str, params: list[str | None]
     ) -> BackendResultCursor:
-        return BackendResultCursor([self._session.run_text_params(query, params)])
+        result = self._session.run_text_params(query, params)
+        return BackendResultCursor([result], [_statusmessage_for_query(query, result)])
 
     def execute_prepared(
-        self, statement_id: int, params: list[str | None]
+        self,
+        statement_id: int,
+        params: list[str | None],
+        *,
+        statusmessage: str | None = None,
     ) -> BackendResultCursor:
-        return BackendResultCursor(
-            [self._session.run_prepared_text_params(statement_id, params)]
-        )
+        result = self._session.run_prepared_text_params(statement_id, params)
+        return BackendResultCursor([result], [statusmessage])
 
     def begin(self) -> None:
         self._session.begin()
@@ -363,7 +387,15 @@ class NoTlsCursorAdapter:
         return self._result.rows_affected
 
     @property
-    def rownumber(self) -> int:
+    def rownumber(self) -> int | None:
+        result = self._result
+        if result is None:
+            return None
+        current = result.current_result
+        if current is None:
+            return None
+        if not current.columns and not current.rows:
+            return None
         return self._rownumber
 
     @property
@@ -371,6 +403,12 @@ class NoTlsCursorAdapter:
         if self._result is None:
             return None
         return [BackendColumn(name) for name in self._result.columns]
+
+    @property
+    def statusmessage(self) -> str | None:
+        if self._result is None:
+            return None
+        return self._result.statusmessage
 
     def close(self) -> None:
         self._closed = True
@@ -413,7 +451,9 @@ class NoTlsCursorAdapter:
                 result = self._conn._execute(query, params, prepare=prepare).current_result
                 if result is not None:
                     total += result.rows_affected
-            self._result = BackendResultCursor([_SyntheticResult(rows_affected=total)])
+            synthetic = _SyntheticResult(rows_affected=total)
+            synthetic.statusmessage = _statusmessage_for_query(query, synthetic)
+            self._result = BackendResultCursor([synthetic])
         self._rownumber = 0
         return self
 
@@ -498,6 +538,7 @@ class NoTlsConnectionAdapter:
     def __init__(self, session: NoTlsSessionAdapter):
         self._session = session
         self._prepared: dict[str, int] = {}
+        self._prepared_statusmessages: dict[int, str | None] = {}
         self._tx_depth = 0
         self._savepoint_counter = 0
 
@@ -563,7 +604,14 @@ class NoTlsConnectionAdapter:
                 prepared = self._session.prepare_text(query)
                 statement_id = prepared.statement_id
                 self._prepared[query] = statement_id
-            return self._session.execute_prepared(statement_id, params)
+                self._prepared_statusmessages[statement_id] = _statusmessage_for_query(
+                    query
+                )
+            return self._session.execute_prepared(
+                statement_id,
+                params,
+                statusmessage=self._prepared_statusmessages.get(statement_id),
+            )
 
         return self._session.execute_params(query, params)
 
@@ -637,6 +685,45 @@ class NoTlsTransactionAdapter:
 def _savepoint_sql(command: str, name: str) -> str:
     quoted = name.replace('"', '""')
     return f'{command} "{quoted}"'
+
+
+def _statusmessage_for_query(
+    query: str, result: _ResultSetLike | None = None
+) -> str | None:
+    tokens = query.strip().split()
+    if not tokens:
+        return None
+
+    first = tokens[0].upper()
+    second = tokens[1].upper() if len(tokens) > 1 else ""
+    rows_affected = result.rows_affected if result is not None else 0
+    has_tuples = bool(result and result.columns)
+
+    if first == "SELECT":
+        return f"SELECT {rows_affected}"
+    if first == "INSERT":
+        return f"INSERT 0 {rows_affected}"
+    if first in {"UPDATE", "DELETE", "MERGE", "MOVE", "FETCH", "COPY"}:
+        return f"{first} {rows_affected}"
+    if first == "CREATE" and second:
+        return f"CREATE {second}"
+    if first == "ALTER" and second:
+        return f"ALTER {second}"
+    if first == "DROP" and second:
+        return f"DROP {second}"
+    if first == "SAVEPOINT":
+        return "SAVEPOINT"
+    if first == "RELEASE":
+        return "RELEASE"
+    if first == "ROLLBACK":
+        return "ROLLBACK"
+    if first == "BEGIN":
+        return "BEGIN"
+    if first == "COMMIT":
+        return "COMMIT"
+    if has_tuples:
+        return f"{first} {rows_affected}"
+    return first
 
 
 def no_tls_session_adapter(conninfo: str) -> NoTlsSessionAdapter | None:

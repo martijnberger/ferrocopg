@@ -2237,6 +2237,7 @@ def test_backend_result_cursor_navigation() -> None:
     cur = module.BackendResultCursor(results)
     assert cur.columns == ["a"]
     assert cur.rows_affected == 2
+    assert cur.statusmessage is None
     assert cur.fetchone() == ["one"]
     assert cur.fetchall() == [["two"]]
     assert cur.nextset() is True
@@ -2437,6 +2438,7 @@ def test_no_tls_connection_adapter_row_factories(monkeypatch: pytest.MonkeyPatch
         module.BackendColumn("id"),
         module.BackendColumn("label"),
     ]
+    assert default_cur.statusmessage == "SELECT 2"
     assert default_cur.fetchall() == [["1", "one"], ["2", "two"]]
     assert default_cur.rownumber == 2
 
@@ -2516,6 +2518,8 @@ def test_no_tls_cursor_adapter_executemany(monkeypatch: pytest.MonkeyPatch) -> N
             [["one"], ["two"]],
         )
         assert cur.rowcount == 2
+        assert cur.statusmessage == "INSERT 0 2"
+        assert cur.rownumber is None
         assert cur.fetchall() == []
 
     with conn.cursor(row_factory=module.scalar_row) as cur:
@@ -2701,6 +2705,8 @@ def test_no_tls_connection_adapter_exceptions(monkeypatch: pytest.MonkeyPatch) -
     cur = conn.cursor()
     with pytest.raises(psycopg.ProgrammingError, match="no result available"):
         cur.fetchone()
+    assert cur.statusmessage is None
+    assert cur.rownumber is None
     cur.close()
     with pytest.raises(psycopg.InterfaceError, match="cursor is closed"):
         cur.execute("select 1")
@@ -3191,8 +3197,10 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
     cur = conn.execute(
         "select 'first'::text as label; select 'second'::text as label"
     )
+    assert cur.statusmessage == "SELECT 1"
     assert cur.fetchall() == [["first"]]
     assert cur.nextset() is True
+    assert cur.statusmessage == "SELECT 1"
     assert cur.fetchall() == [["second"]]
     assert cur.set_result(0) is cur
     assert [res.fetchall() for res in cur.results()] == [[["first"]], [["second"]]]
@@ -3207,6 +3215,7 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
             module.BackendColumn("label"),
         ]
         assert cur2.rowcount == 1
+        assert cur2.statusmessage == "SELECT 1"
         assert cur2.fetchmany(1) == [["7", "sum"]]
         assert cur2.fetchone() is None
         cur2.execute(
@@ -3251,6 +3260,8 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
             [["1"], ["2"], ["3"]],
         )
         assert cur3.rowcount == 3
+        assert cur3.statusmessage == "INSERT 0 3"
+        assert cur3.rownumber is None
 
     verify_many = conn.execute(
         "select id::text as id from ferrocopg_conn_execmany_test order by id"
