@@ -67,6 +67,7 @@ jobs:
 
     env:
       PSYCOPG_IMPL: ${{ matrix.impl }}
+      DEPS: ./psycopg[test] ./psycopg_pool
       PSYCOPG_TEST_DSN: "host=127.0.0.1 user=postgres password=password"
       MARKERS: ""
       UV_SYNC_ARGS: "--no-default-groups --group test --locked"
@@ -131,6 +132,8 @@ jobs:
       - name: Configure to use the oldest dependencies
         if: ${{ matrix.ext == 'min' }}
         run: |
+          echo "DEPS=./psycopg[test] ./psycopg_pool ./psycopg_c dnspython shapely numpy gevent" \
+            >> $GITHUB_ENV
           echo "UV_CONSTRAINT=${{ github.workspace }}/tests/constraints.txt" >> $GITHUB_ENV
           echo "UV_SYNC_ARGS=--no-default-groups --group test --group c --resolution lowest-direct" \
             >> $GITHUB_ENV
@@ -144,10 +147,20 @@ jobs:
           echo "PYTEST_ADDOPTS=-v" >> $GITHUB_ENV
 
       - name: Sync uv environment
+        if: ${{ matrix.ext != 'min' }}
         run: uv sync $UV_SYNC_ARGS
 
+      - name: Install minimum-version Python packages
+        if: ${{ matrix.ext == 'min' }}
+        run: uv pip install --system $DEPS
+
       - name: Run tests
+        if: ${{ matrix.ext != 'min' }}
         run: uv run --no-sync ./tools/ci/ci_test.sh
+
+      - name: Run minimum-version tests
+        if: ${{ matrix.ext == 'min' }}
+        run: PSYCOPG_USE_UV=0 ./tools/ci/ci_test.sh
 
 
   # }}}
@@ -217,10 +230,9 @@ jobs:
           - {psycopg: "3.2", python: "3.12", postgres: "postgres:17"}
 
     env:
+      DEPS: psycopg<${{ matrix.psycopg }} ./psycopg_pool[test]
       PSYCOPG_TEST_DSN: "host=127.0.0.1 user=postgres password=password"
       MARKERS: "pool"
-      UV_PROJECT: tools/ci/pool-compat
-      UV_SYNC_ARGS: ""
 
     steps:
       - uses: actions/checkout@v6
@@ -242,16 +254,11 @@ jobs:
             -e POSTGRES_PASSWORD=password ${{ matrix.postgres }} \
             -c max_prepared_transactions=10
 
-      - name: Select pool compatibility group
-        run: |
-          echo "UV_SYNC_ARGS=--group psycopg${{ matrix.psycopg }}" \
-            | tr -d '.' >> $GITHUB_ENV
-
-      - name: Sync uv environment
-        run: uv sync --project "$UV_PROJECT" --locked $UV_SYNC_ARGS
+      - name: Install Python packages
+        run: uv pip install --system $DEPS
 
       - name: Run tests
-        run: uv run --no-sync ./tools/ci/ci_test.sh
+        run: PSYCOPG_USE_UV=0 ./tools/ci/ci_test.sh
 
 
   # }}}
