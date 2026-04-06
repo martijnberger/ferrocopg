@@ -2506,6 +2506,18 @@ def test_no_tls_connection_adapter_row_factories(
                 )
             ]
 
+        def pipeline_simple_query_results(self, queries: list[str]) -> list[list[object]]:
+            return [
+                [
+                    SimpleNamespace(
+                        columns=["value"],
+                        rows=[[query]],
+                        rows_affected=1,
+                    )
+                ]
+                for query in queries
+            ]
+
         def run_text_params(self, query: str, params: list[str | None]) -> object:
             return SimpleNamespace(columns=["value"], rows=[["3"]], rows_affected=1)
 
@@ -2551,6 +2563,12 @@ def test_no_tls_connection_adapter_row_factories(
     many_cur = conn.execute("select 1")
     many_cur.arraysize = 2
     assert many_cur.fetchmany() == [["1", "one"], ["2", "two"]]
+
+    pipeline_cursors = conn.execute_pipeline_simple(
+        ["select first", "select second"],
+        row_factory=module.scalar_row,
+    )
+    assert [cur.fetchall() for cur in pipeline_cursors] == [["select first"], ["select second"]]
 
 
 def test_no_tls_cursor_adapter_executemany(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2652,6 +2670,12 @@ def test_no_tls_cursor_adapter_result_navigation(
                 SimpleNamespace(columns=["b"], rows=[["three"]], rows_affected=1),
             ]
 
+        def pipeline_simple_query_results(self, queries: list[str]) -> list[list[object]]:
+            return [
+                [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
+                for query in queries
+            ]
+
         def run_text_params(self, query: str, params: list[str | None]) -> object:
             return SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)
 
@@ -2673,6 +2697,9 @@ def test_no_tls_cursor_adapter_result_navigation(
         [["one"], ["two"]],
         [["three"]],
     ]
+
+    pipeline = conn.execute_pipeline_simple(["select left", "select right"])
+    assert [cur.fetchall() for cur in pipeline] == [[["select left"]], [["select right"]]]
 
 
 def test_no_tls_connection_adapter_transaction(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -3314,6 +3341,18 @@ def test_backend_no_tls_session_adapter_live(dsn: str) -> None:
     assert simple.fetchall() == [["second"]]
     assert simple.nextset() is None
 
+    pipeline = adapter.execute_pipeline_simple(
+        [
+            "select 'alpha'::text as label",
+            "select 'beta'::text as label; select 'gamma'::text as label",
+        ]
+    )
+    assert pipeline[0].fetchall() == [["alpha"]]
+    assert [res.fetchall() for res in pipeline[1].results()] == [
+        [["beta"]],
+        [["gamma"]],
+    ]
+
     bound = adapter.execute_params(
         "select ($1::int4 + $2::int4)::text as total, $3::text as label",
         ["2", "5", "sum"],
@@ -3352,6 +3391,16 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
     assert cur.fetchall() == [["second"]]
     assert cur.set_result(0) is cur
     assert [res.fetchall() for res in cur.results()] == [[["first"]], [["second"]]]
+
+    pipeline = conn.execute_pipeline_simple(
+        [
+            "select 'alpha'::text as label",
+            "select 'beta'::text as label; select 'gamma'::text as label",
+        ],
+        row_factory=module.scalar_row,
+    )
+    assert pipeline[0].fetchall() == ["alpha"]
+    assert [res.fetchall() for res in pipeline[1].results()] == [["beta"], ["gamma"]]
 
     with conn.cursor() as cur2:
         cur2.execute(

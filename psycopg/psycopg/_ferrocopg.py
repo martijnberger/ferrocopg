@@ -87,6 +87,10 @@ class _NoTlsSessionLike(Protocol):
 
     def simple_query_results(self, query: str) -> list[_ResultSetLike]: ...
 
+    def pipeline_simple_query_results(
+        self, queries: list[str]
+    ) -> list[list[_ResultSetLike]]: ...
+
     def run_text_params(
         self, query: str, params: list[str | None]
     ) -> _ResultSetLike: ...
@@ -341,6 +345,16 @@ class NoTlsSessionAdapter:
         statuses = [_statusmessage_for_query(query, result) for result in results]
         return BackendResultCursor(results, statuses)
 
+    def execute_pipeline_simple(self, queries: list[str]) -> list[BackendResultCursor]:
+        batches = self._session.pipeline_simple_query_results(queries)
+        return [
+            BackendResultCursor(
+                results,
+                [_statusmessage_for_query(query, result) for result in results],
+            )
+            for query, results in zip(queries, batches, strict=True)
+        ]
+
     def execute_params(
         self, query: str, params: list[str | None]
     ) -> BackendResultCursor:
@@ -579,6 +593,20 @@ class NoTlsConnectionAdapter:
         self._check_closed()
         cur = self.cursor(row_factory=row_factory)
         return cur.execute(query, params, prepare=prepare)
+
+    def execute_pipeline_simple(
+        self,
+        queries: list[str],
+        *,
+        row_factory: RowFactory = list_row,
+    ) -> list[NoTlsCursorAdapter]:
+        self._check_closed()
+        cursors: list[NoTlsCursorAdapter] = []
+        for result in self._session.execute_pipeline_simple(queries):
+            cur = self.cursor(row_factory=row_factory)
+            cur._result = result
+            cursors.append(cur)
+        return cursors
 
     def begin(self) -> None:
         self._check_closed()
