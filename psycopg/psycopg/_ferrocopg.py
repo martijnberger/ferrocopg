@@ -164,6 +164,19 @@ def simple_query_results_no_tls(conninfo: str, query: str) -> object | None:
     return cast(object, _ferrocopg.simple_query_results_no_tls(conninfo, query))
 
 
+def pipeline_simple_query_results_no_tls(
+    conninfo: str, queries: list[str]
+) -> object | None:
+    """
+    Return batches of statement-sized simple-query results from the Rust backend.
+    """
+    if not _ferrocopg:
+        return None
+    return cast(
+        object, _ferrocopg.pipeline_simple_query_results_no_tls(conninfo, queries)
+    )
+
+
 def query_text_params_no_tls(
     conninfo: str, query: str, params: list[str | None]
 ) -> object | None:

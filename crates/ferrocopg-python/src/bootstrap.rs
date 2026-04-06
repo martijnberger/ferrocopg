@@ -368,6 +368,26 @@ fn simple_query_results_no_tls(
 }
 
 #[pyfunction]
+fn pipeline_simple_query_results_no_tls(
+    conninfo: &str,
+    queries: Vec<String>,
+) -> PyResult<Vec<Vec<BackendSimpleQueryResult>>> {
+    ferrocopg_postgres::pipeline_simple_query_results_no_tls(conninfo, &queries)
+        .map(|batches| {
+            batches
+                .into_iter()
+                .map(|results| {
+                    results
+                        .into_iter()
+                        .map(BackendSimpleQueryResult::from)
+                        .collect()
+                })
+                .collect()
+        })
+        .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+}
+
+#[pyfunction]
 fn query_text_params_no_tls(
     conninfo: &str,
     query: &str,
@@ -695,6 +715,27 @@ impl BackendSyncNoTlsSession {
         })
     }
 
+    fn pipeline_simple_query_results(
+        &self,
+        py: Python<'_>,
+        queries: Vec<String>,
+    ) -> PyResult<Vec<Vec<BackendSimpleQueryResult>>> {
+        with_session(py, self, move |session| {
+            session.pipeline_simple_query_results(&queries)
+        })
+        .map(|batches| {
+            batches
+                .into_iter()
+                .map(|results| {
+                    results
+                        .into_iter()
+                        .map(BackendSimpleQueryResult::from)
+                        .collect()
+                })
+                .collect()
+        })
+    }
+
     fn query_text_params(
         &self,
         py: Python<'_>,
@@ -891,6 +932,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(query_text_no_tls, m)?)?;
     m.add_function(wrap_pyfunction!(simple_query_no_tls, m)?)?;
     m.add_function(wrap_pyfunction!(simple_query_results_no_tls, m)?)?;
+    m.add_function(wrap_pyfunction!(pipeline_simple_query_results_no_tls, m)?)?;
     m.add_function(wrap_pyfunction!(query_text_params_no_tls, m)?)?;
     m.add_function(wrap_pyfunction!(run_text_params_no_tls, m)?)?;
     m.add_function(wrap_pyfunction!(execute_text_params_no_tls, m)?)?;

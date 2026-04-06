@@ -188,7 +188,7 @@ implementation modes.
 | LISTEN/NOTIFY | Available | Available | Available | Live backend notification coverage exists. |
 | Result-set shaping | Available | Available | Available | Rust backend exposes unified result-set and simple-query result blocks. |
 | Cursor-like adapter bridge | Available | Available | In progress | Experimental adapter exists in `psycopg._ferrocopg`, but is not the default path. |
-| Pipeline mode | Available | Available | Not started | Still an explicit parity gap for the Rust-native backend. |
+| Pipeline mode | Available | Available | In progress | Rust backend now has an experimental batched simple-query facade; full libpq-style pipeline semantics are still a parity gap. |
 | Default-path integration | Available | Available | Not started | Cutover stays blocked until selector and compatibility gates are met. |
 
 ## Milestones

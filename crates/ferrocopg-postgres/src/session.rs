@@ -121,6 +121,16 @@ impl SyncNoTlsSession {
         simple_query_results(messages)
     }
 
+    pub fn pipeline_simple_query_results(
+        &mut self,
+        queries: &[String],
+    ) -> Result<Vec<Vec<SimpleQueryResult>>, ProbeError> {
+        queries
+            .iter()
+            .map(|query| self.simple_query_results(query))
+            .collect()
+    }
+
     pub fn query_text_params(
         &mut self,
         query: &str,

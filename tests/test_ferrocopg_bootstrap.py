@@ -2124,6 +2124,12 @@ def test_ferrocopg_unavailable(monkeypatch):
     assert module.simple_query_no_tls("host=localhost", "select 1") is None
     assert module.simple_query_results_no_tls("host=localhost", "select 1") is None
     assert (
+        module.pipeline_simple_query_results_no_tls(
+            "host=localhost", ["select 1", "select 2"]
+        )
+        is None
+    )
+    assert (
         module.query_text_params_no_tls("host=localhost", "select $1::text", ["x"])
         is None
     )
@@ -2181,6 +2187,13 @@ def test_ferrocopg_wrapper(monkeypatch):
             return ("simple-query-results", conninfo, query)
 
         @staticmethod
+        def pipeline_simple_query_results_no_tls(
+            conninfo: str, queries: list[str]
+        ) -> tuple[str, str, list[str]]:
+            calls.append(("pipeline-simple-query-results", conninfo))
+            return ("pipeline-simple-query-results", conninfo, queries)
+
+        @staticmethod
         def query_text_params_no_tls(
             conninfo: str, query: str, params: list[str | None]
         ) -> tuple[str, str, str, list[str | None]]:
@@ -2233,6 +2246,14 @@ def test_ferrocopg_wrapper(monkeypatch):
         "host=localhost",
         "select 1",
     )
+    assert module.pipeline_simple_query_results_no_tls(
+        "host=localhost",
+        ["select 1", "select 2"],
+    ) == (
+        "pipeline-simple-query-results",
+        "host=localhost",
+        ["select 1", "select 2"],
+    )
     assert module.query_text_params_no_tls(
         "host=localhost", "select $1::text", ["x", None]
     ) == (
@@ -2275,6 +2296,7 @@ def test_ferrocopg_wrapper(monkeypatch):
         ("query", "host=localhost"),
         ("simple-query", "host=localhost"),
         ("simple-query-results", "host=localhost"),
+        ("pipeline-simple-query-results", "host=localhost"),
         ("query-params", "host=localhost"),
         ("run-params", "host=localhost"),
         ("execute-params", "host=localhost"),
@@ -2911,6 +2933,29 @@ def test_backend_simple_query_results_no_tls_live(dsn: str) -> None:
     ]
 
 
+def test_backend_pipeline_simple_query_results_no_tls_live(dsn: str) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    batches = module.pipeline_simple_query_results_no_tls(
+        dsn,
+        [
+            "select 'alpha'::text as label",
+            "select 'beta'::text as label; select 'gamma'::text as label",
+        ],
+    )
+    assert batches is not None
+    assert [
+        [(result.columns, result.rows, result.rows_affected) for result in batch]
+        for batch in batches
+    ] == [
+        [(["label"], [["alpha"]], 1)],
+        [(["label"], [["beta"]], 1), (["label"], [["gamma"]], 1)],
+    ]
+
+
 def test_backend_query_text_params_no_tls_live(dsn: str) -> None:
     module = importlib.import_module("psycopg._ferrocopg")
 
@@ -3040,6 +3085,20 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
     ] == [
         (["label"], [["first"]], 1),
         (["label"], [["second"]], 1),
+    ]
+
+    pipeline_results = session.pipeline_simple_query_results(
+        [
+            "select 'alpha'::text as label",
+            "select 'beta'::text as label; select 'gamma'::text as label",
+        ]
+    )
+    assert [
+        [(result.columns, result.rows, result.rows_affected) for result in batch]
+        for batch in pipeline_results
+    ] == [
+        [(["label"], [["alpha"]], 1)],
+        [(["label"], [["beta"]], 1), (["label"], [["gamma"]], 1)],
     ]
 
     bound = session.query_text_params(

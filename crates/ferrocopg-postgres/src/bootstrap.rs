@@ -168,6 +168,14 @@ impl BootstrapConfig {
         self.connect_no_tls_session()?.simple_query_results(query)
     }
 
+    pub fn pipeline_simple_query_results_no_tls(
+        &self,
+        queries: &[String],
+    ) -> Result<Vec<Vec<SimpleQueryResult>>, ProbeError> {
+        self.connect_no_tls_session()?
+            .pipeline_simple_query_results(queries)
+    }
+
     pub fn query_text_params_no_tls(
         &self,
         query: &str,
@@ -251,6 +259,14 @@ pub fn simple_query_results_no_tls(
 ) -> Result<Vec<SimpleQueryResult>, ProbeError> {
     let config = BootstrapConfig::parse(conninfo).map_err(ProbeError::Parse)?;
     config.simple_query_results_no_tls(query)
+}
+
+pub fn pipeline_simple_query_results_no_tls(
+    conninfo: &str,
+    queries: &[String],
+) -> Result<Vec<Vec<SimpleQueryResult>>, ProbeError> {
+    let config = BootstrapConfig::parse(conninfo).map_err(ProbeError::Parse)?;
+    config.pipeline_simple_query_results_no_tls(queries)
 }
 
 pub fn query_text_params_no_tls(
