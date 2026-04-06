@@ -58,6 +58,21 @@ from .raw_cursor import AsyncRawCursor, AsyncRawServerCursor, RawCursor, RawServ
 from .transaction import AsyncTransaction, Rollback, Transaction
 from .version import __version__ as __version__  # noqa: F401
 
+
+def connect_ferrocopg(
+    conninfo: str = "", **kwargs: str | int | None
+) -> object | None:
+    """
+    Return the experimental Rust-backed ferrocopg connection adapter.
+
+    This is an explicit opt-in path and does not affect the normal `connect()`
+    selector or the `PSYCOPG_IMPL` libpq-wrapper selection.
+    """
+    from . import _ferrocopg as _ferrocopg_module
+    from .conninfo import make_conninfo
+
+    return _ferrocopg_module.no_tls_connection_adapter(make_conninfo(conninfo, **kwargs))
+
 # Set the logger to a quiet default, can be enabled if needed
 if (logger := logging.getLogger("psycopg")).level == logging.NOTSET:
     logger.setLevel(logging.WARNING)
@@ -101,6 +116,7 @@ __all__ = [
     "ConnectionInfo",
     "Copy",
     "Cursor",
+    "connect_ferrocopg",
     "IsolationLevel",
     "Notify",
     "Pipeline",

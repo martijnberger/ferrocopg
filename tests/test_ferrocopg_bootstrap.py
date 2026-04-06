@@ -2306,6 +2306,37 @@ def test_ferrocopg_wrapper(monkeypatch):
     ]
 
 
+def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
+    psycopg_module = importlib.import_module("psycopg")
+    ferrocopg_module = importlib.import_module("psycopg._ferrocopg")
+
+    calls: list[str] = []
+
+    def stub_no_tls_connection_adapter(conninfo: str) -> tuple[str, str]:
+        calls.append(conninfo)
+        return ("adapter", conninfo)
+
+    monkeypatch.setattr(
+        ferrocopg_module,
+        "no_tls_connection_adapter",
+        stub_no_tls_connection_adapter,
+    )
+
+    got = psycopg_module.connect_ferrocopg(
+        "dbname=postgres",
+        host="localhost",
+        port=5432,
+        application_name="ferrocopg-tests",
+    )
+    assert got == (
+        "adapter",
+        "dbname=postgres host=localhost port=5432 application_name=ferrocopg-tests",
+    )
+    assert calls == [
+        "dbname=postgres host=localhost port=5432 application_name=ferrocopg-tests"
+    ]
+
+
 def test_backend_result_cursor_navigation() -> None:
     module = importlib.import_module("psycopg._ferrocopg")
 
@@ -3527,6 +3558,24 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
 
     with pytest.raises(psycopg.OperationalError, match="connection is closed"):
         conn.execute("select 1")
+
+
+def test_backend_package_connect_ferrocopg_live(dsn: str) -> None:
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    conn = cast(Any, psycopg.connect_ferrocopg(dsn))
+    assert conn is not None
+
+    cur = conn.execute("select 'ferrocopg'::text as label", row_factory=module.scalar_row)
+    assert cur.fetchall() == ["ferrocopg"]
+
+    conn.close()
+    assert conn.closed is True
 
 
 def test_backend_no_tls_cancel_handle_live(dsn: str) -> None:
