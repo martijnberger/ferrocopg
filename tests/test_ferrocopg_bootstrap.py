@@ -2313,10 +2313,13 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []
 
     def stub_no_tls_connection_adapter(
-        conninfo: str, *, row_factory: object = ferrocopg_module.list_row
-    ) -> tuple[str, str, object]:
+        conninfo: str,
+        *,
+        row_factory: object = ferrocopg_module.list_row,
+        prepare_threshold: int | None = 5,
+    ) -> tuple[str, str, object, int | None]:
         calls.append(conninfo)
-        return ("adapter", conninfo, row_factory)
+        return ("adapter", conninfo, row_factory, prepare_threshold)
 
     monkeypatch.setattr(
         ferrocopg_module,
@@ -2334,15 +2337,18 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
         "adapter",
         "dbname=postgres host=localhost port=5432 application_name=ferrocopg-tests",
         ferrocopg_module.list_row,
+        5,
     )
     got_scalar = psycopg_module.connect_ferrocopg(
         "dbname=postgres",
         row_factory=ferrocopg_module.scalar_row,
+        prepare_threshold=0,
     )
     assert got_scalar == (
         "adapter",
         "dbname=postgres",
         ferrocopg_module.scalar_row,
+        0,
     )
     assert calls == [
         "dbname=postgres host=localhost port=5432 application_name=ferrocopg-tests",
@@ -2515,6 +2521,69 @@ def test_no_tls_connection_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
         ("commit",),
         ("rollback",),
         ("close",),
+    ]
+
+
+def test_no_tls_connection_adapter_prepare_threshold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubPrepared:
+        def __init__(self, statement_id: int) -> None:
+            self.statement_id = statement_id
+
+    class StubSession:
+        closed = False
+
+        def __init__(self) -> None:
+            self.calls: list[object] = []
+
+        def close(self) -> None:
+            self.closed = True
+
+        def begin(self) -> None:
+            pass
+
+        def commit(self) -> None:
+            pass
+
+        def rollback(self) -> None:
+            pass
+
+        def prepare_text(self, query: str) -> StubPrepared:
+            self.calls.append(("prepare", query))
+            return StubPrepared(21)
+
+        def simple_query_results(self, query: str) -> list[object]:
+            self.calls.append(("simple", query))
+            return [SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            self.calls.append(("params", query, params))
+            return SimpleNamespace(columns=["b"], rows=[["two"]], rows_affected=1)
+
+        def run_prepared_text_params(
+            self, statement_id: int, params: list[str | None]
+        ) -> object:
+            self.calls.append(("prepared", statement_id, params))
+            return SimpleNamespace(columns=["c"], rows=[["three"]], rows_affected=1)
+
+    stub = StubSession()
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: stub)
+
+    conn = module.no_tls_connection_adapter("host=localhost", prepare_threshold=1)
+    assert conn is not None
+
+    assert conn.execute("select $1::text", ["x"]).fetchall() == [["two"]]
+    assert conn.execute("select $1::text", ["y"]).fetchall() == [["three"]]
+    assert conn.execute("select $1::text", ["z"]).fetchall() == [["three"]]
+
+    assert stub.calls == [
+        ("params", "select $1::text", ["x"]),
+        ("prepare", "select $1::text"),
+        ("prepared", 21, ["y"]),
+        ("prepared", 21, ["z"]),
     ]
 
 

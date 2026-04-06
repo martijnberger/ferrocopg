@@ -569,11 +569,14 @@ class NoTlsConnectionAdapter:
         session: NoTlsSessionAdapter,
         *,
         row_factory: RowFactory = list_row,
+        prepare_threshold: int | None = 5,
     ):
         self._session = session
         self.row_factory = row_factory
+        self.prepare_threshold = prepare_threshold
         self._prepared: dict[str, int] = {}
         self._prepared_statusmessages: dict[int, str | None] = {}
+        self._prepare_counts: dict[str, int] = {}
         self._tx_depth = 0
         self._savepoint_counter = 0
 
@@ -650,6 +653,11 @@ class NoTlsConnectionAdapter:
     ) -> BackendResultCursor:
         if params is None:
             return self._session.execute_simple(query)
+
+        if not prepare and self.prepare_threshold is not None:
+            count = self._prepare_counts.get(query, 0)
+            prepare = count >= self.prepare_threshold
+            self._prepare_counts[query] = count + 1
 
         if prepare:
             statement_id = self._prepared.get(query)
@@ -790,7 +798,10 @@ def no_tls_session_adapter(conninfo: str) -> NoTlsSessionAdapter | None:
 
 
 def no_tls_connection_adapter(
-    conninfo: str, *, row_factory: RowFactory = list_row
+    conninfo: str,
+    *,
+    row_factory: RowFactory = list_row,
+    prepare_threshold: int | None = 5,
 ) -> NoTlsConnectionAdapter | None:
     """
     Return an experimental connection-like adapter over the Rust backend session.
@@ -798,4 +809,8 @@ def no_tls_connection_adapter(
     session = no_tls_session_adapter(conninfo)
     if session is None:
         return None
-    return NoTlsConnectionAdapter(session, row_factory=row_factory)
+    return NoTlsConnectionAdapter(
+        session,
+        row_factory=row_factory,
+        prepare_threshold=prepare_threshold,
+    )
