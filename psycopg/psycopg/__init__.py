@@ -66,6 +66,7 @@ def connect_ferrocopg(
     *,
     row_factory: object | None = None,
     prepare_threshold: int | None = 5,
+    autocommit: bool = True,
     **kwargs: str | int | None,
 ) -> object | None:
     """
@@ -81,12 +82,14 @@ def connect_ferrocopg(
         return _ferrocopg_module.no_tls_connection_adapter(
             make_conninfo(conninfo, **kwargs),
             prepare_threshold=prepare_threshold,
+            autocommit=autocommit,
         )
 
     return _ferrocopg_module.no_tls_connection_adapter(
         make_conninfo(conninfo, **kwargs),
         row_factory=cast(Callable[[list[str], list[str | None]], object], row_factory),
         prepare_threshold=prepare_threshold,
+        autocommit=autocommit,
     )
 
 # Set the logger to a quiet default, can be enabled if needed

@@ -2317,9 +2317,10 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
         *,
         row_factory: object = ferrocopg_module.list_row,
         prepare_threshold: int | None = 5,
-    ) -> tuple[str, str, object, int | None]:
+        autocommit: bool = True,
+    ) -> tuple[str, str, object, int | None, bool]:
         calls.append(conninfo)
-        return ("adapter", conninfo, row_factory, prepare_threshold)
+        return ("adapter", conninfo, row_factory, prepare_threshold, autocommit)
 
     monkeypatch.setattr(
         ferrocopg_module,
@@ -2338,17 +2339,20 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
         "dbname=postgres host=localhost port=5432 application_name=ferrocopg-tests",
         ferrocopg_module.list_row,
         5,
+        True,
     )
     got_scalar = psycopg_module.connect_ferrocopg(
         "dbname=postgres",
         row_factory=ferrocopg_module.scalar_row,
         prepare_threshold=0,
+        autocommit=False,
     )
     assert got_scalar == (
         "adapter",
         "dbname=postgres",
         ferrocopg_module.scalar_row,
         0,
+        False,
     )
     assert calls == [
         "dbname=postgres host=localhost port=5432 application_name=ferrocopg-tests",
@@ -2584,6 +2588,79 @@ def test_no_tls_connection_adapter_prepare_threshold(
         ("prepare", "select $1::text"),
         ("prepared", 21, ["y"]),
         ("prepared", 21, ["z"]),
+    ]
+
+
+def test_no_tls_connection_adapter_autocommit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubSession:
+        closed = False
+
+        def __init__(self) -> None:
+            self.calls: list[object] = []
+
+        def close(self) -> None:
+            self.closed = True
+
+        def begin(self) -> None:
+            self.calls.append(("begin",))
+
+        def commit(self) -> None:
+            self.calls.append(("commit",))
+
+        def rollback(self) -> None:
+            self.calls.append(("rollback",))
+
+        def prepare_text(self, query: str) -> object:
+            return SimpleNamespace(statement_id=1)
+
+        def simple_query_results(self, query: str) -> list[object]:
+            self.calls.append(("simple", query))
+            return [SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            self.calls.append(("params", query, params))
+            return SimpleNamespace(columns=["b"], rows=[["two"]], rows_affected=1)
+
+        def run_prepared_text_params(
+            self, statement_id: int, params: list[str | None]
+        ) -> object:
+            self.calls.append(("prepared", statement_id, params))
+            return SimpleNamespace(columns=["c"], rows=[["three"]], rows_affected=1)
+
+    stub = StubSession()
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: stub)
+
+    conn = module.no_tls_connection_adapter("host=localhost", autocommit=False)
+    assert conn is not None
+    assert conn.autocommit is False
+
+    assert conn.execute("select 1").fetchall() == [["one"]]
+    assert conn.execute("select $1::text", ["x"]).fetchall() == [["two"]]
+    conn.rollback()
+    assert conn.autocommit is False
+    conn.autocommit = True
+    assert conn.autocommit is True
+    assert conn.execute("select 1").fetchall() == [["one"]]
+
+    conn.autocommit = False
+    conn.execute("select 1")
+    with pytest.raises(psycopg.ProgrammingError, match="can't change autocommit now"):
+        conn.autocommit = True
+
+    assert stub.calls == [
+        ("begin",),
+        ("simple", "select 1"),
+        ("params", "select $1::text", ["x"]),
+        ("rollback",),
+        ("simple", "select 1"),
+        ("begin",),
+        ("simple", "select 1"),
     ]
 
 
@@ -3667,6 +3744,16 @@ def test_backend_package_connect_ferrocopg_live(dsn: str) -> None:
     scalar_cur = scalar_conn.execute("select 'default-row-factory'::text as label")
     assert scalar_cur.fetchall() == ["default-row-factory"]
     scalar_conn.close()
+
+    tx_conn = cast(Any, psycopg.connect_ferrocopg(dsn, autocommit=False))
+    tx_conn.execute("create temporary table ferrocopg_connect_tx_test (id int4)")
+    tx_conn.execute("insert into ferrocopg_connect_tx_test (id) values ($1::int4)", ["1"])
+    tx_conn.rollback()
+    check = tx_conn.execute(
+        "select count(*)::text as n from pg_tables where tablename = 'ferrocopg_connect_tx_test'"
+    )
+    assert check.fetchall() == [["0"]]
+    tx_conn.close()
 
     conn.close()
     assert conn.closed is True

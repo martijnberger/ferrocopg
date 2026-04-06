@@ -570,19 +570,35 @@ class NoTlsConnectionAdapter:
         *,
         row_factory: RowFactory = list_row,
         prepare_threshold: int | None = 5,
+        autocommit: bool = True,
     ):
         self._session = session
         self.row_factory = row_factory
         self.prepare_threshold = prepare_threshold
+        self._autocommit = autocommit
         self._prepared: dict[str, int] = {}
         self._prepared_statusmessages: dict[int, str | None] = {}
         self._prepare_counts: dict[str, int] = {}
+        self._in_transaction = False
         self._tx_depth = 0
         self._savepoint_counter = 0
 
     @property
     def closed(self) -> bool:
         return self._session.closed
+
+    @property
+    def autocommit(self) -> bool:
+        return self._autocommit
+
+    @autocommit.setter
+    def autocommit(self, value: bool) -> None:
+        self._check_closed()
+        if self._in_transaction:
+            raise e.ProgrammingError(
+                "can't change autocommit now: connection in transaction status INTRANS"
+            )
+        self._autocommit = bool(value)
 
     def close(self) -> None:
         self._session.close()
@@ -612,6 +628,7 @@ class NoTlsConnectionAdapter:
         row_factory: RowFactory | None = None,
     ) -> list[NoTlsCursorAdapter]:
         self._check_closed()
+        self._ensure_transaction()
         cursors: list[NoTlsCursorAdapter] = []
         if row_factory is None:
             row_factory = self.row_factory
@@ -623,15 +640,19 @@ class NoTlsConnectionAdapter:
 
     def begin(self) -> None:
         self._check_closed()
-        self._session.begin()
+        if not self._in_transaction:
+            self._session.begin()
+            self._in_transaction = True
 
     def commit(self) -> None:
         self._check_closed()
         self._session.commit()
+        self._in_transaction = False
 
     def rollback(self) -> None:
         self._check_closed()
         self._session.rollback()
+        self._in_transaction = False
 
     def transaction(
         self, savepoint_name: str | None = None, force_rollback: bool = False
@@ -651,6 +672,7 @@ class NoTlsConnectionAdapter:
         *,
         prepare: bool,
     ) -> BackendResultCursor:
+        self._ensure_transaction()
         if params is None:
             return self._session.execute_simple(query)
 
@@ -675,6 +697,10 @@ class NoTlsConnectionAdapter:
             )
 
         return self._session.execute_params(query, params)
+
+    def _ensure_transaction(self) -> None:
+        if not self._autocommit and not self._in_transaction:
+            self.begin()
 
     def _check_closed(self) -> None:
         if self.closed:
@@ -706,8 +732,14 @@ class NoTlsTransactionAdapter:
         self._entered = True
 
         if self._conn._tx_depth == 0:
-            self._outer = True
-            self._conn.begin()
+            if self._conn._in_transaction:
+                if self._savepoint_name is None:
+                    self._conn._savepoint_counter += 1
+                    self._savepoint_name = f"_ferrocopg_{self._conn._savepoint_counter}"
+                self._conn.execute(_savepoint_sql("SAVEPOINT", self._savepoint_name))
+            else:
+                self._outer = True
+                self._conn.begin()
         else:
             if self._savepoint_name is None:
                 self._conn._savepoint_counter += 1
@@ -802,6 +834,7 @@ def no_tls_connection_adapter(
     *,
     row_factory: RowFactory = list_row,
     prepare_threshold: int | None = 5,
+    autocommit: bool = True,
 ) -> NoTlsConnectionAdapter | None:
     """
     Return an experimental connection-like adapter over the Rust backend session.
@@ -813,4 +846,5 @@ def no_tls_connection_adapter(
         session,
         row_factory=row_factory,
         prepare_threshold=prepare_threshold,
+        autocommit=autocommit,
     )
