@@ -40,6 +40,16 @@ def test_want_import_version():
     assert not check_libpq_version(got, want)
 
 
+def test_ferrocopg_impl_has_helpful_error(monkeypatch):
+    monkeypatch.setenv("PSYCOPG_IMPL", "ferrocopg")
+
+    with pytest.raises(
+        ImportError,
+        match="use psycopg.connect_ferrocopg\\(\\) for the experimental Rust-backed path",
+    ):
+        pq.import_from_libpq()
+
+
 # Note: These tests are here because test_pipeline.py tests are all skipped
 # when pipeline mode is not supported.
 

@@ -110,6 +110,11 @@ def import_from_libpq() -> None:
         PGcancel = module.PGcancel
         PGcancelConn = module.PGcancelConn
         __build_version__ = module.__build_version__
+    elif impl == "ferrocopg":
+        raise ImportError(
+            "requested psycopg implementation 'ferrocopg' is not a libpq wrapper; "
+            "use psycopg.connect_ferrocopg() for the experimental Rust-backed path"
+        )
     elif impl:
         raise ImportError(f"requested psycopg implementation '{impl}' unknown")
     else:
