@@ -2312,9 +2312,11 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
 
     calls: list[str] = []
 
-    def stub_no_tls_connection_adapter(conninfo: str) -> tuple[str, str]:
+    def stub_no_tls_connection_adapter(
+        conninfo: str, *, row_factory: object = ferrocopg_module.list_row
+    ) -> tuple[str, str, object]:
         calls.append(conninfo)
-        return ("adapter", conninfo)
+        return ("adapter", conninfo, row_factory)
 
     monkeypatch.setattr(
         ferrocopg_module,
@@ -2331,9 +2333,20 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
     assert got == (
         "adapter",
         "dbname=postgres host=localhost port=5432 application_name=ferrocopg-tests",
+        ferrocopg_module.list_row,
+    )
+    got_scalar = psycopg_module.connect_ferrocopg(
+        "dbname=postgres",
+        row_factory=ferrocopg_module.scalar_row,
+    )
+    assert got_scalar == (
+        "adapter",
+        "dbname=postgres",
+        ferrocopg_module.scalar_row,
     )
     assert calls == [
-        "dbname=postgres host=localhost port=5432 application_name=ferrocopg-tests"
+        "dbname=postgres host=localhost port=5432 application_name=ferrocopg-tests",
+        "dbname=postgres",
     ]
 
 
@@ -2600,6 +2613,13 @@ def test_no_tls_connection_adapter_row_factories(
         row_factory=module.scalar_row,
     )
     assert [cur.fetchall() for cur in pipeline_cursors] == [["select first"], ["select second"]]
+
+    scalar_conn = module.no_tls_connection_adapter(
+        "host=localhost",
+        row_factory=module.scalar_row,
+    )
+    assert scalar_conn is not None
+    assert scalar_conn.execute("select $1::text", ["3"], prepare=True).fetchall() == ["4"]
 
 
 def test_no_tls_cursor_adapter_executemany(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -3573,6 +3593,11 @@ def test_backend_package_connect_ferrocopg_live(dsn: str) -> None:
 
     cur = conn.execute("select 'ferrocopg'::text as label", row_factory=module.scalar_row)
     assert cur.fetchall() == ["ferrocopg"]
+
+    scalar_conn = cast(Any, psycopg.connect_ferrocopg(dsn, row_factory=module.scalar_row))
+    scalar_cur = scalar_conn.execute("select 'default-row-factory'::text as label")
+    assert scalar_cur.fetchall() == ["default-row-factory"]
+    scalar_conn.close()
 
     conn.close()
     assert conn.closed is True

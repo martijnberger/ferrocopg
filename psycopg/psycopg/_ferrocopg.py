@@ -564,8 +564,14 @@ class NoTlsCursorAdapter:
 class NoTlsConnectionAdapter:
     """Experimental connection-like bridge over the ferrocopg session adapter."""
 
-    def __init__(self, session: NoTlsSessionAdapter):
+    def __init__(
+        self,
+        session: NoTlsSessionAdapter,
+        *,
+        row_factory: RowFactory = list_row,
+    ):
         self._session = session
+        self.row_factory = row_factory
         self._prepared: dict[str, int] = {}
         self._prepared_statusmessages: dict[int, str | None] = {}
         self._tx_depth = 0
@@ -578,8 +584,10 @@ class NoTlsConnectionAdapter:
     def close(self) -> None:
         self._session.close()
 
-    def cursor(self, *, row_factory: RowFactory = list_row) -> NoTlsCursorAdapter:
+    def cursor(self, *, row_factory: RowFactory | None = None) -> NoTlsCursorAdapter:
         self._check_closed()
+        if row_factory is None:
+            row_factory = self.row_factory
         return NoTlsCursorAdapter(self, row_factory=row_factory)
 
     def execute(
@@ -588,7 +596,7 @@ class NoTlsConnectionAdapter:
         params: list[str | None] | None = None,
         *,
         prepare: bool = False,
-        row_factory: RowFactory = list_row,
+        row_factory: RowFactory | None = None,
     ) -> NoTlsCursorAdapter:
         self._check_closed()
         cur = self.cursor(row_factory=row_factory)
@@ -598,10 +606,12 @@ class NoTlsConnectionAdapter:
         self,
         queries: list[str],
         *,
-        row_factory: RowFactory = list_row,
+        row_factory: RowFactory | None = None,
     ) -> list[NoTlsCursorAdapter]:
         self._check_closed()
         cursors: list[NoTlsCursorAdapter] = []
+        if row_factory is None:
+            row_factory = self.row_factory
         for result in self._session.execute_pipeline_simple(queries):
             cur = self.cursor(row_factory=row_factory)
             cur._result = result
@@ -779,11 +789,13 @@ def no_tls_session_adapter(conninfo: str) -> NoTlsSessionAdapter | None:
     return NoTlsSessionAdapter(cast(_NoTlsSessionLike, session))
 
 
-def no_tls_connection_adapter(conninfo: str) -> NoTlsConnectionAdapter | None:
+def no_tls_connection_adapter(
+    conninfo: str, *, row_factory: RowFactory = list_row
+) -> NoTlsConnectionAdapter | None:
     """
     Return an experimental connection-like adapter over the Rust backend session.
     """
     session = no_tls_session_adapter(conninfo)
     if session is None:
         return None
-    return NoTlsConnectionAdapter(session)
+    return NoTlsConnectionAdapter(session, row_factory=row_factory)

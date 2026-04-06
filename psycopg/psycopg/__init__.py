@@ -5,6 +5,8 @@ psycopg -- PostgreSQL database adapter for Python
 # Copyright (C) 2020 The Psycopg Team
 
 import logging
+from collections.abc import Callable
+from typing import cast
 
 from . import (
     dbapi20,
@@ -60,7 +62,10 @@ from .version import __version__ as __version__  # noqa: F401
 
 
 def connect_ferrocopg(
-    conninfo: str = "", **kwargs: str | int | None
+    conninfo: str = "",
+    *,
+    row_factory: object | None = None,
+    **kwargs: str | int | None,
 ) -> object | None:
     """
     Return the experimental Rust-backed ferrocopg connection adapter.
@@ -71,7 +76,15 @@ def connect_ferrocopg(
     from . import _ferrocopg as _ferrocopg_module
     from .conninfo import make_conninfo
 
-    return _ferrocopg_module.no_tls_connection_adapter(make_conninfo(conninfo, **kwargs))
+    if row_factory is None:
+        return _ferrocopg_module.no_tls_connection_adapter(
+            make_conninfo(conninfo, **kwargs)
+        )
+
+    return _ferrocopg_module.no_tls_connection_adapter(
+        make_conninfo(conninfo, **kwargs),
+        row_factory=cast(Callable[[list[str], list[str | None]], object], row_factory),
+    )
 
 # Set the logger to a quiet default, can be enabled if needed
 if (logger := logging.getLogger("psycopg")).level == logging.NOTSET:
