@@ -12,6 +12,7 @@ from collections.abc import Callable, Iterator, Sequence
 from typing import NamedTuple, Protocol, cast
 
 from . import errors as e
+from ._enums import IsolationLevel
 from ._rmodule import __version__ as __version__
 from ._rmodule import _ferrocopg
 from .transaction import Rollback
@@ -561,6 +562,70 @@ class NoTlsCursorAdapter:
         return self._result
 
 
+class NoTlsPipelineAdapter:
+    """Experimental pipeline context over the ferrocopg connection adapter."""
+
+    def __init__(self, conn: NoTlsConnectionAdapter):
+        self._conn = conn
+        self._queued: list[tuple[str, NoTlsCursorAdapter]] = []
+        self._entered = False
+        self._closed = False
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    def execute(
+        self,
+        query: str,
+        *,
+        row_factory: RowFactory | None = None,
+        params: list[str | None] | None = None,
+    ) -> NoTlsCursorAdapter:
+        self._check_open()
+        if params is not None:
+            raise e.NotSupportedError(
+                "ferrocopg pipeline currently supports simple queries only"
+            )
+        cur = self._conn.cursor(row_factory=row_factory)
+        self._queued.append((query, cur))
+        return cur
+
+    def sync(self) -> None:
+        self._check_open()
+        if not self._queued:
+            return
+
+        queries = [query for query, _cur in self._queued]
+        results = self._conn.execute_pipeline_simple(queries)
+        for (_query, queued_cur), result_cur in zip(
+            self._queued, results, strict=True
+        ):
+            queued_cur._result = result_cur._result
+            queued_cur._rownumber = 0
+        self._queued.clear()
+
+    def __enter__(self) -> NoTlsPipelineAdapter:
+        self._conn._check_closed()
+        if self._entered:
+            raise TypeError("pipeline blocks can be used only once")
+        self._entered = True
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+        try:
+            if exc_type is None:
+                self.sync()
+        finally:
+            self._closed = True
+            self._queued.clear()
+
+    def _check_open(self) -> None:
+        self._conn._check_closed()
+        if self._closed or not self._entered:
+            raise e.OperationalError("pipeline is not active")
+
+
 class NoTlsConnectionAdapter:
     """Experimental connection-like bridge over the ferrocopg session adapter."""
 
@@ -582,6 +647,9 @@ class NoTlsConnectionAdapter:
         self._in_transaction = False
         self._tx_depth = 0
         self._savepoint_counter = 0
+        self._isolation_level: IsolationLevel | None = None
+        self._read_only: bool | None = None
+        self._deferrable: bool | None = None
 
     @property
     def closed(self) -> bool:
@@ -599,6 +667,33 @@ class NoTlsConnectionAdapter:
                 "can't change autocommit now: connection in transaction status INTRANS"
             )
         self._autocommit = bool(value)
+
+    def set_autocommit(self, value: bool) -> None:
+        self.autocommit = bool(value)
+
+    @property
+    def isolation_level(self) -> IsolationLevel | None:
+        return self._isolation_level
+
+    @isolation_level.setter
+    def isolation_level(self, value: IsolationLevel | None) -> None:
+        self.set_isolation_level(value)
+
+    @property
+    def read_only(self) -> bool | None:
+        return self._read_only
+
+    @read_only.setter
+    def read_only(self, value: bool | None) -> None:
+        self.set_read_only(value)
+
+    @property
+    def deferrable(self) -> bool | None:
+        return self._deferrable
+
+    @deferrable.setter
+    def deferrable(self, value: bool | None) -> None:
+        self.set_deferrable(value)
 
     def close(self) -> None:
         self._session.close()
@@ -641,28 +736,62 @@ class NoTlsConnectionAdapter:
     def begin(self) -> None:
         self._check_closed()
         if not self._in_transaction:
-            self._session.begin()
+            begin_sql = self._tx_start_query()
+            if begin_sql == "BEGIN":
+                self._session.begin()
+            else:
+                self._session.execute_simple(begin_sql)
             self._in_transaction = True
 
     def commit(self) -> None:
         self._check_closed()
+        if not self._in_transaction:
+            return
         self._session.commit()
         self._in_transaction = False
 
     def rollback(self) -> None:
         self._check_closed()
+        if not self._in_transaction:
+            return
         self._session.rollback()
         self._in_transaction = False
+
+    def set_isolation_level(self, value: IsolationLevel | int | None) -> None:
+        self._check_set_transaction_param("isolation_level")
+        self._isolation_level = (
+            IsolationLevel(value) if value is not None else None
+        )
+
+    def set_read_only(self, value: bool | None) -> None:
+        self._check_set_transaction_param("read_only")
+        self._read_only = bool(value) if value is not None else None
+
+    def set_deferrable(self, value: bool | None) -> None:
+        self._check_set_transaction_param("deferrable")
+        self._deferrable = bool(value) if value is not None else None
 
     def transaction(
         self, savepoint_name: str | None = None, force_rollback: bool = False
     ) -> NoTlsTransactionAdapter:
         return NoTlsTransactionAdapter(self, savepoint_name, force_rollback)
 
+    def pipeline(self) -> NoTlsPipelineAdapter:
+        self._check_closed()
+        return NoTlsPipelineAdapter(self)
+
     def __enter__(self) -> NoTlsConnectionAdapter:
         return self
 
     def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+        if self.closed:
+            return
+        if exc_type:
+            if self._in_transaction:
+                self.rollback()
+        else:
+            if self._in_transaction:
+                self.commit()
         self.close()
 
     def _execute(
@@ -705,6 +834,38 @@ class NoTlsConnectionAdapter:
     def _check_closed(self) -> None:
         if self.closed:
             raise e.OperationalError("the connection is closed")
+
+    def _check_set_transaction_param(self, attribute: str) -> None:
+        self._check_closed()
+        if self._tx_depth:
+            raise e.ProgrammingError(
+                f"can't change {attribute!r} now: "
+                "connection.transaction() context in progress"
+            )
+        if self._in_transaction:
+            raise e.ProgrammingError(
+                f"can't change {attribute!r} now: "
+                "connection in transaction status INTRANS"
+            )
+
+    def _tx_start_query(self) -> str:
+        parts = ["BEGIN"]
+
+        if self._isolation_level is not None:
+            parts.extend(
+                [
+                    "ISOLATION LEVEL",
+                    self._isolation_level.name.replace("_", " "),
+                ]
+            )
+
+        if self._read_only is not None:
+            parts.append("READ ONLY" if self._read_only else "READ WRITE")
+
+        if self._deferrable is not None:
+            parts.append("DEFERRABLE" if self._deferrable else "NOT DEFERRABLE")
+
+        return " ".join(parts)
 
 
 class NoTlsTransactionAdapter:

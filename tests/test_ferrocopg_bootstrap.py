@@ -2523,7 +2523,6 @@ def test_no_tls_connection_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
         ("simple", "select 1"),
         ("begin",),
         ("commit",),
-        ("rollback",),
         ("close",),
     ]
 
@@ -2644,7 +2643,7 @@ def test_no_tls_connection_adapter_autocommit(
     assert conn.execute("select $1::text", ["x"]).fetchall() == [["two"]]
     conn.rollback()
     assert conn.autocommit is False
-    conn.autocommit = True
+    conn.set_autocommit(True)
     assert conn.autocommit is True
     assert conn.execute("select 1").fetchall() == [["one"]]
 
@@ -2661,6 +2660,225 @@ def test_no_tls_connection_adapter_autocommit(
         ("simple", "select 1"),
         ("begin",),
         ("simple", "select 1"),
+    ]
+
+
+def test_no_tls_connection_adapter_commit_rollback_idle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubSession:
+        closed = False
+
+        def __init__(self) -> None:
+            self.calls: list[object] = []
+
+        def close(self) -> None:
+            self.calls.append(("close",))
+
+        def begin(self) -> None:
+            self.calls.append(("begin",))
+
+        def commit(self) -> None:
+            self.calls.append(("commit",))
+
+        def rollback(self) -> None:
+            self.calls.append(("rollback",))
+
+        def prepare_text(self, query: str) -> object:
+            return SimpleNamespace(statement_id=1)
+
+        def simple_query_results(self, query: str) -> list[object]:
+            self.calls.append(("simple", query))
+            return [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
+
+        def pipeline_simple_query_results(self, queries: list[str]) -> list[list[object]]:
+            self.calls.append(("pipeline", queries))
+            return [
+                [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
+                for query in queries
+            ]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            self.calls.append(("params", query, params))
+            return SimpleNamespace(columns=["q"], rows=[["ok"]], rows_affected=1)
+
+        def run_prepared_text_params(
+            self, statement_id: int, params: list[str | None]
+        ) -> object:
+            self.calls.append(("prepared", statement_id, params))
+            return SimpleNamespace(columns=["q"], rows=[["ok"]], rows_affected=1)
+
+    stub = StubSession()
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: stub)
+
+    conn = module.no_tls_connection_adapter("host=localhost")
+    assert conn is not None
+
+    conn.commit()
+    conn.rollback()
+    assert stub.calls == []
+
+    conn.autocommit = False
+    conn.execute("select 1")
+    conn.commit()
+    conn.rollback()
+    assert stub.calls == [
+        ("begin",),
+        ("simple", "select 1"),
+        ("commit",),
+    ]
+
+
+def test_no_tls_connection_adapter_transaction_params(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubSession:
+        closed = False
+
+        def __init__(self) -> None:
+            self.calls: list[object] = []
+
+        def close(self) -> None:
+            self.calls.append(("close",))
+
+        def begin(self) -> None:
+            self.calls.append(("begin",))
+
+        def commit(self) -> None:
+            self.calls.append(("commit",))
+
+        def rollback(self) -> None:
+            self.calls.append(("rollback",))
+
+        def prepare_text(self, query: str) -> object:
+            self.calls.append(("prepare", query))
+            return SimpleNamespace(statement_id=1)
+
+        def simple_query_results(self, query: str) -> list[object]:
+            self.calls.append(("simple", query))
+            return [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
+
+        def pipeline_simple_query_results(self, queries: list[str]) -> list[list[object]]:
+            self.calls.append(("pipeline", queries))
+            return [
+                [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
+                for query in queries
+            ]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            self.calls.append(("params", query, params))
+            return SimpleNamespace(columns=["q"], rows=[["ok"]], rows_affected=1)
+
+        def run_prepared_text_params(
+            self, statement_id: int, params: list[str | None]
+        ) -> object:
+            self.calls.append(("prepared", statement_id, params))
+            return SimpleNamespace(columns=["q"], rows=[["ok"]], rows_affected=1)
+
+    stub = StubSession()
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: stub)
+
+    conn = module.no_tls_connection_adapter("host=localhost", autocommit=False)
+    assert conn is not None
+
+    conn.set_isolation_level(psycopg.IsolationLevel.SERIALIZABLE.value)
+    conn.set_read_only(1)
+    conn.set_deferrable(0)
+    assert conn.isolation_level is psycopg.IsolationLevel.SERIALIZABLE
+    assert conn.read_only is True
+    assert conn.deferrable is False
+
+    conn.execute("select 1")
+    assert stub.calls[0] == (
+        "simple",
+        "BEGIN ISOLATION LEVEL SERIALIZABLE READ ONLY NOT DEFERRABLE",
+    )
+
+    with pytest.raises(psycopg.ProgrammingError, match="can't change 'read_only' now"):
+        conn.set_read_only(False)
+    conn.rollback()
+
+    with conn.transaction():
+        with pytest.raises(
+            psycopg.ProgrammingError,
+            match="connection.transaction\\(\\) context in progress",
+        ):
+            conn.set_deferrable(True)
+
+
+def test_no_tls_connection_adapter_context_manager(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubSession:
+        closed = False
+
+        def __init__(self) -> None:
+            self.calls: list[object] = []
+
+        def close(self) -> None:
+            self.calls.append(("close",))
+            self.closed = True
+
+        def begin(self) -> None:
+            self.calls.append(("begin",))
+
+        def commit(self) -> None:
+            self.calls.append(("commit",))
+
+        def rollback(self) -> None:
+            self.calls.append(("rollback",))
+
+        def prepare_text(self, query: str) -> object:
+            return SimpleNamespace(statement_id=1)
+
+        def simple_query_results(self, query: str) -> list[object]:
+            self.calls.append(("simple", query))
+            return [SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            self.calls.append(("params", query, params))
+            return SimpleNamespace(columns=["b"], rows=[["two"]], rows_affected=1)
+
+        def run_prepared_text_params(
+            self, statement_id: int, params: list[str | None]
+        ) -> object:
+            self.calls.append(("prepared", statement_id, params))
+            return SimpleNamespace(columns=["c"], rows=[["three"]], rows_affected=1)
+
+    committed = StubSession()
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: committed)
+    with module.no_tls_connection_adapter("host=localhost", autocommit=False) as conn:
+        assert conn is not None
+        conn.execute("select 1")
+
+    assert committed.calls == [
+        ("begin",),
+        ("simple", "select 1"),
+        ("commit",),
+        ("close",),
+    ]
+
+    rolled_back = StubSession()
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: rolled_back)
+    with pytest.raises(RuntimeError, match="boom"):
+        with module.no_tls_connection_adapter("host=localhost", autocommit=False) as conn:
+            assert conn is not None
+            conn.execute("select 1")
+            raise RuntimeError("boom")
+
+    assert rolled_back.calls == [
+        ("begin",),
+        ("simple", "select 1"),
+        ("rollback",),
+        ("close",),
     ]
 
 
@@ -2897,6 +3115,73 @@ def test_no_tls_cursor_adapter_result_navigation(
 
     pipeline = conn.execute_pipeline_simple(["select left", "select right"])
     assert [cur.fetchall() for cur in pipeline] == [[["select left"]], [["select right"]]]
+
+
+def test_no_tls_connection_adapter_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubSession:
+        closed = False
+
+        def close(self) -> None:
+            pass
+
+        def begin(self) -> None:
+            pass
+
+        def commit(self) -> None:
+            pass
+
+        def rollback(self) -> None:
+            pass
+
+        def prepare_text(self, query: str) -> object:
+            return SimpleNamespace(statement_id=1)
+
+        def simple_query_results(self, query: str) -> list[object]:
+            return [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
+
+        def pipeline_simple_query_results(self, queries: list[str]) -> list[list[object]]:
+            return [
+                [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
+                for query in queries
+            ]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            return SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)
+
+        def run_prepared_text_params(
+            self, statement_id: int, params: list[str | None]
+        ) -> object:
+            return SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)
+
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: StubSession())
+
+    conn = module.no_tls_connection_adapter("host=localhost")
+    assert conn is not None
+
+    with conn.pipeline() as p:
+        left = p.execute("select left", row_factory=module.scalar_row)
+        right = p.execute("select right")
+        with pytest.raises(psycopg.ProgrammingError, match="no result available"):
+            left.fetchall()
+        p.sync()
+        assert left.fetchall() == ["select left"]
+        assert right.fetchall() == [[
+            "select right",
+        ]]
+        queued = p.execute("select queued", row_factory=module.scalar_row)
+
+    assert queued.fetchall() == ["select queued"]
+
+    with pytest.raises(psycopg.OperationalError, match="pipeline is not active"):
+        p.execute("select after")
+
+    with pytest.raises(psycopg.NotSupportedError, match="simple queries only"):
+        with conn.pipeline() as p2:
+            p2.execute("select $1", params=["1"])
 
 
 def test_no_tls_connection_adapter_transaction(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -3599,6 +3884,39 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
     assert pipeline[0].fetchall() == ["alpha"]
     assert [res.fetchall() for res in pipeline[1].results()] == [["beta"], ["gamma"]]
 
+    with conn.pipeline() as pipeline_ctx:
+        queued1 = pipeline_ctx.execute(
+            "select 'pipeline-a'::text as label",
+            row_factory=module.scalar_row,
+        )
+        queued2 = pipeline_ctx.execute("select 'pipeline-b'::text as label")
+        with pytest.raises(psycopg.ProgrammingError, match="no result available"):
+            queued1.fetchall()
+        pipeline_ctx.sync()
+        assert queued1.fetchall() == ["pipeline-a"]
+        assert queued2.fetchall() == [["pipeline-b"]]
+        queued3 = pipeline_ctx.execute(
+            "select 'pipeline-c'::text as label",
+            row_factory=module.scalar_row,
+        )
+
+    assert queued3.fetchall() == ["pipeline-c"]
+
+    conn.set_isolation_level(psycopg.IsolationLevel.SERIALIZABLE)
+    conn.set_read_only(True)
+    conn.set_deferrable(False)
+    with conn.transaction():
+        tx_params = conn.execute(
+            "select current_setting('transaction_isolation'), "
+            "current_setting('transaction_read_only'), "
+            "current_setting('transaction_deferrable')"
+        )
+        assert tx_params.fetchall() == [["serializable", "on", "off"]]
+    conn.rollback()
+    conn.set_isolation_level(None)
+    conn.set_read_only(None)
+    conn.set_deferrable(None)
+
     with conn.cursor() as cur2:
         cur2.execute(
             "select ($1::int4 + $2::int4)::text as total, $3::text as label",
@@ -3743,6 +4061,19 @@ def test_backend_package_connect_ferrocopg_live(dsn: str) -> None:
     scalar_conn = cast(Any, psycopg.connect_ferrocopg(dsn, row_factory=module.scalar_row))
     scalar_cur = scalar_conn.execute("select 'default-row-factory'::text as label")
     assert scalar_cur.fetchall() == ["default-row-factory"]
+    with scalar_conn.pipeline() as p:
+        queued = p.execute("select 'selector-pipeline'::text as label")
+    assert queued.fetchall() == ["selector-pipeline"]
+    scalar_conn.set_isolation_level(psycopg.IsolationLevel.SERIALIZABLE)
+    scalar_conn.read_only = True
+    with scalar_conn.transaction():
+        tx_settings = scalar_conn.execute(
+            "select current_setting('transaction_isolation'), "
+            "current_setting('transaction_read_only')",
+            row_factory=module.tuple_row,
+        )
+        assert tx_settings.fetchall() == [("serializable", "on")]
+    scalar_conn.rollback()
     scalar_conn.close()
 
     tx_conn = cast(Any, psycopg.connect_ferrocopg(dsn, autocommit=False))
@@ -3754,6 +4085,19 @@ def test_backend_package_connect_ferrocopg_live(dsn: str) -> None:
     )
     assert check.fetchall() == [["0"]]
     tx_conn.close()
+
+    table_name = f"ferrocopg_connect_ctx_{uuid.uuid4().hex[:12]}"
+    with cast(Any, psycopg.connect_ferrocopg(dsn, autocommit=False)) as ctx_conn:
+        ctx_conn.execute(f'create table "{table_name}" (id int4)')
+        ctx_conn.execute(
+            f'insert into "{table_name}" (id) values ($1::int4)', ["1"]
+        )
+
+    verify_ctx_commit = cast(Any, psycopg.connect_ferrocopg(dsn))
+    committed = verify_ctx_commit.execute(f'select id::text as id from "{table_name}" order by id')
+    assert committed.fetchall() == [["1"]]
+    verify_ctx_commit.execute(f'drop table "{table_name}"')
+    verify_ctx_commit.close()
 
     conn.close()
     assert conn.closed is True

@@ -182,14 +182,14 @@ implementation modes.
 | Parameterized query execution | Available | Available | Available | Bound text execution is present on the Rust backend. |
 | Statement describe and metadata | Available | Available | Available | Parameter and column metadata are exposed on the Rust path. |
 | Prepared statements | Available | Available | Available | Rust backend has prepared statement caching and reuse. |
-| Transactions and savepoints | Available | Available | Partial | Backend transactions exist; adapter-side transaction parity is still being expanded. |
+| Transactions and savepoints | Available | Available | Partial | Backend transactions exist and the opt-in adapter now covers savepoints, autocommit, context-manager commit/rollback, and transaction characteristics, but it is still not the default path. |
 | Cancellation | Available | Available | Available | Explicit backend cancel handle exists with live coverage. |
 | COPY in/out | Available | Available | Available | Backend COPY facades exist and are exercised in focused tests. |
 | LISTEN/NOTIFY | Available | Available | Available | Live backend notification coverage exists. |
 | Result-set shaping | Available | Available | Available | Rust backend exposes unified result-set and simple-query result blocks. |
-| Explicit opt-in selector | Available | Available | In progress | `psycopg.connect_ferrocopg(...)` can opt into the Rust adapter with row factories, prepare-threshold handling, and explicit autocommit control, without changing the default implementation selector. |
+| Explicit opt-in selector | Available | Available | In progress | `psycopg.connect_ferrocopg(...)` can opt into the Rust adapter with row factories, prepare-threshold handling, autocommit control, pipeline context support, and transaction characteristics, without changing the default implementation selector. |
 | Cursor-like adapter bridge | Available | Available | In progress | Experimental adapter exists in `psycopg._ferrocopg`, but is not the default path. |
-| Pipeline mode | Available | Available | In progress | Rust backend now has an experimental batched simple-query facade; full libpq-style pipeline semantics are still a parity gap. |
+| Pipeline mode | Available | Available | In progress | Rust backend now has an experimental batched simple-query facade plus an explicit `connection.pipeline()` bridge on the opt-in ferrocopg path; full libpq-style pipeline semantics are still a parity gap. |
 | Default-path integration | Available | Available | Not started | Cutover stays blocked until selector and compatibility gates are met. |
 
 ## Milestones
