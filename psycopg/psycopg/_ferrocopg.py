@@ -9,9 +9,11 @@ extension to be present in every environment.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator, Sequence
+from time import monotonic
 from typing import NamedTuple, Protocol, cast
 
 from . import errors as e
+from ._connection_base import Notify
 from ._enums import IsolationLevel
 from ._rmodule import __version__ as __version__
 from ._rmodule import _ferrocopg
@@ -40,6 +42,12 @@ class _SyntheticResult:
 
 class _PreparedStatementLike(Protocol):
     statement_id: int
+
+
+class _BackendNotificationLike(Protocol):
+    channel: str
+    payload: str
+    process_id: int
 
 
 class BackendColumn(NamedTuple):
@@ -83,6 +91,18 @@ class _NoTlsSessionLike(Protocol):
     def commit(self) -> None: ...
 
     def rollback(self) -> None: ...
+
+    def listen(self, channel: str) -> None: ...
+
+    def unlisten(self, channel: str) -> None: ...
+
+    def notify(self, channel: str, payload: str) -> None: ...
+
+    def drain_notifications(self) -> list[_BackendNotificationLike]: ...
+
+    def wait_for_notification(
+        self, timeout_ms: int
+    ) -> _BackendNotificationLike | None: ...
 
     def prepare_text(self, query: str) -> _PreparedStatementLike: ...
 
@@ -380,6 +400,32 @@ class NoTlsSessionAdapter:
 
     def rollback(self) -> None:
         self._session.rollback()
+
+    def listen(self, channel: str) -> None:
+        self._session.listen(channel)
+
+    def unlisten(self, channel: str) -> None:
+        self._session.unlisten(channel)
+
+    def notify(self, channel: str, payload: str = "") -> None:
+        self._session.notify(channel, payload)
+
+    def drain_notifications(self) -> list[Notify]:
+        return [
+            Notify(n.channel, n.payload, n.process_id)
+            for n in self._session.drain_notifications()
+        ]
+
+    def wait_for_notification(self, timeout: float = 0.0) -> Notify | None:
+        timeout_ms = max(0, int(timeout * 1000))
+        notification = self._session.wait_for_notification(timeout_ms)
+        if notification is None:
+            return None
+        return Notify(
+            notification.channel,
+            notification.payload,
+            notification.process_id,
+        )
 
     def prepare_text(self, query: str) -> _PreparedStatementLike:
         return self._session.prepare_text(query)
@@ -776,6 +822,65 @@ class NoTlsConnectionAdapter:
     ) -> NoTlsTransactionAdapter:
         return NoTlsTransactionAdapter(self, savepoint_name, force_rollback)
 
+    def listen(self, channel: str) -> None:
+        self._check_closed()
+        self._session.listen(channel)
+
+    def unlisten(self, channel: str) -> None:
+        self._check_closed()
+        self._session.unlisten(channel)
+
+    def notify(self, channel: str, payload: str = "") -> None:
+        self._check_closed()
+        self._session.notify(channel, payload)
+
+    def drain_notifications(self) -> list[Notify]:
+        self._check_closed()
+        return self._session.drain_notifications()
+
+    def wait_for_notification(self, timeout: float = 0.0) -> Notify | None:
+        self._check_closed()
+        return self._session.wait_for_notification(timeout)
+
+    def notifies(
+        self, *, timeout: float | None = None, stop_after: int | None = None
+    ) -> Iterator[Notify]:
+        self._check_closed()
+        if timeout is not None:
+            deadline = monotonic() + timeout
+            interval = min(timeout, 0.1)
+        else:
+            deadline = None
+            interval = 0.1
+
+        nreceived = 0
+        while True:
+            backlog = self.drain_notifications()
+            if backlog:
+                for notification in backlog:
+                    yield notification
+                    nreceived += 1
+                if stop_after is not None and nreceived >= stop_after:
+                    break
+                continue
+
+            wait_timeout = interval
+            if deadline is not None:
+                wait_timeout = deadline - monotonic()
+                if wait_timeout <= 0:
+                    break
+
+            next_notification: Notify | None = self.wait_for_notification(wait_timeout)
+            if next_notification is None:
+                if timeout == 0.0 or deadline is not None:
+                    break
+                continue
+
+            yield next_notification
+            nreceived += 1
+            if stop_after is not None and nreceived >= stop_after:
+                break
+
     def pipeline(self) -> NoTlsPipelineAdapter:
         self._check_closed()
         return NoTlsPipelineAdapter(self)
@@ -996,6 +1101,9 @@ def no_tls_connection_adapter(
     row_factory: RowFactory = list_row,
     prepare_threshold: int | None = 5,
     autocommit: bool = True,
+    isolation_level: IsolationLevel | int | None = None,
+    read_only: bool | None = None,
+    deferrable: bool | None = None,
 ) -> NoTlsConnectionAdapter | None:
     """
     Return an experimental connection-like adapter over the Rust backend session.
@@ -1003,9 +1111,16 @@ def no_tls_connection_adapter(
     session = no_tls_session_adapter(conninfo)
     if session is None:
         return None
-    return NoTlsConnectionAdapter(
+    conn = NoTlsConnectionAdapter(
         session,
         row_factory=row_factory,
         prepare_threshold=prepare_threshold,
         autocommit=autocommit,
     )
+    if isolation_level is not None:
+        conn.set_isolation_level(isolation_level)
+    if read_only is not None:
+        conn.set_read_only(read_only)
+    if deferrable is not None:
+        conn.set_deferrable(deferrable)
+    return conn

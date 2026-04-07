@@ -2318,9 +2318,21 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
         row_factory: object = ferrocopg_module.list_row,
         prepare_threshold: int | None = 5,
         autocommit: bool = True,
-    ) -> tuple[str, str, object, int | None, bool]:
+        isolation_level: object | None = None,
+        read_only: bool | None = None,
+        deferrable: bool | None = None,
+    ) -> tuple[str, str, object, int | None, bool, object | None, bool | None, bool | None]:
         calls.append(conninfo)
-        return ("adapter", conninfo, row_factory, prepare_threshold, autocommit)
+        return (
+            "adapter",
+            conninfo,
+            row_factory,
+            prepare_threshold,
+            autocommit,
+            isolation_level,
+            read_only,
+            deferrable,
+        )
 
     monkeypatch.setattr(
         ferrocopg_module,
@@ -2340,18 +2352,27 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
         ferrocopg_module.list_row,
         5,
         True,
+        None,
+        None,
+        None,
     )
     got_scalar = psycopg_module.connect_ferrocopg(
         "dbname=postgres",
         row_factory=ferrocopg_module.scalar_row,
         prepare_threshold=0,
         autocommit=False,
+        isolation_level=psycopg_module.IsolationLevel.SERIALIZABLE,
+        read_only=True,
+        deferrable=False,
     )
     assert got_scalar == (
         "adapter",
         "dbname=postgres",
         ferrocopg_module.scalar_row,
         0,
+        False,
+        psycopg_module.IsolationLevel.SERIALIZABLE,
+        True,
         False,
     )
     assert calls == [
@@ -2810,6 +2831,118 @@ def test_no_tls_connection_adapter_transaction_params(
             match="connection.transaction\\(\\) context in progress",
         ):
             conn.set_deferrable(True)
+
+
+def test_no_tls_connection_adapter_notifications(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubSession:
+        closed = False
+
+        def __init__(self) -> None:
+            self.calls: list[object] = []
+            self.notifications: list[object] = []
+
+        def close(self) -> None:
+            self.calls.append(("close",))
+
+        def begin(self) -> None:
+            self.calls.append(("begin",))
+
+        def commit(self) -> None:
+            self.calls.append(("commit",))
+
+        def rollback(self) -> None:
+            self.calls.append(("rollback",))
+
+        def listen(self, channel: str) -> None:
+            self.calls.append(("listen", channel))
+
+        def unlisten(self, channel: str) -> None:
+            self.calls.append(("unlisten", channel))
+
+        def notify(self, channel: str, payload: str) -> None:
+            self.calls.append(("notify", channel, payload))
+
+        def drain_notifications(self) -> list[object]:
+            self.calls.append(("drain",))
+            rv = list(self.notifications)
+            self.notifications.clear()
+            return rv
+
+        def wait_for_notification(self, timeout_ms: int) -> object | None:
+            self.calls.append(("wait", timeout_ms))
+            if self.notifications:
+                return self.notifications.pop(0)
+            return None
+
+        def prepare_text(self, query: str) -> object:
+            return SimpleNamespace(statement_id=1)
+
+        def simple_query_results(self, query: str) -> list[object]:
+            return [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
+
+        def pipeline_simple_query_results(self, queries: list[str]) -> list[list[object]]:
+            return [
+                [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
+                for query in queries
+            ]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            return SimpleNamespace(columns=["q"], rows=[["ok"]], rows_affected=1)
+
+        def run_prepared_text_params(
+            self, statement_id: int, params: list[str | None]
+        ) -> object:
+            return SimpleNamespace(columns=["q"], rows=[["ok"]], rows_affected=1)
+
+    stub = StubSession()
+    stub.notifications.extend(
+        [
+            SimpleNamespace(channel="ferro", payload="one", process_id=10),
+            SimpleNamespace(channel="ferro", payload="two", process_id=11),
+            SimpleNamespace(channel="ferro", payload="three", process_id=12),
+        ]
+    )
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: stub)
+
+    conn = module.no_tls_connection_adapter("host=localhost")
+    assert conn is not None
+
+    conn.listen("ferro")
+    conn.notify("ferro", "payload")
+    first = conn.wait_for_notification(0.25)
+    assert first == psycopg.Notify("ferro", "one", 10)
+    assert conn.drain_notifications() == [
+        psycopg.Notify("ferro", "two", 11),
+        psycopg.Notify("ferro", "three", 12),
+    ]
+    conn.unlisten("ferro")
+
+    assert stub.calls == [
+        ("listen", "ferro"),
+        ("notify", "ferro", "payload"),
+        ("wait", 250),
+        ("drain",),
+        ("unlisten", "ferro"),
+    ]
+
+    stub.calls.clear()
+    stub.notifications.extend(
+        [
+            SimpleNamespace(channel="ferro", payload="four", process_id=13),
+            SimpleNamespace(channel="ferro", payload="five", process_id=14),
+        ]
+    )
+    assert list(conn.notifies(timeout=0.0, stop_after=1)) == [
+        psycopg.Notify("ferro", "four", 13),
+        psycopg.Notify("ferro", "five", 14),
+    ]
+    assert stub.calls == [("drain",)]
 
 
 def test_no_tls_connection_adapter_context_manager(
@@ -3917,6 +4050,25 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
     conn.set_read_only(None)
     conn.set_deferrable(None)
 
+    listener_channel = f"ferrocopg_conn_notify_{uuid.uuid4().hex}"
+    sender = module.no_tls_connection_adapter(dsn)
+    assert sender is not None
+    conn.listen(listener_channel)
+    sender.notify(listener_channel, "alpha")
+    got = conn.wait_for_notification(1.0)
+    assert got is not None
+    assert got.channel == listener_channel
+    assert got.payload == "alpha"
+    drained = conn.drain_notifications()
+    assert drained == []
+    sender.notify(listener_channel, "beta")
+    streamed = list(conn.notifies(timeout=1.0, stop_after=1))
+    assert len(streamed) == 1
+    assert streamed[0].channel == listener_channel
+    assert streamed[0].payload == "beta"
+    conn.unlisten(listener_channel)
+    sender.close()
+
     with conn.cursor() as cur2:
         cur2.execute(
             "select ($1::int4 + $2::int4)::text as total, $3::text as label",
@@ -4075,6 +4227,26 @@ def test_backend_package_connect_ferrocopg_live(dsn: str) -> None:
         assert tx_settings.fetchall() == [("serializable", "on")]
     scalar_conn.rollback()
     scalar_conn.close()
+
+    configured_conn = cast(
+        Any,
+        psycopg.connect_ferrocopg(
+            dsn,
+            isolation_level=psycopg.IsolationLevel.SERIALIZABLE,
+            read_only=True,
+            deferrable=False,
+        ),
+    )
+    with configured_conn.transaction():
+        configured = configured_conn.execute(
+            "select current_setting('transaction_isolation'), "
+            "current_setting('transaction_read_only'), "
+            "current_setting('transaction_deferrable')",
+            row_factory=module.tuple_row,
+        )
+        assert configured.fetchall() == [("serializable", "on", "off")]
+    configured_conn.rollback()
+    configured_conn.close()
 
     tx_conn = cast(Any, psycopg.connect_ferrocopg(dsn, autocommit=False))
     tx_conn.execute("create temporary table ferrocopg_connect_tx_test (id int4)")
