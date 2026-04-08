@@ -8,6 +8,7 @@ extension to be present in every environment.
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable, Iterator, Sequence
 from time import monotonic
 from typing import NamedTuple, Protocol, cast
@@ -50,6 +51,15 @@ class _BackendNotificationLike(Protocol):
     process_id: int
 
 
+class _CancelHandleLike(Protocol):
+    def cancel(self) -> None: ...
+
+
+class _NoopCancelHandle:
+    def cancel(self) -> None:
+        pass
+
+
 class BackendColumn(NamedTuple):
     name: str
     type_code: None = None
@@ -61,6 +71,7 @@ class BackendColumn(NamedTuple):
 
 
 RowFactory = Callable[[list[str], list[str | None]], object]
+NotifyHandler = Callable[[Notify], None]
 
 
 def list_row(columns: list[str], row: list[str | None]) -> list[str | None]:
@@ -91,6 +102,8 @@ class _NoTlsSessionLike(Protocol):
     def commit(self) -> None: ...
 
     def rollback(self) -> None: ...
+
+    def cancel_handle(self) -> _CancelHandleLike: ...
 
     def listen(self, channel: str) -> None: ...
 
@@ -401,6 +414,9 @@ class NoTlsSessionAdapter:
     def rollback(self) -> None:
         self._session.rollback()
 
+    def cancel_handle(self) -> _CancelHandleLike:
+        return self._session.cancel_handle()
+
     def listen(self, channel: str) -> None:
         self._session.listen(channel)
 
@@ -613,7 +629,9 @@ class NoTlsPipelineAdapter:
 
     def __init__(self, conn: NoTlsConnectionAdapter):
         self._conn = conn
-        self._queued: list[tuple[str, NoTlsCursorAdapter]] = []
+        self._queued: list[
+            tuple[str, NoTlsCursorAdapter, list[str | None] | None, bool]
+        ] = []
         self._entered = False
         self._closed = False
 
@@ -627,14 +645,11 @@ class NoTlsPipelineAdapter:
         *,
         row_factory: RowFactory | None = None,
         params: list[str | None] | None = None,
+        prepare: bool = False,
     ) -> NoTlsCursorAdapter:
         self._check_open()
-        if params is not None:
-            raise e.NotSupportedError(
-                "ferrocopg pipeline currently supports simple queries only"
-            )
         cur = self._conn.cursor(row_factory=row_factory)
-        self._queued.append((query, cur))
+        self._queued.append((query, cur, params, prepare))
         return cur
 
     def sync(self) -> None:
@@ -642,13 +657,20 @@ class NoTlsPipelineAdapter:
         if not self._queued:
             return
 
-        queries = [query for query, _cur in self._queued]
-        results = self._conn.execute_pipeline_simple(queries)
-        for (_query, queued_cur), result_cur in zip(
-            self._queued, results, strict=True
-        ):
-            queued_cur._result = result_cur._result
-            queued_cur._rownumber = 0
+        if all(params is None and not prepare for _query, _cur, params, prepare in self._queued):
+            queries = [query for query, _cur, _params, _prepare in self._queued]
+            results = self._conn.execute_pipeline_simple(queries)
+            for (_query, queued_cur, _params, _prepare), result_cur in zip(
+                self._queued, results, strict=True
+            ):
+                queued_cur._result = result_cur._result
+                queued_cur._rownumber = 0
+        else:
+            for query, queued_cur, params, prepare in self._queued:
+                queued_cur._result = self._conn._execute(
+                    query, params, prepare=prepare
+                )
+                queued_cur._rownumber = 0
         self._queued.clear()
 
     def __enter__(self) -> NoTlsPipelineAdapter:
@@ -693,13 +715,17 @@ class NoTlsConnectionAdapter:
         self._in_transaction = False
         self._tx_depth = 0
         self._savepoint_counter = 0
+        self._closed = False
         self._isolation_level: IsolationLevel | None = None
         self._read_only: bool | None = None
         self._deferrable: bool | None = None
+        self._notify_handlers: list[NotifyHandler] = []
+        self._cancel_handle: _CancelHandleLike | None = None
+        self._ensure_cancel_handle()
 
     @property
     def closed(self) -> bool:
-        return self._session.closed
+        return self._closed or self._session.closed
 
     @property
     def autocommit(self) -> bool:
@@ -742,7 +768,10 @@ class NoTlsConnectionAdapter:
         self.set_deferrable(value)
 
     def close(self) -> None:
+        if self._closed:
+            return
         self._session.close()
+        self._closed = True
 
     def cursor(self, *, row_factory: RowFactory | None = None) -> NoTlsCursorAdapter:
         self._check_closed()
@@ -803,6 +832,15 @@ class NoTlsConnectionAdapter:
         self._session.rollback()
         self._in_transaction = False
 
+    def cancel(self) -> None:
+        if self._closed:
+            return
+        self._ensure_cancel_handle().cancel()
+
+    def cancel_safe(self, *, timeout: float = 30.0) -> None:
+        del timeout
+        self.cancel()
+
     def set_isolation_level(self, value: IsolationLevel | int | None) -> None:
         self._check_set_transaction_param("isolation_level")
         self._isolation_level = (
@@ -836,16 +874,33 @@ class NoTlsConnectionAdapter:
 
     def drain_notifications(self) -> list[Notify]:
         self._check_closed()
-        return self._session.drain_notifications()
+        notifications = self._session.drain_notifications()
+        self._dispatch_notifications(notifications)
+        return notifications
 
     def wait_for_notification(self, timeout: float = 0.0) -> Notify | None:
         self._check_closed()
-        return self._session.wait_for_notification(timeout)
+        notification = self._session.wait_for_notification(timeout)
+        if notification is not None:
+            self._dispatch_notifications([notification])
+        return notification
+
+    def add_notify_handler(self, callback: NotifyHandler) -> None:
+        self._notify_handlers.append(callback)
+
+    def remove_notify_handler(self, callback: NotifyHandler) -> None:
+        self._notify_handlers.remove(callback)
 
     def notifies(
         self, *, timeout: float | None = None, stop_after: int | None = None
     ) -> Iterator[Notify]:
         self._check_closed()
+        if self._notify_handlers:
+            warnings.warn(
+                "using 'notifies()' together with notifies handlers on the same connection is not reliable. Please use only one of these methods",
+                RuntimeWarning,
+                stacklevel=2,
+            )
         if timeout is not None:
             deadline = monotonic() + timeout
             interval = min(timeout, 0.1)
@@ -885,6 +940,11 @@ class NoTlsConnectionAdapter:
         self._check_closed()
         return NoTlsPipelineAdapter(self)
 
+    def _dispatch_notifications(self, notifications: Sequence[Notify]) -> None:
+        for notification in notifications:
+            for callback in self._notify_handlers:
+                callback(notification)
+
     def __enter__(self) -> NoTlsConnectionAdapter:
         return self
 
@@ -906,6 +966,7 @@ class NoTlsConnectionAdapter:
         *,
         prepare: bool,
     ) -> BackendResultCursor:
+        self._ensure_cancel_handle()
         self._ensure_transaction()
         if params is None:
             return self._session.execute_simple(query)
@@ -971,6 +1032,14 @@ class NoTlsConnectionAdapter:
             parts.append("DEFERRABLE" if self._deferrable else "NOT DEFERRABLE")
 
         return " ".join(parts)
+
+    def _ensure_cancel_handle(self) -> _CancelHandleLike:
+        if self._cancel_handle is None:
+            try:
+                self._cancel_handle = self._session.cancel_handle()
+            except AttributeError:
+                self._cancel_handle = _NoopCancelHandle()
+        return self._cancel_handle
 
 
 class NoTlsTransactionAdapter:

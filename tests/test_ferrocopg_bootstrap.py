@@ -2945,6 +2945,167 @@ def test_no_tls_connection_adapter_notifications(
     assert stub.calls == [("drain",)]
 
 
+def test_no_tls_connection_adapter_notify_handlers(
+    monkeypatch: pytest.MonkeyPatch,
+    recwarn: pytest.WarningsRecorder,
+) -> None:
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubSession:
+        closed = False
+
+        def __init__(self) -> None:
+            self.notifications: list[object] = []
+
+        def close(self) -> None:
+            pass
+
+        def begin(self) -> None:
+            pass
+
+        def commit(self) -> None:
+            pass
+
+        def rollback(self) -> None:
+            pass
+
+        def listen(self, channel: str) -> None:
+            pass
+
+        def unlisten(self, channel: str) -> None:
+            pass
+
+        def notify(self, channel: str, payload: str) -> None:
+            pass
+
+        def drain_notifications(self) -> list[object]:
+            rv = list(self.notifications)
+            self.notifications.clear()
+            return rv
+
+        def wait_for_notification(self, timeout_ms: int) -> object | None:
+            if self.notifications:
+                return self.notifications.pop(0)
+            return None
+
+        def prepare_text(self, query: str) -> object:
+            return SimpleNamespace(statement_id=1)
+
+        def simple_query_results(self, query: str) -> list[object]:
+            return [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
+
+        def pipeline_simple_query_results(self, queries: list[str]) -> list[list[object]]:
+            return [
+                [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
+                for query in queries
+            ]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            return SimpleNamespace(columns=["q"], rows=[["ok"]], rows_affected=1)
+
+        def run_prepared_text_params(
+            self, statement_id: int, params: list[str | None]
+        ) -> object:
+            return SimpleNamespace(columns=["q"], rows=[["ok"]], rows_affected=1)
+
+    stub = StubSession()
+    stub.notifications.extend(
+        [
+            SimpleNamespace(channel="ferro", payload="one", process_id=10),
+            SimpleNamespace(channel="ferro", payload="two", process_id=11),
+        ]
+    )
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: stub)
+
+    conn = module.no_tls_connection_adapter("host=localhost")
+    assert conn is not None
+
+    seen: list[psycopg.Notify] = []
+
+    def cb(n: psycopg.Notify) -> None:
+        seen.append(n)
+
+    conn.add_notify_handler(cb)
+
+    drained = conn.drain_notifications()
+    assert drained == [
+        psycopg.Notify("ferro", "one", 10),
+        psycopg.Notify("ferro", "two", 11),
+    ]
+    assert seen == drained
+
+    stub.notifications.append(
+        SimpleNamespace(channel="ferro", payload="three", process_id=12)
+    )
+    got = conn.wait_for_notification(0.1)
+    assert got == psycopg.Notify("ferro", "three", 12)
+    assert seen[-1] == got
+
+    stub.notifications.append(
+        SimpleNamespace(channel="ferro", payload="four", process_id=13)
+    )
+    assert list(conn.notifies(timeout=0.0, stop_after=1)) == [
+        psycopg.Notify("ferro", "four", 13)
+    ]
+    msg = str(recwarn.pop(RuntimeWarning).message)
+    assert "notifies()" in msg
+
+    conn.remove_notify_handler(cb)
+    with pytest.raises(ValueError):
+        conn.remove_notify_handler(cb)
+
+
+def test_no_tls_connection_adapter_cancel_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubSession:
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+        def begin(self) -> None:
+            pass
+
+        def commit(self) -> None:
+            pass
+
+        def rollback(self) -> None:
+            pass
+
+        def prepare_text(self, query: str) -> object:
+            return SimpleNamespace(statement_id=1)
+
+        def simple_query_results(self, query: str) -> list[object]:
+            return [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
+
+        def pipeline_simple_query_results(self, queries: list[str]) -> list[list[object]]:
+            return [
+                [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
+                for query in queries
+            ]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            return SimpleNamespace(columns=["q"], rows=[["ok"]], rows_affected=1)
+
+        def run_prepared_text_params(
+            self, statement_id: int, params: list[str | None]
+        ) -> object:
+            return SimpleNamespace(columns=["q"], rows=[["ok"]], rows_affected=1)
+
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: StubSession())
+
+    conn = module.no_tls_connection_adapter("host=localhost")
+    assert conn is not None
+    conn.close()
+    conn.cancel()
+    conn.cancel_safe()
+
+
 def test_no_tls_connection_adapter_context_manager(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -3306,15 +3467,17 @@ def test_no_tls_connection_adapter_pipeline(monkeypatch: pytest.MonkeyPatch) -> 
             "select right",
         ]]
         queued = p.execute("select queued", row_factory=module.scalar_row)
+        queued_params = p.execute(
+            "select $1::text as value",
+            params=["1"],
+            row_factory=module.scalar_row,
+        )
 
     assert queued.fetchall() == ["select queued"]
+    assert queued_params.fetchall() == ["one"]
 
     with pytest.raises(psycopg.OperationalError, match="pipeline is not active"):
         p.execute("select after")
-
-    with pytest.raises(psycopg.NotSupportedError, match="simple queries only"):
-        with conn.pipeline() as p2:
-            p2.execute("select $1", params=["1"])
 
 
 def test_no_tls_connection_adapter_transaction(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -4023,11 +4186,17 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
             row_factory=module.scalar_row,
         )
         queued2 = pipeline_ctx.execute("select 'pipeline-b'::text as label")
+        queued_params = pipeline_ctx.execute(
+            "select $1::text as label",
+            params=["pipeline-param"],
+            row_factory=module.scalar_row,
+        )
         with pytest.raises(psycopg.ProgrammingError, match="no result available"):
             queued1.fetchall()
         pipeline_ctx.sync()
         assert queued1.fetchall() == ["pipeline-a"]
         assert queued2.fetchall() == [["pipeline-b"]]
+        assert queued_params.fetchall() == ["pipeline-param"]
         queued3 = pipeline_ctx.execute(
             "select 'pipeline-c'::text as label",
             row_factory=module.scalar_row,
@@ -4066,6 +4235,10 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
     assert len(streamed) == 1
     assert streamed[0].channel == listener_channel
     assert streamed[0].payload == "beta"
+    seen: list[psycopg.Notify] = []
+    conn.add_notify_handler(lambda n: seen.append(n))
+    sender.notify(listener_channel, "gamma")
+    assert conn.wait_for_notification(1.0) == seen[-1]
     conn.unlisten(listener_channel)
     sender.close()
 
@@ -4326,6 +4499,58 @@ def test_backend_no_tls_cancel_handle_live(dsn: str) -> None:
         blocker.query_text(f"select pg_advisory_unlock({lock_id})::text as unlocked")
         blocker.close()
         session.close()
+
+
+def test_backend_no_tls_connection_cancel_live(dsn: str) -> None:
+    import time as pytime
+
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    conn = module.no_tls_connection_adapter(dsn)
+    blocker = module.no_tls_connection_adapter(dsn)
+    assert conn is not None
+    assert blocker is not None
+
+    errors: deque[str] = deque()
+    lock_id = uuid.uuid4().int % (2**31)
+
+    try:
+        blocker.execute(
+            f"select 'locked'::text from (select pg_advisory_lock({lock_id})) as _"
+        )
+
+        def run_blocked_query() -> None:
+            try:
+                conn.execute(
+                    f"select 'done'::text from (select pg_advisory_lock({lock_id})) as _"
+                ).fetchall()
+            except RuntimeError as exc:
+                errors.append(str(exc))
+            else:
+                errors.append("query unexpectedly completed")
+
+        worker = threading.Thread(target=run_blocked_query)
+        worker.start()
+
+        for _ in range(20):
+            pytime.sleep(0.05)
+            conn.cancel_safe(timeout=1.0)
+            worker.join(timeout=0.1)
+            if not worker.is_alive():
+                break
+        else:
+            worker.join(timeout=5)
+
+        assert not worker.is_alive()
+        assert errors
+        assert "canceling statement due to user request" in errors[0]
+    finally:
+        blocker.execute(f"select pg_advisory_unlock({lock_id})::text as unlocked")
+        blocker.close()
+        conn.close()
 
 
 def test_copy_base_prefers_c_copy_optimizations(monkeypatch):
