@@ -14,6 +14,7 @@ from time import monotonic
 from typing import NamedTuple, Protocol, cast
 
 from . import errors as e
+from . import pq
 from ._connection_base import Notify
 from ._enums import IsolationLevel
 from ._rmodule import __version__ as __version__
@@ -51,6 +52,16 @@ class _BackendNotificationLike(Protocol):
     process_id: int
 
 
+class _BackendProbeLike(Protocol):
+    backend_pid: int
+    current_user: str
+    current_database: str
+    server_version_num: int
+    application_name: str
+    server_address: str | None
+    server_port: int | None
+
+
 class _CancelHandleLike(Protocol):
     def cancel(self) -> None: ...
 
@@ -72,6 +83,68 @@ class BackendColumn(NamedTuple):
 
 RowFactory = Callable[[list[str], list[str | None]], object]
 NotifyHandler = Callable[[Notify], None]
+
+
+class BackendConnectionInfo:
+    __module__ = "psycopg"
+
+    def __init__(self, conn: NoTlsConnectionAdapter):
+        self._conn = conn
+
+    @property
+    def vendor(self) -> str:
+        return "PostgreSQL"
+
+    @property
+    def dbname(self) -> str:
+        return self._conn._probe().current_database
+
+    @property
+    def user(self) -> str:
+        return self._conn._probe().current_user
+
+    @property
+    def application_name(self) -> str:
+        return self._conn._probe().application_name
+
+    @property
+    def server_version(self) -> int:
+        return self._conn._probe().server_version_num
+
+    @property
+    def backend_pid(self) -> int:
+        return self._conn._probe().backend_pid
+
+    @property
+    def host(self) -> str:
+        return self.hostaddr
+
+    @property
+    def hostaddr(self) -> str:
+        return self._conn._probe().server_address or ""
+
+    @property
+    def port(self) -> int:
+        port = self._conn._probe().server_port
+        if port is None:
+            raise e.InternalError("couldn't find the connection port")
+        return port
+
+    @property
+    def transaction_status(self) -> pq.TransactionStatus:
+        return (
+            pq.TransactionStatus.INTRANS
+            if self._conn._in_transaction
+            else pq.TransactionStatus.IDLE
+        )
+
+    @property
+    def pipeline_status(self) -> pq.PipelineStatus:
+        return (
+            pq.PipelineStatus.ON
+            if self._conn._pipeline_depth > 0
+            else pq.PipelineStatus.OFF
+        )
 
 
 def list_row(columns: list[str], row: list[str | None]) -> list[str | None]:
@@ -96,6 +169,8 @@ class _NoTlsSessionLike(Protocol):
     closed: bool
 
     def close(self) -> None: ...
+
+    def probe(self) -> _BackendProbeLike: ...
 
     def begin(self) -> None: ...
 
@@ -373,6 +448,9 @@ class NoTlsSessionAdapter:
 
     def close(self) -> None:
         self._session.close()
+
+    def probe(self) -> _BackendProbeLike:
+        return self._session.probe()
 
     def execute_simple(self, query: str) -> BackendResultCursor:
         results = self._session.simple_query_results(query)
@@ -678,6 +756,7 @@ class NoTlsPipelineAdapter:
         if self._entered:
             raise TypeError("pipeline blocks can be used only once")
         self._entered = True
+        self._conn._pipeline_depth += 1
         return self
 
     def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
@@ -685,6 +764,7 @@ class NoTlsPipelineAdapter:
             if exc_type is None:
                 self.sync()
         finally:
+            self._conn._pipeline_depth -= 1
             self._closed = True
             self._queued.clear()
 
@@ -709,10 +789,13 @@ class NoTlsConnectionAdapter:
         self.row_factory = row_factory
         self.prepare_threshold = prepare_threshold
         self._autocommit = autocommit
+        self._info = BackendConnectionInfo(self)
+        self._probe_cache: _BackendProbeLike | None = None
         self._prepared: dict[str, int] = {}
         self._prepared_statusmessages: dict[int, str | None] = {}
         self._prepare_counts: dict[str, int] = {}
         self._in_transaction = False
+        self._pipeline_depth = 0
         self._tx_depth = 0
         self._savepoint_counter = 0
         self._closed = False
@@ -726,6 +809,10 @@ class NoTlsConnectionAdapter:
     @property
     def closed(self) -> bool:
         return self._closed or self._session.closed
+
+    @property
+    def info(self) -> BackendConnectionInfo:
+        return self._info
 
     @property
     def autocommit(self) -> bool:
@@ -1040,6 +1127,11 @@ class NoTlsConnectionAdapter:
             except AttributeError:
                 self._cancel_handle = _NoopCancelHandle()
         return self._cancel_handle
+
+    def _probe(self) -> _BackendProbeLike:
+        if self._probe_cache is None:
+            self._probe_cache = self._session.probe()
+        return self._probe_cache
 
 
 class NoTlsTransactionAdapter:

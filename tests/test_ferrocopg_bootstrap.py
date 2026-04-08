@@ -3616,6 +3616,81 @@ def test_no_tls_connection_adapter_exceptions(monkeypatch: pytest.MonkeyPatch) -
         conn.execute("select 1")
 
 
+def test_no_tls_connection_adapter_info(monkeypatch: pytest.MonkeyPatch) -> None:
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubSession:
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+        def probe(self) -> object:
+            return SimpleNamespace(
+                backend_pid=4321,
+                current_user="ferro",
+                current_database="ferrocopg",
+                server_version_num=170004,
+                application_name="ferrocopg-tests",
+                server_address="127.0.0.1",
+                server_port=5432,
+            )
+
+        def begin(self) -> None:
+            pass
+
+        def commit(self) -> None:
+            pass
+
+        def rollback(self) -> None:
+            pass
+
+        def prepare_text(self, query: str) -> object:
+            return SimpleNamespace(statement_id=1)
+
+        def simple_query_results(self, query: str) -> list[object]:
+            return [SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            return SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)
+
+        def run_prepared_text_params(
+            self, statement_id: int, params: list[str | None]
+        ) -> object:
+            return SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)
+
+        def pipeline_simple_query_results(self, queries: list[str]) -> list[list[object]]:
+            return [
+                [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
+                for query in queries
+            ]
+
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: StubSession())
+
+    conn = module.no_tls_connection_adapter("host=localhost")
+    assert conn is not None
+
+    assert conn.info.vendor == "PostgreSQL"
+    assert conn.info.dbname == "ferrocopg"
+    assert conn.info.user == "ferro"
+    assert conn.info.application_name == "ferrocopg-tests"
+    assert conn.info.server_version == 170004
+    assert conn.info.backend_pid == 4321
+    assert conn.info.host == "127.0.0.1"
+    assert conn.info.hostaddr == "127.0.0.1"
+    assert conn.info.port == 5432
+    assert conn.info.transaction_status == psycopg.pq.TransactionStatus.IDLE
+    assert conn.info.pipeline_status == psycopg.pq.PipelineStatus.OFF
+
+    with conn.transaction():
+        assert conn.info.transaction_status == psycopg.pq.TransactionStatus.INTRANS
+
+    with conn.pipeline():
+        assert conn.info.pipeline_status == psycopg.pq.PipelineStatus.ON
+
+
 def test_backend_connect_target_parses_endpoints() -> None:
     module = importlib.import_module("psycopg._ferrocopg")
 
@@ -4160,6 +4235,13 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
     conn = module.no_tls_connection_adapter(dsn)
     assert conn is not None
     assert conn.closed is False
+    assert conn.info.vendor == "PostgreSQL"
+    assert conn.info.dbname
+    assert conn.info.user
+    assert conn.info.server_version >= 100000
+    assert conn.info.backend_pid > 0
+    assert conn.info.transaction_status == psycopg.pq.TransactionStatus.IDLE
+    assert conn.info.pipeline_status == psycopg.pq.PipelineStatus.OFF
 
     cur = conn.execute("select 'first'::text as label; select 'second'::text as label")
     assert cur.statusmessage == "SELECT 1"
@@ -4181,6 +4263,7 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
     assert [res.fetchall() for res in pipeline[1].results()] == [["beta"], ["gamma"]]
 
     with conn.pipeline() as pipeline_ctx:
+        assert conn.info.pipeline_status == psycopg.pq.PipelineStatus.ON
         queued1 = pipeline_ctx.execute(
             "select 'pipeline-a'::text as label",
             row_factory=module.scalar_row,
@@ -4203,11 +4286,13 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
         )
 
     assert queued3.fetchall() == ["pipeline-c"]
+    assert conn.info.pipeline_status == psycopg.pq.PipelineStatus.OFF
 
     conn.set_isolation_level(psycopg.IsolationLevel.SERIALIZABLE)
     conn.set_read_only(True)
     conn.set_deferrable(False)
     with conn.transaction():
+        assert conn.info.transaction_status == psycopg.pq.TransactionStatus.INTRANS
         tx_params = conn.execute(
             "select current_setting('transaction_isolation'), "
             "current_setting('transaction_read_only'), "
