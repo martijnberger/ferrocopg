@@ -2308,25 +2308,41 @@ def test_ferrocopg_wrapper(monkeypatch):
 
 def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
     psycopg_module = importlib.import_module("psycopg")
-    ferrocopg_module = importlib.import_module("psycopg._ferrocopg")
+    ferrocopg_module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
 
     calls: list[str] = []
+
+    TrackingCursor = cast(
+        Any, type("TrackingCursor", (ferrocopg_module.NoTlsCursorAdapter,), {})
+    )
 
     def stub_no_tls_connection_adapter(
         conninfo: str,
         *,
         row_factory: object = ferrocopg_module.list_row,
+        cursor_factory: type[object] = ferrocopg_module.NoTlsCursorAdapter,
         prepare_threshold: int | None = 5,
         autocommit: bool = True,
         isolation_level: object | None = None,
         read_only: bool | None = None,
         deferrable: bool | None = None,
-    ) -> tuple[str, str, object, int | None, bool, object | None, bool | None, bool | None]:
+    ) -> tuple[
+        str,
+        str,
+        object,
+        type[object],
+        int | None,
+        bool,
+        object | None,
+        bool | None,
+        bool | None,
+    ]:
         calls.append(conninfo)
         return (
             "adapter",
             conninfo,
             row_factory,
+            cursor_factory,
             prepare_threshold,
             autocommit,
             isolation_level,
@@ -2350,6 +2366,7 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
         "adapter",
         "dbname=postgres host=localhost port=5432 application_name=ferrocopg-tests",
         ferrocopg_module.list_row,
+        ferrocopg_module.NoTlsCursorAdapter,
         5,
         True,
         None,
@@ -2369,14 +2386,31 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
         "adapter",
         "dbname=postgres",
         ferrocopg_module.scalar_row,
+        ferrocopg_module.NoTlsCursorAdapter,
         0,
         False,
         psycopg_module.IsolationLevel.SERIALIZABLE,
         True,
         False,
     )
+    got_cursor = psycopg_module.connect_ferrocopg(
+        "dbname=postgres",
+        cursor_factory=TrackingCursor,
+    )
+    assert got_cursor == (
+        "adapter",
+        "dbname=postgres",
+        ferrocopg_module.list_row,
+        TrackingCursor,
+        5,
+        True,
+        None,
+        None,
+        None,
+    )
     assert calls == [
         "dbname=postgres host=localhost port=5432 application_name=ferrocopg-tests",
+        "dbname=postgres",
         "dbname=postgres",
     ]
 
@@ -2466,7 +2500,7 @@ def test_no_tls_session_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_no_tls_connection_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
-    module = importlib.import_module("psycopg._ferrocopg")
+    module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
 
     class StubPrepared:
         def __init__(self, statement_id: int) -> None:
@@ -2509,14 +2543,21 @@ def test_no_tls_connection_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
             self.calls.append(("prepared", statement_id, params))
             return SimpleNamespace(columns=["c"], rows=[["three"]], rows_affected=1)
 
+    TrackingCursor = cast(Any, type("TrackingCursor", (module.NoTlsCursorAdapter,), {}))
+
     stub = StubSession()
     monkeypatch.setattr(module, "no_tls_session", lambda conninfo: stub)
 
-    conn = module.no_tls_connection_adapter("host=localhost")
+    conn = module.no_tls_connection_adapter(
+        "host=localhost", cursor_factory=TrackingCursor
+    )
     assert conn is not None
     assert conn.closed is False
+    assert conn.cursor_factory is TrackingCursor
 
-    assert conn.execute("select 1").fetchall() == [["one"]]
+    exec_cur = conn.execute("select 1")
+    assert isinstance(exec_cur, TrackingCursor)
+    assert exec_cur.fetchall() == [["one"]]
     assert conn.execute("select $1::text", ["x"]).fetchall() == [["two"]]
     assert conn.execute("select $1::text", ["x"], prepare=True).fetchall() == [
         ["three"]
@@ -2526,6 +2567,7 @@ def test_no_tls_connection_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
     ]
 
     with conn.cursor() as cur:
+        assert isinstance(cur, TrackingCursor)
         assert cur.execute("select 1").fetchone() == ["one"]
         assert cur.rowcount == 1
 
@@ -4486,7 +4528,7 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
 def test_backend_package_connect_ferrocopg_live(dsn: str) -> None:
     import psycopg
 
-    module = importlib.import_module("psycopg._ferrocopg")
+    module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
 
     if not module.is_available():
         pytest.skip("ferrocopg extension not installed")
@@ -4496,6 +4538,20 @@ def test_backend_package_connect_ferrocopg_live(dsn: str) -> None:
 
     cur = conn.execute("select 'ferrocopg'::text as label", row_factory=module.scalar_row)
     assert cur.fetchall() == ["ferrocopg"]
+
+    TrackingCursor = cast(Any, type("TrackingCursor", (module.NoTlsCursorAdapter,), {}))
+
+    custom_cursor_conn = cast(
+        Any,
+        psycopg.connect_ferrocopg(dsn, cursor_factory=TrackingCursor),
+    )
+    custom_cur = cast(Any, custom_cursor_conn.cursor(row_factory=module.scalar_row))
+    assert isinstance(custom_cur, TrackingCursor)
+    assert custom_cur.execute("select 'custom-cursor'::text").fetchall() == [
+        "custom-cursor"
+    ]
+    custom_cur.close()
+    custom_cursor_conn.close()
 
     scalar_conn = cast(Any, psycopg.connect_ferrocopg(dsn, row_factory=module.scalar_row))
     scalar_cur = scalar_conn.execute("select 'default-row-factory'::text as label")

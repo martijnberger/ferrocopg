@@ -65,6 +65,7 @@ def connect_ferrocopg(
     conninfo: str = "",
     *,
     row_factory: object | None = None,
+    cursor_factory: type[object] | None = None,
     prepare_threshold: int | None = 5,
     autocommit: bool = True,
     isolation_level: IsolationLevel | int | None = None,
@@ -84,6 +85,10 @@ def connect_ferrocopg(
     if row_factory is None:
         return _ferrocopg_module.no_tls_connection_adapter(
             make_conninfo(conninfo, **kwargs),
+            cursor_factory=cast(
+                type[_ferrocopg_module.NoTlsCursorAdapter],
+                cursor_factory or _ferrocopg_module.NoTlsCursorAdapter,
+            ),
             prepare_threshold=prepare_threshold,
             autocommit=autocommit,
             isolation_level=isolation_level,
@@ -94,6 +99,10 @@ def connect_ferrocopg(
     return _ferrocopg_module.no_tls_connection_adapter(
         make_conninfo(conninfo, **kwargs),
         row_factory=cast(Callable[[list[str], list[str | None]], object], row_factory),
+        cursor_factory=cast(
+            type[_ferrocopg_module.NoTlsCursorAdapter],
+            cursor_factory or _ferrocopg_module.NoTlsCursorAdapter,
+        ),
         prepare_threshold=prepare_threshold,
         autocommit=autocommit,
         isolation_level=isolation_level,

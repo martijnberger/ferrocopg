@@ -811,11 +811,13 @@ class NoTlsConnectionAdapter:
         session: NoTlsSessionAdapter,
         *,
         row_factory: RowFactory = list_row,
+        cursor_factory: type[NoTlsCursorAdapter] = NoTlsCursorAdapter,
         prepare_threshold: int | None = 5,
         autocommit: bool = True,
     ):
         self._session = session
         self.row_factory = row_factory
+        self.cursor_factory = cursor_factory
         self.prepare_threshold = prepare_threshold
         self._autocommit = autocommit
         self._info = BackendConnectionInfo(self)
@@ -893,7 +895,7 @@ class NoTlsConnectionAdapter:
         self._check_closed()
         if row_factory is None:
             row_factory = self.row_factory
-        return NoTlsCursorAdapter(self, row_factory=row_factory)
+        return self.cursor_factory(self, row_factory=row_factory)
 
     def execute(
         self,
@@ -1289,6 +1291,7 @@ def no_tls_connection_adapter(
     conninfo: str,
     *,
     row_factory: RowFactory = list_row,
+    cursor_factory: type[NoTlsCursorAdapter] = NoTlsCursorAdapter,
     prepare_threshold: int | None = 5,
     autocommit: bool = True,
     isolation_level: IsolationLevel | int | None = None,
@@ -1304,6 +1307,7 @@ def no_tls_connection_adapter(
     conn = NoTlsConnectionAdapter(
         session,
         row_factory=row_factory,
+        cursor_factory=cursor_factory,
         prepare_threshold=prepare_threshold,
         autocommit=autocommit,
     )
