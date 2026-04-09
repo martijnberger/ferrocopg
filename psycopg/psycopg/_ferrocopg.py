@@ -648,7 +648,7 @@ class NoTlsCursorAdapter:
         *,
         returning: bool = False,
         prepare: bool = False,
-    ) -> NoTlsCursorAdapter:
+    ) -> None:
         self._check_closed()
         self._conn._check_closed()
         if returning:
@@ -671,7 +671,6 @@ class NoTlsCursorAdapter:
             synthetic.statusmessage = _statusmessage_for_query(query, synthetic)
             self._result = BackendResultCursor([synthetic])
         self._rownumber = 0
-        return self
 
     def fetchone(self) -> object | None:
         result = self._require_result()

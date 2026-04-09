@@ -3493,22 +3493,24 @@ def test_no_tls_cursor_adapter_executemany(monkeypatch: pytest.MonkeyPatch) -> N
     assert conn is not None
 
     with conn.cursor() as cur:
-        cur.executemany(
+        rv = cur.executemany(
             "insert into demo values ($1::text)",
             [["one"], ["two"]],
         )
+        assert rv is None
         assert cur.rowcount == 2
         assert cur.statusmessage == "INSERT 0 2"
         assert cur.rownumber is None
         assert cur.fetchall() == []
 
     with conn.cursor(row_factory=module.scalar_row) as cur:
-        cur.executemany(
+        rv = cur.executemany(
             "select $1::text as value",
             [["one"], ["two"]],
             returning=True,
             prepare=True,
         )
+        assert rv is None
         assert cur.fetchone() == "one"
         assert cur.nextset() is True
         assert cur.fetchone() == "two"
@@ -4642,10 +4644,11 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
 
     conn.execute("create temporary table ferrocopg_conn_execmany_test (id int4)")
     with conn.cursor() as cur3:
-        cur3.executemany(
+        rv = cur3.executemany(
             "insert into ferrocopg_conn_execmany_test (id) values ($1::int4)",
             [["1"], ["2"], ["3"]],
         )
+        assert rv is None
         assert cur3.rowcount == 3
         assert cur3.statusmessage == "INSERT 0 3"
         assert cur3.rownumber is None
@@ -4656,12 +4659,13 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
     assert verify_many.fetchall() == [["1"], ["2"], ["3"]]
 
     with conn.cursor(row_factory=module.scalar_row) as cur4:
-        cur4.executemany(
+        rv = cur4.executemany(
             "select $1::text as label",
             [["alpha"], ["beta"]],
             returning=True,
             prepare=True,
         )
+        assert rv is None
         assert cur4.fetchone() == "alpha"
         assert cur4.nextset() is True
         assert cur4.fetchone() == "beta"
