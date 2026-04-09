@@ -55,6 +55,10 @@ class _BackendNotificationLike(Protocol):
     process_id: int
 
 
+class _BackendCopyOutLike(Protocol):
+    data: bytes
+
+
 class _BackendProbeLike(Protocol):
     backend_pid: int
     current_user: str
@@ -220,6 +224,10 @@ class _NoTlsSessionLike(Protocol):
     def wait_for_notification(
         self, timeout_ms: int
     ) -> _BackendNotificationLike | None: ...
+
+    def copy_from_stdin(self, query: str, data: bytes) -> int: ...
+
+    def copy_to_stdout(self, query: str) -> _BackendCopyOutLike: ...
 
     def prepare_text(self, query: str) -> _PreparedStatementLike: ...
 
@@ -550,6 +558,12 @@ class NoTlsSessionAdapter:
             notification.process_id,
         )
 
+    def copy_from_stdin(self, query: str, data: bytes) -> int:
+        return self._session.copy_from_stdin(query, data)
+
+    def copy_to_stdout(self, query: str) -> bytes:
+        return self._session.copy_to_stdout(query).data
+
     def prepare_text(self, query: str) -> _PreparedStatementLike:
         return self._session.prepare_text(query)
 
@@ -570,7 +584,7 @@ class NoTlsCursorAdapter:
         self._result: BackendResultCursor | None = None
         self._closed = False
         self._row_factory = row_factory
-        self._rownumber = 0
+        self._rownumber: int | None = 0
         self.arraysize = 1
 
     @property
@@ -622,6 +636,25 @@ class NoTlsCursorAdapter:
     def close(self) -> None:
         self._closed = True
         self._result = None
+
+    def copy(
+        self,
+        statement: str,
+        params: list[str | None] | None = None,
+        *,
+        writer: object | None = None,
+    ) -> NoTlsCopyAdapter:
+        self._check_closed()
+        self._conn._check_closed()
+        if params is not None:
+            raise e.NotSupportedError(
+                "ferrocopg cursor.copy() doesn't support parameters yet"
+            )
+        if writer is not None:
+            raise e.NotSupportedError(
+                "ferrocopg cursor.copy() doesn't support custom writers yet"
+            )
+        return NoTlsCopyAdapter(self, statement)
 
     def execute(
         self,
@@ -696,13 +729,13 @@ class NoTlsCursorAdapter:
         row = result.fetchone()
         if row is None:
             return None
-        self._rownumber += 1
+        self._rownumber = (self._rownumber or 0) + 1
         return self._row_factory(result.columns, row)
 
     def fetchall(self) -> list[object]:
         result = self._require_result()
         rows = result.fetchall()
-        self._rownumber += len(rows)
+        self._rownumber = (self._rownumber or 0) + len(rows)
         return [self._row_factory(result.columns, row) for row in rows]
 
     def fetchmany(self, size: int = 0) -> list[object]:
@@ -714,7 +747,7 @@ class NoTlsCursorAdapter:
             row = result.fetchone()
             if row is None:
                 break
-            self._rownumber += 1
+            self._rownumber = (self._rownumber or 0) + 1
             rows.append(self._row_factory(result.columns, row))
         return rows
 
@@ -723,7 +756,7 @@ class NoTlsCursorAdapter:
         current = result.current_result
         assert current is not None
         if mode == "relative":
-            newpos = self._rownumber + value
+            newpos = (self._rownumber or 0) + value
         elif mode == "absolute":
             newpos = value
         else:
@@ -780,6 +813,71 @@ class NoTlsCursorAdapter:
         if self._result is None:
             raise e.ProgrammingError("no result available")
         return self._result
+
+
+class NoTlsCopyAdapter:
+    """Small COPY bridge over the ferrocopg session adapter."""
+
+    def __init__(self, cursor: NoTlsCursorAdapter, statement: str):
+        self._cursor = cursor
+        self._statement = statement
+        normalized = " ".join(statement.lower().split())
+        if " from stdin" in normalized:
+            self._direction = "in"
+        elif " to stdout" in normalized:
+            self._direction = "out"
+        else:
+            raise e.ProgrammingError(
+                "copy() requires a COPY FROM STDIN or COPY TO STDOUT statement"
+            )
+        self._buffer = bytearray()
+        self._read_buffer = b""
+        self._read_pos = 0
+
+    def __enter__(self) -> NoTlsCopyAdapter:
+        if self._direction == "out":
+            self._read_buffer = self._cursor._conn._session.copy_to_stdout(
+                self._statement
+            )
+            self._read_pos = 0
+        return self
+
+    def __exit__(self, exc_type: object, exc: BaseException | None, tb: object) -> None:
+        if exc is not None:
+            return
+        if self._direction == "in":
+            rowcount = self._cursor._conn._session.copy_from_stdin(
+                self._statement, bytes(self._buffer)
+            )
+            synthetic = _SyntheticResult(rows_affected=rowcount)
+            synthetic.statusmessage = _statusmessage_for_query("COPY", synthetic)
+            self._cursor._result = BackendResultCursor([synthetic])
+            self._cursor._rownumber = None
+
+    def write(self, buffer: bytes | str) -> None:
+        if self._direction != "in":
+            raise e.ProgrammingError(
+                "write() is only available during COPY FROM STDIN"
+            )
+        if isinstance(buffer, str):
+            buffer = buffer.encode()
+        self._buffer.extend(buffer)
+
+    def read(self, size: int = -1) -> bytes:
+        if self._direction != "out":
+            raise e.ProgrammingError(
+                "read() is only available during COPY TO STDOUT"
+            )
+        if size < 0:
+            size = len(self._read_buffer) - self._read_pos
+        start = self._read_pos
+        end = min(len(self._read_buffer), start + size)
+        self._read_pos = end
+        return self._read_buffer[start:end]
+
+    def __iter__(self) -> Iterator[bytes]:
+        while data := self.read():
+            yield data
 
 
 class NoTlsPipelineAdapter:

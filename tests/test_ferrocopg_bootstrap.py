@@ -3693,6 +3693,74 @@ def test_no_tls_cursor_adapter_stream(monkeypatch: pytest.MonkeyPatch) -> None:
                 next(cur.stream("select 1"))
 
 
+def test_no_tls_cursor_adapter_copy(monkeypatch: pytest.MonkeyPatch) -> None:
+    import psycopg
+
+    module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
+
+    class StubSession:
+        closed = False
+
+        def __init__(self) -> None:
+            self.copy_in_calls: list[tuple[str, bytes]] = []
+            self.copy_out_calls: list[str] = []
+
+        def close(self) -> None:
+            pass
+
+        def begin(self) -> None:
+            pass
+
+        def commit(self) -> None:
+            pass
+
+        def rollback(self) -> None:
+            pass
+
+        def copy_from_stdin(self, query: str, data: bytes) -> int:
+            self.copy_in_calls.append((query, data))
+            return 2
+
+        def copy_to_stdout(self, query: str) -> object:
+            self.copy_out_calls.append(query)
+            return SimpleNamespace(data=b"10\talpha\n11\tbeta\n")
+
+    stub = StubSession()
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: stub)
+
+    conn = module.no_tls_connection_adapter("host=localhost")
+    assert conn is not None
+
+    with conn.cursor() as cur:
+        with cur.copy("copy demo from stdin") as copy:
+            copy.write("10\talpha\n")
+            copy.write(b"11\tbeta\n")
+        assert cur.rowcount == 2
+        assert cur.statusmessage == "COPY 2"
+        assert stub.copy_in_calls == [
+            ("copy demo from stdin", b"10\talpha\n11\tbeta\n")
+        ]
+
+    with conn.cursor() as cur:
+        with cur.copy("copy demo to stdout") as copy:
+            assert copy.read(3) == b"10\t"
+            assert copy.read() == b"alpha\n11\tbeta\n"
+            assert copy.read() == b""
+        assert stub.copy_out_calls == ["copy demo to stdout"]
+
+    with conn.cursor() as cur:
+        with cur.copy("copy demo to stdout") as copy:
+            assert list(copy) == [b"10\talpha\n11\tbeta\n"]
+
+    with conn.cursor() as cur:
+        with pytest.raises(psycopg.NotSupportedError, match="parameters"):
+            cur.copy("copy demo from stdin", params=["x"])
+        with pytest.raises(psycopg.NotSupportedError, match="custom writers"):
+            cur.copy("copy demo from stdin", writer=object())
+        with pytest.raises(psycopg.ProgrammingError, match="COPY FROM STDIN or COPY TO STDOUT"):
+            cur.copy("select 1")
+
+
 def test_no_tls_connection_adapter_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
     import psycopg
 
@@ -4783,6 +4851,31 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
         assert cur4.nextset() is True
         assert cur4.fetchone() == "beta"
         assert cur4.nextset() is None
+
+    conn.execute(
+        "create temporary table ferrocopg_conn_copy_test (id int4, label text)"
+    )
+    with conn.cursor() as cur_copy:
+        with cur_copy.copy(
+            "copy ferrocopg_conn_copy_test (id, label) from stdin"
+        ) as copy:
+            copy.write("1\tone\n")
+            copy.write(b"2\ttwo\n")
+        assert cur_copy.rowcount == 2
+        assert cur_copy.statusmessage == "COPY 2"
+
+    copied_rows = conn.execute(
+        "select id::text as id, label from ferrocopg_conn_copy_test order by id"
+    )
+    assert copied_rows.fetchall() == [["1", "one"], ["2", "two"]]
+
+    with conn.cursor() as cur_copy_out:
+        with cur_copy_out.copy(
+            "copy (select id::text, label from ferrocopg_conn_copy_test order by id) to stdout"
+        ) as copy:
+            assert copy.read(6) == b"1\tone\n"
+            assert copy.read() == b"2\ttwo\n"
+            assert copy.read() == b""
 
     conn.begin()
     conn.execute("create temporary table ferrocopg_conn_adapter_test (id int4)")
