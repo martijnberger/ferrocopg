@@ -672,6 +672,25 @@ class NoTlsCursorAdapter:
             self._result = BackendResultCursor([synthetic])
         self._rownumber = 0
 
+    def stream(
+        self,
+        query: str,
+        params: list[str | None] | None = None,
+        *,
+        binary: bool | None = None,
+        size: int = 1,
+    ) -> Iterator[object]:
+        if self._conn._pipeline_depth:
+            raise e.ProgrammingError("stream() cannot be used in pipeline mode")
+        if size < 1:
+            raise ValueError("size must be >= 1")
+        self.execute(query, params, binary=binary)
+        while True:
+            row = self.fetchone()
+            if row is None:
+                break
+            yield row
+
     def fetchone(self) -> object | None:
         result = self._require_result()
         row = result.fetchone()

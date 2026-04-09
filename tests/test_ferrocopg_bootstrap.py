@@ -3636,6 +3636,60 @@ def test_no_tls_cursor_adapter_scroll(monkeypatch: pytest.MonkeyPatch) -> None:
         cur.scroll(1, "wat")
 
 
+def test_no_tls_cursor_adapter_stream(monkeypatch: pytest.MonkeyPatch) -> None:
+    import psycopg
+
+    module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
+
+    class StubSession:
+        closed = False
+
+        def close(self) -> None:
+            pass
+
+        def simple_query_results(self, query: str) -> list[object]:
+            return [
+                SimpleNamespace(
+                    columns=["n"],
+                    rows=[["1"], ["2"], ["3"]],
+                    rows_affected=3,
+                )
+            ]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            return SimpleNamespace(
+                columns=["n"],
+                rows=[[params[0]]],
+                rows_affected=1,
+            )
+
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: StubSession())
+
+    conn = module.no_tls_connection_adapter(
+        "host=localhost", row_factory=module.scalar_row
+    )
+    assert conn is not None
+
+    with conn.cursor() as cur:
+        assert list(cur.stream("select generate_series(1,3)")) == ["1", "2", "3"]
+
+    with conn.cursor() as cur:
+        assert list(cur.stream("select $1::text", ["7"])) == ["7"]
+
+    with conn.cursor() as cur:
+        with pytest.raises(ValueError, match="size must be >= 1"):
+            next(cur.stream("select 1", size=0))
+
+    with conn.cursor() as cur:
+        with pytest.raises(psycopg.NotSupportedError, match="binary cursor execution"):
+            next(cur.stream("select 1", binary=True))
+
+    with conn.pipeline():
+        with conn.cursor() as cur:
+            with pytest.raises(psycopg.ProgrammingError, match="pipeline mode"):
+                next(cur.stream("select 1"))
+
+
 def test_no_tls_connection_adapter_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
     import psycopg
 
