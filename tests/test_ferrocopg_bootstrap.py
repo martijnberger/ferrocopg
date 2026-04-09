@@ -4002,6 +4002,41 @@ def test_no_tls_connection_adapter_tpc_unsupported(
         conn.tpc_recover()
 
 
+def test_no_tls_connection_info_parameters(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
+
+    class StubSession:
+        closed = False
+
+        def close(self) -> None:
+            pass
+
+        def begin(self) -> None:
+            pass
+
+        def commit(self) -> None:
+            pass
+
+        def rollback(self) -> None:
+            pass
+
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: StubSession())
+
+    conn = module.no_tls_connection_adapter(
+        "host=example.com port=5432 dbname=testdb user=tester password=secret application_name=ferrocopg"
+    )
+    assert conn is not None
+
+    params = conn.info.get_parameters()
+    assert params["host"] == "example.com"
+    assert params["port"] == "5432"
+    assert params["dbname"] == "testdb"
+    assert params["user"] == "tester"
+    assert params["application_name"] == "ferrocopg"
+    assert "password" not in params
+    assert "password" not in conn.info.dsn
+
+
 def test_no_tls_connection_adapter_exceptions(monkeypatch: pytest.MonkeyPatch) -> None:
     import psycopg
 
@@ -4779,6 +4814,8 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
     assert conn.info.parameter_status("TimeZone") is not None
     assert conn.info.encoding == "utf-8"
     assert conn.info.timezone is not None
+    assert "password" not in conn.info.get_parameters()
+    assert "password" not in conn.info.dsn
     assert conn.info.transaction_status == psycopg.pq.TransactionStatus.IDLE
     assert conn.info.pipeline_status == psycopg.pq.PipelineStatus.OFF
 

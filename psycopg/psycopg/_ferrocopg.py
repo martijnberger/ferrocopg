@@ -24,6 +24,7 @@ from ._enums import IsolationLevel
 from ._rmodule import __version__ as __version__
 from ._rmodule import _ferrocopg
 from ._tpc import Xid
+from .conninfo import conninfo_to_dict, make_conninfo
 from .transaction import Rollback
 
 
@@ -165,6 +166,14 @@ class BackendConnectionInfo:
         if port is None:
             raise e.InternalError("couldn't find the connection port")
         return port
+
+    def get_parameters(self) -> dict[str, str]:
+        params = conninfo_to_dict(self._conn._conninfo)
+        return {k: str(v) for k, v in params.items() if k != "password"}
+
+    @property
+    def dsn(self) -> str:
+        return make_conninfo(**self.get_parameters())
 
     def parameter_status(self, param_name: str) -> str | None:
         row = self._conn._session.execute_params(
@@ -1028,12 +1037,14 @@ class NoTlsConnectionAdapter:
         self,
         session: NoTlsSessionAdapter,
         *,
+        conninfo: str = "",
         row_factory: RowFactory = list_row,
         cursor_factory: type[NoTlsCursorAdapter] = NoTlsCursorAdapter,
         prepare_threshold: int | None = 5,
         autocommit: bool = True,
     ):
         self._session = session
+        self._conninfo = conninfo
         self.row_factory = row_factory
         self.cursor_factory = cursor_factory
         self.prepare_threshold = prepare_threshold
@@ -1602,6 +1613,7 @@ def no_tls_connection_adapter(
         return None
     conn = NoTlsConnectionAdapter(
         session,
+        conninfo=conninfo,
         row_factory=row_factory,
         cursor_factory=cursor_factory,
         prepare_threshold=prepare_threshold,
