@@ -2483,6 +2483,45 @@ def test_package_connect_impl_selector(monkeypatch: pytest.MonkeyPatch) -> None:
     ]
 
 
+def test_package_connect_ferrocopg_unsupported_connect_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import psycopg
+
+    ferrocopg_module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
+    calls: list[str] = []
+
+    def stub_no_tls_connection_adapter(conninfo: str, **kwargs: object) -> object:
+        calls.append(conninfo)
+        return object()
+
+    monkeypatch.setattr(
+        ferrocopg_module,
+        "no_tls_connection_adapter",
+        stub_no_tls_connection_adapter,
+    )
+
+    class StubContext:
+        adapters = object()
+
+    class StubServerCursor:
+        pass
+
+    with pytest.raises(
+        psycopg.NotSupportedError,
+        match="custom adaptation contexts",
+    ):
+        psycopg.connect_ferrocopg("dbname=postgres", context=StubContext())
+
+    with pytest.raises(
+        psycopg.NotSupportedError,
+        match="server-side cursor factories",
+    ):
+        psycopg.connect("dbname=postgres", impl="ferrocopg", server_cursor_factory=StubServerCursor)
+
+    assert calls == []
+
+
 def test_backend_result_cursor_navigation() -> None:
     module = importlib.import_module("psycopg._ferrocopg")
 

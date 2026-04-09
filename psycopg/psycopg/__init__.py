@@ -64,8 +64,10 @@ from .version import __version__ as __version__  # noqa: F401
 def connect_ferrocopg(
     conninfo: str = "",
     *,
+    context: object | None = None,
     row_factory: object | None = None,
     cursor_factory: type[object] | None = None,
+    server_cursor_factory: type[object] | None = None,
     prepare_threshold: int | None = 5,
     autocommit: bool = True,
     isolation_level: IsolationLevel | int | None = None,
@@ -81,6 +83,15 @@ def connect_ferrocopg(
     """
     from . import _ferrocopg as _ferrocopg_module
     from .conninfo import make_conninfo
+
+    if context is not None:
+        raise NotSupportedError(
+            "ferrocopg doesn't support custom adaptation contexts yet"
+        )
+    if server_cursor_factory is not None:
+        raise NotSupportedError(
+            "ferrocopg doesn't support server-side cursor factories yet"
+        )
 
     if row_factory is None:
         return _ferrocopg_module.no_tls_connection_adapter(
