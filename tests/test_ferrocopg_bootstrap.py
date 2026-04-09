@@ -3584,6 +3584,58 @@ def test_no_tls_cursor_adapter_result_navigation(
     assert [cur.fetchall() for cur in pipeline] == [[["select left"]], [["select right"]]]
 
 
+def test_no_tls_cursor_adapter_scroll(monkeypatch: pytest.MonkeyPatch) -> None:
+    import psycopg
+
+    module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
+
+    class StubSession:
+        closed = False
+
+        def close(self) -> None:
+            pass
+
+        def simple_query_results(self, query: str) -> list[object]:
+            return [
+                SimpleNamespace(
+                    columns=["n"],
+                    rows=[["0"], ["1"], ["2"], ["3"], ["4"]],
+                    rows_affected=5,
+                )
+            ]
+
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: StubSession())
+
+    conn = module.no_tls_connection_adapter(
+        "host=localhost", row_factory=module.scalar_row
+    )
+    assert conn is not None
+
+    cur = conn.cursor()
+    with pytest.raises(psycopg.ProgrammingError):
+        cur.scroll(0)
+
+    cur.execute("select generate_series(0,4)")
+    cur.scroll(2)
+    assert cur.fetchone() == "2"
+    cur.scroll(1)
+    assert cur.fetchone() == "4"
+    cur.scroll(1, mode="absolute")
+    assert cur.fetchone() == "1"
+
+    cur.scroll(0, mode="absolute")
+    assert cur.fetchone() == "0"
+
+    with pytest.raises(IndexError, match="out of bound"):
+        cur.scroll(-1, mode="absolute")
+    with pytest.raises(IndexError, match="out of bound"):
+        cur.scroll(5, mode="absolute")
+    with pytest.raises(IndexError, match="out of bound"):
+        cur.scroll(10)
+    with pytest.raises(ValueError, match="bad mode"):
+        cur.scroll(1, "wat")
+
+
 def test_no_tls_connection_adapter_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
     import psycopg
 

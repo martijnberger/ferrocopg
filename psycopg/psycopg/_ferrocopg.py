@@ -699,6 +699,21 @@ class NoTlsCursorAdapter:
             rows.append(self._row_factory(result.columns, row))
         return rows
 
+    def scroll(self, value: int, mode: str = "relative") -> None:
+        result = self._require_result()
+        current = result.current_result
+        assert current is not None
+        if mode == "relative":
+            newpos = self._rownumber + value
+        elif mode == "absolute":
+            newpos = value
+        else:
+            raise ValueError(f"bad mode: {mode}. It should be 'relative' or 'absolute'")
+        if not 0 <= newpos < len(current.rows):
+            raise IndexError("position out of bound")
+        result._pos = newpos
+        self._rownumber = newpos
+
     def nextset(self) -> bool | None:
         result = self._require_result()
         rv = result.nextset()
