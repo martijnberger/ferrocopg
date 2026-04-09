@@ -23,6 +23,7 @@ from ._encodings import pg2pyenc
 from ._enums import IsolationLevel
 from ._rmodule import __version__ as __version__
 from ._rmodule import _ferrocopg
+from ._tpc import Xid
 from .transaction import Rollback
 
 
@@ -1227,6 +1228,9 @@ class NoTlsConnectionAdapter:
     def set_deferrable(self, value: bool | None) -> None:
         self._check_set_transaction_param("deferrable")
         self._deferrable = bool(value) if value is not None else None
+
+    def xid(self, format_id: int, gtrid: str, bqual: str) -> Xid:
+        return Xid.from_parts(format_id, gtrid, bqual)
 
     def tpc_begin(self, xid: object) -> None:
         raise e.NotSupportedError(

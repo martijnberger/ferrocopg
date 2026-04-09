@@ -3985,14 +3985,19 @@ def test_no_tls_connection_adapter_tpc_unsupported(
     conn = module.no_tls_connection_adapter("host=localhost")
     assert conn is not None
 
+    xid = conn.xid(42, "gtrid", "bqual")
+    assert xid.format_id == 42
+    assert xid.gtrid == "gtrid"
+    assert xid.bqual == "bqual"
+
     with pytest.raises(psycopg.NotSupportedError, match="two-phase transactions"):
-        conn.tpc_begin("xid")
+        conn.tpc_begin(xid)
     with pytest.raises(psycopg.NotSupportedError, match="two-phase transactions"):
         conn.tpc_prepare()
     with pytest.raises(psycopg.NotSupportedError, match="two-phase transactions"):
-        conn.tpc_commit()
+        conn.tpc_commit(xid)
     with pytest.raises(psycopg.NotSupportedError, match="two-phase transactions"):
-        conn.tpc_rollback()
+        conn.tpc_rollback(xid)
     with pytest.raises(psycopg.NotSupportedError, match="two-phase transactions"):
         conn.tpc_recover()
 
