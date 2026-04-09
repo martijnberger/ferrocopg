@@ -3736,6 +3736,39 @@ def test_no_tls_connection_adapter_exceptions(monkeypatch: pytest.MonkeyPatch) -
         conn.execute("select 1")
 
 
+def test_no_tls_connection_adapter_unsupported_cursor_modes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import psycopg
+
+    module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
+
+    class StubSession:
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+        def simple_query_results(self, query: str) -> list[object]:
+            return [SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)]
+
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: StubSession())
+
+    conn = module.no_tls_connection_adapter("host=localhost")
+    assert conn is not None
+
+    with pytest.raises(psycopg.NotSupportedError, match="server-side cursors"):
+        conn.cursor("named")
+    with pytest.raises(psycopg.NotSupportedError, match="binary cursor results"):
+        conn.cursor(binary=True)
+    with pytest.raises(psycopg.NotSupportedError, match="scrollable cursors"):
+        conn.cursor(scrollable=True)
+    with pytest.raises(psycopg.NotSupportedError, match="withhold cursors"):
+        conn.cursor(withhold=True)
+    with pytest.raises(psycopg.NotSupportedError, match="binary execution results"):
+        conn.execute("select 1", binary=True)
+
+
 def test_no_tls_connection_adapter_info(monkeypatch: pytest.MonkeyPatch) -> None:
     import psycopg
 

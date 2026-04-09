@@ -891,8 +891,32 @@ class NoTlsConnectionAdapter:
         self._session.close()
         self._closed = True
 
-    def cursor(self, *, row_factory: RowFactory | None = None) -> NoTlsCursorAdapter:
+    def cursor(
+        self,
+        name: str = "",
+        *,
+        binary: bool = False,
+        row_factory: RowFactory | None = None,
+        scrollable: bool | None = None,
+        withhold: bool = False,
+    ) -> NoTlsCursorAdapter:
         self._check_closed()
+        if name:
+            raise e.NotSupportedError(
+                "ferrocopg doesn't support server-side cursors yet"
+            )
+        if binary:
+            raise e.NotSupportedError(
+                "ferrocopg doesn't support binary cursor results yet"
+            )
+        if scrollable is not None:
+            raise e.NotSupportedError(
+                "ferrocopg doesn't support scrollable cursors yet"
+            )
+        if withhold:
+            raise e.NotSupportedError(
+                "ferrocopg doesn't support withhold cursors yet"
+            )
         if row_factory is None:
             row_factory = self.row_factory
         return self.cursor_factory(self, row_factory=row_factory)
@@ -903,9 +927,14 @@ class NoTlsConnectionAdapter:
         params: list[str | None] | None = None,
         *,
         prepare: bool = False,
+        binary: bool = False,
         row_factory: RowFactory | None = None,
     ) -> NoTlsCursorAdapter:
         self._check_closed()
+        if binary:
+            raise e.NotSupportedError(
+                "ferrocopg doesn't support binary execution results yet"
+            )
         cur = self.cursor(row_factory=row_factory)
         return cur.execute(query, params, prepare=prepare)
 
