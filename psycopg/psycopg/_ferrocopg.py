@@ -578,6 +578,18 @@ class NoTlsCursorAdapter:
         return self._closed
 
     @property
+    def connection(self) -> NoTlsConnectionAdapter:
+        return self._conn
+
+    @property
+    def row_factory(self) -> RowFactory:
+        return self._row_factory
+
+    @row_factory.setter
+    def row_factory(self, row_factory: RowFactory) -> None:
+        self._row_factory = row_factory
+
+    @property
     def rowcount(self) -> int:
         if self._result is None:
             return -1
@@ -617,9 +629,14 @@ class NoTlsCursorAdapter:
         params: list[str | None] | None = None,
         *,
         prepare: bool = False,
+        binary: bool | None = None,
     ) -> NoTlsCursorAdapter:
         self._check_closed()
         self._conn._check_closed()
+        if binary:
+            raise e.NotSupportedError(
+                "ferrocopg doesn't support binary cursor execution yet"
+            )
         self._result = self._conn._execute(query, params, prepare=prepare)
         self._rownumber = 0
         return self

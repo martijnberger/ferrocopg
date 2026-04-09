@@ -3328,6 +3328,8 @@ def test_no_tls_connection_adapter_context_manager(
 def test_no_tls_connection_adapter_row_factories(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    import psycopg
+
     module = importlib.import_module("psycopg._ferrocopg")
 
     class StubSession:
@@ -3427,6 +3429,22 @@ def test_no_tls_connection_adapter_row_factories(
     )
     assert scalar_conn is not None
     assert scalar_conn.execute("select $1::text", ["3"], prepare=True).fetchall() == ["4"]
+
+    row_factory_cur = conn.cursor()
+    assert row_factory_cur.connection is conn
+    assert row_factory_cur.row_factory is module.list_row
+    row_factory_cur.row_factory = module.tuple_row
+    assert row_factory_cur.row_factory is module.tuple_row
+    assert row_factory_cur.execute("select 1").fetchall() == [("1", "one"), ("2", "two")]
+
+    row_factory_cur.row_factory = module.dict_row
+    assert row_factory_cur.execute("select 1").fetchall() == [
+        {"id": "1", "label": "one"},
+        {"id": "2", "label": "two"},
+    ]
+
+    with pytest.raises(psycopg.NotSupportedError, match="binary cursor execution"):
+        row_factory_cur.execute("select 1", binary=True)
 
 
 def test_no_tls_cursor_adapter_executemany(monkeypatch: pytest.MonkeyPatch) -> None:
