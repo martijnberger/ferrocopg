@@ -3417,6 +3417,10 @@ def test_no_tls_connection_adapter_row_factories(
     many_cur.arraysize = 2
     assert many_cur.fetchmany() == [["1", "one"], ["2", "two"]]
 
+    many_cur_zero = conn.execute("select 1")
+    many_cur_zero.arraysize = 1
+    assert many_cur_zero.fetchmany(0) == [["1", "one"]]
+
     pipeline_cursors = conn.execute_pipeline_simple(
         ["select first", "select second"],
         row_factory=module.scalar_row,

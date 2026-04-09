@@ -686,9 +686,9 @@ class NoTlsCursorAdapter:
         self._rownumber += len(rows)
         return [self._row_factory(result.columns, row) for row in rows]
 
-    def fetchmany(self, size: int | None = None) -> list[object]:
+    def fetchmany(self, size: int = 0) -> list[object]:
         result = self._require_result()
-        if size is None:
+        if not size:
             size = self.arraysize
         rows: list[object] = []
         while len(rows) < size:
