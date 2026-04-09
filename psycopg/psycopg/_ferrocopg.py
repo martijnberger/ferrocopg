@@ -747,7 +747,8 @@ class NoTlsCursorAdapter:
         return self
 
     def results(self) -> Iterator[NoTlsCursorAdapter]:
-        self._require_result()
+        if self._result is None:
+            return
         while True:
             yield self
             if not self.nextset():

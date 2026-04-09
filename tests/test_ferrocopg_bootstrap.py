@@ -3571,6 +3571,9 @@ def test_no_tls_cursor_adapter_result_navigation(
     conn = module.no_tls_connection_adapter("host=localhost")
     assert conn is not None
 
+    fresh = conn.cursor()
+    assert list(fresh.results()) == []
+
     cur = conn.execute("select 1")
     assert cur.fetchmany(1) == [["one"]]
     assert cur.rownumber == 1
