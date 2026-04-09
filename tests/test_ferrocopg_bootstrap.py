@@ -3843,6 +3843,40 @@ def test_no_tls_connection_adapter_pipeline(monkeypatch: pytest.MonkeyPatch) -> 
         p.execute("select after")
 
 
+def test_no_tls_cursor_adapter_dbapi_size_noops(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
+
+    class StubSession:
+        closed = False
+
+        def close(self) -> None:
+            pass
+
+        def begin(self) -> None:
+            pass
+
+        def commit(self) -> None:
+            pass
+
+        def rollback(self) -> None:
+            pass
+
+        def simple_query_results(self, query: str) -> list[object]:
+            return [SimpleNamespace(columns=["label"], rows=[["ok"]], rows_affected=1)]
+
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: StubSession())
+
+    conn = module.no_tls_connection_adapter("host=localhost")
+    assert conn is not None
+
+    with conn.cursor() as cur:
+        assert cur.setinputsizes([23, 25]) is None
+        assert cur.setoutputsize(128) is None
+        assert cur.setoutputsize(256, 0) is None
+        cur.execute("select 'ok'::text as label")
+        assert cur.fetchall() == [["ok"]]
+
+
 def test_no_tls_connection_adapter_transaction(monkeypatch: pytest.MonkeyPatch) -> None:
     module = importlib.import_module("psycopg._ferrocopg")
 

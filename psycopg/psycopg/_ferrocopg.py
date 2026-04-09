@@ -801,6 +801,12 @@ class NoTlsCursorAdapter:
         self._rownumber = 0
         return self
 
+    def setinputsizes(self, sizes: object) -> None:
+        return None
+
+    def setoutputsize(self, size: int, column: int | None = None) -> None:
+        return None
+
     def results(self) -> Iterator[NoTlsCursorAdapter]:
         if self._result is None:
             return
