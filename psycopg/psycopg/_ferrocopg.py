@@ -842,6 +842,10 @@ class NoTlsConnectionAdapter:
         return self._closed or self._session.closed
 
     @property
+    def broken(self) -> bool:
+        return self.closed and not self._closed
+
+    @property
     def info(self) -> BackendConnectionInfo:
         return self._info
 
@@ -860,6 +864,11 @@ class NoTlsConnectionAdapter:
 
     def set_autocommit(self, value: bool) -> None:
         self.autocommit = bool(value)
+
+    def fileno(self) -> int:
+        raise e.NotSupportedError(
+            "ferrocopg doesn't expose a libpq socket fileno"
+        )
 
     @property
     def isolation_level(self) -> IsolationLevel | None:
@@ -1037,6 +1046,18 @@ class NoTlsConnectionAdapter:
 
     def remove_notify_handler(self, callback: NotifyHandler) -> None:
         self._notify_handlers.remove(callback)
+
+    def add_notice_handler(self, callback: object) -> None:
+        del callback
+        raise e.NotSupportedError(
+            "ferrocopg doesn't support notice handlers yet"
+        )
+
+    def remove_notice_handler(self, callback: object) -> None:
+        del callback
+        raise e.NotSupportedError(
+            "ferrocopg doesn't support notice handlers yet"
+        )
 
     def notifies(
         self, *, timeout: float | None = None, stop_after: int | None = None

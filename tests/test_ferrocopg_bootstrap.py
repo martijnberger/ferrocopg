@@ -3769,10 +3769,46 @@ def test_no_tls_connection_adapter_exceptions(monkeypatch: pytest.MonkeyPatch) -
         cur.execute("select 1")
 
     conn.close()
+    assert conn.broken is False
     with pytest.raises(psycopg.OperationalError, match="connection is closed"):
         conn.cursor()
     with pytest.raises(psycopg.OperationalError, match="connection is closed"):
         conn.execute("select 1")
+
+
+def test_no_tls_connection_adapter_notice_and_fileno_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import psycopg
+
+    module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
+
+    class StubSession:
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: StubSession())
+
+    conn = module.no_tls_connection_adapter("host=localhost")
+    assert conn is not None
+    assert conn.broken is False
+
+    with pytest.raises(psycopg.NotSupportedError, match="socket fileno"):
+        conn.fileno()
+    with pytest.raises(psycopg.NotSupportedError, match="notice handlers"):
+        conn.add_notice_handler(lambda notice: None)
+    with pytest.raises(psycopg.NotSupportedError, match="notice handlers"):
+        conn.remove_notice_handler(lambda notice: None)
+
+    conn._session._session.closed = True
+    assert conn.closed is True
+    assert conn.broken is True
+
+    conn.close()
+    assert conn.closed is True
+    assert conn.broken is False
 
 
 def test_no_tls_connection_adapter_unsupported_cursor_modes(
