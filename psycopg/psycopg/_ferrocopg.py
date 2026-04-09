@@ -10,12 +10,15 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Callable, Iterator, Sequence
+from datetime import timezone, tzinfo
 from time import monotonic
 from typing import NamedTuple, Protocol, cast
+from zoneinfo import ZoneInfo
 
 from . import errors as e
 from . import pq
 from ._connection_base import Notify
+from ._encodings import pg2pyenc
 from ._enums import IsolationLevel
 from ._rmodule import __version__ as __version__
 from ._rmodule import _ferrocopg
@@ -83,6 +86,7 @@ class BackendColumn(NamedTuple):
 
 RowFactory = Callable[[list[str], list[str | None]], object]
 NotifyHandler = Callable[[Notify], None]
+_timezones: dict[str | None, tzinfo] = {None: timezone.utc, "UTC": timezone.utc}
 
 
 class BackendConnectionInfo:
@@ -129,6 +133,31 @@ class BackendConnectionInfo:
         if port is None:
             raise e.InternalError("couldn't find the connection port")
         return port
+
+    def parameter_status(self, param_name: str) -> str | None:
+        row = self._conn._session.execute_params(
+            "select current_setting($1::text, true)::text as value",
+            [param_name],
+        ).fetchone()
+        return row[0] if row else None
+
+    @property
+    def encoding(self) -> str:
+        pgenc = self.parameter_status("client_encoding")
+        return pg2pyenc((pgenc or "UTF8").encode())
+
+    @property
+    def timezone(self) -> tzinfo:
+        tzname = self.parameter_status("TimeZone")
+        try:
+            return _timezones[tzname]
+        except KeyError:
+            try:
+                zi: tzinfo = ZoneInfo(tzname or "UTC")
+            except Exception:
+                zi = timezone.utc
+            _timezones[tzname] = zi
+            return zi
 
     @property
     def transaction_status(self) -> pq.TransactionStatus:

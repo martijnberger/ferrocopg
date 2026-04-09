@@ -3588,7 +3588,17 @@ def test_no_tls_connection_adapter_exceptions(monkeypatch: pytest.MonkeyPatch) -
             return [SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)]
 
         def run_text_params(self, query: str, params: list[str | None]) -> object:
-            return SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)
+            key = params[0]
+            values = {
+                "client_encoding": "UTF8",
+                "TimeZone": "UTC",
+                "application_name": "ferrocopg-tests",
+            }
+            return SimpleNamespace(
+                columns=["value"],
+                rows=[[values[key] if key in values else None]],
+                rows_affected=1,
+            )
 
         def run_prepared_text_params(
             self, statement_id: int, params: list[str | None]
@@ -3654,7 +3664,17 @@ def test_no_tls_connection_adapter_info(monkeypatch: pytest.MonkeyPatch) -> None
             return [SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)]
 
         def run_text_params(self, query: str, params: list[str | None]) -> object:
-            return SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)
+            key = params[0]
+            values = {
+                "client_encoding": "UTF8",
+                "TimeZone": "UTC",
+                "application_name": "ferrocopg-tests",
+            }
+            return SimpleNamespace(
+                columns=["value"],
+                rows=[[values[key] if key in values else None]],
+                rows_affected=1,
+            )
 
         def run_prepared_text_params(
             self, statement_id: int, params: list[str | None]
@@ -3681,6 +3701,11 @@ def test_no_tls_connection_adapter_info(monkeypatch: pytest.MonkeyPatch) -> None
     assert conn.info.host == "127.0.0.1"
     assert conn.info.hostaddr == "127.0.0.1"
     assert conn.info.port == 5432
+    assert conn.info.parameter_status("application_name") == "ferrocopg-tests"
+    assert conn.info.parameter_status("client_encoding") == "UTF8"
+    assert conn.info.parameter_status("nosuchparam") is None
+    assert conn.info.encoding == "utf-8"
+    assert conn.info.timezone is timezone.utc
     assert conn.info.transaction_status == psycopg.pq.TransactionStatus.IDLE
     assert conn.info.pipeline_status == psycopg.pq.PipelineStatus.OFF
 
@@ -4240,6 +4265,10 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
     assert conn.info.user
     assert conn.info.server_version >= 100000
     assert conn.info.backend_pid > 0
+    assert conn.info.parameter_status("client_encoding") == "UTF8"
+    assert conn.info.parameter_status("TimeZone") is not None
+    assert conn.info.encoding == "utf-8"
+    assert conn.info.timezone is not None
     assert conn.info.transaction_status == psycopg.pq.TransactionStatus.IDLE
     assert conn.info.pipeline_status == psycopg.pq.PipelineStatus.OFF
 
