@@ -4033,8 +4033,16 @@ def test_no_tls_connection_info_parameters(monkeypatch: pytest.MonkeyPatch) -> N
     assert params["dbname"] == "testdb"
     assert params["user"] == "tester"
     assert params["application_name"] == "ferrocopg"
+    assert conn.info.password == "secret"
+    assert conn.info.options == ""
+    assert conn.info.status == module.pq.ConnStatus.OK
+    assert conn.info.full_protocol_version == 30000
+    assert conn.info.error_message == ""
     assert "password" not in params
     assert "password" not in conn.info.dsn
+
+    conn.close()
+    assert conn.info.status == module.pq.ConnStatus.BAD
 
 
 def test_no_tls_connection_adapter_exceptions(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -4814,6 +4822,11 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
     assert conn.info.parameter_status("TimeZone") is not None
     assert conn.info.encoding == "utf-8"
     assert conn.info.timezone is not None
+    assert conn.info.password == "password"
+    assert conn.info.options == ""
+    assert conn.info.status == psycopg.pq.ConnStatus.OK
+    assert conn.info.full_protocol_version == 30000
+    assert conn.info.error_message == ""
     assert "password" not in conn.info.get_parameters()
     assert "password" not in conn.info.dsn
     assert conn.info.transaction_status == psycopg.pq.TransactionStatus.IDLE

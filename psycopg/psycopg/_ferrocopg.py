@@ -141,6 +141,14 @@ class BackendConnectionInfo:
         return self._conn._probe().current_user
 
     @property
+    def password(self) -> str:
+        return str(conninfo_to_dict(self._conn._conninfo).get("password") or "")
+
+    @property
+    def options(self) -> str:
+        return str(conninfo_to_dict(self._conn._conninfo).get("options") or "")
+
+    @property
     def application_name(self) -> str:
         return self._conn._probe().application_name
 
@@ -175,6 +183,10 @@ class BackendConnectionInfo:
     def dsn(self) -> str:
         return make_conninfo(**self.get_parameters())
 
+    @property
+    def status(self) -> pq.ConnStatus:
+        return pq.ConnStatus.BAD if self._conn.closed else pq.ConnStatus.OK
+
     def parameter_status(self, param_name: str) -> str | None:
         row = self._conn._session.execute_params(
             "select current_setting($1::text, true)::text as value",
@@ -186,6 +198,14 @@ class BackendConnectionInfo:
     def encoding(self) -> str:
         pgenc = self.parameter_status("client_encoding")
         return pg2pyenc((pgenc or "UTF8").encode())
+
+    @property
+    def full_protocol_version(self) -> int:
+        return 30000
+
+    @property
+    def error_message(self) -> str:
+        return ""
 
     @property
     def timezone(self) -> tzinfo:
