@@ -100,6 +100,11 @@ class _NoopCancelHandle:
         pass
 
 
+class _PgconnEncodingShim:
+    def __init__(self, encoding: str):
+        self._encoding = encoding
+
+
 class BackendColumn(NamedTuple):
     name: str
     type_code: None = None
@@ -1222,6 +1227,31 @@ class NoTlsConnectionAdapter:
     def set_deferrable(self, value: bool | None) -> None:
         self._check_set_transaction_param("deferrable")
         self._deferrable = bool(value) if value is not None else None
+
+    def tpc_begin(self, xid: object) -> None:
+        raise e.NotSupportedError(
+            "ferrocopg doesn't support two-phase transactions yet"
+        )
+
+    def tpc_prepare(self) -> None:
+        raise e.NotSupportedError(
+            "ferrocopg doesn't support two-phase transactions yet"
+        )
+
+    def tpc_commit(self, xid: object | None = None) -> None:
+        raise e.NotSupportedError(
+            "ferrocopg doesn't support two-phase transactions yet"
+        )
+
+    def tpc_rollback(self, xid: object | None = None) -> None:
+        raise e.NotSupportedError(
+            "ferrocopg doesn't support two-phase transactions yet"
+        )
+
+    def tpc_recover(self) -> list[object]:
+        raise e.NotSupportedError(
+            "ferrocopg doesn't support two-phase transactions yet"
+        )
 
     def transaction(
         self, savepoint_name: str | None = None, force_rollback: bool = False

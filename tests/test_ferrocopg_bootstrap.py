@@ -3958,6 +3958,45 @@ def test_no_tls_connection_adapter_transaction(monkeypatch: pytest.MonkeyPatch) 
     ]
 
 
+def test_no_tls_connection_adapter_tpc_unsupported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import psycopg
+
+    module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
+
+    class StubSession:
+        closed = False
+
+        def close(self) -> None:
+            pass
+
+        def begin(self) -> None:
+            pass
+
+        def commit(self) -> None:
+            pass
+
+        def rollback(self) -> None:
+            pass
+
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: StubSession())
+
+    conn = module.no_tls_connection_adapter("host=localhost")
+    assert conn is not None
+
+    with pytest.raises(psycopg.NotSupportedError, match="two-phase transactions"):
+        conn.tpc_begin("xid")
+    with pytest.raises(psycopg.NotSupportedError, match="two-phase transactions"):
+        conn.tpc_prepare()
+    with pytest.raises(psycopg.NotSupportedError, match="two-phase transactions"):
+        conn.tpc_commit()
+    with pytest.raises(psycopg.NotSupportedError, match="two-phase transactions"):
+        conn.tpc_rollback()
+    with pytest.raises(psycopg.NotSupportedError, match="two-phase transactions"):
+        conn.tpc_recover()
+
+
 def test_no_tls_connection_adapter_exceptions(monkeypatch: pytest.MonkeyPatch) -> None:
     import psycopg
 
