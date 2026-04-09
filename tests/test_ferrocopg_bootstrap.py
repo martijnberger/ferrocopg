@@ -3735,10 +3735,11 @@ def test_no_tls_cursor_adapter_copy(monkeypatch: pytest.MonkeyPatch) -> None:
         with cur.copy("copy demo from stdin") as copy:
             copy.write("10\talpha\n")
             copy.write(b"11\tbeta\n")
+            copy.write_row(["12", None])
         assert cur.rowcount == 2
         assert cur.statusmessage == "COPY 2"
         assert stub.copy_in_calls == [
-            ("copy demo from stdin", b"10\talpha\n11\tbeta\n")
+            ("copy demo from stdin", b"10\talpha\n11\tbeta\n12\t\\N\n")
         ]
 
     with conn.cursor() as cur:
@@ -3753,12 +3754,24 @@ def test_no_tls_cursor_adapter_copy(monkeypatch: pytest.MonkeyPatch) -> None:
             assert list(copy) == [b"10\talpha\n11\tbeta\n"]
 
     with conn.cursor() as cur:
+        with cur.copy("copy demo to stdout") as copy:
+            assert copy.read_row() == ("10", "alpha")
+            assert copy.read_row() == ("11", "beta")
+            assert copy.read_row() is None
+
+    with conn.cursor() as cur:
         with pytest.raises(psycopg.NotSupportedError, match="parameters"):
             cur.copy("copy demo from stdin", params=["x"])
         with pytest.raises(psycopg.NotSupportedError, match="custom writers"):
             cur.copy("copy demo from stdin", writer=object())
         with pytest.raises(psycopg.ProgrammingError, match="COPY FROM STDIN or COPY TO STDOUT"):
             cur.copy("select 1")
+        with pytest.raises(psycopg.ProgrammingError, match="COPY TO STDOUT"):
+            with cur.copy("copy demo from stdin") as copy:
+                copy.read_row()
+        with pytest.raises(psycopg.ProgrammingError, match="COPY FROM STDIN"):
+            with cur.copy("copy demo to stdout") as copy:
+                copy.write_row(["bad"])
 
 
 def test_no_tls_connection_adapter_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -4861,21 +4874,29 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
         ) as copy:
             copy.write("1\tone\n")
             copy.write(b"2\ttwo\n")
-        assert cur_copy.rowcount == 2
-        assert cur_copy.statusmessage == "COPY 2"
+            copy.write_row(["3", "three"])
+        assert cur_copy.rowcount == 3
+        assert cur_copy.statusmessage == "COPY 3"
 
     copied_rows = conn.execute(
         "select id::text as id, label from ferrocopg_conn_copy_test order by id"
     )
-    assert copied_rows.fetchall() == [["1", "one"], ["2", "two"]]
+    assert copied_rows.fetchall() == [["1", "one"], ["2", "two"], ["3", "three"]]
 
     with conn.cursor() as cur_copy_out:
         with cur_copy_out.copy(
             "copy (select id::text, label from ferrocopg_conn_copy_test order by id) to stdout"
         ) as copy:
             assert copy.read(6) == b"1\tone\n"
-            assert copy.read() == b"2\ttwo\n"
+            assert copy.read() == b"2\ttwo\n3\tthree\n"
             assert copy.read() == b""
+
+    with conn.cursor() as cur_copy_rows:
+        with cur_copy_rows.copy(
+            "copy (select id::text, label from ferrocopg_conn_copy_test order by id) to stdout"
+        ) as copy:
+            assert copy.read_row() == ("1", "one")
+            assert list(copy.rows()) == [("2", "two"), ("3", "three")]
 
     conn.begin()
     conn.execute("create temporary table ferrocopg_conn_adapter_test (id int4)")

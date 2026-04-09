@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 from . import errors as e
 from . import pq
 from ._connection_base import Notify
+from ._copy_base import format_row_text, parse_row_text
 from ._encodings import pg2pyenc
 from ._enums import IsolationLevel
 from ._rmodule import __version__ as __version__
@@ -71,6 +72,27 @@ class _BackendProbeLike(Protocol):
 
 class _CancelHandleLike(Protocol):
     def cancel(self) -> None: ...
+
+
+class _TextCopyTransformer:
+    def dump_sequence(
+        self, params: Sequence[object], formats: list[object]
+    ) -> list[bytes | None]:
+        return [
+            None
+            if value is None
+            else value
+            if isinstance(value, bytes)
+            else str(value).encode()
+            for value in params
+        ]
+
+    def load_sequence(
+        self, record: list[bytes | memoryview | bytearray | None]
+    ) -> tuple[str | None, ...]:
+        return tuple(
+            None if item is None else bytes(item).decode() for item in record
+        )
 
 
 class _NoopCancelHandle:
@@ -822,6 +844,7 @@ class NoTlsCopyAdapter:
         self._cursor = cursor
         self._statement = statement
         normalized = " ".join(statement.lower().split())
+        self._binary = "format binary" in normalized
         if " from stdin" in normalized:
             self._direction = "in"
         elif " to stdout" in normalized:
@@ -833,6 +856,7 @@ class NoTlsCopyAdapter:
         self._buffer = bytearray()
         self._read_buffer = b""
         self._read_pos = 0
+        self._tx = _TextCopyTransformer()
 
     def __enter__(self) -> NoTlsCopyAdapter:
         if self._direction == "out":
@@ -863,6 +887,17 @@ class NoTlsCopyAdapter:
             buffer = buffer.encode()
         self._buffer.extend(buffer)
 
+    def write_row(self, row: Sequence[object]) -> None:
+        if self._direction != "in":
+            raise e.ProgrammingError(
+                "write_row() is only available during COPY FROM STDIN"
+            )
+        if self._binary:
+            raise e.NotSupportedError(
+                "ferrocopg copy.write_row() doesn't support binary COPY yet"
+            )
+        format_row_text(row, self._tx, self._buffer)
+
     def read(self, size: int = -1) -> bytes:
         if self._direction != "out":
             raise e.ProgrammingError(
@@ -874,6 +909,28 @@ class NoTlsCopyAdapter:
         end = min(len(self._read_buffer), start + size)
         self._read_pos = end
         return self._read_buffer[start:end]
+
+    def read_row(self) -> tuple[str | None, ...] | None:
+        if self._direction != "out":
+            raise e.ProgrammingError(
+                "read_row() is only available during COPY TO STDOUT"
+            )
+        if self._binary:
+            raise e.NotSupportedError(
+                "ferrocopg copy.read_row() doesn't support binary COPY yet"
+            )
+        if self._read_pos >= len(self._read_buffer):
+            return None
+        end = self._read_buffer.find(b"\n", self._read_pos)
+        if end < 0:
+            return None
+        row = self._read_buffer[self._read_pos : end + 1]
+        self._read_pos = end + 1
+        return cast(tuple[str | None, ...], parse_row_text(row, self._tx))
+
+    def rows(self) -> Iterator[tuple[str | None, ...]]:
+        while row := self.read_row():
+            yield row
 
     def __iter__(self) -> Iterator[bytes]:
         while data := self.read():
