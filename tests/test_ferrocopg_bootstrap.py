@@ -2415,6 +2415,74 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
     ]
 
 
+def test_package_connect_impl_selector(monkeypatch: pytest.MonkeyPatch) -> None:
+    psycopg_module = importlib.import_module("psycopg")
+
+    calls: list[tuple[str, str, object]] = []
+
+    def stub_connect(conninfo: str = "", **kwargs: object) -> tuple[str, str, object]:
+        calls.append(("libpq", conninfo, dict(kwargs)))
+        return ("libpq", conninfo, dict(kwargs))
+
+    def stub_connect_ferrocopg(
+        conninfo: str = "", **kwargs: object
+    ) -> tuple[str, str, object]:
+        calls.append(("ferrocopg", conninfo, dict(kwargs)))
+        return ("ferrocopg", conninfo, dict(kwargs))
+
+    monkeypatch.setattr(psycopg_module.Connection, "connect", stub_connect)
+    monkeypatch.setattr(psycopg_module, "connect_ferrocopg", stub_connect_ferrocopg)
+
+    got_default = psycopg_module.connect("dbname=postgres", prepare_threshold=7)
+    assert got_default == (
+        "libpq",
+        "dbname=postgres",
+        {"prepare_threshold": 7},
+    )
+
+    got_libpq = psycopg_module.connect(
+        "dbname=postgres", impl="libpq", autocommit=True
+    )
+    assert got_libpq == (
+        "libpq",
+        "dbname=postgres",
+        {"autocommit": True},
+    )
+
+    got_ferrocopg = psycopg_module.connect("dbname=postgres", impl="ferrocopg")
+    assert got_ferrocopg == (
+        "ferrocopg",
+        "dbname=postgres",
+        {"autocommit": False},
+    )
+
+    got_ferrocopg_auto = psycopg_module.connect(
+        "dbname=postgres",
+        impl="ferrocopg",
+        autocommit=True,
+        prepare_threshold=0,
+    )
+    assert got_ferrocopg_auto == (
+        "ferrocopg",
+        "dbname=postgres",
+        {"autocommit": True, "prepare_threshold": 0},
+    )
+
+    with pytest.raises(ValueError, match="unsupported connect\\(\\) implementation"):
+        psycopg_module.connect("dbname=postgres", impl="wat")
+
+    assert calls == [
+        ("libpq", "dbname=postgres", {"prepare_threshold": 7}),
+        ("libpq", "dbname=postgres", {"autocommit": True}),
+        ("ferrocopg", "dbname=postgres", {"autocommit": False}),
+        (
+            "ferrocopg",
+            "dbname=postgres",
+            {"autocommit": True, "prepare_threshold": 0},
+        ),
+    ]
+
+
 def test_backend_result_cursor_navigation() -> None:
     module = importlib.import_module("psycopg._ferrocopg")
 
@@ -4616,6 +4684,33 @@ def test_backend_package_connect_ferrocopg_live(dsn: str) -> None:
 
     conn.close()
     assert conn.closed is True
+
+
+def test_backend_package_connect_impl_ferrocopg_live(dsn: str) -> None:
+    import psycopg
+
+    module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
+
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    conn = cast(Any, psycopg.connect(dsn, impl="ferrocopg", row_factory=module.scalar_row))
+    assert conn.autocommit is False
+    conn.execute("create temporary table ferrocopg_connect_impl_test (id int4)")
+    conn.execute(
+        "insert into ferrocopg_connect_impl_test (id) values ($1::int4)", ["1"]
+    )
+    inside = conn.execute(
+        "select id::text as id from ferrocopg_connect_impl_test order by id"
+    )
+    assert inside.fetchall() == ["1"]
+    conn.rollback()
+    check = conn.execute(
+        "select count(*)::text as n from pg_tables where tablename = "
+        "'ferrocopg_connect_impl_test'"
+    )
+    assert check.fetchall() == ["0"]
+    conn.close()
 
 
 def test_backend_no_tls_cancel_handle_live(dsn: str) -> None:

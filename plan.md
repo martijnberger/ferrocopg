@@ -190,7 +190,7 @@ implementation modes.
 | Explicit opt-in selector | Available | Available | In progress | `psycopg.connect_ferrocopg(...)` can opt into the Rust adapter with row factories, cursor-factory selection, prepare-threshold handling, autocommit control, a connection `info` surface, pipeline context support, LISTEN/NOTIFY helpers including notification iteration and notify handlers, connection cancellation helpers, and transaction characteristics both at connect time and after connect, without changing the default implementation selector. |
 | Cursor-like adapter bridge | Available | Available | In progress | Experimental adapter exists in `psycopg._ferrocopg`, but is not the default path. |
 | Pipeline mode | Available | Available | In progress | Rust backend now has an experimental batched simple-query facade plus an explicit `connection.pipeline()` bridge on the opt-in ferrocopg path, including queued parameterized execution on the adapter side; full libpq-style pipeline semantics are still a parity gap. |
-| Default-path integration | Available | Available | Not started | Cutover stays blocked until selector and compatibility gates are met. |
+| Default-path integration | Available | Available | In progress | `psycopg.connect(..., impl="ferrocopg")` now provides a narrow top-level bridge into the explicit Rust path while the normal default remains unchanged; broader cutover still stays blocked on selector and compatibility gates. |
 
 ## Milestones
 

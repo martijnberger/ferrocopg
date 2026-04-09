@@ -6,7 +6,7 @@ psycopg -- PostgreSQL database adapter for Python
 
 import logging
 from collections.abc import Callable
-from typing import cast
+from typing import Any, cast
 
 from . import (
     dbapi20,
@@ -110,12 +110,31 @@ def connect_ferrocopg(
         deferrable=deferrable,
     )
 
+
+def connect(conninfo: str = "", /, **kwargs: Any) -> Any:
+    """
+    Connect to a database and return a Psycopg or ferrocopg connection.
+
+    The normal path remains `Connection.connect()`. Passing `impl="ferrocopg"`
+    provides an explicit opt-in bridge into the experimental Rust-backed
+    adapter without changing the default implementation selector.
+    """
+    impl = kwargs.pop("impl", None)
+    if impl is None or impl == "libpq":
+        return Connection.connect(conninfo, **kwargs)
+    if impl == "ferrocopg":
+        kwargs.setdefault("autocommit", False)
+        return connect_ferrocopg(conninfo, **kwargs)
+
+    raise ValueError(
+        f"unsupported connect() implementation {impl!r}: expected 'libpq' or 'ferrocopg'"
+    )
+
 # Set the logger to a quiet default, can be enabled if needed
 if (logger := logging.getLogger("psycopg")).level == logging.NOTSET:
     logger.setLevel(logging.WARNING)
 
 # DBAPI compliance
-connect = Connection.connect
 apilevel = "2.0"
 threadsafety = 2
 paramstyle = "pyformat"
