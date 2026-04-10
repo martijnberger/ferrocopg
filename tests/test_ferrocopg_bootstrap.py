@@ -2760,6 +2760,54 @@ def test_no_tls_connection_adapter_prepare_threshold(
     ]
 
 
+def test_no_tls_connection_adapter_psycopg_placeholders(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubSession:
+        closed = False
+
+        def __init__(self) -> None:
+            self.calls: list[object] = []
+
+        def close(self) -> None:
+            pass
+
+        def begin(self) -> None:
+            pass
+
+        def commit(self) -> None:
+            pass
+
+        def rollback(self) -> None:
+            pass
+
+        def simple_query_results(self, query: str) -> list[object]:
+            self.calls.append(("simple", query))
+            return [SimpleNamespace(columns=["query"], rows=[[query]], rows_affected=1)]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            self.calls.append(("params", query, params))
+            return SimpleNamespace(columns=["query"], rows=[[query]], rows_affected=1)
+
+    stub = StubSession()
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: stub)
+
+    conn = module.no_tls_connection_adapter("host=localhost")
+    assert conn is not None
+
+    conn.execute("select %s::int4, %s::date, %s::text", [7, date(2020, 1, 1), None])
+    conn.execute("select %(label)s::text", {"label": "named"})
+    conn.execute("select $1::text", ["native"])
+
+    assert stub.calls == [
+        ("params", "select $1::int4, $2::date, $3::text", ["7", "2020-01-01", None]),
+        ("params", "select $1::text", ["named"]),
+        ("params", "select $1::text", ["native"]),
+    ]
+
+
 def test_no_tls_connection_adapter_autocommit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -4935,6 +4983,12 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
         )
         assert cur2.fetchall() == [["7", "sum"]]
         assert cur2.rownumber == 1
+
+    psycopg_style_params = conn.execute(
+        "select (%s::int4 + %s::int4)::text as total, %s::text as label",
+        [2, 5, "sum"],
+    )
+    assert psycopg_style_params.fetchall() == [["7", "sum"]]
 
     prep_query = (
         "select id::text as id, label from "

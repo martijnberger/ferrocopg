@@ -9,21 +9,24 @@ extension to be present in every environment.
 from __future__ import annotations
 
 import warnings
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import timezone, tzinfo
 from time import monotonic
-from typing import NamedTuple, Protocol, cast
+from typing import Any, NamedTuple, Protocol, cast
 from zoneinfo import ZoneInfo
 
+from . import adapt, postgres, pq
 from . import errors as e
-from . import pq
+from ._adapters_map import AdaptersMap
 from ._connection_base import Notify
 from ._copy_base import format_row_text, parse_row_text
-from ._encodings import pg2pyenc
-from ._enums import IsolationLevel
+from ._encodings import conninfo_encoding, pg2pyenc
+from ._enums import IsolationLevel, PyFormat
+from ._queries import PostgresQuery
 from ._rmodule import __version__ as __version__
 from ._rmodule import _ferrocopg
 from ._tpc import Xid
+from .abc import Buffer, Params, Query
 from .conninfo import conninfo_to_dict, make_conninfo
 from .transaction import Rollback
 
@@ -105,6 +108,19 @@ class _NoopCancelHandle:
 class _PgconnEncodingShim:
     def __init__(self, encoding: str):
         self._encoding = encoding
+
+
+class _AdaptContext:
+    def __init__(self, conn: NoTlsConnectionAdapter):
+        self._conn = conn
+
+    @property
+    def adapters(self) -> AdaptersMap:
+        return self._conn.adapters
+
+    @property
+    def connection(self) -> Any:
+        return self._conn
 
 
 class BackendColumn(NamedTuple):
@@ -253,6 +269,25 @@ def scalar_row(columns: list[str], row: list[str | None]) -> str | None:
     if len(row) != 1:
         raise RuntimeError(f"scalar_row requires exactly 1 column, got {len(row)}")
     return row[0]
+
+
+def _buffer_to_text(value: Buffer, encoding: str) -> str:
+    return bytes(value).decode(encoding)
+
+
+def _coerce_native_params(params: Params | None) -> list[str | None] | None:
+    if params is None:
+        return None
+    if isinstance(params, Mapping):
+        raise e.ProgrammingError(
+            "ferrocopg native $n placeholders require a sequence of parameters"
+        )
+    if isinstance(params, (bytes, str)):
+        raise TypeError(
+            "query parameters should be a sequence or a mapping,"
+            f" got {type(params).__qualname__}"
+        )
+    return [None if value is None else str(value) for value in params]
 
 
 class _NoTlsSessionLike(Protocol):
@@ -715,8 +750,8 @@ class NoTlsCursorAdapter:
 
     def execute(
         self,
-        query: str,
-        params: list[str | None] | None = None,
+        query: Query,
+        params: Params | None = None,
         *,
         prepare: bool = False,
         binary: bool | None = None,
@@ -764,8 +799,8 @@ class NoTlsCursorAdapter:
 
     def stream(
         self,
-        query: str,
-        params: list[str | None] | None = None,
+        query: Query,
+        params: Params | None = None,
         *,
         binary: bool | None = None,
         size: int = 1,
@@ -984,7 +1019,7 @@ class NoTlsPipelineAdapter:
     def __init__(self, conn: NoTlsConnectionAdapter):
         self._conn = conn
         self._queued: list[
-            tuple[str, NoTlsCursorAdapter, list[str | None] | None, bool]
+            tuple[Query, NoTlsCursorAdapter, Params | None, bool]
         ] = []
         self._entered = False
         self._closed = False
@@ -995,10 +1030,10 @@ class NoTlsPipelineAdapter:
 
     def execute(
         self,
-        query: str,
+        query: Query,
         *,
         row_factory: RowFactory | None = None,
-        params: list[str | None] | None = None,
+        params: Params | None = None,
         prepare: bool = False,
     ) -> NoTlsCursorAdapter:
         self._check_open()
@@ -1011,8 +1046,14 @@ class NoTlsPipelineAdapter:
         if not self._queued:
             return
 
-        if all(params is None and not prepare for _query, _cur, params, prepare in self._queued):
-            queries = [query for query, _cur, _params, _prepare in self._queued]
+        if all(
+            params is None and not prepare
+            for _query, _cur, params, prepare in self._queued
+        ):
+            queries = [
+                self._conn._convert_query_params(query, None)[0]
+                for query, _cur, _params, _prepare in self._queued
+            ]
             results = self._conn.execute_pipeline_simple(queries)
             for (_query, queued_cur, _params, _prepare), result_cur in zip(
                 self._queued, results, strict=True
@@ -1079,6 +1120,8 @@ class NoTlsConnectionAdapter:
         self._tx_depth = 0
         self._savepoint_counter = 0
         self._closed = False
+        self._adapters: AdaptersMap | None = None
+        self._pgconn = _PgconnEncodingShim("utf-8")
         self._isolation_level: IsolationLevel | None = None
         self._read_only: bool | None = None
         self._deferrable: bool | None = None
@@ -1097,6 +1140,20 @@ class NoTlsConnectionAdapter:
     @property
     def info(self) -> BackendConnectionInfo:
         return self._info
+
+    @property
+    def adapters(self) -> AdaptersMap:
+        if self._adapters is None:
+            self._adapters = AdaptersMap(postgres.adapters)
+        return self._adapters
+
+    @property
+    def connection(self) -> NoTlsConnectionAdapter:
+        return self
+
+    @property
+    def pgconn(self) -> _PgconnEncodingShim:
+        return self._pgconn
 
     @property
     def autocommit(self) -> bool:
@@ -1181,8 +1238,8 @@ class NoTlsConnectionAdapter:
 
     def execute(
         self,
-        query: str,
-        params: list[str | None] | None = None,
+        query: Query,
+        params: Params | None = None,
         *,
         prepare: bool = False,
         binary: bool = False,
@@ -1406,13 +1463,14 @@ class NoTlsConnectionAdapter:
 
     def _execute(
         self,
-        query: str,
-        params: list[str | None] | None,
+        query: Query,
+        params: Params | None,
         *,
         prepare: bool,
     ) -> BackendResultCursor:
         self._ensure_cancel_handle()
         self._ensure_transaction()
+        query, params = self._convert_query_params(query, params)
         if params is None:
             return self._session.execute_simple(query)
 
@@ -1437,6 +1495,36 @@ class NoTlsConnectionAdapter:
             )
 
         return self._session.execute_params(query, params)
+
+    def _convert_query_params(
+        self, query: Query, params: Params | None
+    ) -> tuple[str, list[str | None] | None]:
+        if params is None:
+            if isinstance(query, bytes):
+                return query.decode(self._pgconn._encoding), None
+            if isinstance(query, str):
+                return query, None
+
+        if isinstance(query, str) and "%" not in query:
+            return query, _coerce_native_params(params)
+        if isinstance(query, bytes) and b"%" not in query:
+            return query.decode(self._pgconn._encoding), _coerce_native_params(params)
+
+        tx = adapt.Transformer(_AdaptContext(self))
+        pgq = PostgresQuery(tx)
+        pgq.convert(query, params)
+        if params is not None:
+            ordered = PostgresQuery.validate_and_reorder_params(
+                pgq._parts, params, pgq._order
+            )
+            pgq.params = tx.dump_sequence(ordered, [PyFormat.TEXT] * len(ordered))
+        converted_params = None
+        if pgq.params is not None:
+            converted_params = [
+                None if param is None else _buffer_to_text(param, tx.encoding)
+                for param in pgq.params
+            ]
+        return pgq.query.decode(tx.encoding), converted_params
 
     def _ensure_transaction(self) -> None:
         if not self._autocommit and not self._in_transaction:
@@ -1639,6 +1727,7 @@ def no_tls_connection_adapter(
         prepare_threshold=prepare_threshold,
         autocommit=autocommit,
     )
+    conn.pgconn._encoding = conninfo_encoding(conninfo)
     if isolation_level is not None:
         conn.set_isolation_level(isolation_level)
     if read_only is not None:
