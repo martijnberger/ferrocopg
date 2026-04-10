@@ -4468,14 +4468,20 @@ def test_backend_query_text_params_no_tls_live(dsn: str) -> None:
     if not module.is_available():
         pytest.skip("ferrocopg extension not installed")
 
+    marker = uuid.UUID("12345678-1234-5678-1234-567812345678")
     result = module.query_text_params_no_tls(
         dsn,
-        "select ($1::int4 + $2::int4)::text as total, $3::text as label, $4::text as nullable",
-        ["2", "5", "sum", None],
+        "select "
+        "($1::int4 + $2::int4)::text as total, "
+        "$3::text as label, "
+        "$4::text as nullable, "
+        "$5::date::text as day, "
+        "$6::uuid::text as marker",
+        ["2", "5", "sum", None, "2024-01-02", str(marker)],
     )
     assert result is not None
-    assert result.columns == ["total", "label", "nullable"]
-    assert result.rows == [["7", "sum", None]]
+    assert result.columns == ["total", "label", "nullable", "day", "marker"]
+    assert result.rows == [["7", "sum", None, "2024-01-02", str(marker)]]
 
 
 def test_backend_run_text_params_no_tls_live(dsn: str) -> None:
@@ -4623,6 +4629,18 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
         bound_result.rows,
         bound_result.rows_affected,
     ) == (["total", "label", "nullable"], [["7", "session", None]], 1)
+
+    marker = uuid.UUID("12345678-1234-5678-1234-567812345678")
+    typed_bound = session.query_text_params(
+        "select "
+        "$1::date::text as day, "
+        "$2::uuid::text as marker, "
+        "$3::date::text as missing_day, "
+        "$4::uuid::text as missing_marker",
+        ["2024-01-02", str(marker), None, None],
+    )
+    assert typed_bound.columns == ["day", "marker", "missing_day", "missing_marker"]
+    assert typed_bound.rows == [["2024-01-02", str(marker), None, None]]
 
     ddl = session.execute_text_params(
         "create temporary table ferrocopg_session_test (id int4, label text)",
@@ -4984,11 +5002,18 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
         assert cur2.fetchall() == [["7", "sum"]]
         assert cur2.rownumber == 1
 
+    marker = uuid.UUID("12345678-1234-5678-1234-567812345678")
     psycopg_style_params = conn.execute(
-        "select (%s::int4 + %s::int4)::text as total, %s::text as label",
-        [2, 5, "sum"],
+        "select "
+        "(%s::int4 + %s::int4)::text as total, "
+        "%s::date::text as day, "
+        "%s::uuid::text as marker, "
+        "%s::text as label",
+        [2, 5, date(2024, 1, 2), marker, "sum"],
     )
-    assert psycopg_style_params.fetchall() == [["7", "sum"]]
+    assert psycopg_style_params.fetchall() == [
+        ["7", "2024-01-02", str(marker), "sum"]
+    ]
 
     prep_query = (
         "select id::text as id, label from "

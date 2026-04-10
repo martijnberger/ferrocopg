@@ -10,5 +10,7 @@ description = "ferrocopg backend layer built on rust-postgres"
 
 [dependencies]
 fallible-iterator = "0.2"
-postgres = "0.19.13"
-tokio-postgres = "0.7.17"
+postgres = { version = "0.19.13", features = ["with-time-0_3", "with-uuid-1"] }
+time = "0.3"
+tokio-postgres = { version = "0.7.17", features = ["with-time-0_3", "with-uuid-1"] }
+uuid = "1"
