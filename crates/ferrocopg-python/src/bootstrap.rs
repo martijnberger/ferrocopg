@@ -245,6 +245,73 @@ fn backend_runtime_error(message: impl Into<String>) -> PyErr {
     PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(message.into())
 }
 
+enum BackendThreadError {
+    Runtime(String),
+    Backend(ferrocopg_postgres::ProbeError),
+}
+
+fn backend_error_sqlstate(err: &ferrocopg_postgres::ProbeError) -> Option<&str> {
+    match err {
+        ferrocopg_postgres::ProbeError::Parse(err) => {
+            err.as_db_error().map(|db_err| db_err.code().code())
+        }
+        ferrocopg_postgres::ProbeError::Connect(err)
+        | ferrocopg_postgres::ProbeError::Query(err) => {
+            err.as_db_error().map(|db_err| db_err.code().code())
+        }
+        ferrocopg_postgres::ProbeError::BadParam(_)
+        | ferrocopg_postgres::ProbeError::Closed
+        | ferrocopg_postgres::ProbeError::NoTlsNotSupported => None,
+    }
+}
+
+fn backend_fallback_error_name(err: &ferrocopg_postgres::ProbeError) -> &'static str {
+    match err {
+        ferrocopg_postgres::ProbeError::NoTlsNotSupported => "NotSupportedError",
+        ferrocopg_postgres::ProbeError::Connect(_) | ferrocopg_postgres::ProbeError::Closed => {
+            "OperationalError"
+        }
+        ferrocopg_postgres::ProbeError::BadParam(_)
+        | ferrocopg_postgres::ProbeError::Parse(_)
+        | ferrocopg_postgres::ProbeError::Query(_) => "ProgrammingError",
+    }
+}
+
+fn psycopg_error_from_type(exc_type: &Bound<'_, PyAny>, message: &str) -> PyErr {
+    match exc_type.call1((message,)) {
+        Ok(exc) => PyErr::from_value(exc),
+        Err(_) => backend_runtime_error(message.to_owned()),
+    }
+}
+
+fn backend_py_error(py: Python<'_>, err: ferrocopg_postgres::ProbeError) -> PyErr {
+    let message = err.to_string();
+    let Ok(errors) = py.import("psycopg.errors") else {
+        return backend_runtime_error(message);
+    };
+
+    if let Some(sqlstate) = backend_error_sqlstate(&err) {
+        if let Ok(exc_type) = errors
+            .getattr("lookup")
+            .and_then(|lookup| lookup.call1((sqlstate,)))
+        {
+            return psycopg_error_from_type(&exc_type, &message);
+        }
+    }
+
+    match errors.getattr(backend_fallback_error_name(&err)) {
+        Ok(exc_type) => psycopg_error_from_type(&exc_type, &message),
+        Err(_) => backend_runtime_error(message),
+    }
+}
+
+fn map_backend_result<T>(
+    py: Python<'_>,
+    result: Result<T, ferrocopg_postgres::ProbeError>,
+) -> PyResult<T> {
+    result.map_err(|err| backend_py_error(py, err))
+}
+
 fn with_session<T, F>(py: Python<'_>, session: &BackendSyncNoTlsSession, f: F) -> PyResult<T>
 where
     T: Send,
@@ -253,14 +320,17 @@ where
         ) -> Result<T, ferrocopg_postgres::ProbeError>
         + Send,
 {
-    py.detach(|| {
-        let mut inner = session
-            .inner
-            .lock()
-            .map_err(|_| "backend session mutex is poisoned".to_owned())?;
-        f(&mut inner).map_err(|err| err.to_string())
-    })
-    .map_err(backend_runtime_error)
+    let result = py.detach(|| {
+        let mut inner = session.inner.lock().map_err(|_| {
+            BackendThreadError::Runtime("backend session mutex is poisoned".to_owned())
+        })?;
+        f(&mut inner).map_err(BackendThreadError::Backend)
+    });
+    match result {
+        Ok(value) => Ok(value),
+        Err(BackendThreadError::Runtime(message)) => Err(backend_runtime_error(message)),
+        Err(BackendThreadError::Backend(err)) => Err(backend_py_error(py, err)),
+    }
 }
 
 fn with_cancel_handle<T, F>(
@@ -275,14 +345,17 @@ where
         ) -> Result<T, ferrocopg_postgres::ProbeError>
         + Send,
 {
-    py.detach(|| {
-        let inner = handle
-            .inner
-            .lock()
-            .map_err(|_| "backend cancel handle mutex is poisoned".to_owned())?;
-        f(&inner).map_err(|err| err.to_string())
-    })
-    .map_err(backend_runtime_error)
+    let result = py.detach(|| {
+        let inner = handle.inner.lock().map_err(|_| {
+            BackendThreadError::Runtime("backend cancel handle mutex is poisoned".to_owned())
+        })?;
+        f(&inner).map_err(BackendThreadError::Backend)
+    });
+    match result {
+        Ok(value) => Ok(value),
+        Err(BackendThreadError::Runtime(message)) => Err(backend_runtime_error(message)),
+        Err(BackendThreadError::Backend(err)) => Err(backend_py_error(py, err)),
+    }
 }
 
 #[pyfunction]
@@ -327,113 +400,140 @@ fn parse_connect_target(conninfo: &str) -> PyResult<BackendConnectTarget> {
 }
 
 #[pyfunction]
-fn probe_connect_no_tls(conninfo: &str) -> PyResult<BackendSyncNoTlsProbe> {
-    ferrocopg_postgres::connect_no_tls_probe(conninfo)
+fn probe_connect_no_tls(py: Python<'_>, conninfo: &str) -> PyResult<BackendSyncNoTlsProbe> {
+    map_backend_result(py, ferrocopg_postgres::connect_no_tls_probe(conninfo))
         .map(BackendSyncNoTlsProbe::from)
-        .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
 }
 
 #[pyfunction]
-fn query_text_no_tls(conninfo: &str, query: &str) -> PyResult<BackendTextQueryResult> {
-    ferrocopg_postgres::query_text_no_tls(conninfo, query)
+fn query_text_no_tls(
+    py: Python<'_>,
+    conninfo: &str,
+    query: &str,
+) -> PyResult<BackendTextQueryResult> {
+    map_backend_result(py, ferrocopg_postgres::query_text_no_tls(conninfo, query))
         .map(BackendTextQueryResult::from)
-        .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
 }
 
 #[pyfunction]
-fn simple_query_no_tls(conninfo: &str, query: &str) -> PyResult<Vec<BackendSimpleQueryMessage>> {
-    ferrocopg_postgres::simple_query_no_tls(conninfo, query)
-        .map(|messages| {
+fn simple_query_no_tls(
+    py: Python<'_>,
+    conninfo: &str,
+    query: &str,
+) -> PyResult<Vec<BackendSimpleQueryMessage>> {
+    map_backend_result(py, ferrocopg_postgres::simple_query_no_tls(conninfo, query)).map(
+        |messages| {
             messages
                 .into_iter()
                 .map(BackendSimpleQueryMessage::from)
                 .collect()
-        })
-        .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+        },
+    )
 }
 
 #[pyfunction]
 fn simple_query_results_no_tls(
+    py: Python<'_>,
     conninfo: &str,
     query: &str,
 ) -> PyResult<Vec<BackendSimpleQueryResult>> {
-    ferrocopg_postgres::simple_query_results_no_tls(conninfo, query)
-        .map(|results| {
-            results
-                .into_iter()
-                .map(BackendSimpleQueryResult::from)
-                .collect()
-        })
-        .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    map_backend_result(
+        py,
+        ferrocopg_postgres::simple_query_results_no_tls(conninfo, query),
+    )
+    .map(|results| {
+        results
+            .into_iter()
+            .map(BackendSimpleQueryResult::from)
+            .collect()
+    })
 }
 
 #[pyfunction]
 fn pipeline_simple_query_results_no_tls(
+    py: Python<'_>,
     conninfo: &str,
     queries: Vec<String>,
 ) -> PyResult<Vec<Vec<BackendSimpleQueryResult>>> {
-    ferrocopg_postgres::pipeline_simple_query_results_no_tls(conninfo, &queries)
-        .map(|batches| {
-            batches
-                .into_iter()
-                .map(|results| {
-                    results
-                        .into_iter()
-                        .map(BackendSimpleQueryResult::from)
-                        .collect()
-                })
-                .collect()
-        })
-        .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    map_backend_result(
+        py,
+        ferrocopg_postgres::pipeline_simple_query_results_no_tls(conninfo, &queries),
+    )
+    .map(|batches| {
+        batches
+            .into_iter()
+            .map(|results| {
+                results
+                    .into_iter()
+                    .map(BackendSimpleQueryResult::from)
+                    .collect()
+            })
+            .collect()
+    })
 }
 
 #[pyfunction]
 fn query_text_params_no_tls(
+    py: Python<'_>,
     conninfo: &str,
     query: &str,
     params: Vec<Option<String>>,
 ) -> PyResult<BackendTextQueryResult> {
-    ferrocopg_postgres::query_text_params_no_tls(conninfo, query, &params)
-        .map(BackendTextQueryResult::from)
-        .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    map_backend_result(
+        py,
+        ferrocopg_postgres::query_text_params_no_tls(conninfo, query, &params),
+    )
+    .map(BackendTextQueryResult::from)
 }
 
 #[pyfunction]
 fn run_text_params_no_tls(
+    py: Python<'_>,
     conninfo: &str,
     query: &str,
     params: Vec<Option<String>>,
 ) -> PyResult<BackendResultSet> {
-    ferrocopg_postgres::run_text_params_no_tls(conninfo, query, &params)
-        .map(BackendResultSet::from)
-        .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    map_backend_result(
+        py,
+        ferrocopg_postgres::run_text_params_no_tls(conninfo, query, &params),
+    )
+    .map(BackendResultSet::from)
 }
 
 #[pyfunction]
 fn execute_text_params_no_tls(
+    py: Python<'_>,
     conninfo: &str,
     query: &str,
     params: Vec<Option<String>>,
 ) -> PyResult<BackendExecuteResult> {
-    ferrocopg_postgres::execute_text_params_no_tls(conninfo, query, &params)
-        .map(BackendExecuteResult::from)
-        .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+    map_backend_result(
+        py,
+        ferrocopg_postgres::execute_text_params_no_tls(conninfo, query, &params),
+    )
+    .map(BackendExecuteResult::from)
 }
 
 #[pyfunction]
-fn describe_text_no_tls(conninfo: &str, query: &str) -> PyResult<BackendStatementDescription> {
-    ferrocopg_postgres::describe_text_no_tls(conninfo, query)
-        .map(BackendStatementDescription::from)
-        .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+fn describe_text_no_tls(
+    py: Python<'_>,
+    conninfo: &str,
+    query: &str,
+) -> PyResult<BackendStatementDescription> {
+    map_backend_result(
+        py,
+        ferrocopg_postgres::describe_text_no_tls(conninfo, query),
+    )
+    .map(BackendStatementDescription::from)
 }
 
 #[pyfunction]
-fn connect_no_tls_session(conninfo: &str) -> PyResult<BackendSyncNoTlsSession> {
-    ferrocopg_postgres::connect_no_tls_session(conninfo)
-        .map(|session| BackendSyncNoTlsSession {
+fn connect_no_tls_session(py: Python<'_>, conninfo: &str) -> PyResult<BackendSyncNoTlsSession> {
+    map_backend_result(py, ferrocopg_postgres::connect_no_tls_session(conninfo)).map(|session| {
+        BackendSyncNoTlsSession {
             inner: Mutex::new(session),
-        })
-        .map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string()))
+        }
+    })
 }
 
 impl From<ferrocopg_postgres::ConninfoSummary> for BackendConninfoSummary {

@@ -141,6 +141,7 @@ def connect(conninfo: str = "", /, **kwargs: Any) -> Any:
         f"unsupported connect() implementation {impl!r}: expected 'libpq' or 'ferrocopg'"
     )
 
+
 # Set the logger to a quiet default, can be enabled if needed
 if (logger := logging.getLogger("psycopg")).level == logging.NOTSET:
     logger.setLevel(logging.WARNING)

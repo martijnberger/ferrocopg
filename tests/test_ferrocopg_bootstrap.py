@@ -2440,9 +2440,7 @@ def test_package_connect_impl_selector(monkeypatch: pytest.MonkeyPatch) -> None:
         {"prepare_threshold": 7},
     )
 
-    got_libpq = psycopg_module.connect(
-        "dbname=postgres", impl="libpq", autocommit=True
-    )
+    got_libpq = psycopg_module.connect("dbname=postgres", impl="libpq", autocommit=True)
     assert got_libpq == (
         "libpq",
         "dbname=postgres",
@@ -2517,7 +2515,9 @@ def test_package_connect_ferrocopg_unsupported_connect_options(
         psycopg.NotSupportedError,
         match="server-side cursor factories",
     ):
-        psycopg.connect("dbname=postgres", impl="ferrocopg", server_cursor_factory=StubServerCursor)
+        psycopg.connect(
+            "dbname=postgres", impl="ferrocopg", server_cursor_factory=StubServerCursor
+        )
 
     assert calls == []
 
@@ -2911,7 +2911,9 @@ def test_no_tls_connection_adapter_commit_rollback_idle(
             self.calls.append(("simple", query))
             return [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
 
-        def pipeline_simple_query_results(self, queries: list[str]) -> list[list[object]]:
+        def pipeline_simple_query_results(
+            self, queries: list[str]
+        ) -> list[list[object]]:
             self.calls.append(("pipeline", queries))
             return [
                 [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
@@ -2982,7 +2984,9 @@ def test_no_tls_connection_adapter_transaction_params(
             self.calls.append(("simple", query))
             return [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
 
-        def pipeline_simple_query_results(self, queries: list[str]) -> list[list[object]]:
+        def pipeline_simple_query_results(
+            self, queries: list[str]
+        ) -> list[list[object]]:
             self.calls.append(("pipeline", queries))
             return [
                 [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
@@ -3083,7 +3087,9 @@ def test_no_tls_connection_adapter_notifications(
         def simple_query_results(self, query: str) -> list[object]:
             return [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
 
-        def pipeline_simple_query_results(self, queries: list[str]) -> list[list[object]]:
+        def pipeline_simple_query_results(
+            self, queries: list[str]
+        ) -> list[list[object]]:
             return [
                 [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
                 for query in queries
@@ -3193,7 +3199,9 @@ def test_no_tls_connection_adapter_notify_handlers(
         def simple_query_results(self, query: str) -> list[object]:
             return [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
 
-        def pipeline_simple_query_results(self, queries: list[str]) -> list[list[object]]:
+        def pipeline_simple_query_results(
+            self, queries: list[str]
+        ) -> list[list[object]]:
             return [
                 [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
                 for query in queries
@@ -3280,7 +3288,9 @@ def test_no_tls_connection_adapter_cancel_closed(
         def simple_query_results(self, query: str) -> list[object]:
             return [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
 
-        def pipeline_simple_query_results(self, queries: list[str]) -> list[list[object]]:
+        def pipeline_simple_query_results(
+            self, queries: list[str]
+        ) -> list[list[object]]:
             return [
                 [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
                 for query in queries
@@ -3360,7 +3370,9 @@ def test_no_tls_connection_adapter_context_manager(
     rolled_back = StubSession()
     monkeypatch.setattr(module, "no_tls_session", lambda conninfo: rolled_back)
     with pytest.raises(RuntimeError, match="boom"):
-        with module.no_tls_connection_adapter("host=localhost", autocommit=False) as conn:
+        with module.no_tls_connection_adapter(
+            "host=localhost", autocommit=False
+        ) as conn:
             assert conn is not None
             conn.execute("select 1")
             raise RuntimeError("boom")
@@ -3407,7 +3419,9 @@ def test_no_tls_connection_adapter_row_factories(
                 )
             ]
 
-        def pipeline_simple_query_results(self, queries: list[str]) -> list[list[object]]:
+        def pipeline_simple_query_results(
+            self, queries: list[str]
+        ) -> list[list[object]]:
             return [
                 [
                     SimpleNamespace(
@@ -3473,21 +3487,29 @@ def test_no_tls_connection_adapter_row_factories(
         ["select first", "select second"],
         row_factory=module.scalar_row,
     )
-    assert [cur.fetchall() for cur in pipeline_cursors] == [["select first"], ["select second"]]
+    assert [cur.fetchall() for cur in pipeline_cursors] == [
+        ["select first"],
+        ["select second"],
+    ]
 
     scalar_conn = module.no_tls_connection_adapter(
         "host=localhost",
         row_factory=module.scalar_row,
     )
     assert scalar_conn is not None
-    assert scalar_conn.execute("select $1::text", ["3"], prepare=True).fetchall() == ["4"]
+    assert scalar_conn.execute("select $1::text", ["3"], prepare=True).fetchall() == [
+        "4"
+    ]
 
     row_factory_cur = conn.cursor()
     assert row_factory_cur.connection is conn
     assert row_factory_cur.row_factory is module.list_row
     row_factory_cur.row_factory = module.tuple_row
     assert row_factory_cur.row_factory is module.tuple_row
-    assert row_factory_cur.execute("select 1").fetchall() == [("1", "one"), ("2", "two")]
+    assert row_factory_cur.execute("select 1").fetchall() == [
+        ("1", "one"),
+        ("2", "two"),
+    ]
 
     row_factory_cur.row_factory = module.dict_row
     assert row_factory_cur.execute("select 1").fetchall() == [
@@ -3600,7 +3622,9 @@ def test_no_tls_cursor_adapter_result_navigation(
                 SimpleNamespace(columns=["b"], rows=[["three"]], rows_affected=1),
             ]
 
-        def pipeline_simple_query_results(self, queries: list[str]) -> list[list[object]]:
+        def pipeline_simple_query_results(
+            self, queries: list[str]
+        ) -> list[list[object]]:
             return [
                 [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
                 for query in queries
@@ -3632,7 +3656,10 @@ def test_no_tls_cursor_adapter_result_navigation(
     ]
 
     pipeline = conn.execute_pipeline_simple(["select left", "select right"])
-    assert [cur.fetchall() for cur in pipeline] == [[["select left"]], [["select right"]]]
+    assert [cur.fetchall() for cur in pipeline] == [
+        [["select left"]],
+        [["select right"]],
+    ]
 
 
 def test_no_tls_cursor_adapter_scroll(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -3812,7 +3839,9 @@ def test_no_tls_cursor_adapter_copy(monkeypatch: pytest.MonkeyPatch) -> None:
             cur.copy("copy demo from stdin", params=["x"])
         with pytest.raises(psycopg.NotSupportedError, match="custom writers"):
             cur.copy("copy demo from stdin", writer=object())
-        with pytest.raises(psycopg.ProgrammingError, match="COPY FROM STDIN or COPY TO STDOUT"):
+        with pytest.raises(
+            psycopg.ProgrammingError, match="COPY FROM STDIN or COPY TO STDOUT"
+        ):
             cur.copy("select 1")
         with pytest.raises(psycopg.ProgrammingError, match="COPY TO STDOUT"):
             with cur.copy("copy demo from stdin") as copy:
@@ -3848,7 +3877,9 @@ def test_no_tls_connection_adapter_pipeline(monkeypatch: pytest.MonkeyPatch) -> 
         def simple_query_results(self, query: str) -> list[object]:
             return [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
 
-        def pipeline_simple_query_results(self, queries: list[str]) -> list[list[object]]:
+        def pipeline_simple_query_results(
+            self, queries: list[str]
+        ) -> list[list[object]]:
             return [
                 [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
                 for query in queries
@@ -3874,9 +3905,11 @@ def test_no_tls_connection_adapter_pipeline(monkeypatch: pytest.MonkeyPatch) -> 
             left.fetchall()
         p.sync()
         assert left.fetchall() == ["select left"]
-        assert right.fetchall() == [[
-            "select right",
-        ]]
+        assert right.fetchall() == [
+            [
+                "select right",
+            ]
+        ]
         queued = p.execute("select queued", row_factory=module.scalar_row)
         queued_params = p.execute(
             "select $1::text as value",
@@ -3891,7 +3924,9 @@ def test_no_tls_connection_adapter_pipeline(monkeypatch: pytest.MonkeyPatch) -> 
         p.execute("select after")
 
 
-def test_no_tls_cursor_adapter_dbapi_size_noops(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_no_tls_cursor_adapter_dbapi_size_noops(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
 
     class StubSession:
@@ -4282,7 +4317,9 @@ def test_no_tls_connection_adapter_info(monkeypatch: pytest.MonkeyPatch) -> None
         ) -> object:
             return SimpleNamespace(columns=["a"], rows=[["one"]], rows_affected=1)
 
-        def pipeline_simple_query_results(self, queries: list[str]) -> list[list[object]]:
+        def pipeline_simple_query_results(
+            self, queries: list[str]
+        ) -> list[list[object]]:
             return [
                 [SimpleNamespace(columns=["q"], rows=[[query]], rows_affected=1)]
                 for query in queries
@@ -4356,12 +4393,14 @@ def test_backend_connect_target_defaults_localhost() -> None:
 
 
 def test_backend_connect_no_tls_probe_rejects_tls_required() -> None:
+    import psycopg
+
     module = importlib.import_module("psycopg._ferrocopg")
 
     if not module.is_available():
         pytest.skip("ferrocopg extension not installed")
 
-    with pytest.raises(RuntimeError, match="requires TLS"):
+    with pytest.raises(psycopg.NotSupportedError, match="requires TLS"):
         module.connect_no_tls_probe("host=localhost sslmode=require dbname=postgres")
 
 
@@ -4394,6 +4433,29 @@ def test_backend_query_text_no_tls_live(dsn: str) -> None:
     assert len(result.rows) == 1
     assert result.rows[0][0]
     assert result.rows[0][1]
+
+
+def test_backend_no_tls_error_mapping_live(dsn: str) -> None:
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    with pytest.raises(psycopg.errors.SyntaxError, match="syntax error"):
+        module.query_text_no_tls(dsn, "select from")
+
+    with pytest.raises(psycopg.ProgrammingError, match="expected 1 params but got 0"):
+        module.query_text_params_no_tls(dsn, "select $1::text", [])
+
+    with pytest.raises(
+        psycopg.ProgrammingError,
+        match=r"unsupported parameter type at \$1: timetz",
+    ):
+        module.query_text_params_no_tls(
+            dsn, "select $1::timetz::text", ["03:04:05+02:00"]
+        )
 
 
 def test_backend_simple_query_no_tls_live(dsn: str) -> None:
@@ -4594,6 +4656,8 @@ def test_backend_describe_text_no_tls_live(dsn: str) -> None:
 
 
 def test_backend_no_tls_session_live(dsn: str) -> None:
+    import psycopg
+
     module = importlib.import_module("psycopg._ferrocopg")
 
     if not module.is_available():
@@ -4812,7 +4876,7 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
         queried_prepared_result.rows_affected,
     ) == (["id", "label"], [["13", "committed"], ["14", "prepared"]], 2)
     session.close_prepared(prepared_query.statement_id)
-    with pytest.raises(RuntimeError, match="unknown prepared statement id"):
+    with pytest.raises(psycopg.ProgrammingError, match="unknown prepared statement id"):
         session.describe_prepared(prepared_query.statement_id)
 
     listener_channel = f"ferrocopg_backend_notify_{uuid.uuid4().hex}"
@@ -4884,9 +4948,9 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
     session.close()
     assert session.closed is True
 
-    with pytest.raises(RuntimeError, match="closed"):
+    with pytest.raises(psycopg.OperationalError, match="closed"):
         session.query_text("select 1")
-    with pytest.raises(RuntimeError, match="closed"):
+    with pytest.raises(psycopg.OperationalError, match="closed"):
         session.describe_text("select 1")
 
 
@@ -5081,9 +5145,7 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
         "%s::text as label",
         [2, 5, date(2024, 1, 2), marker, "sum"],
     )
-    assert psycopg_style_params.fetchall() == [
-        ["7", "2024-01-02", str(marker), "sum"]
-    ]
+    assert psycopg_style_params.fetchall() == [["7", "2024-01-02", str(marker), "sum"]]
 
     temporal_params = conn.execute(
         "select "
@@ -5269,7 +5331,9 @@ def test_backend_package_connect_ferrocopg_live(dsn: str) -> None:
     conn = cast(Any, psycopg.connect_ferrocopg(dsn))
     assert conn is not None
 
-    cur = conn.execute("select 'ferrocopg'::text as label", row_factory=module.scalar_row)
+    cur = conn.execute(
+        "select 'ferrocopg'::text as label", row_factory=module.scalar_row
+    )
     assert cur.fetchall() == ["ferrocopg"]
 
     TrackingCursor = cast(Any, type("TrackingCursor", (module.NoTlsCursorAdapter,), {}))
@@ -5286,7 +5350,9 @@ def test_backend_package_connect_ferrocopg_live(dsn: str) -> None:
     custom_cur.close()
     custom_cursor_conn.close()
 
-    scalar_conn = cast(Any, psycopg.connect_ferrocopg(dsn, row_factory=module.scalar_row))
+    scalar_conn = cast(
+        Any, psycopg.connect_ferrocopg(dsn, row_factory=module.scalar_row)
+    )
     scalar_cur = scalar_conn.execute("select 'default-row-factory'::text as label")
     assert scalar_cur.fetchall() == ["default-row-factory"]
     with scalar_conn.pipeline() as p:
@@ -5326,7 +5392,9 @@ def test_backend_package_connect_ferrocopg_live(dsn: str) -> None:
 
     tx_conn = cast(Any, psycopg.connect_ferrocopg(dsn, autocommit=False))
     tx_conn.execute("create temporary table ferrocopg_connect_tx_test (id int4)")
-    tx_conn.execute("insert into ferrocopg_connect_tx_test (id) values ($1::int4)", ["1"])
+    tx_conn.execute(
+        "insert into ferrocopg_connect_tx_test (id) values ($1::int4)", ["1"]
+    )
     tx_conn.rollback()
     check = tx_conn.execute(
         "select count(*)::text as n from pg_tables where tablename = 'ferrocopg_connect_tx_test'"
@@ -5337,12 +5405,12 @@ def test_backend_package_connect_ferrocopg_live(dsn: str) -> None:
     table_name = f"ferrocopg_connect_ctx_{uuid.uuid4().hex[:12]}"
     with cast(Any, psycopg.connect_ferrocopg(dsn, autocommit=False)) as ctx_conn:
         ctx_conn.execute(f'create table "{table_name}" (id int4)')
-        ctx_conn.execute(
-            f'insert into "{table_name}" (id) values ($1::int4)', ["1"]
-        )
+        ctx_conn.execute(f'insert into "{table_name}" (id) values ($1::int4)', ["1"])
 
     verify_ctx_commit = cast(Any, psycopg.connect_ferrocopg(dsn))
-    committed = verify_ctx_commit.execute(f'select id::text as id from "{table_name}" order by id')
+    committed = verify_ctx_commit.execute(
+        f'select id::text as id from "{table_name}" order by id'
+    )
     assert committed.fetchall() == [["1"]]
     verify_ctx_commit.execute(f'drop table "{table_name}"')
     verify_ctx_commit.close()
@@ -5359,7 +5427,9 @@ def test_backend_package_connect_impl_ferrocopg_live(dsn: str) -> None:
     if not module.is_available():
         pytest.skip("ferrocopg extension not installed")
 
-    conn = cast(Any, psycopg.connect(dsn, impl="ferrocopg", row_factory=module.scalar_row))
+    conn = cast(
+        Any, psycopg.connect(dsn, impl="ferrocopg", row_factory=module.scalar_row)
+    )
     assert conn.autocommit is False
     conn.execute("create temporary table ferrocopg_connect_impl_test (id int4)")
     conn.execute(
@@ -5380,6 +5450,8 @@ def test_backend_package_connect_impl_ferrocopg_live(dsn: str) -> None:
 
 def test_backend_no_tls_cancel_handle_live(dsn: str) -> None:
     import time as pytime
+
+    import psycopg
 
     module = importlib.import_module("psycopg._ferrocopg")
 
@@ -5405,7 +5477,7 @@ def test_backend_no_tls_cancel_handle_live(dsn: str) -> None:
                 session.query_text(
                     f"select 'done'::text from (select pg_advisory_lock({lock_id})) as _"
                 )
-            except RuntimeError as exc:
+            except psycopg.errors.QueryCanceled as exc:
                 errors.append(str(exc))
             else:
                 errors.append("query unexpectedly completed")
@@ -5434,6 +5506,8 @@ def test_backend_no_tls_cancel_handle_live(dsn: str) -> None:
 def test_backend_no_tls_connection_cancel_live(dsn: str) -> None:
     import time as pytime
 
+    import psycopg
+
     module = importlib.import_module("psycopg._ferrocopg")
 
     if not module.is_available():
@@ -5457,7 +5531,7 @@ def test_backend_no_tls_connection_cancel_live(dsn: str) -> None:
                 conn.execute(
                     f"select 'done'::text from (select pg_advisory_lock({lock_id})) as _"
                 ).fetchall()
-            except RuntimeError as exc:
+            except psycopg.errors.QueryCanceled as exc:
                 errors.append(str(exc))
             else:
                 errors.append("query unexpectedly completed")

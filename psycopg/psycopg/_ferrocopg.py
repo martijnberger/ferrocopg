@@ -95,9 +95,7 @@ class _TextCopyTransformer:
     def load_sequence(
         self, record: list[bytes | memoryview | bytearray | None]
     ) -> tuple[str | None, ...]:
-        return tuple(
-            None if item is None else bytes(item).decode() for item in record
-        )
+        return tuple(None if item is None else bytes(item).decode() for item in record)
 
 
 class _NoopCancelHandle:
@@ -963,9 +961,7 @@ class NoTlsCopyAdapter:
 
     def write(self, buffer: bytes | str) -> None:
         if self._direction != "in":
-            raise e.ProgrammingError(
-                "write() is only available during COPY FROM STDIN"
-            )
+            raise e.ProgrammingError("write() is only available during COPY FROM STDIN")
         if isinstance(buffer, str):
             buffer = buffer.encode()
         self._buffer.extend(buffer)
@@ -983,9 +979,7 @@ class NoTlsCopyAdapter:
 
     def read(self, size: int = -1) -> bytes:
         if self._direction != "out":
-            raise e.ProgrammingError(
-                "read() is only available during COPY TO STDOUT"
-            )
+            raise e.ProgrammingError("read() is only available during COPY TO STDOUT")
         if size < 0:
             size = len(self._read_buffer) - self._read_pos
         start = self._read_pos
@@ -1025,9 +1019,7 @@ class NoTlsPipelineAdapter:
 
     def __init__(self, conn: NoTlsConnectionAdapter):
         self._conn = conn
-        self._queued: list[
-            tuple[Query, NoTlsCursorAdapter, Params | None, bool]
-        ] = []
+        self._queued: list[tuple[Query, NoTlsCursorAdapter, Params | None, bool]] = []
         self._entered = False
         self._closed = False
 
@@ -1069,9 +1061,7 @@ class NoTlsPipelineAdapter:
                 queued_cur._rownumber = 0
         else:
             for query, queued_cur, params, prepare in self._queued:
-                queued_cur._result = self._conn._execute(
-                    query, params, prepare=prepare
-                )
+                queued_cur._result = self._conn._execute(query, params, prepare=prepare)
                 queued_cur._rownumber = 0
         self._queued.clear()
 
@@ -1179,9 +1169,7 @@ class NoTlsConnectionAdapter:
         self.autocommit = bool(value)
 
     def fileno(self) -> int:
-        raise e.NotSupportedError(
-            "ferrocopg doesn't expose a libpq socket fileno"
-        )
+        raise e.NotSupportedError("ferrocopg doesn't expose a libpq socket fileno")
 
     @property
     def isolation_level(self) -> IsolationLevel | None:
@@ -1236,9 +1224,7 @@ class NoTlsConnectionAdapter:
                 "ferrocopg doesn't support scrollable cursors yet"
             )
         if withhold:
-            raise e.NotSupportedError(
-                "ferrocopg doesn't support withhold cursors yet"
-            )
+            raise e.NotSupportedError("ferrocopg doesn't support withhold cursors yet")
         if row_factory is None:
             row_factory = self.row_factory
         return self.cursor_factory(self, row_factory=row_factory)
@@ -1312,9 +1298,7 @@ class NoTlsConnectionAdapter:
 
     def set_isolation_level(self, value: IsolationLevel | int | None) -> None:
         self._check_set_transaction_param("isolation_level")
-        self._isolation_level = (
-            IsolationLevel(value) if value is not None else None
-        )
+        self._isolation_level = IsolationLevel(value) if value is not None else None
 
     def set_read_only(self, value: bool | None) -> None:
         self._check_set_transaction_param("read_only")
@@ -1390,15 +1374,11 @@ class NoTlsConnectionAdapter:
 
     def add_notice_handler(self, callback: object) -> None:
         del callback
-        raise e.NotSupportedError(
-            "ferrocopg doesn't support notice handlers yet"
-        )
+        raise e.NotSupportedError("ferrocopg doesn't support notice handlers yet")
 
     def remove_notice_handler(self, callback: object) -> None:
         del callback
-        raise e.NotSupportedError(
-            "ferrocopg doesn't support notice handlers yet"
-        )
+        raise e.NotSupportedError("ferrocopg doesn't support notice handlers yet")
 
     def notifies(
         self, *, timeout: float | None = None, stop_after: int | None = None
