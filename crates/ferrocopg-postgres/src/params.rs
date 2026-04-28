@@ -194,6 +194,80 @@ fn invalid_time_family_param(
     ))
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use time::{Month, UtcOffset};
+
+    #[test]
+    fn parses_date_values() {
+        let value = parse_date_param(0, "2024-01-02").expect("date should parse");
+        assert_eq!(
+            value,
+            Date::from_calendar_date(2024, Month::January, 2).expect("valid date")
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_date_values() {
+        let err = parse_date_param(1, "2024-13-02").expect_err("date should fail");
+        assert!(matches!(err, ProbeError::BadParam(_)));
+        assert!(err.to_string().contains("invalid date value at $2"));
+    }
+
+    #[test]
+    fn parses_time_values() {
+        let value = parse_time_param(0, "03:04:05.678901").expect("time should parse");
+        assert_eq!(
+            value,
+            Time::from_hms_micro(3, 4, 5, 678_901).expect("valid time")
+        );
+    }
+
+    #[test]
+    fn parses_timestamp_values() {
+        let value =
+            parse_timestamp_param(0, "2024-01-02 03:04:05.678901").expect("timestamp should parse");
+        assert_eq!(
+            value,
+            PrimitiveDateTime::new(
+                Date::from_calendar_date(2024, Month::January, 2).expect("valid date"),
+                Time::from_hms_micro(3, 4, 5, 678_901).expect("valid time"),
+            )
+        );
+    }
+
+    #[test]
+    fn parses_timestamptz_values() {
+        let value = parse_timestamptz_param(0, "2024-01-02 03:04:05.678901+02:30")
+            .expect("timestamptz should parse");
+        let expected = PrimitiveDateTime::new(
+            Date::from_calendar_date(2024, Month::January, 2).expect("valid date"),
+            Time::from_hms_micro(3, 4, 5, 678_901).expect("valid time"),
+        )
+        .assume_offset(UtcOffset::from_hms(2, 30, 0).expect("valid offset"));
+        assert_eq!(value, expected);
+    }
+
+    #[test]
+    fn parses_uuid_values() {
+        let value =
+            parse_uuid_param(0, "12345678-1234-5678-1234-567812345678").expect("uuid should parse");
+        assert_eq!(
+            value,
+            Uuid::parse_str("12345678-1234-5678-1234-567812345678").expect("valid expected uuid")
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_timestamptz_values() {
+        let err = parse_timestamptz_param(2, "2024-01-02 03:04:05Z")
+            .expect_err("unsupported offset format should fail");
+        assert!(matches!(err, ProbeError::BadParam(_)));
+        assert!(err.to_string().contains("invalid timestamptz value at $3"));
+    }
+}
+
 fn parse_bool_param(index: usize, value: &str) -> Result<bool, ProbeError> {
     match value {
         "t" | "true" | "TRUE" | "1" => Ok(true),
