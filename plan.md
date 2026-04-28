@@ -179,7 +179,7 @@ implementation modes.
 | Conninfo parsing and connect planning | Available | Available | Available | `ferrocopg-postgres` now exposes explicit connect target planning. |
 | Session bootstrap and connect | Available | Available | Available | Rust path is still optional and no-TLS-first. |
 | Simple query execution | Available | Available | Available | Covered through backend simple-query facades and adapter tests. |
-| Parameterized query execution | Available | Available | Available | Bound text execution is present on the Rust backend. |
+| Parameterized query execution | Available | Available | Available | Bound text execution is present on the Rust backend, including typed `date`, `time`, `timestamp`, `timestamptz`, and `uuid` parameter coercion on the optional ferrocopg path. |
 | Statement describe and metadata | Available | Available | Available | Parameter and column metadata are exposed on the Rust path. |
 | Prepared statements | Available | Available | Available | Rust backend has prepared statement caching and reuse. |
 | Transactions and savepoints | Available | Available | Partial | Backend transactions exist and the opt-in adapter now covers savepoints, autocommit, context-manager commit/rollback, and transaction characteristics, but it is still not the default path. |
