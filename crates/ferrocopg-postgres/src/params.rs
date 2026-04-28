@@ -1,8 +1,24 @@
 use crate::error::ProbeError;
 use postgres::types::{ToSql, Type};
 use std::fmt;
-use time::{Date, Month};
+use time::format_description::FormatItem;
+use time::macros::format_description;
+use time::{Date, Month, OffsetDateTime, PrimitiveDateTime, Time};
 use uuid::Uuid;
+
+const TIME_TEXT_FORMAT: &[FormatItem<'static>] = format_description!("[hour]:[minute]:[second]");
+const TIME_TEXT_FORMAT_FRACTIONAL: &[FormatItem<'static>] =
+    format_description!("[hour]:[minute]:[second].[subsecond]");
+const TIMESTAMP_TEXT_FORMAT: &[FormatItem<'static>] =
+    format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
+const TIMESTAMP_TEXT_FORMAT_FRACTIONAL: &[FormatItem<'static>] =
+    format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond]");
+const TIMESTAMPTZ_TEXT_FORMAT: &[FormatItem<'static>] = format_description!(
+    "[year]-[month]-[day] [hour]:[minute]:[second][offset_hour sign:mandatory]:[offset_minute]"
+);
+const TIMESTAMPTZ_TEXT_FORMAT_FRACTIONAL: &[FormatItem<'static>] = format_description!(
+    "[year]-[month]-[day] [hour]:[minute]:[second].[subsecond][offset_hour sign:mandatory]:[offset_minute]"
+);
 
 pub(crate) fn query_param_refs(params: &[Box<dyn ToSql + Sync>]) -> Vec<&(dyn ToSql + Sync)> {
     params.iter().map(|value| value.as_ref()).collect()
@@ -50,6 +66,9 @@ fn parse_null_query_param(index: usize, ty: &Type) -> Result<Box<dyn ToSql + Syn
         Type::FLOAT4 => Box::new(Option::<f32>::None),
         Type::FLOAT8 => Box::new(Option::<f64>::None),
         Type::DATE => Box::new(Option::<Date>::None),
+        Type::TIME => Box::new(Option::<Time>::None),
+        Type::TIMESTAMP => Box::new(Option::<PrimitiveDateTime>::None),
+        Type::TIMESTAMPTZ => Box::new(Option::<OffsetDateTime>::None),
         Type::UUID => Box::new(Option::<Uuid>::None),
         Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::NAME | Type::UNKNOWN => {
             Box::new(Option::<String>::None)
@@ -78,6 +97,9 @@ fn parse_text_query_param(
         Type::FLOAT4 => Box::new(parse_numeric_param::<f32>(index, ty, value)?),
         Type::FLOAT8 => Box::new(parse_numeric_param::<f64>(index, ty, value)?),
         Type::DATE => Box::new(parse_date_param(index, value)?),
+        Type::TIME => Box::new(parse_time_param(index, value)?),
+        Type::TIMESTAMP => Box::new(parse_timestamp_param(index, value)?),
+        Type::TIMESTAMPTZ => Box::new(parse_timestamptz_param(index, value)?),
         Type::UUID => Box::new(parse_uuid_param(index, value)?),
         Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::NAME | Type::UNKNOWN => {
             Box::new(value.to_owned())
@@ -139,6 +161,37 @@ fn parse_uuid_param(index: usize, value: &str) -> Result<Uuid, ProbeError> {
             value
         ))
     })
+}
+
+fn parse_time_param(index: usize, value: &str) -> Result<Time, ProbeError> {
+    Time::parse(value, TIME_TEXT_FORMAT_FRACTIONAL)
+        .or_else(|_| Time::parse(value, TIME_TEXT_FORMAT))
+        .map_err(|err| invalid_time_family_param(index, "time", value, err))
+}
+
+fn parse_timestamp_param(index: usize, value: &str) -> Result<PrimitiveDateTime, ProbeError> {
+    PrimitiveDateTime::parse(value, TIMESTAMP_TEXT_FORMAT_FRACTIONAL)
+        .or_else(|_| PrimitiveDateTime::parse(value, TIMESTAMP_TEXT_FORMAT))
+        .map_err(|err| invalid_time_family_param(index, "timestamp", value, err))
+}
+
+fn parse_timestamptz_param(index: usize, value: &str) -> Result<OffsetDateTime, ProbeError> {
+    OffsetDateTime::parse(value, TIMESTAMPTZ_TEXT_FORMAT_FRACTIONAL)
+        .or_else(|_| OffsetDateTime::parse(value, TIMESTAMPTZ_TEXT_FORMAT))
+        .map_err(|err| invalid_time_family_param(index, "timestamptz", value, err))
+}
+
+fn invalid_time_family_param(
+    index: usize,
+    ty_name: &str,
+    value: &str,
+    reason: impl fmt::Display,
+) -> ProbeError {
+    ProbeError::BadParam(format!(
+        "invalid {ty_name} value at ${}: {} ({reason})",
+        index + 1,
+        value
+    ))
 }
 
 fn parse_bool_param(index: usize, value: &str) -> Result<bool, ProbeError> {

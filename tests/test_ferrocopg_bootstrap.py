@@ -4476,12 +4476,45 @@ def test_backend_query_text_params_no_tls_live(dsn: str) -> None:
         "$3::text as label, "
         "$4::text as nullable, "
         "$5::date::text as day, "
-        "$6::uuid::text as marker",
-        ["2", "5", "sum", None, "2024-01-02", str(marker)],
+        "$6::uuid::text as marker, "
+        "to_char($7::time, 'HH24:MI:SS.US') as clock, "
+        "to_char($8::timestamp, 'YYYY-MM-DD HH24:MI:SS.US') as ts, "
+        "to_char($9::timestamptz at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS.US') as ts_utc",
+        [
+            "2",
+            "5",
+            "sum",
+            None,
+            "2024-01-02",
+            str(marker),
+            "03:04:05.678901",
+            "2024-01-02 03:04:05.678901",
+            "2024-01-02 03:04:05.678901+02:30",
+        ],
     )
     assert result is not None
-    assert result.columns == ["total", "label", "nullable", "day", "marker"]
-    assert result.rows == [["7", "sum", None, "2024-01-02", str(marker)]]
+    assert result.columns == [
+        "total",
+        "label",
+        "nullable",
+        "day",
+        "marker",
+        "clock",
+        "ts",
+        "ts_utc",
+    ]
+    assert result.rows == [
+        [
+            "7",
+            "sum",
+            None,
+            "2024-01-02",
+            str(marker),
+            "03:04:05.678901",
+            "2024-01-02 03:04:05.678901",
+            "2024-01-02 00:34:05.678901",
+        ]
+    ]
 
 
 def test_backend_run_text_params_no_tls_live(dsn: str) -> None:
@@ -4636,11 +4669,40 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
         "$1::date::text as day, "
         "$2::uuid::text as marker, "
         "$3::date::text as missing_day, "
-        "$4::uuid::text as missing_marker",
-        ["2024-01-02", str(marker), None, None],
+        "$4::uuid::text as missing_marker, "
+        "to_char($5::time, 'HH24:MI:SS.US') as clock, "
+        "to_char($6::timestamp, 'YYYY-MM-DD HH24:MI:SS.US') as ts, "
+        "to_char($7::timestamptz at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS.US') as ts_utc",
+        [
+            "2024-01-02",
+            str(marker),
+            None,
+            None,
+            "03:04:05.678901",
+            "2024-01-02 03:04:05.678901",
+            "2024-01-02 03:04:05.678901+02:30",
+        ],
     )
-    assert typed_bound.columns == ["day", "marker", "missing_day", "missing_marker"]
-    assert typed_bound.rows == [["2024-01-02", str(marker), None, None]]
+    assert typed_bound.columns == [
+        "day",
+        "marker",
+        "missing_day",
+        "missing_marker",
+        "clock",
+        "ts",
+        "ts_utc",
+    ]
+    assert typed_bound.rows == [
+        [
+            "2024-01-02",
+            str(marker),
+            None,
+            None,
+            "03:04:05.678901",
+            "2024-01-02 03:04:05.678901",
+            "2024-01-02 00:34:05.678901",
+        ]
+    ]
 
     ddl = session.execute_text_params(
         "create temporary table ferrocopg_session_test (id int4, label text)",
@@ -5013,6 +5075,34 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
     )
     assert psycopg_style_params.fetchall() == [
         ["7", "2024-01-02", str(marker), "sum"]
+    ]
+
+    temporal_params = conn.execute(
+        "select "
+        "to_char(%s::time, 'HH24:MI:SS.US') as clock, "
+        "to_char(%s::timestamp, 'YYYY-MM-DD HH24:MI:SS.US') as ts, "
+        "to_char(%s::timestamptz at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS.US') as ts_utc",
+        [
+            time(3, 4, 5, 678901),
+            datetime(2024, 1, 2, 3, 4, 5, 678901),
+            datetime(
+                2024,
+                1,
+                2,
+                3,
+                4,
+                5,
+                678901,
+                tzinfo=timezone(timedelta(hours=2, minutes=30)),
+            ),
+        ],
+    )
+    assert temporal_params.fetchall() == [
+        [
+            "03:04:05.678901",
+            "2024-01-02 03:04:05.678901",
+            "2024-01-02 00:34:05.678901",
+        ]
     ]
 
     prep_query = (
