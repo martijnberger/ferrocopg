@@ -106,8 +106,15 @@ class _NoopCancelHandle:
 
 
 class _PgconnEncodingShim:
-    def __init__(self, encoding: str):
+    def __init__(self, encoding: str, conn: NoTlsConnectionAdapter | None = None):
         self._encoding = encoding
+        self._conn = conn
+
+    def parameter_status(self, param_name: bytes) -> bytes | None:
+        if self._conn is None:
+            return None
+        value = self._conn.info.parameter_status(param_name.decode(self._encoding))
+        return None if value is None else value.encode(self._encoding)
 
 
 class _AdaptContext:
@@ -1121,7 +1128,7 @@ class NoTlsConnectionAdapter:
         self._savepoint_counter = 0
         self._closed = False
         self._adapters: AdaptersMap | None = None
-        self._pgconn = _PgconnEncodingShim("utf-8")
+        self._pgconn = _PgconnEncodingShim("utf-8", self)
         self._isolation_level: IsolationLevel | None = None
         self._read_only: bool | None = None
         self._deferrable: bool | None = None

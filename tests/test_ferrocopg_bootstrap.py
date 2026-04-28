@@ -4479,7 +4479,8 @@ def test_backend_query_text_params_no_tls_live(dsn: str) -> None:
         "$6::uuid::text as marker, "
         "to_char($7::time, 'HH24:MI:SS.US') as clock, "
         "to_char($8::timestamp, 'YYYY-MM-DD HH24:MI:SS.US') as ts, "
-        "to_char($9::timestamptz at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS.US') as ts_utc",
+        "to_char($9::timestamptz at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS.US') as ts_utc, "
+        "($10::interval = '3 days 01:01:01.000042'::interval)::text as span_ok",
         [
             "2",
             "5",
@@ -4490,6 +4491,7 @@ def test_backend_query_text_params_no_tls_live(dsn: str) -> None:
             "03:04:05.678901",
             "2024-01-02 03:04:05.678901",
             "2024-01-02 03:04:05.678901+02:30",
+            "3 days 1:01:01.000042",
         ],
     )
     assert result is not None
@@ -4502,6 +4504,7 @@ def test_backend_query_text_params_no_tls_live(dsn: str) -> None:
         "clock",
         "ts",
         "ts_utc",
+        "span_ok",
     ]
     assert result.rows == [
         [
@@ -4513,6 +4516,7 @@ def test_backend_query_text_params_no_tls_live(dsn: str) -> None:
             "03:04:05.678901",
             "2024-01-02 03:04:05.678901",
             "2024-01-02 00:34:05.678901",
+            "true",
         ]
     ]
 
@@ -4672,7 +4676,8 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
         "$4::uuid::text as missing_marker, "
         "to_char($5::time, 'HH24:MI:SS.US') as clock, "
         "to_char($6::timestamp, 'YYYY-MM-DD HH24:MI:SS.US') as ts, "
-        "to_char($7::timestamptz at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS.US') as ts_utc",
+        "to_char($7::timestamptz at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS.US') as ts_utc, "
+        "($8::interval = '3 days 01:01:01.000042'::interval)::text as span_ok",
         [
             "2024-01-02",
             str(marker),
@@ -4681,6 +4686,7 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
             "03:04:05.678901",
             "2024-01-02 03:04:05.678901",
             "2024-01-02 03:04:05.678901+02:30",
+            "3 days 1:01:01.000042",
         ],
     )
     assert typed_bound.columns == [
@@ -4691,6 +4697,7 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
         "clock",
         "ts",
         "ts_utc",
+        "span_ok",
     ]
     assert typed_bound.rows == [
         [
@@ -4701,6 +4708,7 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
             "03:04:05.678901",
             "2024-01-02 03:04:05.678901",
             "2024-01-02 00:34:05.678901",
+            "true",
         ]
     ]
 
@@ -5081,7 +5089,8 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
         "select "
         "to_char(%s::time, 'HH24:MI:SS.US') as clock, "
         "to_char(%s::timestamp, 'YYYY-MM-DD HH24:MI:SS.US') as ts, "
-        "to_char(%s::timestamptz at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS.US') as ts_utc",
+        "to_char(%s::timestamptz at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS.US') as ts_utc, "
+        "(%s::interval = '3 days 01:01:01.000042'::interval)::text as span_ok",
         [
             time(3, 4, 5, 678901),
             datetime(2024, 1, 2, 3, 4, 5, 678901),
@@ -5095,6 +5104,7 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
                 678901,
                 tzinfo=timezone(timedelta(hours=2, minutes=30)),
             ),
+            timedelta(days=3, seconds=3661, microseconds=42),
         ],
     )
     assert temporal_params.fetchall() == [
@@ -5102,6 +5112,7 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
             "03:04:05.678901",
             "2024-01-02 03:04:05.678901",
             "2024-01-02 00:34:05.678901",
+            "true",
         ]
     ]
 

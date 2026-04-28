@@ -1,5 +1,6 @@
 use crate::error::ProbeError;
-use postgres::types::{ToSql, Type};
+use postgres::types::{IsNull, ToSql, Type, private::BytesMut};
+use std::error::Error;
 use std::fmt;
 use time::format_description::FormatItem;
 use time::macros::format_description;
@@ -69,6 +70,7 @@ fn parse_null_query_param(index: usize, ty: &Type) -> Result<Box<dyn ToSql + Syn
         Type::TIME => Box::new(Option::<Time>::None),
         Type::TIMESTAMP => Box::new(Option::<PrimitiveDateTime>::None),
         Type::TIMESTAMPTZ => Box::new(Option::<OffsetDateTime>::None),
+        Type::INTERVAL => Box::new(Option::<IntervalParam>::None),
         Type::UUID => Box::new(Option::<Uuid>::None),
         Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::NAME | Type::UNKNOWN => {
             Box::new(Option::<String>::None)
@@ -100,6 +102,7 @@ fn parse_text_query_param(
         Type::TIME => Box::new(parse_time_param(index, value)?),
         Type::TIMESTAMP => Box::new(parse_timestamp_param(index, value)?),
         Type::TIMESTAMPTZ => Box::new(parse_timestamptz_param(index, value)?),
+        Type::INTERVAL => Box::new(parse_interval_param(index, value)?),
         Type::UUID => Box::new(parse_uuid_param(index, value)?),
         Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::NAME | Type::UNKNOWN => {
             Box::new(value.to_owned())
@@ -194,6 +197,136 @@ fn invalid_time_family_param(
     ))
 }
 
+#[derive(Debug)]
+struct IntervalParam {
+    micros: i64,
+    days: i32,
+    months: i32,
+}
+
+impl ToSql for IntervalParam {
+    fn to_sql(&self, _: &Type, out: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+        out.extend_from_slice(&self.micros.to_be_bytes());
+        out.extend_from_slice(&self.days.to_be_bytes());
+        out.extend_from_slice(&self.months.to_be_bytes());
+        Ok(IsNull::No)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        *ty == Type::INTERVAL
+    }
+
+    postgres::types::to_sql_checked!();
+}
+
+fn parse_interval_param(index: usize, value: &str) -> Result<IntervalParam, ProbeError> {
+    let mut parts = value.split_whitespace();
+    let first = parts
+        .next()
+        .ok_or_else(|| invalid_interval_param(index, value, "empty interval"))?;
+
+    let (days, time_value) = match parts.next() {
+        Some("day" | "days") => {
+            let days = first
+                .parse::<i32>()
+                .map_err(|err| invalid_interval_param(index, value, err))?;
+            let time_value = parts.next().unwrap_or("0:00:00");
+            (days, time_value)
+        }
+        Some(unit) => {
+            return Err(invalid_interval_param(
+                index,
+                value,
+                format!("unsupported interval unit {unit:?}"),
+            ));
+        }
+        None => (0, first),
+    };
+
+    if parts.next().is_some() {
+        return Err(invalid_interval_param(
+            index,
+            value,
+            "too many interval components",
+        ));
+    }
+
+    Ok(IntervalParam {
+        micros: parse_interval_time_micros(index, value, time_value)?,
+        days,
+        months: 0,
+    })
+}
+
+fn parse_interval_time_micros(
+    index: usize,
+    value: &str,
+    time_value: &str,
+) -> Result<i64, ProbeError> {
+    let (sign, time_value) = match time_value.strip_prefix('-') {
+        Some(rest) => (-1, rest),
+        None => (1, time_value.strip_prefix('+').unwrap_or(time_value)),
+    };
+    let mut fields = time_value.split(':');
+    let hours = parse_interval_time_field(index, value, fields.next(), "hours")?;
+    let minutes = parse_interval_time_field(index, value, fields.next(), "minutes")?;
+    let seconds_value = fields
+        .next()
+        .ok_or_else(|| invalid_interval_param(index, value, "missing seconds"))?;
+    if fields.next().is_some() {
+        return Err(invalid_interval_param(index, value, "too many time fields"));
+    }
+
+    let (seconds, micros) = parse_interval_seconds(index, value, seconds_value)?;
+    Ok(sign * (((hours * 60 + minutes) * 60 + seconds) * 1_000_000 + micros))
+}
+
+fn parse_interval_time_field(
+    index: usize,
+    value: &str,
+    component: Option<&str>,
+    name: &str,
+) -> Result<i64, ProbeError> {
+    let component =
+        component.ok_or_else(|| invalid_interval_param(index, value, format!("missing {name}")))?;
+    component
+        .parse::<i64>()
+        .map_err(|err| invalid_interval_param(index, value, format!("invalid {name} ({err})")))
+}
+
+fn parse_interval_seconds(
+    index: usize,
+    value: &str,
+    seconds_value: &str,
+) -> Result<(i64, i64), ProbeError> {
+    let (seconds, micros) = match seconds_value.split_once('.') {
+        Some((seconds, micros)) => (seconds, micros),
+        None => (seconds_value, ""),
+    };
+    if micros.len() > 6 || !micros.chars().all(|ch| ch.is_ascii_digit()) {
+        return Err(invalid_interval_param(index, value, "invalid microseconds"));
+    }
+    let seconds = seconds
+        .parse::<i64>()
+        .map_err(|err| invalid_interval_param(index, value, err))?;
+    let micros = if micros.is_empty() {
+        0
+    } else {
+        format!("{micros:0<6}")
+            .parse::<i64>()
+            .map_err(|err| invalid_interval_param(index, value, err))?
+    };
+    Ok((seconds, micros))
+}
+
+fn invalid_interval_param(index: usize, value: &str, reason: impl fmt::Display) -> ProbeError {
+    ProbeError::BadParam(format!(
+        "invalid interval value at ${}: {} ({reason})",
+        index + 1,
+        value
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -265,6 +398,38 @@ mod tests {
             .expect_err("unsupported offset format should fail");
         assert!(matches!(err, ProbeError::BadParam(_)));
         assert!(err.to_string().contains("invalid timestamptz value at $3"));
+    }
+
+    #[test]
+    fn parses_interval_values() {
+        let value =
+            parse_interval_param(0, "3 days 1:01:01.000042").expect("interval should parse");
+        assert_eq!(value.days, 3);
+        assert_eq!(value.micros, 3_661_000_042);
+        assert_eq!(value.months, 0);
+    }
+
+    #[test]
+    fn parses_negative_timedelta_style_interval_values() {
+        let value = parse_interval_param(0, "-1 day 23:59:59").expect("interval should parse");
+        assert_eq!(value.days, -1);
+        assert_eq!(value.micros, 86_399_000_000);
+        assert_eq!(value.months, 0);
+    }
+
+    #[test]
+    fn parses_time_only_interval_values() {
+        let value = parse_interval_param(0, "0:00:00.000001").expect("interval should parse");
+        assert_eq!(value.days, 0);
+        assert_eq!(value.micros, 1);
+        assert_eq!(value.months, 0);
+    }
+
+    #[test]
+    fn rejects_invalid_interval_values() {
+        let err = parse_interval_param(3, "1 month").expect_err("months are not supported yet");
+        assert!(matches!(err, ProbeError::BadParam(_)));
+        assert!(err.to_string().contains("invalid interval value at $4"));
     }
 }
 
