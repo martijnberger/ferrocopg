@@ -1,5 +1,6 @@
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::{PyBytes, PyDict};
 use pyo3::wrap_pyfunction;
 use std::sync::Mutex;
 
@@ -277,8 +278,144 @@ fn backend_fallback_error_name(err: &ferrocopg_postgres::ProbeError) -> &'static
     }
 }
 
-fn psycopg_error_from_type(exc_type: &Bound<'_, PyAny>, message: &str) -> PyErr {
-    match exc_type.call1((message,)) {
+fn set_diagnostic_field(
+    info: &Bound<'_, PyDict>,
+    fields: &Bound<'_, PyAny>,
+    name: &str,
+    value: Option<&str>,
+) -> PyResult<()> {
+    if let Some(value) = value {
+        info.set_item(
+            fields.getattr(name)?,
+            PyBytes::new(info.py(), value.as_bytes()),
+        )?;
+    }
+    Ok(())
+}
+
+fn backend_error_info<'py>(
+    py: Python<'py>,
+    err: &ferrocopg_postgres::ProbeError,
+) -> PyResult<Option<Bound<'py, PyDict>>> {
+    let Some(diagnostic) = err.diagnostic() else {
+        return Ok(None);
+    };
+
+    let fields = py.import("psycopg.pq")?.getattr("DiagnosticField")?;
+    let info = PyDict::new(py);
+    set_diagnostic_field(&info, &fields, "SEVERITY", diagnostic.severity.as_deref())?;
+    set_diagnostic_field(
+        &info,
+        &fields,
+        "SEVERITY_NONLOCALIZED",
+        diagnostic.severity_nonlocalized.as_deref(),
+    )?;
+    set_diagnostic_field(&info, &fields, "SQLSTATE", Some(&diagnostic.sqlstate))?;
+    set_diagnostic_field(
+        &info,
+        &fields,
+        "MESSAGE_PRIMARY",
+        Some(&diagnostic.message_primary),
+    )?;
+    set_diagnostic_field(
+        &info,
+        &fields,
+        "MESSAGE_DETAIL",
+        diagnostic.message_detail.as_deref(),
+    )?;
+    set_diagnostic_field(
+        &info,
+        &fields,
+        "MESSAGE_HINT",
+        diagnostic.message_hint.as_deref(),
+    )?;
+    set_diagnostic_field(
+        &info,
+        &fields,
+        "STATEMENT_POSITION",
+        diagnostic.statement_position.as_deref(),
+    )?;
+    set_diagnostic_field(
+        &info,
+        &fields,
+        "INTERNAL_POSITION",
+        diagnostic.internal_position.as_deref(),
+    )?;
+    set_diagnostic_field(
+        &info,
+        &fields,
+        "INTERNAL_QUERY",
+        diagnostic.internal_query.as_deref(),
+    )?;
+    set_diagnostic_field(&info, &fields, "CONTEXT", diagnostic.context.as_deref())?;
+    set_diagnostic_field(
+        &info,
+        &fields,
+        "SCHEMA_NAME",
+        diagnostic.schema_name.as_deref(),
+    )?;
+    set_diagnostic_field(
+        &info,
+        &fields,
+        "TABLE_NAME",
+        diagnostic.table_name.as_deref(),
+    )?;
+    set_diagnostic_field(
+        &info,
+        &fields,
+        "COLUMN_NAME",
+        diagnostic.column_name.as_deref(),
+    )?;
+    set_diagnostic_field(
+        &info,
+        &fields,
+        "DATATYPE_NAME",
+        diagnostic.datatype_name.as_deref(),
+    )?;
+    set_diagnostic_field(
+        &info,
+        &fields,
+        "CONSTRAINT_NAME",
+        diagnostic.constraint_name.as_deref(),
+    )?;
+    set_diagnostic_field(
+        &info,
+        &fields,
+        "SOURCE_FILE",
+        diagnostic.source_file.as_deref(),
+    )?;
+    set_diagnostic_field(
+        &info,
+        &fields,
+        "SOURCE_LINE",
+        diagnostic.source_line.as_deref(),
+    )?;
+    set_diagnostic_field(
+        &info,
+        &fields,
+        "SOURCE_FUNCTION",
+        diagnostic.source_function.as_deref(),
+    )?;
+    Ok(Some(info))
+}
+
+fn psycopg_error_from_type(
+    py: Python<'_>,
+    exc_type: &Bound<'_, PyAny>,
+    message: &str,
+    info: Option<&Bound<'_, PyDict>>,
+) -> PyErr {
+    let exc = match info {
+        Some(info) => {
+            let kwargs = PyDict::new(py);
+            kwargs
+                .set_item("info", info)
+                .and_then(|()| exc_type.call((message,), Some(&kwargs)))
+        }
+        None => exc_type.call1((message,)),
+    };
+
+    match exc {
         Ok(exc) => PyErr::from_value(exc),
         Err(_) => backend_runtime_error(message.to_owned()),
     }
@@ -286,6 +423,7 @@ fn psycopg_error_from_type(exc_type: &Bound<'_, PyAny>, message: &str) -> PyErr 
 
 fn backend_py_error(py: Python<'_>, err: ferrocopg_postgres::ProbeError) -> PyErr {
     let message = err.to_string();
+    let info = backend_error_info(py, &err).ok().flatten();
     let Ok(errors) = py.import("psycopg.errors") else {
         return backend_runtime_error(message);
     };
@@ -295,12 +433,12 @@ fn backend_py_error(py: Python<'_>, err: ferrocopg_postgres::ProbeError) -> PyEr
             .getattr("lookup")
             .and_then(|lookup| lookup.call1((sqlstate,)))
         {
-            return psycopg_error_from_type(&exc_type, &message);
+            return psycopg_error_from_type(py, &exc_type, &message, info.as_ref());
         }
     }
 
     match errors.getattr(backend_fallback_error_name(&err)) {
-        Ok(exc_type) => psycopg_error_from_type(&exc_type, &message),
+        Ok(exc_type) => psycopg_error_from_type(py, &exc_type, &message, info.as_ref()),
         Err(_) => backend_runtime_error(message),
     }
 }

@@ -1,6 +1,28 @@
 use std::error::Error;
 use std::fmt;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PostgresDiagnostic {
+    pub severity: Option<String>,
+    pub severity_nonlocalized: Option<String>,
+    pub sqlstate: String,
+    pub message_primary: String,
+    pub message_detail: Option<String>,
+    pub message_hint: Option<String>,
+    pub statement_position: Option<String>,
+    pub internal_position: Option<String>,
+    pub internal_query: Option<String>,
+    pub context: Option<String>,
+    pub schema_name: Option<String>,
+    pub table_name: Option<String>,
+    pub column_name: Option<String>,
+    pub datatype_name: Option<String>,
+    pub constraint_name: Option<String>,
+    pub source_file: Option<String>,
+    pub source_line: Option<String>,
+    pub source_function: Option<String>,
+}
+
 #[derive(Debug)]
 pub enum ProbeError {
     Parse(tokio_postgres::Error),
@@ -29,6 +51,16 @@ impl fmt::Display for ProbeError {
     }
 }
 
+impl ProbeError {
+    pub fn diagnostic(&self) -> Option<PostgresDiagnostic> {
+        match self {
+            Self::Parse(err) => err.as_db_error().map(postgres_diagnostic),
+            Self::Connect(err) | Self::Query(err) => err.as_db_error().map(postgres_diagnostic),
+            Self::BadParam(_) | Self::NoTlsNotSupported | Self::Closed => None,
+        }
+    }
+}
+
 impl Error for ProbeError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
@@ -44,4 +76,39 @@ fn postgres_error_message(err: &postgres::Error) -> String {
     err.as_db_error()
         .map(|db_err| db_err.message().to_owned())
         .unwrap_or_else(|| err.to_string())
+}
+
+fn postgres_diagnostic(db_err: &postgres::error::DbError) -> PostgresDiagnostic {
+    let (statement_position, internal_position, internal_query) = match db_err.position() {
+        Some(postgres::error::ErrorPosition::Original(position)) => {
+            (Some(position.to_string()), None, None)
+        }
+        Some(postgres::error::ErrorPosition::Internal { position, query }) => {
+            (None, Some(position.to_string()), Some(query.clone()))
+        }
+        None => (None, None, None),
+    };
+
+    PostgresDiagnostic {
+        severity: Some(db_err.severity().to_owned()),
+        severity_nonlocalized: db_err
+            .parsed_severity()
+            .map(|severity| format!("{severity:?}").to_ascii_uppercase()),
+        sqlstate: db_err.code().code().to_owned(),
+        message_primary: db_err.message().to_owned(),
+        message_detail: db_err.detail().map(str::to_owned),
+        message_hint: db_err.hint().map(str::to_owned),
+        statement_position,
+        internal_position,
+        internal_query,
+        context: db_err.where_().map(str::to_owned),
+        schema_name: db_err.schema().map(str::to_owned),
+        table_name: db_err.table().map(str::to_owned),
+        column_name: db_err.column().map(str::to_owned),
+        datatype_name: db_err.datatype().map(str::to_owned),
+        constraint_name: db_err.constraint().map(str::to_owned),
+        source_file: db_err.file().map(str::to_owned),
+        source_line: db_err.line().map(|line| line.to_string()),
+        source_function: db_err.routine().map(str::to_owned),
+    }
 }
