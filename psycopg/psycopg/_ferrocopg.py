@@ -80,6 +80,9 @@ class _CancelHandleLike(Protocol):
 
 
 class _TextCopyTransformer:
+    def __init__(self, encoding: str):
+        self._encoding = encoding
+
     def dump_sequence(
         self, params: Sequence[object], formats: list[object]
     ) -> list[bytes | None]:
@@ -88,14 +91,17 @@ class _TextCopyTransformer:
             if value is None
             else value
             if isinstance(value, bytes)
-            else str(value).encode()
+            else str(value).encode(self._encoding)
             for value in params
         ]
 
     def load_sequence(
         self, record: list[bytes | memoryview | bytearray | None]
     ) -> tuple[str | None, ...]:
-        return tuple(None if item is None else bytes(item).decode() for item in record)
+        return tuple(
+            None if item is None else bytes(item).decode(self._encoding)
+            for item in record
+        )
 
 
 class _NoopCancelHandle:
@@ -937,7 +943,7 @@ class NoTlsCopyAdapter:
         self._buffer = bytearray()
         self._read_buffer = b""
         self._read_pos = 0
-        self._tx = _TextCopyTransformer()
+        self._tx = _TextCopyTransformer(cursor._conn.info.encoding)
 
     def __enter__(self) -> NoTlsCopyAdapter:
         if self._direction == "out":
@@ -963,7 +969,7 @@ class NoTlsCopyAdapter:
         if self._direction != "in":
             raise e.ProgrammingError("write() is only available during COPY FROM STDIN")
         if isinstance(buffer, str):
-            buffer = buffer.encode()
+            buffer = buffer.encode(self._tx._encoding)
         self._buffer.extend(buffer)
 
     def write_row(self, row: Sequence[object]) -> None:

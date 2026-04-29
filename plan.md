@@ -184,7 +184,7 @@ implementation modes.
 | Prepared statements | Available | Available | Available | Rust backend has prepared statement caching and reuse. |
 | Transactions and savepoints | Available | Available | Partial | Backend transactions exist and the opt-in adapter now covers savepoints, autocommit, context-manager commit/rollback, and transaction characteristics, but it is still not the default path. |
 | Cancellation | Available | Available | Available | Explicit backend cancel handle exists with live coverage. |
-| COPY in/out | Available | Available | Available | Backend COPY facades exist and are exercised in focused tests. |
+| COPY in/out | Available | Available | Available | Backend COPY facades exist and are exercised in focused tests; text row helpers now honor the ferrocopg connection encoding instead of assuming UTF-8. |
 | LISTEN/NOTIFY | Available | Available | Available | Live backend notification coverage exists. |
 | Result-set shaping | Available | Available | Available | Rust backend exposes unified result-set and simple-query result blocks. |
 | Python-facing error mapping | Available | Available | Partial | Rust backend now maps SQLSTATE-backed server errors through `psycopg.errors.lookup()`, unsupported no-TLS conninfo to `NotSupportedError`, backend-local bad parameters to `ProgrammingError`, and closed/connect failures to `OperationalError`; remaining work is richer diagnostics such as attached `pgconn`/SQLSTATE metadata where psycopg exposes it. |

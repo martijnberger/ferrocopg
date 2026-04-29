@@ -3735,9 +3735,14 @@ def test_no_tls_cursor_adapter_stream(monkeypatch: pytest.MonkeyPatch) -> None:
             ]
 
         def run_text_params(self, query: str, params: list[str | None]) -> object:
+            key = params[0]
+            values = {
+                "client_encoding": "LATIN1",
+                "TimeZone": "UTC",
+            }
             return SimpleNamespace(
                 columns=["n"],
-                rows=[[params[0]]],
+                rows=[[values[key] if key in values else None]],
                 rows_affected=1,
             )
 
@@ -3792,13 +3797,25 @@ def test_no_tls_cursor_adapter_copy(monkeypatch: pytest.MonkeyPatch) -> None:
         def rollback(self) -> None:
             pass
 
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            key = params[0]
+            values = {
+                "client_encoding": "LATIN1",
+                "TimeZone": "UTC",
+            }
+            return SimpleNamespace(
+                columns=["value"],
+                rows=[[values[key] if key in values else None]],
+                rows_affected=1,
+            )
+
         def copy_from_stdin(self, query: str, data: bytes) -> int:
             self.copy_in_calls.append((query, data))
             return 2
 
         def copy_to_stdout(self, query: str) -> object:
             self.copy_out_calls.append(query)
-            return SimpleNamespace(data=b"10\talpha\n11\tbeta\n")
+            return SimpleNamespace(data=b"10\talpha\n11\tbeta\n13\tcaf\xe9\n")
 
     stub = StubSession()
     monkeypatch.setattr(module, "no_tls_session", lambda conninfo: stub)
@@ -3811,27 +3828,29 @@ def test_no_tls_cursor_adapter_copy(monkeypatch: pytest.MonkeyPatch) -> None:
             copy.write("10\talpha\n")
             copy.write(b"11\tbeta\n")
             copy.write_row(["12", None])
+            copy.write_row(["13", "café"])
         assert cur.rowcount == 2
         assert cur.statusmessage == "COPY 2"
         assert stub.copy_in_calls == [
-            ("copy demo from stdin", b"10\talpha\n11\tbeta\n12\t\\N\n")
+            ("copy demo from stdin", b"10\talpha\n11\tbeta\n12\t\\N\n13\tcaf\xe9\n")
         ]
 
     with conn.cursor() as cur:
         with cur.copy("copy demo to stdout") as copy:
             assert copy.read(3) == b"10\t"
-            assert copy.read() == b"alpha\n11\tbeta\n"
+            assert copy.read() == b"alpha\n11\tbeta\n13\tcaf\xe9\n"
             assert copy.read() == b""
         assert stub.copy_out_calls == ["copy demo to stdout"]
 
     with conn.cursor() as cur:
         with cur.copy("copy demo to stdout") as copy:
-            assert list(copy) == [b"10\talpha\n11\tbeta\n"]
+            assert list(copy) == [b"10\talpha\n11\tbeta\n13\tcaf\xe9\n"]
 
     with conn.cursor() as cur:
         with cur.copy("copy demo to stdout") as copy:
             assert copy.read_row() == ("10", "alpha")
             assert copy.read_row() == ("11", "beta")
+            assert copy.read_row() == ("13", "café")
             assert copy.read_row() is None
 
     with conn.cursor() as cur:
