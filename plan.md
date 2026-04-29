@@ -193,6 +193,24 @@ implementation modes.
 | Pipeline mode | Available | Available | In progress | Rust backend now has an experimental batched simple-query facade plus an explicit `connection.pipeline()` bridge on the opt-in ferrocopg path, including queued parameterized execution on the adapter side; full libpq-style pipeline semantics are still a parity gap. |
 | Default-path integration | Available | Available | In progress | `psycopg.connect(..., impl="ferrocopg")` now provides a narrow top-level bridge into the explicit Rust path while the normal default remains unchanged; broader cutover still stays blocked on selector and compatibility gates. |
 
+## Known ferrocopg Backend Gaps
+
+These are intentionally explicit while the Python, Cython/C, and Rust-backed
+paths coexist. They should either gain parity coverage before cutover or remain
+documented fallback boundaries.
+
+| Gap | Current behavior | Cutover impact |
+| --- | --- | --- |
+| TLS-backed connections | No-TLS bootstrap rejects TLS-required conninfo with `NotSupportedError`. | Blocks default-path cutover for normal production DSNs until TLS support or fallback routing is defined. |
+| Full libpq socket access | `fileno()` raises `NotSupportedError`; ferrocopg does not expose a libpq socket. | Blocks code depending on libpq-level polling or fd integration. |
+| Server-side, scrollable, withhold, and binary cursors | Cursor factory rejects these modes with `NotSupportedError`. | Can remain explicit opt-in limitations, but must be fallback-routed before default cutover. |
+| Binary execution results | `execute(..., binary=True)` is rejected with `NotSupportedError`. | Blocks binary-result parity until result decoding lands. |
+| COPY options | Basic text COPY in/out exists; COPY parameters, custom writers, and binary row helpers are rejected. | Text COPY can be exercised now; binary/custom COPY remains a parity gap. |
+| Two-phase transactions | TPC methods raise `NotSupportedError`. | Blocks applications relying on XA/TPC semantics. |
+| Notice handlers | Notice handler APIs raise `NotSupportedError`; notify handlers are supported separately. | Needs explicit fallback or implementation before broad compatibility claims. |
+| Full libpq pipeline semantics | Experimental pipeline adapter queues operations, but does not expose full libpq pipeline behavior. | Must stay opt-in until semantics are proven equivalent or fallback-routed. |
+| Rich pgconn/pgresult error attachment | SQLSTATE and primary diagnostics are attached; full `pgconn`/`pgresult` metadata is not. | Error class and basic diagnostics are usable, but advanced diagnostic consumers still need fallback. |
+
 ## Milestones
 
 ### Milestone 0: Rebaseline the migration contract
