@@ -4443,8 +4443,9 @@ def test_backend_no_tls_error_mapping_live(dsn: str) -> None:
     if not module.is_available():
         pytest.skip("ferrocopg extension not installed")
 
-    with pytest.raises(psycopg.errors.SyntaxError, match="syntax error"):
+    with pytest.raises(psycopg.errors.SyntaxError, match="syntax error") as excinfo:
         module.query_text_no_tls(dsn, "select from")
+    assert excinfo.value.sqlstate == "42601"
 
     with pytest.raises(psycopg.ProgrammingError, match="expected 1 params but got 0"):
         module.query_text_params_no_tls(dsn, "select $1::text", [])
@@ -5464,7 +5465,7 @@ def test_backend_no_tls_cancel_handle_live(dsn: str) -> None:
     assert blocker is not None
 
     cancel_handle = session.cancel_handle()
-    errors: deque[str] = deque()
+    errors: deque[tuple[str, str | None]] = deque()
     lock_id = uuid.uuid4().int % (2**31)
 
     try:
@@ -5478,9 +5479,9 @@ def test_backend_no_tls_cancel_handle_live(dsn: str) -> None:
                     f"select 'done'::text from (select pg_advisory_lock({lock_id})) as _"
                 )
             except psycopg.errors.QueryCanceled as exc:
-                errors.append(str(exc))
+                errors.append((str(exc), exc.sqlstate))
             else:
-                errors.append("query unexpectedly completed")
+                errors.append(("query unexpectedly completed", None))
 
         worker = threading.Thread(target=run_sleep_query)
         worker.start()
@@ -5496,7 +5497,8 @@ def test_backend_no_tls_cancel_handle_live(dsn: str) -> None:
 
         assert not worker.is_alive()
         assert errors
-        assert "canceling statement due to user request" in errors[0]
+        assert errors[0][1] == "57014"
+        assert "canceling statement due to user request" in errors[0][0]
     finally:
         blocker.query_text(f"select pg_advisory_unlock({lock_id})::text as unlocked")
         blocker.close()
@@ -5518,7 +5520,7 @@ def test_backend_no_tls_connection_cancel_live(dsn: str) -> None:
     assert conn is not None
     assert blocker is not None
 
-    errors: deque[str] = deque()
+    errors: deque[tuple[str, str | None]] = deque()
     lock_id = uuid.uuid4().int % (2**31)
 
     try:
@@ -5532,9 +5534,9 @@ def test_backend_no_tls_connection_cancel_live(dsn: str) -> None:
                     f"select 'done'::text from (select pg_advisory_lock({lock_id})) as _"
                 ).fetchall()
             except psycopg.errors.QueryCanceled as exc:
-                errors.append(str(exc))
+                errors.append((str(exc), exc.sqlstate))
             else:
-                errors.append("query unexpectedly completed")
+                errors.append(("query unexpectedly completed", None))
 
         worker = threading.Thread(target=run_blocked_query)
         worker.start()
@@ -5550,7 +5552,8 @@ def test_backend_no_tls_connection_cancel_live(dsn: str) -> None:
 
         assert not worker.is_alive()
         assert errors
-        assert "canceling statement due to user request" in errors[0]
+        assert errors[0][1] == "57014"
+        assert "canceling statement due to user request" in errors[0][0]
     finally:
         blocker.execute(f"select pg_advisory_unlock({lock_id})::text as unlocked")
         blocker.close()
