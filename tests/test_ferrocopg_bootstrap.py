@@ -2481,6 +2481,19 @@ def test_package_connect_impl_selector(monkeypatch: pytest.MonkeyPatch) -> None:
     ]
 
 
+def test_package_ferrocopg_import_does_not_replace_pq_impl() -> None:
+    import psycopg
+
+    rust_module = pytest.importorskip("ferrocopg_rust")
+    ferrocopg_module = importlib.import_module("psycopg._ferrocopg")
+
+    assert ferrocopg_module.is_available() is True
+    assert psycopg.pq.__impl__ in {"python", "c", "binary"}
+    assert psycopg.pq.__impl__ != "ferrocopg"
+    assert rust_module is not psycopg.pq
+    assert psycopg.connect is not psycopg.connect_ferrocopg
+
+
 def test_package_connect_ferrocopg_unsupported_connect_options(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
