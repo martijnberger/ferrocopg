@@ -3742,7 +3742,7 @@ def test_no_tls_cursor_adapter_stream(monkeypatch: pytest.MonkeyPatch) -> None:
             }
             return SimpleNamespace(
                 columns=["n"],
-                rows=[[values[key] if key in values else None]],
+                rows=[[values[key] if key in values else key]],
                 rows_affected=1,
             )
 
@@ -3758,6 +3758,9 @@ def test_no_tls_cursor_adapter_stream(monkeypatch: pytest.MonkeyPatch) -> None:
 
     with conn.cursor() as cur:
         assert list(cur.stream("select $1::text", ["7"])) == ["7"]
+
+    with conn.cursor() as cur:
+        assert list(cur.stream("select $1::text", [None])) == [None]
 
     with conn.cursor() as cur:
         with pytest.raises(ValueError, match="size must be >= 1"):

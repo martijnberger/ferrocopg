@@ -174,8 +174,10 @@ jobs:
       matrix:
         include:
           - {python: "3.10", postgres: "postgres:14", libpq: oldest}
-          - {python: "3.11", postgres: "postgres:17", libpq: newest}
-          - {python: "3.13", postgres: "postgres:18", libpq: newest}
+          - {python: "3.11", postgres: "postgres:15", libpq: newest}
+          - {python: "3.12", postgres: "postgres:16", libpq: newest}
+          - {python: "3.13", postgres: "postgres:17", libpq: newest}
+          - {python: "3.14", postgres: "postgres:18", libpq: newest}
 
     env:
       PSYCOPG_IMPL: python
@@ -187,6 +189,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
+          allow-prereleases: true
 
       - uses: astral-sh/setup-uv@v7
         with:
@@ -207,6 +210,9 @@ jobs:
 
       - name: Run ferrocopg backend crate tests
         run: cargo test -p ferrocopg-postgres
+
+      - name: Run ferrocopg Python extension crate tests
+        run: cargo test -p ferrocopg-python --lib
 
       - name: Install ferrocopg Rust extension
         run: uv run --no-sync maturin develop --manifest-path crates/ferrocopg-python/Cargo.toml

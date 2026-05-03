@@ -147,6 +147,7 @@ class BackendColumn(NamedTuple):
 RowFactory = Callable[[list[str], list[str | None]], object]
 NotifyHandler = Callable[[Notify], None]
 _timezones: dict[str | None, tzinfo] = {None: timezone.utc, "UTC": timezone.utc}
+_NO_ROW = object()
 
 
 class BackendConnectionInfo:
@@ -822,16 +823,20 @@ class NoTlsCursorAdapter:
             raise ValueError("size must be >= 1")
         self.execute(query, params, binary=binary)
         while True:
-            row = self.fetchone()
-            if row is None:
+            row = self._fetchone_row()
+            if row is _NO_ROW:
                 break
             yield row
 
     def fetchone(self) -> object | None:
+        row = self._fetchone_row()
+        return None if row is _NO_ROW else row
+
+    def _fetchone_row(self) -> object:
         result = self._require_result()
         row = result.fetchone()
         if row is None:
-            return None
+            return _NO_ROW
         self._rownumber = (self._rownumber or 0) + 1
         return self._row_factory(result.columns, row)
 
@@ -900,8 +905,8 @@ class NoTlsCursorAdapter:
         return self
 
     def __next__(self) -> object:
-        row = self.fetchone()
-        if row is None:
+        row = self._fetchone_row()
+        if row is _NO_ROW:
             raise StopIteration
         return row
 

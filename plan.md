@@ -285,6 +285,16 @@ Definition of done:
 - CI fails if the optional Rust path regresses.
 - Rust-specific tests are not documentation-only anymore.
 
+Current status:
+
+- The dedicated `ferrocopg-rust` GitHub Actions job installs the Rust extension
+  with `maturin`, runs the focused `tests/test_ferrocopg_bootstrap.py` parity
+  suite against a real PostgreSQL service, and exercises both Rust crates with
+  `cargo test`.
+- The job is intentionally independent from the default Python/Cython test
+  matrix so Rust regressions are visible without changing default-path
+  behavior.
+
 ### Milestone 4: Define cutover readiness
 
 Objective:
@@ -383,6 +393,7 @@ Minimum CI coverage for the Rust path should include:
 - `uv run maturin develop --manifest-path crates/ferrocopg-python/Cargo.toml`
 - `uv run pytest tests/test_ferrocopg_bootstrap.py -q`
 - `cargo test -p ferrocopg-postgres`
+- `cargo test -p ferrocopg-python --lib`
 
 ## Cutover Gates
 
