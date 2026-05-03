@@ -4497,6 +4497,27 @@ def test_backend_no_tls_error_mapping_live(dsn: str) -> None:
             dsn, "select $1::timetz::text", ["03:04:05+02:00"]
         )
 
+    table_name = f"ferrocopg_error_diag_{uuid.uuid4().hex[:12]}"
+    quoted_table = f'"{table_name}"'
+    module.query_text_no_tls(dsn, f"drop table if exists {quoted_table}")
+    try:
+        module.query_text_no_tls(
+            dsn, f"create table {quoted_table} (id int4 primary key)"
+        )
+        module.query_text_no_tls(dsn, f"insert into {quoted_table} values (1)")
+
+        with pytest.raises(psycopg.errors.UniqueViolation) as unique_exc:
+            module.query_text_no_tls(dsn, f"insert into {quoted_table} values (1)")
+
+        assert unique_exc.value.sqlstate == "23505"
+        assert unique_exc.value.diag.sqlstate == "23505"
+        assert unique_exc.value.diag.schema_name == "public"
+        assert unique_exc.value.diag.table_name == table_name
+        assert unique_exc.value.diag.constraint_name == f"{table_name}_pkey"
+        assert unique_exc.value.diag.message_detail is not None
+    finally:
+        module.query_text_no_tls(dsn, f"drop table if exists {quoted_table}")
+
 
 def test_backend_simple_query_no_tls_live(dsn: str) -> None:
     module = importlib.import_module("psycopg._ferrocopg")
