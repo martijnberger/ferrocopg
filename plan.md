@@ -315,6 +315,16 @@ Definition of done:
 - There is a written, test-backed cutover contract.
 - No one needs to infer readiness from momentum alone.
 
+Current status:
+
+- The first cutover gates are documented below, but the Rust path is not ready
+  to replace the default implementation.
+- The current safe operating model remains explicit opt-in through
+  `psycopg.connect_ferrocopg(...)` or `psycopg.connect(..., impl="ferrocopg")`.
+- Unsupported backend features must either become Rust-backed, be routed to a
+  fallback implementation, or remain explicit blockers before default-path
+  changes.
+
 ### Milestone 5: Packaging cutover
 
 Objective:
@@ -408,6 +418,21 @@ No default-path change should happen until all of the following are true:
   layouts.
 - The fallback story is documented for unsupported or deferred features.
 - Packaging and contributor workflow are ready for a Rust-first path.
+
+## Cutover Readiness Contract
+
+The Rust backend can only move closer to the default path when each gate has
+both implementation coverage and CI evidence.
+
+| Gate | Required evidence | Current status |
+| --- | --- | --- |
+| Selector coexistence | Python-only, Cython/C, and ferrocopg selectors can be installed and imported in the same checkout without shadowing each other. | In progress; explicit ferrocopg selectors exist and default behavior remains unchanged. |
+| Backend live contract | DSN-backed tests cover connect, query, parameters, describe, prepare, transactions, cancel, COPY, notify, and error mapping against real PostgreSQL. | In progress; focused `test_ferrocopg_bootstrap.py` coverage exists and is now CI-enforced for the Rust path. |
+| Helper seam parity | COPY helpers, waiting, generators, transformer, and selected type helpers behave equivalently to Python/Cython seams when Rust is present. | In progress; focused side-by-side tests exist for many helper seams. |
+| Unsupported feature routing | TLS, socket access, binary result mode, server-side cursors, notice handlers, TPC, and full pipeline semantics have either Rust support or an explicit fallback route. | Blocked; these are still documented ferrocopg backend gaps. |
+| Error and diagnostic compatibility | SQLSTATE classes, diagnostic fields, and user-facing exception types match Psycopg expectations for common server and connection errors. | Partial; SQLSTATE and primary diagnostics are attached, richer pgconn/pgresult metadata remains. |
+| Packaging readiness | Rust wheels build through maturin without relying on Cython for the accelerated path, while Python fallback remains usable. | Not started for default cutover; maturin is wired for the optional extension only. |
+| CI default-path safety | Existing Python and Cython/C jobs stay green while Rust-path jobs fail independently on Rust regressions. | In progress; the dedicated `ferrocopg-rust` job is separate from the default matrix. |
 
 ## Success Criteria
 
