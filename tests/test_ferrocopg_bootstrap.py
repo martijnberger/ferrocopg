@@ -4439,6 +4439,23 @@ def test_backend_connect_no_tls_probe_rejects_tls_required() -> None:
         module.connect_no_tls_probe("host=localhost sslmode=require dbname=postgres")
 
 
+def test_backend_connect_ferrocopg_rejects_tls_required() -> None:
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    with pytest.raises(psycopg.NotSupportedError, match="requires TLS"):
+        psycopg.connect_ferrocopg("host=localhost sslmode=require dbname=postgres")
+
+    with pytest.raises(psycopg.NotSupportedError, match="requires TLS"):
+        psycopg.connect(
+            "host=localhost sslmode=require dbname=postgres", impl="ferrocopg"
+        )
+
+
 def test_backend_connect_no_tls_probe_live(dsn: str) -> None:
     module = importlib.import_module("psycopg._ferrocopg")
 
