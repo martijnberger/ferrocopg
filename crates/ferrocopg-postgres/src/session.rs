@@ -374,6 +374,7 @@ impl SyncNoTlsSession {
                 .map_err(ProbeError::Query)?;
             Ok(ResultSet {
                 columns: Vec::new(),
+                column_descriptions: Vec::new(),
                 rows: Vec::new(),
                 rows_affected,
             })
@@ -382,7 +383,7 @@ impl SyncNoTlsSession {
                 .client_mut()?
                 .query(statement, &refs)
                 .map_err(ProbeError::Query)?;
-            result_set_from_rows(rows)
+            result_set_from_statement_rows(statement, rows)
         }
     }
 }
@@ -419,8 +420,32 @@ fn text_query_result(rows: Vec<postgres::Row>) -> Result<TextQueryResult, ProbeE
                 .collect()
         })
         .unwrap_or_default();
-    let rows = rows
-        .into_iter()
+    let rows = rows_to_text_values(rows)?;
+
+    Ok(TextQueryResult { columns, rows })
+}
+
+fn result_set_from_statement_rows(
+    statement: &postgres::Statement,
+    rows: Vec<postgres::Row>,
+) -> Result<ResultSet, ProbeError> {
+    let column_descriptions = statement_description(statement).columns;
+    let columns = column_descriptions
+        .iter()
+        .map(|column| column.name.clone())
+        .collect();
+    let rows = rows_to_text_values(rows)?;
+    let rows_affected = rows.len() as u64;
+    Ok(ResultSet {
+        columns,
+        column_descriptions,
+        rows,
+        rows_affected,
+    })
+}
+
+fn rows_to_text_values(rows: Vec<postgres::Row>) -> Result<Vec<Vec<Option<String>>>, ProbeError> {
+    rows.into_iter()
         .map(|row| {
             (0..row.len())
                 .map(|index| {
@@ -429,19 +454,7 @@ fn text_query_result(rows: Vec<postgres::Row>) -> Result<TextQueryResult, ProbeE
                 })
                 .collect::<Result<Vec<_>, _>>()
         })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    Ok(TextQueryResult { columns, rows })
-}
-
-fn result_set_from_rows(rows: Vec<postgres::Row>) -> Result<ResultSet, ProbeError> {
-    let result = text_query_result(rows)?;
-    let rows_affected = result.rows.len() as u64;
-    Ok(ResultSet {
-        columns: result.columns,
-        rows: result.rows,
-        rows_affected,
-    })
+        .collect()
 }
 
 fn simple_query_messages(

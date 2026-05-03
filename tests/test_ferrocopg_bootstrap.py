@@ -4692,6 +4692,13 @@ def test_backend_run_text_params_no_tls_live(dsn: str) -> None:
         [["7", "sum"]],
         1,
     )
+    assert [
+        (column.name, column.oid, column.type_name)
+        for column in select_result.column_descriptions
+    ] == [
+        ("total", 25, "text"),
+        ("label", 25, "text"),
+    ]
 
     command_result = module.run_text_params_no_tls(
         dsn,
@@ -4707,6 +4714,7 @@ def test_backend_run_text_params_no_tls_live(dsn: str) -> None:
         [],
         0,
     )
+    assert command_result.column_descriptions == []
 
 
 def test_backend_execute_text_params_no_tls_live(dsn: str) -> None:
@@ -5214,8 +5222,8 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
             ["2", "5", "sum"],
         )
         assert cur2.description == [
-            module.BackendColumn("total"),
-            module.BackendColumn("label"),
+            module.BackendColumn("total", 25),
+            module.BackendColumn("label", 25),
         ]
         assert cur2.rowcount == 1
         assert cur2.statusmessage == "SELECT 1"

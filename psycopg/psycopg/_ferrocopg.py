@@ -31,8 +31,15 @@ from .conninfo import conninfo_to_dict, make_conninfo
 from .transaction import Rollback
 
 
+class _StatementColumnLike(Protocol):
+    name: str
+    oid: int
+    type_name: str
+
+
 class _ResultSetLike(Protocol):
     columns: list[str]
+    column_descriptions: list[_StatementColumnLike]
     rows: list[list[str | None]]
     rows_affected: int
 
@@ -41,11 +48,13 @@ class _SyntheticResult:
     def __init__(
         self,
         columns: list[str] | None = None,
+        column_descriptions: list[_StatementColumnLike] | None = None,
         rows: list[list[str | None]] | None = None,
         rows_affected: int = 0,
         statusmessage: str | None = None,
     ):
         self.columns = columns or []
+        self.column_descriptions = column_descriptions or []
         self.rows = rows or []
         self.rows_affected = rows_affected
         self.statusmessage = statusmessage
@@ -136,7 +145,7 @@ class _AdaptContext:
 
 class BackendColumn(NamedTuple):
     name: str
-    type_code: None = None
+    type_code: int | None = None
     display_size: None = None
     internal_size: None = None
     precision: None = None
@@ -729,7 +738,16 @@ class NoTlsCursorAdapter:
     def description(self) -> list[BackendColumn] | None:
         if self._result is None:
             return None
-        return [BackendColumn(name) for name in self._result.columns]
+        current = self._result.current_result
+        if current is None:
+            return []
+        descriptions = getattr(current, "column_descriptions", None)
+        if descriptions:
+            return [
+                BackendColumn(column.name, column.oid)
+                for column in cast(list[_StatementColumnLike], descriptions)
+            ]
+        return [BackendColumn(name) for name in current.columns]
 
     @property
     def statusmessage(self) -> str | None:

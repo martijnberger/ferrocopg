@@ -82,6 +82,7 @@ pub struct TextQueryResult {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResultSet {
     pub columns: Vec<String>,
+    pub column_descriptions: Vec<StatementColumn>,
     pub rows: Vec<Vec<Option<String>>>,
     pub rows_affected: u64,
 }

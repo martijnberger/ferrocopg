@@ -151,6 +151,8 @@ struct BackendResultSet {
     #[pyo3(get)]
     columns: Vec<String>,
     #[pyo3(get)]
+    column_descriptions: Vec<BackendStatementColumn>,
+    #[pyo3(get)]
     rows: Vec<Vec<Option<String>>>,
     #[pyo3(get)]
     rows_affected: u64,
@@ -784,6 +786,11 @@ impl From<ferrocopg_postgres::ResultSet> for BackendResultSet {
     fn from(result: ferrocopg_postgres::ResultSet) -> Self {
         Self {
             columns: result.columns,
+            column_descriptions: result
+                .column_descriptions
+                .into_iter()
+                .map(BackendStatementColumn::from)
+                .collect(),
             rows: result.rows,
             rows_affected: result.rows_affected,
         }
