@@ -2771,6 +2771,12 @@ def test_no_tls_connection_adapter_prepare_threshold(
         ("prepared", 21, ["y"]),
         ("prepared", 21, ["z"]),
     ]
+    assert conn._prepared == {"select $1::text": 21}
+    assert conn._prepare_counts == {"select $1::text": 3}
+    conn.close()
+    assert conn._prepared == {}
+    assert conn._prepared_statusmessages == {}
+    assert conn._prepare_counts == {}
 
 
 def test_no_tls_connection_adapter_psycopg_placeholders(

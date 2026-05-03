@@ -1218,6 +1218,10 @@ class NoTlsConnectionAdapter:
         if self._closed:
             return
         self._session.close()
+        self._prepared.clear()
+        self._prepared_statusmessages.clear()
+        self._prepare_counts.clear()
+        self._cancel_handle = None
         self._closed = True
 
     def cursor(
