@@ -936,7 +936,7 @@ class NoTlsCopyAdapter:
         self._cursor = cursor
         self._statement = statement
         normalized = " ".join(statement.lower().split())
-        self._binary = "format binary" in normalized
+        self._binary = _copy_statement_requests_binary(normalized)
         if " from stdin" in normalized:
             self._direction = "in"
         elif " to stdout" in normalized:
@@ -1023,6 +1023,14 @@ class NoTlsCopyAdapter:
     def __iter__(self) -> Iterator[bytes]:
         while data := self.read():
             yield data
+
+
+def _copy_statement_requests_binary(normalized_statement: str) -> bool:
+    return (
+        "format binary" in normalized_statement
+        or "with binary" in normalized_statement
+        or normalized_statement.endswith(" binary")
+    )
 
 
 class NoTlsPipelineAdapter:

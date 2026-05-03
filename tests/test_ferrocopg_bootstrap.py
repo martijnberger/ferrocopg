@@ -3884,6 +3884,14 @@ def test_no_tls_cursor_adapter_copy(monkeypatch: pytest.MonkeyPatch) -> None:
         with pytest.raises(psycopg.ProgrammingError, match="COPY FROM STDIN"):
             with cur.copy("copy demo to stdout") as copy:
                 copy.write_row(["bad"])
+        with cur.copy("copy demo from stdin with binary") as copy:
+            copy.write(b"binary payload")
+            with pytest.raises(psycopg.NotSupportedError, match="binary COPY"):
+                copy.write_row(["bad"])
+        with cur.copy("copy demo to stdout with \\(format binary\\)") as copy:
+            assert copy.read(2) == b"10"
+            with pytest.raises(psycopg.NotSupportedError, match="binary COPY"):
+                copy.read_row()
 
 
 def test_no_tls_connection_adapter_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
