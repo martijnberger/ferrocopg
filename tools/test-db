@@ -16,8 +16,12 @@ default_image() {
 IMAGE_NAME="${FERROCOPG_TEST_DB_IMAGE:-$(default_image)}"
 
 dsn() {
-  printf 'postgresql://%s:%s@%s:%s/%s\n' \
-    "$USER_NAME" "$PASSWORD" "$HOST_NAME" "$PORT" "$DB_NAME"
+  printf 'host=%s user=%s password=%s dbname=%s' \
+    "$HOST_NAME" "$USER_NAME" "$PASSWORD" "$DB_NAME"
+  if [[ "$PORT" != "5432" ]]; then
+    printf ' port=%s' "$PORT"
+  fi
+  printf '\n'
 }
 
 container_exists() {

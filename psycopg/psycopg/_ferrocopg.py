@@ -15,18 +15,18 @@ from time import monotonic
 from typing import Any, NamedTuple, Protocol, cast
 from zoneinfo import ZoneInfo
 
-from . import adapt, postgres, pq
 from . import errors as e
+from . import postgres, pq
 from ._adapters_map import AdaptersMap
 from ._connection_base import Notify
-from ._copy_base import format_row_text, parse_row_text
+from ._copy_base import _format_row_text, _parse_row_text
 from ._encodings import conninfo_encoding, pg2pyenc
 from ._enums import IsolationLevel, PyFormat
 from ._queries import PostgresQuery
 from ._rmodule import __version__ as __version__
 from ._rmodule import _ferrocopg
 from ._tpc import Xid
-from .abc import Buffer, Params, Query
+from .abc import Buffer, Params, Query, Transformer
 from .conninfo import conninfo_to_dict, make_conninfo
 from .transaction import Rollback
 
@@ -91,6 +91,12 @@ class _CancelHandleLike(Protocol):
 class _TextCopyTransformer:
     def __init__(self, encoding: str):
         self._encoding = encoding
+        self.types: tuple[int, ...] | None = None
+        self.formats: None = None
+
+    @property
+    def encoding(self) -> str:
+        return self._encoding
 
     def dump_sequence(
         self, params: Sequence[object], formats: list[object]
@@ -966,7 +972,7 @@ class NoTlsCopyAdapter:
         self._buffer = bytearray()
         self._read_buffer = b""
         self._read_pos = 0
-        self._tx = _TextCopyTransformer(cursor._conn.info.encoding)
+        self._tx = cast(Transformer, _TextCopyTransformer(cursor._conn.info.encoding))
 
     def __enter__(self) -> NoTlsCopyAdapter:
         if self._direction == "out":
@@ -992,7 +998,7 @@ class NoTlsCopyAdapter:
         if self._direction != "in":
             raise e.ProgrammingError("write() is only available during COPY FROM STDIN")
         if isinstance(buffer, str):
-            buffer = buffer.encode(self._tx._encoding)
+            buffer = buffer.encode(self._tx.encoding)
         self._buffer.extend(buffer)
 
     def write_row(self, row: Sequence[object]) -> None:
@@ -1004,7 +1010,7 @@ class NoTlsCopyAdapter:
             raise e.NotSupportedError(
                 "ferrocopg copy.write_row() doesn't support binary COPY yet"
             )
-        format_row_text(row, self._tx, self._buffer)
+        _format_row_text(row, self._tx, self._buffer)
 
     def read(self, size: int = -1) -> bytes:
         if self._direction != "out":
@@ -1032,7 +1038,7 @@ class NoTlsCopyAdapter:
             return None
         row = self._read_buffer[self._read_pos : end + 1]
         self._read_pos = end + 1
-        return cast(tuple[str | None, ...], parse_row_text(row, self._tx))
+        return cast(tuple[str | None, ...], _parse_row_text(row, self._tx))
 
     def rows(self) -> Iterator[tuple[str | None, ...]]:
         while row := self.read_row():
@@ -1538,7 +1544,7 @@ class NoTlsConnectionAdapter:
         if isinstance(query, bytes) and b"%" not in query:
             return query.decode(self._pgconn._encoding), _coerce_native_params(params)
 
-        tx = adapt.Transformer(_AdaptContext(self))
+        tx = cast(Transformer, _TextCopyTransformer(self._pgconn._encoding))
         pgq = PostgresQuery(tx)
         pgq.convert(query, params)
         if params is not None:
