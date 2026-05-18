@@ -2143,6 +2143,16 @@ def test_ferrocopg_unavailable(monkeypatch):
     assert module.no_tls_session_adapter("host=localhost") is None
 
 
+def test_ferrocopg_param_text_coerces_timedelta() -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+    value = timedelta(days=3, seconds=3661, microseconds=42)
+
+    assert module._coerce_native_params([value]) == ["3 days 1:01:01.000042"]
+
+    tx = module._TextCopyTransformer("utf-8")
+    assert tx.dump_sequence([value], [object()]) == [b"3 days 1:01:01.000042"]
+
+
 def test_ferrocopg_wrapper(monkeypatch):
     module = importlib.import_module("psycopg._ferrocopg")
 

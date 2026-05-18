@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Callable, Iterator, Mapping, Sequence
-from datetime import timezone, tzinfo
+from datetime import timedelta, timezone, tzinfo
 from time import monotonic
 from typing import Any, NamedTuple, Protocol, cast
 from zoneinfo import ZoneInfo
@@ -88,6 +88,12 @@ class _CancelHandleLike(Protocol):
     def cancel(self) -> None: ...
 
 
+def _coerce_param_text(value: object) -> str:
+    if isinstance(value, timedelta):
+        return str(value).replace(",", "")
+    return str(value)
+
+
 class _TextCopyTransformer:
     def __init__(self, encoding: str):
         self._encoding = encoding
@@ -106,7 +112,7 @@ class _TextCopyTransformer:
             if value is None
             else value
             if isinstance(value, bytes)
-            else str(value).encode(self._encoding)
+            else _coerce_param_text(value).encode(self._encoding)
             for value in params
         ]
 
@@ -314,7 +320,7 @@ def _coerce_native_params(params: Params | None) -> list[str | None] | None:
             "query parameters should be a sequence or a mapping,"
             f" got {type(params).__qualname__}"
         )
-    return [None if value is None else str(value) for value in params]
+    return [None if value is None else _coerce_param_text(value) for value in params]
 
 
 class _NoTlsSessionLike(Protocol):

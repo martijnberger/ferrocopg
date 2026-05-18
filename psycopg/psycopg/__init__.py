@@ -6,7 +6,7 @@ psycopg -- PostgreSQL database adapter for Python
 
 import logging
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any, Literal, cast, overload
 
 from . import (
     dbapi20,
@@ -24,6 +24,7 @@ from ._pipeline_async import AsyncPipeline
 from ._server_cursor import ServerCursor
 from ._server_cursor_async import AsyncServerCursor
 from ._tpc import Xid
+from .abc import AdaptContext, ConnParam
 from .client_cursor import AsyncClientCursor, ClientCursor
 from .connection import Connection
 from .connection_async import AsyncConnection
@@ -57,6 +58,7 @@ from .errors import (
     Warning,
 )
 from .raw_cursor import AsyncRawCursor, AsyncRawServerCursor, RawCursor, RawServerCursor
+from .rows import Row, RowFactory
 from .transaction import AsyncTransaction, Rollback, Transaction
 from .version import __version__ as __version__  # noqa: F401
 
@@ -122,7 +124,38 @@ def connect_ferrocopg(
     )
 
 
-def connect(conninfo: str = "", /, **kwargs: Any) -> Any:
+@overload
+def connect(
+    conninfo: str = "",
+    /,
+    *,
+    autocommit: bool = False,
+    prepare_threshold: int | None = 5,
+    context: AdaptContext | None = None,
+    row_factory: RowFactory[Row] | None = None,
+    cursor_factory: type[Cursor[Row]] | None = None,
+    impl: Literal["libpq"] | None = None,
+    **kwargs: ConnParam,
+) -> Connection[Row]: ...
+
+
+@overload
+def connect(
+    conninfo: str = "",
+    /,
+    *,
+    impl: Literal["ferrocopg"],
+    **kwargs: Any,
+) -> object | None: ...
+
+
+def connect(
+    conninfo: str = "",
+    /,
+    *,
+    impl: Literal["libpq", "ferrocopg"] | None = None,
+    **kwargs: Any,
+) -> Any:
     """
     Connect to a database and return a Psycopg or ferrocopg connection.
 
@@ -130,7 +163,6 @@ def connect(conninfo: str = "", /, **kwargs: Any) -> Any:
     provides an explicit opt-in bridge into the experimental Rust-backed
     adapter without changing the default implementation selector.
     """
-    impl = kwargs.pop("impl", None)
     if impl is None or impl == "libpq":
         return Connection.connect(conninfo, **kwargs)
     if impl == "ferrocopg":
