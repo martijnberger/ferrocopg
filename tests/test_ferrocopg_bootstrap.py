@@ -4478,6 +4478,23 @@ def test_backend_connect_no_tls_probe_rejects_tls_required() -> None:
         module.connect_no_tls_probe("host=localhost sslmode=require dbname=postgres")
 
 
+def test_backend_connect_plan_accepts_libpq_tls_options() -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    plan = module.connect_plan(
+        "host=localhost sslmode=verify-ca sslrootcert=system "
+        "sslcert='client cert.pem' sslkey=client.key"
+    )
+    assert plan is not None
+    assert plan.tls_mode == "verify-ca"
+    assert plan.can_bootstrap_with_no_tls is False
+    assert plan.requires_external_tls_connector is True
+    assert "CA verification" in plan.tls_connector_hint
+
+
 def test_backend_connect_ferrocopg_routes_tls_required(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

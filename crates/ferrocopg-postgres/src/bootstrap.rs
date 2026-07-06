@@ -1,3 +1,4 @@
+use crate::conninfo::{LibpqSslMode, TlsOptions, normalize_conninfo};
 use crate::error::ProbeError;
 use crate::model::{
     ConnectEndpoint, ConnectPlan, ConnectTarget, ConninfoSummary, ExecuteResult, ResultSet,
@@ -14,6 +15,8 @@ pub(crate) const DEFAULT_POSTGRES_PORT: u16 = 5432;
 #[derive(Debug, Clone)]
 pub struct BootstrapConfig {
     raw_conninfo: String,
+    tokio_conninfo: String,
+    tls: TlsOptions,
     config: tokio_postgres::Config,
 }
 
@@ -30,15 +33,22 @@ pub fn backend_core() -> &'static str {
 
 impl BootstrapConfig {
     pub fn parse(conninfo: &str) -> Result<Self, tokio_postgres::Error> {
-        let config = tokio_postgres::Config::from_str(conninfo)?;
+        let normalized = normalize_conninfo(conninfo);
+        let config = tokio_postgres::Config::from_str(&normalized.tokio_conninfo)?;
         Ok(Self {
             raw_conninfo: conninfo.to_owned(),
+            tokio_conninfo: normalized.tokio_conninfo,
+            tls: normalized.tls,
             config,
         })
     }
 
     pub fn raw_conninfo(&self) -> &str {
         &self.raw_conninfo
+    }
+
+    pub fn tokio_conninfo(&self) -> &str {
+        &self.tokio_conninfo
     }
 
     pub fn config(&self) -> &tokio_postgres::Config {
@@ -70,12 +80,9 @@ impl BootstrapConfig {
 
     pub fn connect_plan(&self) -> ConnectPlan {
         let summary = self.summary();
-        let ssl_mode = ssl_mode_name(self.config.get_ssl_mode());
+        let ssl_mode = self.tls.sslmode.as_str();
         let tls_negotiation = ssl_negotiation_name(self.config.get_ssl_negotiation());
-        let can_bootstrap_with_no_tls = matches!(
-            self.config.get_ssl_mode(),
-            tokio_postgres::config::SslMode::Disable | tokio_postgres::config::SslMode::Prefer
-        );
+        let can_bootstrap_with_no_tls = self.tls.sslmode.can_bootstrap_with_no_tls();
 
         ConnectPlan {
             backend_stack: backend_stack(),
@@ -85,11 +92,11 @@ impl BootstrapConfig {
             async_runtime: async_runtime(),
             tls_mode: ssl_mode,
             tls_negotiation,
-            tls_connector_hint: tls_connector_hint(self.config.get_ssl_mode()),
+            tls_connector_hint: tls_connector_hint(&self.tls),
             target_session_attrs: target_session_attrs_name(self.config.get_target_session_attrs()),
             load_balance_hosts: load_balance_hosts_name(self.config.get_load_balance_hosts()),
             can_bootstrap_with_no_tls,
-            requires_external_tls_connector: !can_bootstrap_with_no_tls,
+            requires_external_tls_connector: self.tls.sslmode.requires_rustls_connector(),
             summary,
         }
     }
@@ -120,7 +127,7 @@ impl BootstrapConfig {
             return Err(ProbeError::NoTlsNotSupported);
         }
 
-        let mut client = postgres::Config::from_str(self.raw_conninfo())
+        let mut client = postgres::Config::from_str(self.tokio_conninfo())
             .map_err(ProbeError::Parse)?
             .connect(postgres::NoTls)
             .map_err(ProbeError::Connect)?;
@@ -213,7 +220,7 @@ impl BootstrapConfig {
             return Err(ProbeError::NoTlsNotSupported);
         }
 
-        let client = postgres::Config::from_str(self.raw_conninfo())
+        let client = postgres::Config::from_str(self.tokio_conninfo())
             .map_err(ProbeError::Parse)?
             .connect(postgres::NoTls)
             .map_err(ProbeError::Connect)?;
@@ -222,12 +229,31 @@ impl BootstrapConfig {
     }
 
     pub fn connect_session(&self) -> Result<SyncNoTlsSession, ProbeError> {
-        if self.connect_plan().can_bootstrap_with_no_tls {
-            return self.connect_no_tls_session();
+        match self.tls.sslmode {
+            LibpqSslMode::Disable => self.connect_no_tls_session(),
+            LibpqSslMode::Allow => self.connect_allow_session(),
+            LibpqSslMode::Prefer => self.connect_tls_session(false),
+            LibpqSslMode::Require | LibpqSslMode::VerifyCa | LibpqSslMode::VerifyFull => {
+                self.connect_tls_session(true)
+            }
         }
+    }
 
-        let client = postgres::Config::from_str(self.raw_conninfo())
-            .map_err(ProbeError::Parse)?
+    fn connect_allow_session(&self) -> Result<SyncNoTlsSession, ProbeError> {
+        match self.connect_no_tls_session() {
+            Ok(session) => Ok(session),
+            Err(ProbeError::Connect(_)) => self.connect_tls_session(true),
+            Err(err) => Err(err),
+        }
+    }
+
+    fn connect_tls_session(&self, require_tls: bool) -> Result<SyncNoTlsSession, ProbeError> {
+        let mut config =
+            postgres::Config::from_str(self.tokio_conninfo()).map_err(ProbeError::Parse)?;
+        if require_tls {
+            config.ssl_mode(postgres::config::SslMode::Require);
+        }
+        let client = config
             .connect(make_require_tls_connector())
             .map_err(ProbeError::Connect)?;
 
@@ -353,23 +379,14 @@ fn async_runtime() -> &'static str {
     "caller-managed tokio runtime"
 }
 
-fn tls_connector_hint(ssl_mode: tokio_postgres::config::SslMode) -> &'static str {
-    match ssl_mode {
-        tokio_postgres::config::SslMode::Disable => "NoTls is sufficient",
-        tokio_postgres::config::SslMode::Prefer => {
-            "NoTls can bootstrap, but a real TLS connector is preferred"
-        }
-        tokio_postgres::config::SslMode::Require => "external TLS connector required",
-        _ => "external TLS policy decision required",
-    }
-}
-
-fn ssl_mode_name(ssl_mode: tokio_postgres::config::SslMode) -> &'static str {
-    match ssl_mode {
-        tokio_postgres::config::SslMode::Disable => "disable",
-        tokio_postgres::config::SslMode::Prefer => "prefer",
-        tokio_postgres::config::SslMode::Require => "require",
-        _ => "unknown",
+fn tls_connector_hint(tls: &TlsOptions) -> &'static str {
+    match tls.sslmode {
+        LibpqSslMode::Disable => "NoTls is sufficient",
+        LibpqSslMode::Allow => "Plaintext is tried first, then rustls",
+        LibpqSslMode::Prefer => "rustls is preferred, plaintext fallback is allowed",
+        LibpqSslMode::Require => "rustls connector required without certificate verification",
+        LibpqSslMode::VerifyCa => "rustls connector required with CA verification",
+        LibpqSslMode::VerifyFull => "rustls connector required with full certificate verification",
     }
 }
 

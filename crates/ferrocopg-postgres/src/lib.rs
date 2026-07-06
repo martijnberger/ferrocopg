@@ -4,6 +4,7 @@
 //! instead of mirroring the current `libpq`/Cython transport layer.
 
 mod bootstrap;
+mod conninfo;
 mod error;
 mod model;
 mod params;
@@ -96,6 +97,38 @@ mod tests {
         )
         .expect_err("no-TLS query should reject TLS-required conninfo");
         assert!(matches!(err, ProbeError::NoTlsNotSupported));
+    }
+
+    #[test]
+    fn connect_plan_reports_all_libpq_sslmodes() {
+        let cases = [
+            ("disable", true, false),
+            ("allow", true, true),
+            ("prefer", true, true),
+            ("require", false, true),
+            ("verify-ca", false, true),
+            ("verify-full", false, true),
+        ];
+
+        for (sslmode, can_no_tls, needs_connector) in cases {
+            let plan = connect_plan(&format!("host=localhost sslmode={sslmode} dbname=postgres"))
+                .expect("conninfo should parse");
+            assert_eq!(plan.tls_mode, sslmode);
+            assert_eq!(plan.can_bootstrap_with_no_tls, can_no_tls);
+            assert_eq!(plan.requires_external_tls_connector, needs_connector);
+        }
+    }
+
+    #[test]
+    fn connect_plan_accepts_libpq_certificate_options() {
+        let plan = connect_plan(
+            "host=localhost sslmode=verify-ca sslrootcert=system sslcert='client cert.pem' sslkey=client.key",
+        )
+        .expect("libpq TLS options should normalize for tokio-postgres");
+
+        assert_eq!(plan.tls_mode, "verify-ca");
+        assert!(!plan.can_bootstrap_with_no_tls);
+        assert!(plan.requires_external_tls_connector);
     }
 
     #[test]

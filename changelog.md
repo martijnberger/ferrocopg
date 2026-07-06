@@ -1,5 +1,14 @@
 # Changelog
 
+## ferrocopg-m3.2-libpq-sslmode-plan.1 - 2026-07-06
+
+- Added ferrocopg-owned key/value conninfo normalization for libpq TLS
+  options that tokio-postgres does not parse directly.
+- Made connect planning preserve all six libpq `sslmode` values while routing
+  tokio-postgres through the closest supported transport mode.
+- Started explicit handling for `sslrootcert`, `sslcert`, and `sslkey` as
+  parsed TLS intent for the rustls follow-up work.
+
 ## ferrocopg-m3.2-rustls-require.1 - 2026-07-06
 
 - Added the first rustls-backed Rust session path for `sslmode=require`
