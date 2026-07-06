@@ -13,7 +13,15 @@ curdir = Path(__file__).parent
 pdir = curdir / "../.."
 
 if (target := (pdir / "psycopg_binary")).exists():
-    raise Exception(f"path {target} already exists")
+    # The uv workspace keeps a virtual psycopg-binary placeholder checked in
+    # for dependency resolution. The wheel workflow still needs to generate the
+    # real package tree from psycopg_c.
+    if target.is_dir() and {path.name for path in target.iterdir()} == {
+        "pyproject.toml"
+    }:
+        shutil.rmtree(target)
+    else:
+        raise Exception(f"path {target} already exists")
 
 
 def sed_i(pattern: str, repl: str, filename: str | Path) -> None:
