@@ -4,6 +4,7 @@ use crate::model::{
     SimpleQueryMessage, SimpleQueryResult, StatementDescription, SyncNoTlsProbe, TextQueryResult,
 };
 use crate::session::SyncNoTlsSession;
+use crate::tls::make_require_tls_connector;
 use std::str::FromStr;
 
 const DEFAULT_CONNECT_TIMEOUT_SECS: u64 = 130;
@@ -219,6 +220,19 @@ impl BootstrapConfig {
 
         Ok(SyncNoTlsSession::from_client(client))
     }
+
+    pub fn connect_session(&self) -> Result<SyncNoTlsSession, ProbeError> {
+        if self.connect_plan().can_bootstrap_with_no_tls {
+            return self.connect_no_tls_session();
+        }
+
+        let client = postgres::Config::from_str(self.raw_conninfo())
+            .map_err(ProbeError::Parse)?
+            .connect(make_require_tls_connector())
+            .map_err(ProbeError::Connect)?;
+
+        Ok(SyncNoTlsSession::from_tls_client(client))
+    }
 }
 
 pub fn bootstrap_summary(conninfo: &str) -> Result<ConninfoSummary, tokio_postgres::Error> {
@@ -290,6 +304,11 @@ pub fn run_text_params_no_tls(
 pub fn connect_no_tls_session(conninfo: &str) -> Result<SyncNoTlsSession, ProbeError> {
     let config = BootstrapConfig::parse(conninfo).map_err(ProbeError::Parse)?;
     config.connect_no_tls_session()
+}
+
+pub fn connect_session(conninfo: &str) -> Result<SyncNoTlsSession, ProbeError> {
+    let config = BootstrapConfig::parse(conninfo).map_err(ProbeError::Parse)?;
+    config.connect_session()
 }
 
 pub fn describe_text_no_tls(

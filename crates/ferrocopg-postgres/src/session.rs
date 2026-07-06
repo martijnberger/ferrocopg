@@ -10,21 +10,36 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::time::Duration;
 
+#[derive(Clone, Copy)]
+enum SessionTlsMode {
+    NoTls,
+    Require,
+}
+
 #[derive(Clone)]
 pub struct SyncNoTlsCancelHandle {
     inner: postgres::CancelToken,
+    tls_mode: SessionTlsMode,
 }
 
 impl SyncNoTlsCancelHandle {
     pub fn cancel(&self) -> Result<(), ProbeError> {
-        self.inner
-            .cancel_query(postgres::NoTls)
-            .map_err(ProbeError::Connect)
+        match self.tls_mode {
+            SessionTlsMode::NoTls => self
+                .inner
+                .cancel_query(postgres::NoTls)
+                .map_err(ProbeError::Connect),
+            SessionTlsMode::Require => self
+                .inner
+                .cancel_query(crate::tls::make_require_tls_connector())
+                .map_err(ProbeError::Connect),
+        }
     }
 }
 
 pub struct SyncNoTlsSession {
     client: Option<postgres::Client>,
+    tls_mode: SessionTlsMode,
     prepared: HashMap<u64, postgres::Statement>,
     next_statement_id: u64,
 }
@@ -33,6 +48,16 @@ impl SyncNoTlsSession {
     pub(crate) fn from_client(client: postgres::Client) -> Self {
         Self {
             client: Some(client),
+            tls_mode: SessionTlsMode::NoTls,
+            prepared: HashMap::new(),
+            next_statement_id: 1,
+        }
+    }
+
+    pub(crate) fn from_tls_client(client: postgres::Client) -> Self {
+        Self {
+            client: Some(client),
+            tls_mode: SessionTlsMode::Require,
             prepared: HashMap::new(),
             next_statement_id: 1,
         }
@@ -42,6 +67,7 @@ impl SyncNoTlsSession {
     pub(crate) fn closed_for_tests() -> Self {
         Self {
             client: None,
+            tls_mode: SessionTlsMode::NoTls,
             prepared: HashMap::new(),
             next_statement_id: 1,
         }
@@ -60,6 +86,7 @@ impl SyncNoTlsSession {
         let client = self.client.as_ref().ok_or(ProbeError::Closed)?;
         Ok(SyncNoTlsCancelHandle {
             inner: client.cancel_token(),
+            tls_mode: self.tls_mode,
         })
     }
 

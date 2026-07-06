@@ -2140,7 +2140,9 @@ def test_ferrocopg_unavailable(monkeypatch):
     assert module.execute_text_params_no_tls("host=localhost", "select 1", []) is None
     assert module.describe_text_no_tls("host=localhost", "select 1") is None
     assert module.no_tls_session("host=localhost") is None
+    assert module.backend_session("host=localhost") is None
     assert module.no_tls_session_adapter("host=localhost") is None
+    assert module.backend_session_adapter("host=localhost") is None
 
 
 def test_ferrocopg_param_text_coerces_timedelta() -> None:
@@ -2234,6 +2236,11 @@ def test_ferrocopg_wrapper(monkeypatch):
             calls.append(("session", conninfo))
             return ("session", conninfo)
 
+        @staticmethod
+        def connect_session(conninfo: str) -> tuple[str, str]:
+            calls.append(("backend-session", conninfo))
+            return ("backend-session", conninfo)
+
     monkeypatch.setattr(module, "_ferrocopg", StubRustModule)
 
     assert module.is_available() is True
@@ -2296,8 +2303,14 @@ def test_ferrocopg_wrapper(monkeypatch):
         "select 1",
     )
     assert module.no_tls_session("host=localhost") == ("session", "host=localhost")
+    assert module.backend_session("host=localhost") == (
+        "backend-session",
+        "host=localhost",
+    )
     adapter = module.no_tls_session_adapter("host=localhost")
     assert adapter is not None
+    backend_adapter = module.backend_session_adapter("host=localhost")
+    assert backend_adapter is not None
     assert calls == [
         ("summary", "host=localhost"),
         ("plan", "host=localhost"),
@@ -2312,7 +2325,9 @@ def test_ferrocopg_wrapper(monkeypatch):
         ("execute-params", "host=localhost"),
         ("describe", "host=localhost"),
         ("session", "host=localhost"),
+        ("backend-session", "host=localhost"),
         ("session", "host=localhost"),
+        ("backend-session", "host=localhost"),
     ]
 
 
@@ -2326,7 +2341,7 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
         Any, type("TrackingCursor", (ferrocopg_module.NoTlsCursorAdapter,), {})
     )
 
-    def stub_no_tls_connection_adapter(
+    def stub_backend_connection_adapter(
         conninfo: str,
         *,
         row_factory: object = ferrocopg_module.list_row,
@@ -2362,8 +2377,8 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(
         ferrocopg_module,
-        "no_tls_connection_adapter",
-        stub_no_tls_connection_adapter,
+        "backend_connection_adapter",
+        stub_backend_connection_adapter,
     )
 
     got = psycopg_module.connect_ferrocopg(
@@ -2512,14 +2527,14 @@ def test_package_connect_ferrocopg_unsupported_connect_options(
     ferrocopg_module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
     calls: list[str] = []
 
-    def stub_no_tls_connection_adapter(conninfo: str, **kwargs: object) -> object:
+    def stub_backend_connection_adapter(conninfo: str, **kwargs: object) -> object:
         calls.append(conninfo)
         return object()
 
     monkeypatch.setattr(
         ferrocopg_module,
-        "no_tls_connection_adapter",
-        stub_no_tls_connection_adapter,
+        "backend_connection_adapter",
+        stub_backend_connection_adapter,
     )
 
     class StubContext:
@@ -4463,21 +4478,45 @@ def test_backend_connect_no_tls_probe_rejects_tls_required() -> None:
         module.connect_no_tls_probe("host=localhost sslmode=require dbname=postgres")
 
 
-def test_backend_connect_ferrocopg_rejects_tls_required() -> None:
+def test_backend_connect_ferrocopg_routes_tls_required(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import psycopg
 
-    module = importlib.import_module("psycopg._ferrocopg")
+    module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
+    calls: list[str] = []
 
-    if not module.is_available():
-        pytest.skip("ferrocopg extension not installed")
+    class StubSession:
+        closed = False
 
-    with pytest.raises(psycopg.NotSupportedError, match="requires TLS"):
-        psycopg.connect_ferrocopg("host=localhost sslmode=require dbname=postgres")
+        def close(self) -> None:
+            pass
 
-    with pytest.raises(psycopg.NotSupportedError, match="requires TLS"):
-        psycopg.connect(
-            "host=localhost sslmode=require dbname=postgres", impl="ferrocopg"
-        )
+        def begin(self) -> None:
+            pass
+
+        def commit(self) -> None:
+            pass
+
+        def rollback(self) -> None:
+            pass
+
+    def stub_backend_session(conninfo: str) -> StubSession:
+        calls.append(conninfo)
+        return StubSession()
+
+    monkeypatch.setattr(module, "backend_session", stub_backend_session)
+
+    conn = psycopg.connect_ferrocopg("host=localhost sslmode=require dbname=postgres")
+    assert conn is not None
+    selected = psycopg.connect(
+        "host=localhost sslmode=require dbname=postgres", impl="ferrocopg"
+    )
+    assert selected is not None
+    assert calls == [
+        "host=localhost sslmode=require dbname=postgres",
+        "host=localhost sslmode=require dbname=postgres",
+    ]
 
 
 def test_backend_connect_no_tls_probe_live(dsn: str) -> None:

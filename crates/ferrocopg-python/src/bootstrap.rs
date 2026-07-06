@@ -676,6 +676,15 @@ fn connect_no_tls_session(py: Python<'_>, conninfo: &str) -> PyResult<BackendSyn
     })
 }
 
+#[pyfunction]
+fn connect_session(py: Python<'_>, conninfo: &str) -> PyResult<BackendSyncNoTlsSession> {
+    map_backend_result(py, ferrocopg_postgres::connect_session(conninfo)).map(|session| {
+        BackendSyncNoTlsSession {
+            inner: Mutex::new(session),
+        }
+    })
+}
+
 impl From<ferrocopg_postgres::ConninfoSummary> for BackendConninfoSummary {
     fn from(summary: ferrocopg_postgres::ConninfoSummary) -> Self {
         Self {
@@ -1183,5 +1192,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(execute_text_params_no_tls, m)?)?;
     m.add_function(wrap_pyfunction!(describe_text_no_tls, m)?)?;
     m.add_function(wrap_pyfunction!(connect_no_tls_session, m)?)?;
+    m.add_function(wrap_pyfunction!(connect_session, m)?)?;
     Ok(())
 }

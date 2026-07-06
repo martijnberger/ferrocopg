@@ -545,6 +545,15 @@ def no_tls_session(conninfo: str) -> object | None:
     return cast(object, _ferrocopg.connect_no_tls_session(conninfo))
 
 
+def backend_session(conninfo: str) -> object | None:
+    """
+    Return a live Rust-backed reusable backend session if the extension is loaded.
+    """
+    if not _ferrocopg:
+        return None
+    return cast(object, _ferrocopg.connect_session(conninfo))
+
+
 class BackendResultCursor:
     """Small cursor-like wrapper over ferrocopg backend result sets."""
 
@@ -1784,6 +1793,16 @@ def no_tls_session_adapter(conninfo: str) -> NoTlsSessionAdapter | None:
     return NoTlsSessionAdapter(cast(_NoTlsSessionLike, session))
 
 
+def backend_session_adapter(conninfo: str) -> NoTlsSessionAdapter | None:
+    """
+    Return a Python-side adapter over the Rust backend session if loaded.
+    """
+    session = backend_session(conninfo)
+    if session is None:
+        return None
+    return NoTlsSessionAdapter(cast(_NoTlsSessionLike, session))
+
+
 def no_tls_connection_adapter(
     conninfo: str,
     *,
@@ -1799,6 +1818,41 @@ def no_tls_connection_adapter(
     Return an experimental connection-like adapter over the Rust backend session.
     """
     session = no_tls_session_adapter(conninfo)
+    if session is None:
+        return None
+    conn = NoTlsConnectionAdapter(
+        session,
+        conninfo=conninfo,
+        row_factory=row_factory,
+        cursor_factory=cursor_factory,
+        prepare_threshold=prepare_threshold,
+        autocommit=autocommit,
+    )
+    conn.pgconn._encoding = conninfo_encoding(conninfo)
+    if isolation_level is not None:
+        conn.set_isolation_level(isolation_level)
+    if read_only is not None:
+        conn.set_read_only(read_only)
+    if deferrable is not None:
+        conn.set_deferrable(deferrable)
+    return conn
+
+
+def backend_connection_adapter(
+    conninfo: str,
+    *,
+    row_factory: RowFactory = list_row,
+    cursor_factory: type[NoTlsCursorAdapter] = NoTlsCursorAdapter,
+    prepare_threshold: int | None = 5,
+    autocommit: bool = True,
+    isolation_level: IsolationLevel | int | None = None,
+    read_only: bool | None = None,
+    deferrable: bool | None = None,
+) -> NoTlsConnectionAdapter | None:
+    """
+    Return an experimental connection-like adapter over the Rust backend.
+    """
+    session = backend_session_adapter(conninfo)
     if session is None:
         return None
     conn = NoTlsConnectionAdapter(

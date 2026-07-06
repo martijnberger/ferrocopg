@@ -8,10 +8,11 @@ mod error;
 mod model;
 mod params;
 mod session;
+mod tls;
 
 pub use bootstrap::{
     BootstrapConfig, backend_core, backend_stack, bootstrap_summary, connect_no_tls_probe,
-    connect_no_tls_session, connect_plan, connect_target, describe_text_no_tls,
+    connect_no_tls_session, connect_plan, connect_session, connect_target, describe_text_no_tls,
     execute_text_params_no_tls, pipeline_simple_query_results_no_tls, query_text_no_tls,
     query_text_params_no_tls, run_text_params_no_tls, simple_query_no_tls,
     simple_query_results_no_tls,

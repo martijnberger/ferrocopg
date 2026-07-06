@@ -96,7 +96,7 @@ def connect_ferrocopg(
         )
 
     if row_factory is None:
-        return _ferrocopg_module.no_tls_connection_adapter(
+        return _ferrocopg_module.backend_connection_adapter(
             make_conninfo(conninfo, **kwargs),
             cursor_factory=cast(
                 type[_ferrocopg_module.NoTlsCursorAdapter],
@@ -109,7 +109,7 @@ def connect_ferrocopg(
             deferrable=deferrable,
         )
 
-    return _ferrocopg_module.no_tls_connection_adapter(
+    return _ferrocopg_module.backend_connection_adapter(
         make_conninfo(conninfo, **kwargs),
         row_factory=cast(Callable[[list[str], list[str | None]], object], row_factory),
         cursor_factory=cast(
