@@ -1,5 +1,14 @@
 # Changelog
 
+## ferrocopg-m3.3-row-factory-protocol.1 - 2026-07-06
+
+- Added a `pgresult` shim on the ferrocopg cursor so psycopg row factories can
+  inspect result metadata.
+- Made the cursor fetch path support real `psycopg.rows` row factories while
+  preserving the transitional ferrocopg-local row factories.
+- Added focused coverage for tuple, dict, namedtuple, class, and scalar
+  psycopg row factories on the Rust-backed adapter path.
+
 ## ferrocopg-m3.2-verify-ca.1 - 2026-07-06
 
 - Added a custom rustls verifier for libpq `sslmode=verify-ca` semantics:

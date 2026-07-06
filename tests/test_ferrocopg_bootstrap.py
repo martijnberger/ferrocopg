@@ -3433,6 +3433,7 @@ def test_no_tls_connection_adapter_row_factories(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import psycopg
+    from psycopg import rows
 
     module = importlib.import_module("psycopg._ferrocopg")
 
@@ -3508,6 +3509,30 @@ def test_no_tls_connection_adapter_row_factories(
         {"id": "2", "label": "two"},
     ]
 
+    psycopg_tuple_cur = conn.execute("select 1", row_factory=rows.tuple_row)
+    assert psycopg_tuple_cur.fetchall() == [("1", "one"), ("2", "two")]
+
+    psycopg_dict_cur = conn.execute("select 1", row_factory=rows.dict_row)
+    assert psycopg_dict_cur.fetchall() == [
+        {"id": "1", "label": "one"},
+        {"id": "2", "label": "two"},
+    ]
+
+    psycopg_namedtuple_cur = conn.execute("select 1", row_factory=rows.namedtuple_row)
+    named_rows = psycopg_namedtuple_cur.fetchall()
+    assert [(row.id, row.label) for row in named_rows] == [("1", "one"), ("2", "two")]
+
+    class Item:
+        def __init__(self, id: str, label: str) -> None:
+            self.id = id
+            self.label = label
+
+    psycopg_class_cur = conn.execute("select 1", row_factory=rows.class_row(Item))
+    assert [(row.id, row.label) for row in psycopg_class_cur.fetchall()] == [
+        ("1", "one"),
+        ("2", "two"),
+    ]
+
     scalar_cur = conn.execute(
         "select $1::text",
         ["3"],
@@ -3515,6 +3540,14 @@ def test_no_tls_connection_adapter_row_factories(
         prepare=True,
     )
     assert scalar_cur.fetchone() == "4"
+
+    psycopg_scalar_cur = conn.execute(
+        "select $1::text",
+        ["3"],
+        row_factory=rows.scalar_row,
+        prepare=True,
+    )
+    assert psycopg_scalar_cur.fetchone() == "4"
 
     iter_cur = conn.execute("select 1", row_factory=module.tuple_row)
     assert list(iter_cur) == [("1", "one"), ("2", "two")]

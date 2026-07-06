@@ -28,6 +28,7 @@ from ._rmodule import _ferrocopg
 from ._tpc import Xid
 from .abc import Buffer, Params, Query, Transformer
 from .conninfo import conninfo_to_dict, make_conninfo
+from .pq import ExecStatus
 from .transaction import Rollback
 
 
@@ -171,7 +172,9 @@ class BackendColumn(NamedTuple):
     null_ok: None = None
 
 
-RowFactory = Callable[[list[str], list[str | None]], object]
+LegacyRowFactory = Callable[[list[str], list[str | None]], object]
+RowFactory = Callable[..., object]
+RowMaker = Callable[[Sequence[object]], object]
 NotifyHandler = Callable[[Notify], None]
 _timezones: dict[str | None, tzinfo] = {None: timezone.utc, "UTC": timezone.utc}
 _NO_ROW = object()
@@ -344,6 +347,20 @@ def scalar_row(columns: list[str], row: list[str | None]) -> str | None:
     if len(row) != 1:
         raise RuntimeError(f"scalar_row requires exactly 1 column, got {len(row)}")
     return row[0]
+
+
+_LEGACY_ROW_FACTORIES = frozenset({list_row, tuple_row, dict_row, scalar_row})
+
+
+class _BackendPgResultShim:
+    def __init__(self, result: _ResultSetLike, encoding: str):
+        self._result = result
+        self._encoding = encoding
+        self.status = ExecStatus.TUPLES_OK if result.columns else ExecStatus.COMMAND_OK
+        self.nfields = len(result.columns)
+
+    def fname(self, index: int) -> bytes | None:
+        return self._result.columns[index].encode(self._encoding)
 
 
 def _buffer_to_text(value: Buffer, encoding: str) -> str:
@@ -760,6 +777,7 @@ class NoTlsCursorAdapter:
         self._result: BackendResultCursor | None = None
         self._closed = False
         self._row_factory = row_factory
+        self._make_row: RowMaker | None = None
         self._rownumber: int | None = 0
         self.arraysize = 1
 
@@ -778,6 +796,21 @@ class NoTlsCursorAdapter:
     @row_factory.setter
     def row_factory(self, row_factory: RowFactory) -> None:
         self._row_factory = row_factory
+        self._make_row = None
+
+    @property
+    def _encoding(self) -> str:
+        return self._conn.pgconn._encoding
+
+    @property
+    def pgresult(self) -> _BackendPgResultShim | None:
+        result = self._result
+        if result is None:
+            return None
+        current = result.current_result
+        if current is None:
+            return None
+        return _BackendPgResultShim(current, self._encoding)
 
     @property
     def rowcount(self) -> int:
@@ -856,6 +889,7 @@ class NoTlsCursorAdapter:
                 "ferrocopg doesn't support binary cursor execution yet"
             )
         self._result = self._conn._execute(query, params, prepare=prepare)
+        self._make_row = None
         self._rownumber = 0
         return self
 
@@ -888,6 +922,7 @@ class NoTlsCursorAdapter:
             synthetic = _SyntheticResult(rows_affected=total)
             synthetic.statusmessage = _statusmessage_for_query(query, synthetic)
             self._result = BackendResultCursor([synthetic])
+        self._make_row = None
         self._rownumber = 0
 
     def stream(
@@ -919,13 +954,14 @@ class NoTlsCursorAdapter:
         if row is None:
             return _NO_ROW
         self._rownumber = (self._rownumber or 0) + 1
-        return self._row_factory(result.columns, row)
+        return self._make_row_for_result(result)(row)
 
     def fetchall(self) -> list[object]:
         result = self._require_result()
         rows = result.fetchall()
         self._rownumber = (self._rownumber or 0) + len(rows)
-        return [self._row_factory(result.columns, row) for row in rows]
+        make_row = self._make_row_for_result(result)
+        return [make_row(row) for row in rows]
 
     def fetchmany(self, size: int = 0) -> list[object]:
         result = self._require_result()
@@ -937,7 +973,7 @@ class NoTlsCursorAdapter:
             if row is None:
                 break
             self._rownumber = (self._rownumber or 0) + 1
-            rows.append(self._row_factory(result.columns, row))
+            rows.append(self._make_row_for_result(result)(row))
         return rows
 
     def scroll(self, value: int, mode: str = "relative") -> None:
@@ -959,12 +995,14 @@ class NoTlsCursorAdapter:
         result = self._require_result()
         rv = result.nextset()
         if rv:
+            self._make_row = None
             self._rownumber = 0
         return rv
 
     def set_result(self, index: int) -> NoTlsCursorAdapter:
         result = self._require_result()
         result.set_result(index)
+        self._make_row = None
         self._rownumber = 0
         return self
 
@@ -1008,6 +1046,23 @@ class NoTlsCursorAdapter:
         if self._result is None:
             raise e.ProgrammingError("no result available")
         return self._result
+
+    def _make_row_for_result(self, result: BackendResultCursor) -> RowMaker:
+        current = result.current_result
+        if current is None:
+            raise e.ProgrammingError("no result available")
+        row_factory = self._row_factory
+        if row_factory in _LEGACY_ROW_FACTORIES:
+            legacy = cast(LegacyRowFactory, row_factory)
+
+            def make_legacy_row(row: Sequence[object]) -> object:
+                return legacy(current.columns, cast(list[str | None], list(row)))
+
+            return make_legacy_row
+
+        if self._make_row is None:
+            self._make_row = cast(RowMaker, row_factory(self))
+        return self._make_row
 
 
 class NoTlsCopyAdapter:
