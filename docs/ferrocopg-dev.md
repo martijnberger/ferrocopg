@@ -109,3 +109,12 @@ uv run pytest tests/test_ferrocopg_bootstrap.py -q
 
 The next implementation slice should attach a narrow real helper behind this
 package, then begin replacing pieces of `_psycopg`.
+
+## Compatibility Contract Harness
+
+Beyond the focused bootstrap suite, the migration plan defines a harness that
+runs the main `tests/` suite against the ferrocopg adapter via
+`pytest tests --impl=ferrocopg` (or `PSYCOPG_TEST_IMPL=ferrocopg`), with a
+declarative xfail/skip manifest for known gaps and a CI-enforced pass-rate
+ratchet. See the "Compatibility Contract Harness" section and Milestone 3.1
+in `plan.md` for the design and cutover gates.
