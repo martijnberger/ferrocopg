@@ -4492,7 +4492,7 @@ def test_backend_connect_plan_accepts_libpq_tls_options() -> None:
     assert plan.tls_mode == "verify-ca"
     assert plan.can_bootstrap_with_no_tls is False
     assert plan.requires_external_tls_connector is True
-    assert "CA verification" in plan.tls_connector_hint
+    assert "CA verification and no hostname verification" in plan.tls_connector_hint
 
 
 def test_backend_connect_session_reports_tls_config_error() -> None:

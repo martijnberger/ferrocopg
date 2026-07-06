@@ -385,7 +385,9 @@ fn tls_connector_hint(tls: &TlsOptions) -> &'static str {
         LibpqSslMode::Allow => "Plaintext is tried first, then rustls",
         LibpqSslMode::Prefer => "rustls is preferred, plaintext fallback is allowed",
         LibpqSslMode::Require => "rustls connector required without certificate verification",
-        LibpqSslMode::VerifyCa => "rustls connector required with CA verification",
+        LibpqSslMode::VerifyCa => {
+            "rustls connector required with CA verification and no hostname verification"
+        }
         LibpqSslMode::VerifyFull => "rustls connector required with full certificate verification",
     }
 }

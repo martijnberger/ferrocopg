@@ -1,5 +1,14 @@
 # Changelog
 
+## ferrocopg-m3.2-verify-ca.1 - 2026-07-06
+
+- Added a custom rustls verifier for libpq `sslmode=verify-ca` semantics:
+  certificate-chain validation is enforced while hostname verification is
+  intentionally skipped.
+- Kept `sslmode=verify-full` on stock rustls hostname-verifying behavior.
+- Updated TLS connect-plan hints and PyO3-facing tests to describe the
+  `verify-ca` behavior explicitly.
+
 ## ferrocopg-m3.2-rustls-policy.1 - 2026-07-06
 
 - Made the rustls connector policy-aware: libpq `require` keeps no-verification

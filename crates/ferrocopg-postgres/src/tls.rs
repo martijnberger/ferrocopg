@@ -1,14 +1,75 @@
 use crate::conninfo::{LibpqSslMode, TlsOptions};
-use rustls::client::WebPkiServerVerifier;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+use rustls::client::{WebPkiServerVerifier, verify_server_cert_signed_by_trust_anchor};
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime};
+use rustls::server::ParsedCertificate;
 use rustls::{ClientConfig, DigitallySignedStruct, Error, RootCertStore, SignatureScheme};
+use std::fmt;
 use std::sync::Arc;
 use tokio_postgres_rustls::MakeRustlsConnect;
 
 #[derive(Debug)]
 struct AcceptAllServerVerifier;
+
+struct VerifyCaServerVerifier {
+    roots: RootCertStore,
+    inner: Arc<WebPkiServerVerifier>,
+}
+
+impl fmt::Debug for VerifyCaServerVerifier {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("VerifyCaServerVerifier")
+            .field("root_count", &self.roots.roots.len())
+            .finish()
+    }
+}
+
+impl ServerCertVerifier for VerifyCaServerVerifier {
+    fn verify_server_cert(
+        &self,
+        end_entity: &CertificateDer<'_>,
+        intermediates: &[CertificateDer<'_>],
+        _server_name: &ServerName<'_>,
+        _ocsp_response: &[u8],
+        now: UnixTime,
+    ) -> Result<ServerCertVerified, Error> {
+        let cert = ParsedCertificate::try_from(end_entity)?;
+        verify_server_cert_signed_by_trust_anchor(
+            &cert,
+            &self.roots,
+            intermediates,
+            now,
+            rustls::crypto::aws_lc_rs::default_provider()
+                .signature_verification_algorithms
+                .all,
+        )?;
+        Ok(ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, Error> {
+        self.inner.verify_tls12_signature(message, cert, dss)
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, Error> {
+        self.inner.verify_tls13_signature(message, cert, dss)
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        self.inner.supported_verify_schemes()
+    }
+}
 
 impl ServerCertVerifier for AcceptAllServerVerifier {
     fn verify_server_cert(
@@ -71,13 +132,17 @@ fn verifier_for_mode(tls: &TlsOptions) -> Result<Arc<dyn ServerCertVerifier>, St
         | LibpqSslMode::Allow
         | LibpqSslMode::Prefer
         | LibpqSslMode::Require => Ok(Arc::new(AcceptAllServerVerifier)),
-        LibpqSslMode::VerifyCa | LibpqSslMode::VerifyFull => {
-            let roots = Arc::new(load_root_store(tls)?);
-            WebPkiServerVerifier::builder(roots)
+        LibpqSslMode::VerifyCa => {
+            let roots = load_root_store(tls)?;
+            let inner = WebPkiServerVerifier::builder(Arc::new(roots.clone()))
                 .build()
-                .map(|verifier| verifier as Arc<dyn ServerCertVerifier>)
-                .map_err(|err| format!("failed to configure TLS verifier: {err}"))
+                .map_err(|err| format!("failed to configure TLS verifier: {err}"))?;
+            Ok(Arc::new(VerifyCaServerVerifier { roots, inner }))
         }
+        LibpqSslMode::VerifyFull => WebPkiServerVerifier::builder(Arc::new(load_root_store(tls)?))
+            .build()
+            .map(|verifier| verifier as Arc<dyn ServerCertVerifier>)
+            .map_err(|err| format!("failed to configure TLS verifier: {err}")),
     }
 }
 
