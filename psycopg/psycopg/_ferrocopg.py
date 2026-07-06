@@ -135,6 +135,12 @@ class _PgconnEncodingShim:
         self._encoding = encoding
         self._conn = conn
 
+    @property
+    def status(self) -> pq.ConnStatus:
+        if self._conn is None or self._conn.closed:
+            return pq.ConnStatus.BAD
+        return pq.ConnStatus.OK
+
     def parameter_status(self, param_name: bytes) -> bytes | None:
         if self._conn is None:
             return None
@@ -169,6 +175,42 @@ RowFactory = Callable[[list[str], list[str | None]], object]
 NotifyHandler = Callable[[Notify], None]
 _timezones: dict[str | None, tzinfo] = {None: timezone.utc, "UTC": timezone.utc}
 _NO_ROW = object()
+
+
+class FerrocopgConnection:
+    """Fixture-facing facade matching `Connection.connect()` defaults."""
+
+    @classmethod
+    def connect(
+        cls,
+        conninfo: str = "",
+        *,
+        autocommit: bool = False,
+        prepare_threshold: int | None = 5,
+        context: object | None = None,
+        row_factory: object | None = None,
+        cursor_factory: type[object] | None = None,
+        server_cursor_factory: type[object] | None = None,
+        isolation_level: IsolationLevel | int | None = None,
+        read_only: bool | None = None,
+        deferrable: bool | None = None,
+        **kwargs: str | int | None,
+    ) -> object | None:
+        from . import connect_ferrocopg
+
+        return connect_ferrocopg(
+            conninfo,
+            autocommit=autocommit,
+            prepare_threshold=prepare_threshold,
+            context=context,
+            row_factory=row_factory,
+            cursor_factory=cursor_factory,
+            server_cursor_factory=server_cursor_factory,
+            isolation_level=isolation_level,
+            read_only=read_only,
+            deferrable=deferrable,
+            **kwargs,
+        )
 
 
 class BackendConnectionInfo:

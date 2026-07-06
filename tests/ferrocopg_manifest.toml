@@ -1,0 +1,76 @@
+[[rules]]
+glob = "tests/pq/*"
+tag = "pgconn"
+reason = "pq tests assert raw libpq wrapper behavior"
+action = "skip"
+
+[[rules]]
+glob = "tests/*_async.py::*"
+tag = "async"
+reason = "AsyncConnection parity is tracked in Milestone 3.7"
+
+[[rules]]
+glob = "tests/pool/*_async.py::*"
+tag = "async"
+reason = "AsyncConnection parity is tracked in Milestone 3.7"
+
+[[rules]]
+glob = "tests/test_connection.py::*ssl*"
+tag = "tls"
+reason = "TLS-backed ferrocopg connections are tracked in Milestone 3.2"
+
+[[rules]]
+glob = "tests/test_connection.py::test_execute*"
+tag = "adapters"
+reason = "typed result loading is tracked in Milestone 3.3"
+
+[[rules]]
+glob = "tests/test_copy.py::*binary*"
+tag = "copy-options"
+reason = "binary COPY options are tracked in Milestone 3.5"
+
+[[rules]]
+glob = "tests/test_copy.py::*writer*"
+tag = "copy-options"
+reason = "custom COPY writers are tracked in Milestone 3.5"
+
+[[rules]]
+glob = "tests/test_cursor.py::*binary*"
+tag = "binary"
+reason = "binary result loading is tracked in Milestone 3.3"
+
+[[rules]]
+glob = "tests/test_cursor_common.py::*server*"
+tag = "server-cursor"
+reason = "server-side cursors are tracked in Milestone 3.5"
+
+[[rules]]
+glob = "tests/test_server_cursor.py::*"
+tag = "server-cursor"
+reason = "server-side cursors are tracked in Milestone 3.5"
+
+[[rules]]
+glob = "tests/test_tpc.py::*"
+tag = "tpc"
+reason = "two-phase transactions are tracked in Milestone 3.6"
+
+[[rules]]
+glob = "tests/test_notify.py::*notice*"
+tag = "notice"
+reason = "notice handlers are tracked in Milestone 3.4"
+
+[[rules]]
+glob = "tests/test_pipeline.py::*"
+tag = "pipeline"
+reason = "full pipeline semantics are tracked in Milestone 3.6"
+
+[[rules]]
+glob = "tests/test_connection.py::*fileno*"
+tag = "fileno"
+reason = "raw socket access is a documented ferrocopg boundary"
+action = "skip"
+
+[[rules]]
+glob = "tests/test_rows.py::*"
+tag = "adapters"
+reason = "psycopg row-factory protocol parity is tracked in Milestone 3.3"

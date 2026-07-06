@@ -21,6 +21,10 @@ pg_version: int
 crdb_version: int | None
 
 
+def is_ferrocopg(config: pytest.Config) -> bool:
+    return str(config.getoption("--impl")) == "ferrocopg"
+
+
 def pytest_addoption(parser):
     parser.addoption(
         "--test-dsn",
@@ -29,6 +33,15 @@ def pytest_addoption(parser):
         help=(
             "Connection string to run database tests requiring a connection"
             " [you can also use the PSYCOPG_TEST_DSN env var]."
+        ),
+    )
+    parser.addoption(
+        "--impl",
+        choices=["libpq", "ferrocopg"],
+        default=os.environ.get("PSYCOPG_TEST_IMPL", "libpq"),
+        help=(
+            "Implementation under test for DB fixtures "
+            "[you can also use the PSYCOPG_TEST_IMPL env var]."
         ),
     )
     parser.addoption(
@@ -46,8 +59,9 @@ def pytest_addoption(parser):
 
 
 def pytest_report_header(config):
+    report = [f"DB fixture implementation: {config.getoption('--impl')}"]
     if (dsn := config.getoption("--test-dsn")) is None:
-        return []
+        return report
 
     try:
         with psycopg.connect(dsn, connect_timeout=10) as conn:
@@ -55,7 +69,8 @@ def pytest_report_header(config):
     except Exception as ex:
         server_version = f"unknown ({ex})"
 
-    return [f"Server version: {server_version}"]
+    report.append(f"Server version: {server_version}")
+    return report
 
 
 def pytest_collection_modifyitems(items):
@@ -172,6 +187,8 @@ def maybe_trace(pgconn, tracefile, function):
 
 @pytest.fixture(autouse=True)
 def pgconn_debug(request):
+    if is_ferrocopg(request.config):
+        return
     if not request.config.getoption("--pq-debug"):
         return
     if pq.__impl__ != "python":
@@ -186,6 +203,9 @@ def pgconn_debug(request):
 def pgconn(dsn, request, tracefile):
     """Return a PGconn connection open to `--test-dsn`."""
     check_connection_version(request.node)
+    if is_ferrocopg(request.config):
+        pytest.skip("ferrocopg doesn't expose the raw libpq PGconn fixture")
+
     if (conn := pq.PGconn.connect(dsn.encode())).status != pq.ConnStatus.OK:
         pytest.fail(f"bad connection: {conn.get_error_message()}")
 
@@ -201,6 +221,11 @@ def conn(conn_cls, dsn, request, tracefile):
     check_connection_version(request.node)
 
     conn = conn_cls.connect(dsn)
+    if is_ferrocopg(request.config):
+        yield conn
+        conn.close()
+        return
+
     with maybe_trace(conn.pgconn, tracefile, request.function):
         yield conn
     conn.close()
@@ -222,6 +247,8 @@ def pipeline(request, conn):
 async def aconn(dsn, aconn_cls, request, tracefile):
     """Return an `AsyncConnection` connected to the ``--test-dsn`` database."""
     check_connection_version(request.node)
+    if is_ferrocopg(request.config):
+        pytest.skip("ferrocopg doesn't provide an async connection adapter yet")
 
     conn = await aconn_cls.connect(dsn)
     with maybe_trace(conn.pgconn, tracefile, request.function):
@@ -242,7 +269,14 @@ async def apipeline(request, aconn):
 
 
 @pytest.fixture(scope="session")
-def conn_cls(session_dsn):
+def conn_cls(request, session_dsn):
+    if is_ferrocopg(request.config):
+        if crdb_version:
+            pytest.skip("ferrocopg compatibility harness doesn't support CockroachDB")
+        from psycopg._ferrocopg import FerrocopgConnection
+
+        return FerrocopgConnection
+
     cls = psycopg.Connection
     if crdb_version:
         from psycopg.crdb import CrdbConnection
@@ -253,7 +287,10 @@ def conn_cls(session_dsn):
 
 
 @pytest.fixture(scope="session")
-def aconn_cls(session_dsn, anyio_backend):
+def aconn_cls(request, session_dsn, anyio_backend):
+    if is_ferrocopg(request.config):
+        pytest.skip("ferrocopg doesn't provide an async connection adapter yet")
+
     cls = psycopg.AsyncConnection
     if crdb_version:
         from psycopg.crdb import AsyncCrdbConnection

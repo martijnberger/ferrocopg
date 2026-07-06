@@ -45,6 +45,7 @@ _bootstrap_repo_packages()
 
 pytest_plugins = (
     "tests.fix_db",
+    "tests.fix_ferrocopg",
     "tests.fix_pq",
     "tests.fix_dns",
     "tests.fix_mypy",

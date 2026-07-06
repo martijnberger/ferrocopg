@@ -220,6 +220,22 @@ jobs:
       - name: Run ferrocopg bootstrap tests
         run: uv run --no-sync pytest --test-dsn "$PSYCOPG_TEST_DSN" tests/test_ferrocopg_bootstrap.py -q
 
+      - name: Run ferrocopg compatibility harness
+        run: |
+          set +e
+          uv run --no-sync pytest \
+            --test-dsn "$PSYCOPG_TEST_DSN" \
+            --impl=ferrocopg \
+            --junitxml=ferrocopg-compat.xml \
+            tests
+          pytest_status=$?
+          set -e
+          uv run --no-sync python tools/ci/ferrocopg_pass_rate.py \
+            ferrocopg-compat.xml \
+            --manifest tests/ferrocopg_manifest.toml \
+            --floor tests/ferrocopg_pass_rate.txt \
+            --pytest-status "$pytest_status"
+
 
   # }}}
 
