@@ -26,6 +26,7 @@ pub struct PostgresDiagnostic {
 #[derive(Debug)]
 pub enum ProbeError {
     Parse(tokio_postgres::Error),
+    TlsConfig(String),
     NoTlsNotSupported,
     Connect(postgres::Error),
     Query(postgres::Error),
@@ -37,6 +38,7 @@ impl fmt::Display for ProbeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Parse(err) => write!(f, "{err}"),
+            Self::TlsConfig(msg) => write!(f, "{msg}"),
             Self::NoTlsNotSupported => {
                 write!(
                     f,
@@ -56,7 +58,7 @@ impl ProbeError {
         match self {
             Self::Parse(err) => err.as_db_error().map(postgres_diagnostic),
             Self::Connect(err) | Self::Query(err) => err.as_db_error().map(postgres_diagnostic),
-            Self::BadParam(_) | Self::NoTlsNotSupported | Self::Closed => None,
+            Self::BadParam(_) | Self::TlsConfig(_) | Self::NoTlsNotSupported | Self::Closed => None,
         }
     }
 }
@@ -67,7 +69,7 @@ impl Error for ProbeError {
             Self::Parse(err) => Some(err),
             Self::Connect(err) => Some(err),
             Self::Query(err) => Some(err),
-            Self::BadParam(_) | Self::NoTlsNotSupported | Self::Closed => None,
+            Self::BadParam(_) | Self::TlsConfig(_) | Self::NoTlsNotSupported | Self::Closed => None,
         }
     }
 }

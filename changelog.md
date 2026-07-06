@@ -1,5 +1,14 @@
 # Changelog
 
+## ferrocopg-m3.2-rustls-policy.1 - 2026-07-06
+
+- Made the rustls connector policy-aware: libpq `require` keeps no-verification
+  semantics while `verify-ca`/`verify-full` use trusted-root verification.
+- Added TLS root/client certificate loading for the parsed `sslrootcert`,
+  `sslcert`, and `sslkey` options.
+- Added clean TLS configuration errors so missing certificate files surface as
+  Python `OperationalError` before a socket connection is attempted.
+
 ## ferrocopg-m3.2-libpq-sslmode-plan.1 - 2026-07-06
 
 - Added ferrocopg-owned key/value conninfo normalization for libpq TLS

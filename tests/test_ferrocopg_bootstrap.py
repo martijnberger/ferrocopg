@@ -4495,6 +4495,21 @@ def test_backend_connect_plan_accepts_libpq_tls_options() -> None:
     assert "CA verification" in plan.tls_connector_hint
 
 
+def test_backend_connect_session_reports_tls_config_error() -> None:
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    with pytest.raises(psycopg.OperationalError, match="sslrootcert"):
+        module.backend_session(
+            "host=localhost sslmode=verify-ca "
+            "sslrootcert=/definitely/not/a/root.pem dbname=postgres"
+        )
+
+
 def test_backend_connect_ferrocopg_routes_tls_required(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

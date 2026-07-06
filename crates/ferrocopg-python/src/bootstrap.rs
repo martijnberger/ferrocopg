@@ -263,6 +263,7 @@ fn backend_error_sqlstate(err: &ferrocopg_postgres::ProbeError) -> Option<&str> 
             err.as_db_error().map(|db_err| db_err.code().code())
         }
         ferrocopg_postgres::ProbeError::BadParam(_)
+        | ferrocopg_postgres::ProbeError::TlsConfig(_)
         | ferrocopg_postgres::ProbeError::Closed
         | ferrocopg_postgres::ProbeError::NoTlsNotSupported => None,
     }
@@ -271,9 +272,9 @@ fn backend_error_sqlstate(err: &ferrocopg_postgres::ProbeError) -> Option<&str> 
 fn backend_fallback_error_name(err: &ferrocopg_postgres::ProbeError) -> &'static str {
     match err {
         ferrocopg_postgres::ProbeError::NoTlsNotSupported => "NotSupportedError",
-        ferrocopg_postgres::ProbeError::Connect(_) | ferrocopg_postgres::ProbeError::Closed => {
-            "OperationalError"
-        }
+        ferrocopg_postgres::ProbeError::Connect(_)
+        | ferrocopg_postgres::ProbeError::TlsConfig(_)
+        | ferrocopg_postgres::ProbeError::Closed => "OperationalError",
         ferrocopg_postgres::ProbeError::BadParam(_)
         | ferrocopg_postgres::ProbeError::Parse(_)
         | ferrocopg_postgres::ProbeError::Query(_) => "ProgrammingError",

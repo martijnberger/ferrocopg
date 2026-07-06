@@ -132,6 +132,15 @@ mod tests {
     }
 
     #[test]
+    fn connect_session_reports_tls_config_errors_before_connecting() {
+        let result = connect_session(
+            "host=localhost sslmode=verify-ca sslrootcert=/definitely/not/a/root.pem dbname=postgres",
+        );
+
+        assert!(matches!(result, Err(ProbeError::TlsConfig(_))));
+    }
+
+    #[test]
     fn session_rejects_operations_after_close() {
         let mut session = SyncNoTlsSession::closed_for_tests();
         assert!(session.closed());

@@ -1,3 +1,4 @@
+use crate::conninfo::TlsOptions;
 use crate::error::ProbeError;
 use crate::model::{
     BackendNotification, CopyOutResult, ExecuteResult, PreparedStatementInfo, ResultSet,
@@ -13,13 +14,14 @@ use std::time::Duration;
 #[derive(Clone, Copy)]
 enum SessionTlsMode {
     NoTls,
-    Require,
+    Tls,
 }
 
 #[derive(Clone)]
 pub struct SyncNoTlsCancelHandle {
     inner: postgres::CancelToken,
     tls_mode: SessionTlsMode,
+    tls: Option<TlsOptions>,
 }
 
 impl SyncNoTlsCancelHandle {
@@ -29,10 +31,16 @@ impl SyncNoTlsCancelHandle {
                 .inner
                 .cancel_query(postgres::NoTls)
                 .map_err(ProbeError::Connect),
-            SessionTlsMode::Require => self
-                .inner
-                .cancel_query(crate::tls::make_require_tls_connector())
-                .map_err(ProbeError::Connect),
+            SessionTlsMode::Tls => {
+                self.inner
+                    .cancel_query(
+                        crate::tls::make_tls_connector(self.tls.as_ref().ok_or_else(|| {
+                            ProbeError::TlsConfig("missing TLS options".to_owned())
+                        })?)
+                        .map_err(ProbeError::TlsConfig)?,
+                    )
+                    .map_err(ProbeError::Connect)
+            }
         }
     }
 }
@@ -40,6 +48,7 @@ impl SyncNoTlsCancelHandle {
 pub struct SyncNoTlsSession {
     client: Option<postgres::Client>,
     tls_mode: SessionTlsMode,
+    tls: Option<TlsOptions>,
     prepared: HashMap<u64, postgres::Statement>,
     next_statement_id: u64,
 }
@@ -49,15 +58,17 @@ impl SyncNoTlsSession {
         Self {
             client: Some(client),
             tls_mode: SessionTlsMode::NoTls,
+            tls: None,
             prepared: HashMap::new(),
             next_statement_id: 1,
         }
     }
 
-    pub(crate) fn from_tls_client(client: postgres::Client) -> Self {
+    pub(crate) fn from_tls_client(client: postgres::Client, tls: TlsOptions) -> Self {
         Self {
             client: Some(client),
-            tls_mode: SessionTlsMode::Require,
+            tls_mode: SessionTlsMode::Tls,
+            tls: Some(tls),
             prepared: HashMap::new(),
             next_statement_id: 1,
         }
@@ -68,6 +79,7 @@ impl SyncNoTlsSession {
         Self {
             client: None,
             tls_mode: SessionTlsMode::NoTls,
+            tls: None,
             prepared: HashMap::new(),
             next_statement_id: 1,
         }
@@ -87,6 +99,7 @@ impl SyncNoTlsSession {
         Ok(SyncNoTlsCancelHandle {
             inner: client.cancel_token(),
             tls_mode: self.tls_mode,
+            tls: self.tls.clone(),
         })
     }
 

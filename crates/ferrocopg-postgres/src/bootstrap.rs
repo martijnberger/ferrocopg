@@ -5,7 +5,7 @@ use crate::model::{
     SimpleQueryMessage, SimpleQueryResult, StatementDescription, SyncNoTlsProbe, TextQueryResult,
 };
 use crate::session::SyncNoTlsSession;
-use crate::tls::make_require_tls_connector;
+use crate::tls::make_tls_connector;
 use std::str::FromStr;
 
 const DEFAULT_CONNECT_TIMEOUT_SECS: u64 = 130;
@@ -254,10 +254,10 @@ impl BootstrapConfig {
             config.ssl_mode(postgres::config::SslMode::Require);
         }
         let client = config
-            .connect(make_require_tls_connector())
+            .connect(make_tls_connector(&self.tls).map_err(ProbeError::TlsConfig)?)
             .map_err(ProbeError::Connect)?;
 
-        Ok(SyncNoTlsSession::from_tls_client(client))
+        Ok(SyncNoTlsSession::from_tls_client(client, self.tls.clone()))
     }
 }
 
