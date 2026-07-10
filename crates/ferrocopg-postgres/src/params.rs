@@ -1,5 +1,6 @@
 use crate::error::ProbeError;
-use postgres::types::{IsNull, ToSql, Type, private::BytesMut};
+use crate::model::{BoundParam, ParamFormat};
+use postgres::types::{Format, IsNull, Kind, ToSql, Type, private::BytesMut};
 use std::error::Error;
 use std::fmt;
 use time::format_description::FormatItem;
@@ -23,6 +24,85 @@ const TIMESTAMPTZ_TEXT_FORMAT_FRACTIONAL: &[FormatItem<'static>] = format_descri
 
 pub(crate) fn query_param_refs(params: &[Box<dyn ToSql + Sync>]) -> Vec<&(dyn ToSql + Sync)> {
     params.iter().map(|value| value.as_ref()).collect()
+}
+
+pub(crate) fn bound_param_types(params: &[BoundParam]) -> Vec<Type> {
+    params
+        .iter()
+        .map(|param| type_from_oid(param.oid))
+        .collect()
+}
+
+pub(crate) fn bound_query_params(
+    statement: &postgres::Statement,
+    params: &[BoundParam],
+) -> Result<Vec<Box<dyn ToSql + Sync>>, ProbeError> {
+    if statement.params().len() != params.len() {
+        return Err(ProbeError::BadParam(format!(
+            "expected {} params but got {}",
+            statement.params().len(),
+            params.len()
+        )));
+    }
+
+    Ok(params
+        .iter()
+        .map(|param| {
+            Box::new(RawParam {
+                value: param.value.clone(),
+                format: param.format,
+            }) as Box<dyn ToSql + Sync>
+        })
+        .collect())
+}
+
+pub(crate) fn param_types_from_oids(oids: &[u32]) -> Vec<Type> {
+    oids.iter().copied().map(type_from_oid).collect()
+}
+
+fn type_from_oid(oid: u32) -> Type {
+    if oid == 0 {
+        return Type::UNKNOWN;
+    }
+
+    Type::from_oid(oid).unwrap_or_else(|| {
+        Type::new(
+            format!("oid_{oid}"),
+            oid,
+            Kind::Simple,
+            "pg_catalog".to_owned(),
+        )
+    })
+}
+
+#[derive(Debug)]
+struct RawParam {
+    value: Option<Vec<u8>>,
+    format: ParamFormat,
+}
+
+impl ToSql for RawParam {
+    fn to_sql(&self, _: &Type, out: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+        if let Some(value) = &self.value {
+            out.extend_from_slice(value);
+            Ok(IsNull::No)
+        } else {
+            Ok(IsNull::Yes)
+        }
+    }
+
+    fn accepts(_: &Type) -> bool {
+        true
+    }
+
+    fn encode_format(&self, _: &Type) -> Format {
+        match self.format {
+            ParamFormat::Text => Format::Text,
+            ParamFormat::Binary => Format::Binary,
+        }
+    }
+
+    postgres::types::to_sql_checked!();
 }
 
 pub(crate) fn parsed_query_params(

@@ -21,7 +21,7 @@ from ._adapters_map import AdaptersMap
 from ._connection_base import Notify
 from ._copy_base import _format_row_text, _parse_row_text
 from ._encodings import conninfo_encoding, pg2pyenc
-from ._enums import IsolationLevel, PyFormat
+from ._enums import IsolationLevel
 from ._py_transformer import Transformer as AdaptTransformer
 from ._queries import PostgresQuery
 from ._rmodule import __version__ as __version__
@@ -63,6 +63,11 @@ class _SyntheticResult:
         self.rows_affected = rows_affected
         self.statusmessage = statusmessage
         self.is_tuples = is_tuples
+
+
+class _BoundParams(NamedTuple):
+    values: list[tuple[int, bool, bytes | None]]
+    types: tuple[int, ...]
 
 
 class _PreparedStatementLike(Protocol):
@@ -155,10 +160,15 @@ class _PgconnEncodingShim:
 
 class _AdaptContext:
     def __init__(
-        self, conn: NoTlsConnectionAdapter, adapters: AdaptersMap | None = None
+        self,
+        conn: NoTlsConnectionAdapter,
+        adapters: AdaptersMap | None = None,
+        *,
+        expose_connection: bool = True,
     ):
         self._conn = conn
         self._adapters = adapters or conn.adapters
+        self._connection = conn if expose_connection else None
 
     @property
     def adapters(self) -> AdaptersMap:
@@ -166,7 +176,7 @@ class _AdaptContext:
 
     @property
     def connection(self) -> Any:
-        return self._conn
+        return self._connection
 
 
 def _pure_python_adapters(template: AdaptersMap) -> AdaptersMap:
@@ -380,9 +390,10 @@ _LEGACY_ROW_FACTORIES = frozenset({list_row, tuple_row, dict_row, scalar_row})
 
 
 class _BackendPgResultShim:
-    def __init__(self, result: _ResultSetLike, encoding: str):
+    def __init__(self, result: _ResultSetLike, encoding: str, format: pq.Format):
         self._result = result
         self._encoding = encoding
+        self._format = format
         self.status = (
             ExecStatus.TUPLES_OK
             if getattr(result, "is_tuples", bool(result.columns or result.rows))
@@ -392,6 +403,11 @@ class _BackendPgResultShim:
 
     def fname(self, index: int) -> bytes | None:
         return self._result.columns[index].encode(self._encoding)
+
+    def fformat(self, index: int) -> int:
+        if not 0 <= index < len(self._result.columns):
+            raise IndexError(index)
+        return int(self._format)
 
 
 def _buffer_to_text(value: Buffer, encoding: str) -> str:
@@ -525,6 +541,10 @@ class _NoTlsSessionLike(Protocol):
 
     def prepare_text(self, query: str) -> _PreparedStatementLike: ...
 
+    def prepare_params(
+        self, query: str, param_oids: list[int]
+    ) -> _PreparedStatementLike: ...
+
     def simple_query_results(self, query: str) -> list[_ResultSetLike]: ...
 
     def pipeline_simple_query_results(
@@ -535,8 +555,16 @@ class _NoTlsSessionLike(Protocol):
         self, query: str, params: list[str | None]
     ) -> _ResultSetLike: ...
 
+    def run_params(
+        self, query: str, params: list[tuple[int, bool, bytes | None]]
+    ) -> _ResultSetLike: ...
+
     def run_prepared_text_params(
         self, statement_id: int, params: list[str | None]
+    ) -> _ResultSetLike: ...
+
+    def run_prepared_params(
+        self, statement_id: int, params: list[tuple[int, bool, bytes | None]]
     ) -> _ResultSetLike: ...
 
 
@@ -813,6 +841,10 @@ class NoTlsSessionAdapter:
         result = self._session.run_text_params(query, params)
         return BackendResultCursor([result], [_statusmessage_for_query(query, result)])
 
+    def execute_bound(self, query: str, params: _BoundParams) -> BackendResultCursor:
+        result = self._session.run_params(query, params.values)
+        return BackendResultCursor([result], [_statusmessage_for_query(query, result)])
+
     def execute_prepared(
         self,
         statement_id: int,
@@ -821,6 +853,19 @@ class NoTlsSessionAdapter:
         statusmessage: str | None = None,
     ) -> BackendResultCursor:
         result = self._session.run_prepared_text_params(statement_id, params)
+        return BackendResultCursor([result], [statusmessage])
+
+    def prepare_bound(self, query: str, params: _BoundParams) -> _PreparedStatementLike:
+        return self._session.prepare_params(query, list(params.types))
+
+    def execute_prepared_bound(
+        self,
+        statement_id: int,
+        params: _BoundParams,
+        *,
+        statusmessage: str | None = None,
+    ) -> BackendResultCursor:
+        result = self._session.run_prepared_params(statement_id, params.values)
         return BackendResultCursor([result], [statusmessage])
 
     def begin(self) -> None:
@@ -890,6 +935,7 @@ class NoTlsCursorAdapter:
         self._make_row: RowMaker | None = None
         self._result_transformer: AdaptTransformer | None = None
         self._rownumber: int | None = 0
+        self.format = pq.Format.TEXT
         self.arraysize = 1
 
     @property
@@ -921,7 +967,7 @@ class NoTlsCursorAdapter:
         current = result.current_result
         if current is None:
             return None
-        return _BackendPgResultShim(current, self._encoding)
+        return _BackendPgResultShim(current, self._encoding, self.format)
 
     @property
     def rowcount(self) -> int:
@@ -996,10 +1042,8 @@ class NoTlsCursorAdapter:
     ) -> NoTlsCursorAdapter:
         self._check_closed()
         self._conn._check_closed()
-        if binary:
-            raise e.NotSupportedError(
-                "ferrocopg doesn't support binary cursor execution yet"
-            )
+        if binary is not None:
+            self.format = pq.Format.BINARY if binary else pq.Format.TEXT
         self._result = self._conn._execute(
             query,
             params,
@@ -1431,9 +1475,9 @@ class NoTlsConnectionAdapter:
         self._autocommit = autocommit
         self._info = BackendConnectionInfo(self)
         self._probe_cache: _BackendProbeLike | None = None
-        self._prepared: dict[str, int] = {}
+        self._prepared: dict[str | tuple[str, tuple[int, ...]], int] = {}
         self._prepared_statusmessages: dict[int, str | None] = {}
-        self._prepare_counts: dict[str, int] = {}
+        self._prepare_counts: dict[str | tuple[str, tuple[int, ...]], int] = {}
         self._in_transaction = False
         self._pipeline_depth = 0
         self._tx_depth = 0
@@ -1565,12 +1609,8 @@ class NoTlsConnectionAdapter:
         row_factory: RowFactory | None = None,
     ) -> NoTlsCursorAdapter:
         self._check_closed()
-        if binary:
-            raise e.NotSupportedError(
-                "ferrocopg doesn't support binary execution results yet"
-            )
         cur = self.cursor(row_factory=row_factory)
-        return cur.execute(query, params, prepare=prepare)
+        return cur.execute(query, params, prepare=prepare, binary=binary)
 
     def execute_pipeline_simple(
         self,
@@ -1790,6 +1830,9 @@ class NoTlsConnectionAdapter:
                 return self._execute_extended_no_params(query)
             return self._session.execute_simple(query)
 
+        if isinstance(params, _BoundParams):
+            return self._execute_bound(query, params, prepare)
+
         if not prepare and self.prepare_threshold is not None:
             count = self._prepare_counts.get(query, 0)
             prepare = count >= self.prepare_threshold
@@ -1812,6 +1855,32 @@ class NoTlsConnectionAdapter:
 
         return self._session.execute_params(query, params)
 
+    def _execute_bound(
+        self, query: str, params: _BoundParams, prepare: bool
+    ) -> BackendResultCursor:
+        key = (query, params.types)
+        if not prepare and self.prepare_threshold is not None:
+            count = self._prepare_counts.get(key, 0)
+            prepare = count >= self.prepare_threshold
+            self._prepare_counts[key] = count + 1
+
+        if prepare:
+            statement_id = self._prepared.get(key)
+            if statement_id is None:
+                prepared = self._session.prepare_bound(query, params)
+                statement_id = prepared.statement_id
+                self._prepared[key] = statement_id
+                self._prepared_statusmessages[statement_id] = _statusmessage_for_query(
+                    query
+                )
+            return self._session.execute_prepared_bound(
+                statement_id,
+                params,
+                statusmessage=self._prepared_statusmessages.get(statement_id),
+            )
+
+        return self._session.execute_bound(query, params)
+
     def _execute_extended_no_params(self, query: str) -> BackendResultCursor:
         results: list[_ResultSetLike] = []
         statuses: list[str | None] = []
@@ -1825,7 +1894,7 @@ class NoTlsConnectionAdapter:
 
     def _convert_query_params(
         self, query: Query, params: Params | None
-    ) -> tuple[str, list[str | None] | None]:
+    ) -> tuple[str, list[str | None] | _BoundParams | None]:
         if params is None:
             if isinstance(query, bytes):
                 return query.decode(self._pgconn._encoding), None
@@ -1837,21 +1906,31 @@ class NoTlsConnectionAdapter:
         if isinstance(query, bytes) and b"%" not in query:
             return query.decode(self._pgconn._encoding), _coerce_native_params(params)
 
-        tx = cast(Transformer, _TextCopyTransformer(self._pgconn._encoding))
+        tx = AdaptTransformer(
+            _AdaptContext(self, self.adapters, expose_connection=False)
+        )
+        tx._encoding = self._pgconn._encoding
         pgq = PostgresQuery(tx)
         pgq.convert(query, params)
-        if params is not None:
-            ordered = PostgresQuery.validate_and_reorder_params(
-                pgq._parts, params, pgq._order
-            )
-            pgq.params = tx.dump_sequence(ordered, [PyFormat.TEXT] * len(ordered))
-        converted_params = None
-        if pgq.params is not None:
-            converted_params = [
-                None if param is None else _buffer_to_text(param, tx.encoding)
-                for param in pgq.params
-            ]
-        return pgq.query.decode(tx.encoding), converted_params
+        if pgq.params is None:
+            return pgq.query.decode(tx.encoding), None
+
+        assert pgq.formats is not None
+        assert len(pgq.params) == len(pgq.types) == len(pgq.formats)
+        bound = _BoundParams(
+            values=[
+                (
+                    oid,
+                    format == pq.Format.BINARY,
+                    None if value is None else bytes(value),
+                )
+                for oid, format, value in zip(
+                    pgq.types, pgq.formats, pgq.params, strict=True
+                )
+            ],
+            types=pgq.types,
+        )
+        return pgq.query.decode(tx.encoding), bound
 
     def _ensure_transaction(self) -> None:
         if not self._autocommit and not self._in_transaction:

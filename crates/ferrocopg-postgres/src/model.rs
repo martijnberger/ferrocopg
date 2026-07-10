@@ -92,6 +92,19 @@ pub struct ResultSet {
     pub is_tuples: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParamFormat {
+    Text,
+    Binary,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundParam {
+    pub oid: u32,
+    pub value: Option<Vec<u8>>,
+    pub format: ParamFormat,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StatementParameter {
     pub oid: u32,

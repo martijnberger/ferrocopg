@@ -20,11 +20,6 @@ tag = "tls"
 reason = "TLS-backed ferrocopg connections are tracked in Milestone 3.2"
 
 [[rules]]
-glob = "tests/test_connection.py::test_execute*"
-tag = "adapters"
-reason = "typed result loading is tracked in Milestone 3.3"
-
-[[rules]]
 glob = "tests/test_copy.py::*binary*"
 tag = "copy-options"
 reason = "binary COPY options are tracked in Milestone 3.5"

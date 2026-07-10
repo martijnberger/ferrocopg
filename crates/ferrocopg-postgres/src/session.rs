@@ -1,11 +1,14 @@
 use crate::conninfo::TlsOptions;
 use crate::error::ProbeError;
 use crate::model::{
-    BackendNotification, CopyOutResult, ExecuteResult, PreparedStatementInfo, ResultSet,
-    SimpleQueryMessage, SimpleQueryResult, StatementColumn, StatementDescription,
+    BackendNotification, BoundParam, CopyOutResult, ExecuteResult, PreparedStatementInfo,
+    ResultSet, SimpleQueryMessage, SimpleQueryResult, StatementColumn, StatementDescription,
     StatementParameter, SyncNoTlsProbe, TextQueryResult,
 };
-use crate::params::{parsed_query_params, query_param_refs};
+use crate::params::{
+    bound_param_types, bound_query_params, param_types_from_oids, parsed_query_params,
+    query_param_refs,
+};
 use fallible_iterator::FallibleIterator;
 use postgres::types::{FromSql, Type};
 use std::collections::HashMap;
@@ -234,6 +237,19 @@ impl SyncNoTlsSession {
         self.run_statement_params(&statement, params)
     }
 
+    pub fn run_params(
+        &mut self,
+        query: &str,
+        params: &[BoundParam],
+    ) -> Result<ResultSet, ProbeError> {
+        let types = bound_param_types(params);
+        let statement = self
+            .client_mut()?
+            .prepare_typed(query, &types)
+            .map_err(ProbeError::Query)?;
+        self.run_bound_statement_params(&statement, params)
+    }
+
     pub fn describe_text(&mut self, query: &str) -> Result<StatementDescription, ProbeError> {
         let statement = self
             .client_mut()?
@@ -264,6 +280,27 @@ impl SyncNoTlsSession {
         let statement = self
             .client_mut()?
             .prepare(query)
+            .map_err(ProbeError::Query)?;
+        let statement_id = self.next_statement_id;
+        self.next_statement_id += 1;
+        let description = statement_description(&statement);
+        self.prepared.insert(statement_id, statement);
+        self.prepared_queries.insert(statement_id, query.to_owned());
+        Ok(PreparedStatementInfo {
+            statement_id,
+            description,
+        })
+    }
+
+    pub fn prepare_params(
+        &mut self,
+        query: &str,
+        param_oids: &[u32],
+    ) -> Result<PreparedStatementInfo, ProbeError> {
+        let types = param_types_from_oids(param_oids);
+        let statement = self
+            .client_mut()?
+            .prepare_typed(query, &types)
             .map_err(ProbeError::Query)?;
         let statement_id = self.next_statement_id;
         self.next_statement_id += 1;
@@ -310,6 +347,15 @@ impl SyncNoTlsSession {
             return self.run_no_column_statement(&query);
         }
         self.run_statement_params(&statement, params)
+    }
+
+    pub fn run_prepared_params(
+        &mut self,
+        statement_id: u64,
+        params: &[BoundParam],
+    ) -> Result<ResultSet, ProbeError> {
+        let statement = self.prepared_statement(statement_id)?.clone();
+        self.run_bound_statement_params(&statement, params)
     }
 
     pub fn execute_prepared_text_params(
@@ -507,6 +553,25 @@ impl SyncNoTlsSession {
         let params = parsed_query_params(statement, params)?;
         let refs = query_param_refs(&params);
 
+        self.run_statement_refs(statement, &refs)
+    }
+
+    fn run_bound_statement_params(
+        &mut self,
+        statement: &postgres::Statement,
+        params: &[BoundParam],
+    ) -> Result<ResultSet, ProbeError> {
+        let params = bound_query_params(statement, params)?;
+        let refs = query_param_refs(&params);
+
+        self.run_statement_refs(statement, &refs)
+    }
+
+    fn run_statement_refs(
+        &mut self,
+        statement: &postgres::Statement,
+        refs: &[&(dyn postgres::types::ToSql + Sync)],
+    ) -> Result<ResultSet, ProbeError> {
         if statement.columns().is_empty() {
             let rows_affected = self
                 .client_mut()?

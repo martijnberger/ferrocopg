@@ -20,10 +20,10 @@ pub use bootstrap::{
 };
 pub use error::ProbeError;
 pub use model::{
-    BackendNotification, ConnectEndpoint, ConnectPlan, ConnectTarget, ConninfoSummary,
-    CopyOutResult, ExecuteResult, PreparedStatementInfo, ResultSet, SimpleQueryMessage,
-    SimpleQueryResult, StatementColumn, StatementDescription, StatementParameter, SyncNoTlsProbe,
-    TextQueryResult,
+    BackendNotification, BoundParam, ConnectEndpoint, ConnectPlan, ConnectTarget, ConninfoSummary,
+    CopyOutResult, ExecuteResult, ParamFormat, PreparedStatementInfo, ResultSet,
+    SimpleQueryMessage, SimpleQueryResult, StatementColumn, StatementDescription,
+    StatementParameter, SyncNoTlsProbe, TextQueryResult,
 };
 pub use session::{SyncNoTlsCancelHandle, SyncNoTlsSession};
 

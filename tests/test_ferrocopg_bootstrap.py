@@ -2851,6 +2851,12 @@ def test_no_tls_connection_adapter_psycopg_placeholders(
             self.calls.append(("params", query, params))
             return SimpleNamespace(columns=["query"], rows=[[query]], rows_affected=1)
 
+        def run_params(
+            self, query: str, params: list[tuple[int, bool, bytes | None]]
+        ) -> object:
+            self.calls.append(("bound", query, params))
+            return SimpleNamespace(columns=["query"], rows=[[query]], rows_affected=1)
+
     stub = StubSession()
     monkeypatch.setattr(module, "no_tls_session", lambda conninfo: stub)
 
@@ -2861,9 +2867,15 @@ def test_no_tls_connection_adapter_psycopg_placeholders(
     conn.execute("select %(label)s::text", {"label": "named"})
     conn.execute("select $1::text", ["native"])
 
-    assert stub.calls == [
-        ("params", "select $1::int4, $2::date, $3::text", ["7", "2020-01-01", None]),
-        ("params", "select $1::text", ["named"]),
+    first = stub.calls[0]
+    assert first[:2] == ("bound", "select $1::int4, $2::date, $3::text")
+    assert first[2] == [
+        (21, True, b"\x00\x07"),
+        (1082, True, b"\x00\x00\x1c\x89"),
+        (0, False, None),
+    ]
+    assert stub.calls[1:] == [
+        ("bound", "select $1::text", [(0, False, b"named")]),
         ("params", "select $1::text", ["native"]),
     ]
 
@@ -3649,8 +3661,11 @@ def test_no_tls_connection_adapter_row_factories(
         {"id": "2", "label": "two"},
     ]
 
-    with pytest.raises(psycopg.NotSupportedError, match="binary cursor execution"):
-        row_factory_cur.execute("select 1", binary=True)
+    assert row_factory_cur.execute("select 1", binary=True).fetchall() == [
+        {"id": "1", "label": "one"},
+        {"id": "2", "label": "two"},
+    ]
+    assert row_factory_cur.format == psycopg.pq.Format.BINARY
 
 
 def test_no_tls_cursor_adapter_executemany(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -3905,8 +3920,8 @@ def test_no_tls_cursor_adapter_stream(monkeypatch: pytest.MonkeyPatch) -> None:
             next(cur.stream("select 1", size=0))
 
     with conn.cursor() as cur:
-        with pytest.raises(psycopg.NotSupportedError, match="binary cursor execution"):
-            next(cur.stream("select 1", binary=True))
+        assert next(cur.stream("select 1", binary=True)) == "1"
+        assert cur.format == psycopg.pq.Format.BINARY
 
     with conn.pipeline():
         with conn.cursor() as cur:
@@ -4426,8 +4441,9 @@ def test_no_tls_connection_adapter_unsupported_cursor_modes(
         conn.cursor(scrollable=True)
     with pytest.raises(psycopg.NotSupportedError, match="withhold cursors"):
         conn.cursor(withhold=True)
-    with pytest.raises(psycopg.NotSupportedError, match="binary execution results"):
-        conn.execute("select 1", binary=True)
+    binary_cur = conn.execute("select 1", binary=True)
+    assert binary_cur.fetchall() == [["one"]]
+    assert binary_cur.format == psycopg.pq.Format.BINARY
 
 
 def test_no_tls_connection_adapter_info(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -5606,6 +5622,9 @@ def test_backend_package_connect_ferrocopg_live(dsn: str) -> None:
     conn = cast(Any, psycopg.connect_ferrocopg(dsn))
     assert conn is not None
     assert conn.execute("select 42::int4 as answer").fetchall() == [(42,)]
+    assert conn.execute("select %s, %s", [10, 20]).fetchall() == [(10, 20)]
+    assert conn.execute("select %s as answer", [42], prepare=True).fetchall() == [(42,)]
+    assert conn.execute("select %s as answer", [43], prepare=True).fetchall() == [(43,)]
     assert conn.execute("select 'semi;colon'::text as label").fetchall() == [
         ("semi;colon",)
     ]

@@ -250,6 +250,21 @@ fn backend_runtime_error(message: impl Into<String>) -> PyErr {
     PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(message.into())
 }
 
+fn bound_params(params: Vec<(u32, bool, Option<Vec<u8>>)>) -> Vec<ferrocopg_postgres::BoundParam> {
+    params
+        .into_iter()
+        .map(|(oid, binary, value)| ferrocopg_postgres::BoundParam {
+            oid,
+            value,
+            format: if binary {
+                ferrocopg_postgres::ParamFormat::Binary
+            } else {
+                ferrocopg_postgres::ParamFormat::Text
+            },
+        })
+        .collect()
+}
+
 enum BackendThreadError {
     Runtime(String),
     Backend(ferrocopg_postgres::ProbeError),
@@ -1020,6 +1035,18 @@ impl BackendSyncNoTlsSession {
         .map(BackendResultSet::from)
     }
 
+    fn run_params(
+        &self,
+        py: Python<'_>,
+        query: &str,
+        params: Vec<(u32, bool, Option<Vec<u8>>)>,
+    ) -> PyResult<BackendResultSet> {
+        let query = query.to_owned();
+        let params = bound_params(params);
+        with_session(py, self, move |session| session.run_params(&query, &params))
+            .map(BackendResultSet::from)
+    }
+
     fn execute_text_params(
         &self,
         py: Python<'_>,
@@ -1106,6 +1133,19 @@ impl BackendSyncNoTlsSession {
             .map(BackendPreparedStatementInfo::from)
     }
 
+    fn prepare_params(
+        &self,
+        py: Python<'_>,
+        query: &str,
+        param_oids: Vec<u32>,
+    ) -> PyResult<BackendPreparedStatementInfo> {
+        let query = query.to_owned();
+        with_session(py, self, move |session| {
+            session.prepare_params(&query, &param_oids)
+        })
+        .map(BackendPreparedStatementInfo::from)
+    }
+
     fn describe_prepared(
         &self,
         py: Python<'_>,
@@ -1137,6 +1177,19 @@ impl BackendSyncNoTlsSession {
     ) -> PyResult<BackendResultSet> {
         with_session(py, self, move |session| {
             session.run_prepared_text_params(statement_id, &params)
+        })
+        .map(BackendResultSet::from)
+    }
+
+    fn run_prepared_params(
+        &self,
+        py: Python<'_>,
+        statement_id: u64,
+        params: Vec<(u32, bool, Option<Vec<u8>>)>,
+    ) -> PyResult<BackendResultSet> {
+        let params = bound_params(params);
+        with_session(py, self, move |session| {
+            session.run_prepared_params(statement_id, &params)
         })
         .map(BackendResultSet::from)
     }
