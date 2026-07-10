@@ -4435,8 +4435,8 @@ def test_no_tls_connection_adapter_unsupported_cursor_modes(
 
     with pytest.raises(psycopg.NotSupportedError, match="server-side cursors"):
         conn.cursor("named")
-    with pytest.raises(psycopg.NotSupportedError, match="binary cursor results"):
-        conn.cursor(binary=True)
+    binary_cursor = conn.cursor(binary=True)
+    assert binary_cursor.format == psycopg.pq.Format.BINARY
     with pytest.raises(psycopg.NotSupportedError, match="scrollable cursors"):
         conn.cursor(scrollable=True)
     with pytest.raises(psycopg.NotSupportedError, match="withhold cursors"):
@@ -5623,6 +5623,10 @@ def test_backend_package_connect_ferrocopg_live(dsn: str) -> None:
     assert conn is not None
     assert conn.execute("select 42::int4 as answer").fetchall() == [(42,)]
     assert conn.execute("select %s, %s", [10, 20]).fetchall() == [(10, 20)]
+    binary_cursor = conn.cursor(binary=True)
+    binary_cursor.execute("select 42::int4, '\\x0001ff'::bytea")
+    assert binary_cursor.fetchall() == [(42, b"\x00\x01\xff")]
+    binary_cursor.close()
     assert conn.execute("select %s as answer", [42], prepare=True).fetchall() == [(42,)]
     assert conn.execute("select %s as answer", [43], prepare=True).fetchall() == [(43,)]
     assert conn.execute("select 'semi;colon'::text as label").fetchall() == [

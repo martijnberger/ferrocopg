@@ -21,16 +21,19 @@ from ._adapters_map import AdaptersMap
 from ._connection_base import Notify
 from ._copy_base import _format_row_text, _parse_row_text
 from ._encodings import conninfo_encoding, pg2pyenc
-from ._enums import IsolationLevel
+from ._enums import IsolationLevel, PyFormat
+from ._oids import BYTEA_OID
 from ._py_transformer import Transformer as AdaptTransformer
 from ._queries import PostgresQuery
 from ._rmodule import __version__ as __version__
 from ._rmodule import _ferrocopg
 from ._tpc import Xid
 from .abc import Buffer, Params, Query, Transformer
+from .adapt import Dumper
 from .conninfo import conninfo_to_dict, make_conninfo
 from .pq import ExecStatus
 from .transaction import Rollback
+from .types.string import BytesDumper
 
 
 class _StatementColumnLike(Protocol):
@@ -179,7 +182,37 @@ class _AdaptContext:
         return self._connection
 
 
-def _pure_python_adapters(template: AdaptersMap) -> AdaptersMap:
+class _WireByteaDumper(Dumper):
+    """Encode bytea text parameters without relying on a libpq PGconn."""
+
+    oid = BYTEA_OID
+
+    def dump(self, obj: Buffer) -> Buffer:
+        return b"\\x" + bytes(obj).hex().encode()
+
+
+def _install_wire_bytea_dumper(adapters: AdaptersMap) -> None:
+    """Replace only Psycopg's default `%t` bytea dumper for this backend."""
+    default_dumper = AdaptersMap._optimised.get(BytesDumper, BytesDumper)
+    classes = [
+        cls
+        for cls in (bytes, bytearray, memoryview)
+        if adapters.get_dumper(cls, PyFormat.TEXT) is default_dumper
+    ]
+    if not classes:
+        return
+
+    # `register_dumper()` also changes `%s`; only `%t` needs this wire form.
+    if not adapters._own_dumpers[PyFormat.TEXT]:
+        adapters._dumpers[PyFormat.TEXT] = adapters._dumpers[PyFormat.TEXT].copy()
+        adapters._own_dumpers[PyFormat.TEXT] = True
+    for cls in classes:
+        adapters._dumpers[PyFormat.TEXT][cls] = _WireByteaDumper
+
+
+def _pure_python_adapters(
+    template: AdaptersMap, *, text_loader_oids: frozenset[int] = frozenset()
+) -> AdaptersMap:
     """Copy an adapter map without the libpq/C-only loader replacements."""
     adapters = AdaptersMap(template)
     original_loaders = {
@@ -193,6 +226,14 @@ def _pure_python_adapters(template: AdaptersMap) -> AdaptersMap:
             for oid, loader in adapters._loaders[format].items()
         }
         adapters._own_loaders[format] = True
+
+    if text_loader_oids:
+        adapters._loaders[pq.Format.BINARY] = adapters._loaders[pq.Format.BINARY].copy()
+        for oid in text_loader_oids:
+            if loader := adapters._loaders[pq.Format.TEXT].get(oid):
+                adapters._loaders[pq.Format.BINARY][oid] = loader
+        adapters._own_loaders[pq.Format.BINARY] = True
+
     return adapters
 
 
@@ -212,6 +253,7 @@ RowMaker = Callable[[Sequence[object]], object]
 NotifyHandler = Callable[[Notify], None]
 _timezones: dict[str | None, tzinfo] = {None: timezone.utc, "UTC": timezone.utc}
 _NO_ROW = object()
+_TEXT_WIRE_OIDS = frozenset({18, 19, 25, 1042, 1043, 114, 142})
 
 
 class FerrocopgConnection:
@@ -932,6 +974,7 @@ class NoTlsCursorAdapter:
         self._result: BackendResultCursor | None = None
         self._closed = False
         self._row_factory = row_factory
+        self._adapters = AdaptersMap(conn.adapters)
         self._make_row: RowMaker | None = None
         self._result_transformer: AdaptTransformer | None = None
         self._rownumber: int | None = 0
@@ -954,6 +997,10 @@ class NoTlsCursorAdapter:
     def row_factory(self, row_factory: RowFactory) -> None:
         self._row_factory = row_factory
         self._make_row = None
+
+    @property
+    def adapters(self) -> AdaptersMap:
+        return self._adapters
 
     @property
     def _encoding(self) -> str:
@@ -1049,6 +1096,7 @@ class NoTlsCursorAdapter:
             params,
             prepare=prepare,
             prefer_extended=self._row_factory not in _LEGACY_ROW_FACTORIES,
+            adapters=self.adapters,
         )
         self._make_row = None
         self._result_transformer = None
@@ -1069,7 +1117,9 @@ class NoTlsCursorAdapter:
         self._conn._check_closed()
         if returning:
             results = [
-                self._conn._execute(query, params, prepare=prepare).current_result
+                self._conn._execute(
+                    query, params, prepare=prepare, adapters=self.adapters
+                ).current_result
                 for params in params_seq
             ]
             self._result = BackendResultCursor(
@@ -1079,7 +1129,7 @@ class NoTlsCursorAdapter:
             total = 0
             for params in params_seq:
                 result = self._conn._execute(
-                    query, params, prepare=prepare
+                    query, params, prepare=prepare, adapters=self.adapters
                 ).current_result
                 if result is not None:
                     total += result.rows_affected
@@ -1264,11 +1314,29 @@ class NoTlsCursorAdapter:
 
         if self._result_transformer is None:
             tx = AdaptTransformer(
-                _AdaptContext(self._conn, _pure_python_adapters(self._conn.adapters))
+                _AdaptContext(
+                    self._conn,
+                    _pure_python_adapters(
+                        self.adapters,
+                        text_loader_oids=(
+                            _TEXT_WIRE_OIDS
+                            if self.format == pq.Format.TEXT
+                            else frozenset()
+                        ),
+                    ),
+                    expose_connection=False,
+                )
             )
-            tx.set_loader_types(
-                [column.oid for column in descriptions], pq.Format.BINARY
-            )
+            tx._encoding = self._encoding
+            tx._row_loaders = [
+                tx.get_loader(
+                    column.oid,
+                    pq.Format.TEXT
+                    if self.format == pq.Format.TEXT and column.oid in _TEXT_WIRE_OIDS
+                    else pq.Format.BINARY,
+                ).load
+                for column in descriptions
+            ]
             self._result_transformer = tx
 
         return self._result_transformer.load_sequence(
@@ -1427,7 +1495,9 @@ class NoTlsPipelineAdapter:
                 queued_cur._rownumber = 0
         else:
             for query, queued_cur, params, prepare in self._queued:
-                queued_cur._result = self._conn._execute(query, params, prepare=prepare)
+                queued_cur._result = self._conn._execute(
+                    query, params, prepare=prepare, adapters=queued_cur.adapters
+                )
                 queued_cur._rownumber = 0
         self._queued.clear()
 
@@ -1508,11 +1578,14 @@ class NoTlsConnectionAdapter:
     def adapters(self) -> AdaptersMap:
         if self._adapters is None:
             self._adapters = AdaptersMap(postgres.adapters)
+            _install_wire_bytea_dumper(self._adapters)
         return self._adapters
 
     @property
-    def connection(self) -> NoTlsConnectionAdapter:
-        return self
+    def connection(self) -> None:
+        # C adaptation expects a real libpq PGconn here. Ferrocopg has no
+        # such handle, so exposing its compatibility shim would be invalid.
+        return None
 
     @property
     def pgconn(self) -> _PgconnEncodingShim:
@@ -1585,10 +1658,6 @@ class NoTlsConnectionAdapter:
             raise e.NotSupportedError(
                 "ferrocopg doesn't support server-side cursors yet"
             )
-        if binary:
-            raise e.NotSupportedError(
-                "ferrocopg doesn't support binary cursor results yet"
-            )
         if scrollable is not None:
             raise e.NotSupportedError(
                 "ferrocopg doesn't support scrollable cursors yet"
@@ -1597,7 +1666,10 @@ class NoTlsConnectionAdapter:
             raise e.NotSupportedError("ferrocopg doesn't support withhold cursors yet")
         if row_factory is None:
             row_factory = self.row_factory
-        return self.cursor_factory(self, row_factory=row_factory)
+        cur = self.cursor_factory(self, row_factory=row_factory)
+        if binary:
+            cur.format = pq.Format.BINARY
+        return cur
 
     def execute(
         self,
@@ -1821,10 +1893,11 @@ class NoTlsConnectionAdapter:
         *,
         prepare: bool,
         prefer_extended: bool = False,
+        adapters: AdaptersMap | None = None,
     ) -> BackendResultCursor:
         self._ensure_cancel_handle()
         self._ensure_transaction()
-        query, params = self._convert_query_params(query, params)
+        query, params = self._convert_query_params(query, params, adapters=adapters)
         if params is None:
             if prefer_extended:
                 return self._execute_extended_no_params(query)
@@ -1893,7 +1966,11 @@ class NoTlsConnectionAdapter:
         return BackendResultCursor(results, statuses)
 
     def _convert_query_params(
-        self, query: Query, params: Params | None
+        self,
+        query: Query,
+        params: Params | None,
+        *,
+        adapters: AdaptersMap | None = None,
     ) -> tuple[str, list[str | None] | _BoundParams | None]:
         if params is None:
             if isinstance(query, bytes):
@@ -1907,7 +1984,7 @@ class NoTlsConnectionAdapter:
             return query.decode(self._pgconn._encoding), _coerce_native_params(params)
 
         tx = AdaptTransformer(
-            _AdaptContext(self, self.adapters, expose_connection=False)
+            _AdaptContext(self, adapters or self.adapters, expose_connection=False)
         )
         tx._encoding = self._pgconn._encoding
         pgq = PostgresQuery(tx)
@@ -2060,8 +2137,13 @@ def _savepoint_sql(command: str, name: str) -> str:
 
 
 def _statusmessage_for_query(
-    query: str, result: _ResultSetLike | None = None
+    query: Query, result: _ResultSetLike | None = None
 ) -> str | None:
+    if isinstance(query, bytes):
+        query = query.decode()
+    elif not isinstance(query, str):
+        query = query.as_string(None)
+
     tokens = query.strip().split()
     if not tokens:
         return None

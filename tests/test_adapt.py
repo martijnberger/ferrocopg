@@ -108,6 +108,14 @@ def test_dump_connection_ctx(conn):
     assert cur.fetchone() == ("hellob",)
 
 
+@pytest.mark.parametrize(
+    "value",
+    [bytes(range(256)), bytearray(range(256)), memoryview(bytes(range(256)))],
+)
+def test_bytes_text_dumper(conn, value):
+    assert conn.execute("select %t::bytea", [value]).fetchone()[0] == bytes(value)
+
+
 def test_dump_cursor_ctx(conn):
     conn.adapters.register_dumper(str, make_bin_dumper("b"))
     conn.adapters.register_dumper(str, make_dumper("t"))
