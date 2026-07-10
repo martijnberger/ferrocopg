@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 from . import errors as e
 from . import postgres, pq
 from ._adapters_map import AdaptersMap
+from ._compat import Template
 from ._connection_base import Notify
 from ._copy_base import _format_row_text, _parse_row_text
 from ._encodings import conninfo_encoding, pg2pyenc
@@ -2141,6 +2142,8 @@ def _statusmessage_for_query(
 ) -> str | None:
     if isinstance(query, bytes):
         query = query.decode()
+    elif isinstance(query, Template):
+        query = query.strings[0]
     elif not isinstance(query, str):
         query = query.as_string(None)
 

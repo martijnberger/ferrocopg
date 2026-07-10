@@ -2829,7 +2829,7 @@ def test_no_tls_connection_adapter_psycopg_placeholders(
         closed = False
 
         def __init__(self) -> None:
-            self.calls: list[object] = []
+            self.calls: list[tuple[object, ...]] = []
 
         def close(self) -> None:
             pass
