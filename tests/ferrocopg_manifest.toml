@@ -69,8 +69,3 @@ glob = "tests/test_connection.py::*fileno*"
 tag = "fileno"
 reason = "raw socket access is a documented ferrocopg boundary"
 action = "skip"
-
-[[rules]]
-glob = "tests/test_rows.py::*"
-tag = "adapters"
-reason = "psycopg row-factory protocol parity is tracked in Milestone 3.3"

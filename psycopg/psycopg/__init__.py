@@ -58,7 +58,7 @@ from .errors import (
     Warning,
 )
 from .raw_cursor import AsyncRawCursor, AsyncRawServerCursor, RawCursor, RawServerCursor
-from .rows import Row, RowFactory
+from .rows import Row, RowFactory, tuple_row
 from .transaction import AsyncTransaction, Rollback, Transaction
 from .version import __version__ as __version__  # noqa: F401
 
@@ -96,18 +96,7 @@ def connect_ferrocopg(
         )
 
     if row_factory is None:
-        return _ferrocopg_module.backend_connection_adapter(
-            make_conninfo(conninfo, **kwargs),
-            cursor_factory=cast(
-                type[_ferrocopg_module.NoTlsCursorAdapter],
-                cursor_factory or _ferrocopg_module.NoTlsCursorAdapter,
-            ),
-            prepare_threshold=prepare_threshold,
-            autocommit=autocommit,
-            isolation_level=isolation_level,
-            read_only=read_only,
-            deferrable=deferrable,
-        )
+        row_factory = tuple_row
 
     return _ferrocopg_module.backend_connection_adapter(
         make_conninfo(conninfo, **kwargs),

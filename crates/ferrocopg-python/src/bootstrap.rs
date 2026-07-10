@@ -153,9 +153,11 @@ struct BackendResultSet {
     #[pyo3(get)]
     column_descriptions: Vec<BackendStatementColumn>,
     #[pyo3(get)]
-    rows: Vec<Vec<Option<String>>>,
+    rows: Vec<Vec<Option<Vec<u8>>>>,
     #[pyo3(get)]
     rows_affected: u64,
+    #[pyo3(get)]
+    is_tuples: bool,
 }
 
 #[derive(Clone)]
@@ -803,6 +805,7 @@ impl From<ferrocopg_postgres::ResultSet> for BackendResultSet {
                 .collect(),
             rows: result.rows,
             rows_affected: result.rows_affected,
+            is_tuples: result.is_tuples,
         }
     }
 }

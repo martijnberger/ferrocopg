@@ -7,7 +7,9 @@ use crate::model::{
 };
 use crate::params::{parsed_query_params, query_param_refs};
 use fallible_iterator::FallibleIterator;
+use postgres::types::{FromSql, Type};
 use std::collections::HashMap;
+use std::error::Error;
 use std::io::{Read, Write};
 use std::time::Duration;
 
@@ -45,11 +47,30 @@ impl SyncNoTlsCancelHandle {
     }
 }
 
+/// Capture a PostgreSQL value without assigning it a Rust type first.
+///
+/// `postgres` always receives extended-protocol result values in binary
+/// format. Keeping the bytes intact lets the Python adapter use Psycopg's
+/// established OID-specific loaders instead of duplicating them in Rust.
+#[derive(Debug)]
+struct WireValue(Vec<u8>);
+
+impl<'a> FromSql<'a> for WireValue {
+    fn from_sql(_: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
+        Ok(Self(raw.to_vec()))
+    }
+
+    fn accepts(_: &Type) -> bool {
+        true
+    }
+}
+
 pub struct SyncNoTlsSession {
     client: Option<postgres::Client>,
     tls_mode: SessionTlsMode,
     tls: Option<TlsOptions>,
     prepared: HashMap<u64, postgres::Statement>,
+    prepared_queries: HashMap<u64, String>,
     next_statement_id: u64,
 }
 
@@ -60,6 +81,7 @@ impl SyncNoTlsSession {
             tls_mode: SessionTlsMode::NoTls,
             tls: None,
             prepared: HashMap::new(),
+            prepared_queries: HashMap::new(),
             next_statement_id: 1,
         }
     }
@@ -70,6 +92,7 @@ impl SyncNoTlsSession {
             tls_mode: SessionTlsMode::Tls,
             tls: Some(tls),
             prepared: HashMap::new(),
+            prepared_queries: HashMap::new(),
             next_statement_id: 1,
         }
     }
@@ -81,6 +104,7 @@ impl SyncNoTlsSession {
             tls_mode: SessionTlsMode::NoTls,
             tls: None,
             prepared: HashMap::new(),
+            prepared_queries: HashMap::new(),
             next_statement_id: 1,
         }
     }
@@ -91,6 +115,7 @@ impl SyncNoTlsSession {
 
     pub fn close(&mut self) {
         self.prepared.clear();
+        self.prepared_queries.clear();
         self.client.take();
     }
 
@@ -198,6 +223,14 @@ impl SyncNoTlsSession {
             .client_mut()?
             .prepare(query)
             .map_err(ProbeError::Query)?;
+
+        // A zero-column SELECT is still a tuple result. The postgres crate
+        // represents it with an empty statement column list, indistinguishable
+        // from a command unless we inspect simple-query messages.
+        if statement.columns().is_empty() && params.is_empty() {
+            return self.run_no_column_statement(query);
+        }
+
         self.run_statement_params(&statement, params)
     }
 
@@ -236,6 +269,7 @@ impl SyncNoTlsSession {
         self.next_statement_id += 1;
         let description = statement_description(&statement);
         self.prepared.insert(statement_id, statement);
+        self.prepared_queries.insert(statement_id, query.to_owned());
         Ok(PreparedStatementInfo {
             statement_id,
             description,
@@ -271,6 +305,10 @@ impl SyncNoTlsSession {
         params: &[Option<String>],
     ) -> Result<ResultSet, ProbeError> {
         let statement = self.prepared_statement(statement_id)?.clone();
+        if statement.columns().is_empty() && params.is_empty() {
+            let query = self.prepared_query(statement_id)?.to_owned();
+            return self.run_no_column_statement(&query);
+        }
         self.run_statement_params(&statement, params)
     }
 
@@ -292,7 +330,9 @@ impl SyncNoTlsSession {
     pub fn close_prepared(&mut self, statement_id: u64) -> Result<(), ProbeError> {
         self.prepared
             .remove(&statement_id)
-            .map(|_| ())
+            .map(|_| {
+                self.prepared_queries.remove(&statement_id);
+            })
             .ok_or_else(|| missing_statement(statement_id))
     }
 
@@ -399,6 +439,66 @@ impl SyncNoTlsSession {
             .ok_or_else(|| missing_statement(statement_id))
     }
 
+    fn prepared_query(&self, statement_id: u64) -> Result<&str, ProbeError> {
+        if self.closed() {
+            return Err(ProbeError::Closed);
+        }
+
+        self.prepared_queries
+            .get(&statement_id)
+            .map(String::as_str)
+            .ok_or_else(|| missing_statement(statement_id))
+    }
+
+    fn run_no_column_statement(&mut self, query: &str) -> Result<ResultSet, ProbeError> {
+        let messages = self
+            .client_mut()?
+            .simple_query(query)
+            .map_err(ProbeError::Query)?;
+
+        let mut is_tuples = false;
+        let mut rows = Vec::new();
+
+        for message in messages {
+            match message {
+                postgres::SimpleQueryMessage::RowDescription(columns) => {
+                    if !columns.is_empty() {
+                        return Err(ProbeError::BadParam(
+                            "expected a zero-column result".to_owned(),
+                        ));
+                    }
+                    is_tuples = true;
+                }
+                postgres::SimpleQueryMessage::Row(row) => {
+                    if row.len() != 0 {
+                        return Err(ProbeError::BadParam(
+                            "expected a zero-column row".to_owned(),
+                        ));
+                    }
+                    rows.push(Vec::new());
+                }
+                postgres::SimpleQueryMessage::CommandComplete(rows_affected) => {
+                    return Ok(ResultSet {
+                        columns: Vec::new(),
+                        column_descriptions: Vec::new(),
+                        rows,
+                        rows_affected,
+                        is_tuples,
+                    });
+                }
+                _ => {
+                    return Err(ProbeError::BadParam(
+                        "unsupported simple query message from backend".to_owned(),
+                    ));
+                }
+            }
+        }
+
+        Err(ProbeError::BadParam(
+            "backend returned no completion message".to_owned(),
+        ))
+    }
+
     fn run_statement_params(
         &mut self,
         statement: &postgres::Statement,
@@ -417,6 +517,7 @@ impl SyncNoTlsSession {
                 column_descriptions: Vec::new(),
                 rows: Vec::new(),
                 rows_affected,
+                is_tuples: false,
             })
         } else {
             let rows = self
@@ -474,14 +575,29 @@ fn result_set_from_statement_rows(
         .iter()
         .map(|column| column.name.clone())
         .collect();
-    let rows = rows_to_text_values(rows)?;
+    let rows = rows_to_wire_values(rows)?;
     let rows_affected = rows.len() as u64;
     Ok(ResultSet {
         columns,
         column_descriptions,
         rows,
         rows_affected,
+        is_tuples: true,
     })
+}
+
+fn rows_to_wire_values(rows: Vec<postgres::Row>) -> Result<Vec<Vec<Option<Vec<u8>>>>, ProbeError> {
+    rows.into_iter()
+        .map(|row| {
+            (0..row.len())
+                .map(|index| {
+                    row.try_get::<_, Option<WireValue>>(index)
+                        .map(|value| value.map(|value| value.0))
+                        .map_err(ProbeError::Query)
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .collect()
 }
 
 fn rows_to_text_values(rows: Vec<postgres::Row>) -> Result<Vec<Vec<Option<String>>>, ProbeError> {

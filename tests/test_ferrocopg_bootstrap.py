@@ -2155,6 +2155,22 @@ def test_ferrocopg_param_text_coerces_timedelta() -> None:
     assert tx.dump_sequence([value], [object()]) == [b"3 days 1:01:01.000042"]
 
 
+def test_split_extended_statements() -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    assert module._split_extended_statements(
+        "select ';' as quoted; select \"semi;colon\"; "
+        "select $tag$semi;colon$tag$; "
+        "/* outer ; /* inner ; */ */ select 4; -- trailing ;\nselect 5"
+    ) == [
+        "select ';' as quoted",
+        'select "semi;colon"',
+        "select $tag$semi;colon$tag$",
+        "/* outer ; /* inner ; */ */ select 4",
+        "-- trailing ;\nselect 5",
+    ]
+
+
 def test_ferrocopg_wrapper(monkeypatch):
     module = importlib.import_module("psycopg._ferrocopg")
 
@@ -2390,7 +2406,7 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
     assert got == (
         "adapter",
         "dbname=postgres host=localhost port=5432 application_name=ferrocopg-tests",
-        ferrocopg_module.list_row,
+        psycopg_module.tuple_row,
         ferrocopg_module.NoTlsCursorAdapter,
         5,
         True,
@@ -2425,7 +2441,7 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
     assert got_cursor == (
         "adapter",
         "dbname=postgres",
-        ferrocopg_module.list_row,
+        psycopg_module.tuple_row,
         TrackingCursor,
         5,
         True,
@@ -3479,6 +3495,42 @@ def test_no_tls_connection_adapter_row_factories(
             ]
 
         def run_text_params(self, query: str, params: list[str | None]) -> object:
+            if query == "select typed":
+                return SimpleNamespace(
+                    columns=["n", "ratio", "enabled", "disabled", "label", "nullable"],
+                    column_descriptions=[
+                        SimpleNamespace(name="n", oid=23),
+                        SimpleNamespace(name="ratio", oid=701),
+                        SimpleNamespace(name="enabled", oid=16),
+                        SimpleNamespace(name="disabled", oid=16),
+                        SimpleNamespace(name="label", oid=25),
+                        SimpleNamespace(name="nullable", oid=25),
+                    ],
+                    rows=[
+                        [
+                            b"\x00\x00\x00\x07",
+                            b"@\x04\x00\x00\x00\x00\x00\x00",
+                            b"\x01",
+                            b"\x00",
+                            b"plain",
+                            None,
+                        ]
+                    ],
+                    rows_affected=1,
+                )
+            if not params:
+                return SimpleNamespace(
+                    columns=["id", "label"],
+                    column_descriptions=[
+                        SimpleNamespace(name="id", oid=23),
+                        SimpleNamespace(name="label", oid=25),
+                    ],
+                    rows=[
+                        [b"\x00\x00\x00\x01", b"one"],
+                        [b"\x00\x00\x00\x02", b"two"],
+                    ],
+                    rows_affected=2,
+                )
             return SimpleNamespace(columns=["value"], rows=[["3"]], rows_affected=1)
 
         def run_prepared_text_params(
@@ -3510,28 +3562,31 @@ def test_no_tls_connection_adapter_row_factories(
     ]
 
     psycopg_tuple_cur = conn.execute("select 1", row_factory=rows.tuple_row)
-    assert psycopg_tuple_cur.fetchall() == [("1", "one"), ("2", "two")]
+    assert psycopg_tuple_cur.fetchall() == [(1, "one"), (2, "two")]
 
     psycopg_dict_cur = conn.execute("select 1", row_factory=rows.dict_row)
     assert psycopg_dict_cur.fetchall() == [
-        {"id": "1", "label": "one"},
-        {"id": "2", "label": "two"},
+        {"id": 1, "label": "one"},
+        {"id": 2, "label": "two"},
     ]
 
     psycopg_namedtuple_cur = conn.execute("select 1", row_factory=rows.namedtuple_row)
     named_rows = psycopg_namedtuple_cur.fetchall()
-    assert [(row.id, row.label) for row in named_rows] == [("1", "one"), ("2", "two")]
+    assert [(row.id, row.label) for row in named_rows] == [(1, "one"), (2, "two")]
 
     class Item:
-        def __init__(self, id: str, label: str) -> None:
+        def __init__(self, id: int, label: str) -> None:
             self.id = id
             self.label = label
 
     psycopg_class_cur = conn.execute("select 1", row_factory=rows.class_row(Item))
     assert [(row.id, row.label) for row in psycopg_class_cur.fetchall()] == [
-        ("1", "one"),
-        ("2", "two"),
+        (1, "one"),
+        (2, "two"),
     ]
+
+    typed_cur = conn.execute("select typed", row_factory=rows.tuple_row)
+    assert typed_cur.fetchone() == (7, 2.5, True, False, "plain", None)
 
     scalar_cur = conn.execute(
         "select $1::text",
@@ -3599,6 +3654,8 @@ def test_no_tls_connection_adapter_row_factories(
 
 
 def test_no_tls_cursor_adapter_executemany(monkeypatch: pytest.MonkeyPatch) -> None:
+    import psycopg
+
     module = importlib.import_module("psycopg._ferrocopg")
 
     class StubSession:
@@ -3652,7 +3709,11 @@ def test_no_tls_cursor_adapter_executemany(monkeypatch: pytest.MonkeyPatch) -> N
         assert cur.rowcount == 2
         assert cur.statusmessage == "INSERT 0 2"
         assert cur.rownumber is None
-        assert cur.fetchall() == []
+        with pytest.raises(
+            psycopg.ProgrammingError,
+            match="the last operation didn't produce a result",
+        ):
+            cur.fetchall()
 
     with conn.cursor(row_factory=module.scalar_row) as cur:
         rv = cur.executemany(
@@ -4803,7 +4864,7 @@ def test_backend_run_text_params_no_tls_live(dsn: str) -> None:
     assert select_result is not None
     assert (select_result.columns, select_result.rows, select_result.rows_affected) == (
         ["total", "label"],
-        [["7", "sum"]],
+        [[b"7", b"sum"]],
         1,
     )
     assert [
@@ -4943,7 +5004,7 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
         bound_result.columns,
         bound_result.rows,
         bound_result.rows_affected,
-    ) == (["total", "label", "nullable"], [["7", "session", None]], 1)
+    ) == (["total", "label", "nullable"], [[b"7", b"session", None]], 1)
 
     marker = uuid.UUID("12345678-1234-5678-1234-567812345678")
     typed_bound = session.query_text_params(
@@ -5088,7 +5149,7 @@ def test_backend_no_tls_session_live(dsn: str) -> None:
         queried_prepared_result.columns,
         queried_prepared_result.rows,
         queried_prepared_result.rows_affected,
-    ) == (["id", "label"], [["13", "committed"], ["14", "prepared"]], 2)
+    ) == (["id", "label"], [[b"13", b"committed"], [b"14", b"prepared"]], 2)
     session.close_prepared(prepared_query.statement_id)
     with pytest.raises(psycopg.ProgrammingError, match="unknown prepared statement id"):
         session.describe_prepared(prepared_query.statement_id)
@@ -5204,13 +5265,13 @@ def test_backend_no_tls_session_adapter_live(dsn: str) -> None:
     )
     assert bound.columns == ["total", "label"]
     assert bound.rows_affected == 1
-    assert bound.fetchall() == [["7", "sum"]]
+    assert bound.fetchall() == [[b"7", b"sum"]]
 
     prepared = adapter.prepare_text(
         "select id::text as id, label from (values (1, 'one'), (2, 'two')) as t(id, label) where id >= $1::int4 order by id"
     )
     prepared_cur = adapter.execute_prepared(prepared.statement_id, ["2"])
-    assert prepared_cur.fetchall() == [["2", "two"]]
+    assert prepared_cur.fetchall() == [[b"2", b"two"]]
 
     adapter.close()
     assert adapter.closed is True
@@ -5544,6 +5605,10 @@ def test_backend_package_connect_ferrocopg_live(dsn: str) -> None:
 
     conn = cast(Any, psycopg.connect_ferrocopg(dsn))
     assert conn is not None
+    assert conn.execute("select 42::int4 as answer").fetchall() == [(42,)]
+    assert conn.execute("select 'semi;colon'::text as label").fetchall() == [
+        ("semi;colon",)
+    ]
 
     cur = conn.execute(
         "select 'ferrocopg'::text as label", row_factory=module.scalar_row
@@ -5613,7 +5678,7 @@ def test_backend_package_connect_ferrocopg_live(dsn: str) -> None:
     check = tx_conn.execute(
         "select count(*)::text as n from pg_tables where tablename = 'ferrocopg_connect_tx_test'"
     )
-    assert check.fetchall() == [["0"]]
+    assert check.fetchall() == [("0",)]
     tx_conn.close()
 
     table_name = f"ferrocopg_connect_ctx_{uuid.uuid4().hex[:12]}"
@@ -5625,7 +5690,7 @@ def test_backend_package_connect_ferrocopg_live(dsn: str) -> None:
     committed = verify_ctx_commit.execute(
         f'select id::text as id from "{table_name}" order by id'
     )
-    assert committed.fetchall() == [["1"]]
+    assert committed.fetchall() == [("1",)]
     verify_ctx_commit.execute(f'drop table "{table_name}"')
     verify_ctx_commit.close()
 

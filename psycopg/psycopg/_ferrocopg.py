@@ -22,6 +22,7 @@ from ._connection_base import Notify
 from ._copy_base import _format_row_text, _parse_row_text
 from ._encodings import conninfo_encoding, pg2pyenc
 from ._enums import IsolationLevel, PyFormat
+from ._py_transformer import Transformer as AdaptTransformer
 from ._queries import PostgresQuery
 from ._rmodule import __version__ as __version__
 from ._rmodule import _ferrocopg
@@ -41,8 +42,9 @@ class _StatementColumnLike(Protocol):
 class _ResultSetLike(Protocol):
     columns: list[str]
     column_descriptions: list[_StatementColumnLike]
-    rows: list[list[str | None]]
+    rows: list[list[bytes | str | None]]
     rows_affected: int
+    is_tuples: bool
 
 
 class _SyntheticResult:
@@ -50,15 +52,17 @@ class _SyntheticResult:
         self,
         columns: list[str] | None = None,
         column_descriptions: list[_StatementColumnLike] | None = None,
-        rows: list[list[str | None]] | None = None,
+        rows: list[list[bytes | str | None]] | None = None,
         rows_affected: int = 0,
         statusmessage: str | None = None,
+        is_tuples: bool = False,
     ):
         self.columns = columns or []
         self.column_descriptions = column_descriptions or []
         self.rows = rows or []
         self.rows_affected = rows_affected
         self.statusmessage = statusmessage
+        self.is_tuples = is_tuples
 
 
 class _PreparedStatementLike(Protocol):
@@ -150,16 +154,36 @@ class _PgconnEncodingShim:
 
 
 class _AdaptContext:
-    def __init__(self, conn: NoTlsConnectionAdapter):
+    def __init__(
+        self, conn: NoTlsConnectionAdapter, adapters: AdaptersMap | None = None
+    ):
         self._conn = conn
+        self._adapters = adapters or conn.adapters
 
     @property
     def adapters(self) -> AdaptersMap:
-        return self._conn.adapters
+        return self._adapters
 
     @property
     def connection(self) -> Any:
         return self._conn
+
+
+def _pure_python_adapters(template: AdaptersMap) -> AdaptersMap:
+    """Copy an adapter map without the libpq/C-only loader replacements."""
+    adapters = AdaptersMap(template)
+    original_loaders = {
+        optimized: original
+        for original, optimized in AdaptersMap._optimised.items()
+        if original is not optimized
+    }
+    for format in (pq.Format.TEXT, pq.Format.BINARY):
+        adapters._loaders[format] = {
+            oid: original_loaders.get(loader, loader)
+            for oid, loader in adapters._loaders[format].items()
+        }
+        adapters._own_loaders[format] = True
+    return adapters
 
 
 class BackendColumn(NamedTuple):
@@ -286,7 +310,10 @@ class BackendConnectionInfo:
             "select current_setting($1::text, true)::text as value",
             [param_name],
         ).fetchone()
-        return row[0] if row else None
+        value = row[0] if row else None
+        if value is None or isinstance(value, str):
+            return value
+        return bytes(value).decode(self._conn.pgconn._encoding)
 
     @property
     def encoding(self) -> str:
@@ -356,7 +383,11 @@ class _BackendPgResultShim:
     def __init__(self, result: _ResultSetLike, encoding: str):
         self._result = result
         self._encoding = encoding
-        self.status = ExecStatus.TUPLES_OK if result.columns else ExecStatus.COMMAND_OK
+        self.status = (
+            ExecStatus.TUPLES_OK
+            if getattr(result, "is_tuples", bool(result.columns or result.rows))
+            else ExecStatus.COMMAND_OK
+        )
         self.nfields = len(result.columns)
 
     def fname(self, index: int) -> bytes | None:
@@ -380,6 +411,85 @@ def _coerce_native_params(params: Params | None) -> list[str | None] | None:
             f" got {type(params).__qualname__}"
         )
     return [None if value is None else _coerce_param_text(value) for value in params]
+
+
+def _split_extended_statements(query: str) -> list[str]:
+    """Split top-level SQL statements without inspecting SQL values."""
+    statements: list[str] = []
+    start = position = 0
+    length = len(query)
+
+    while position < length:
+        char = query[position]
+        if char in "'\"":
+            position = _skip_sql_quote(query, position, char)
+        elif query.startswith("--", position):
+            newline = query.find("\n", position + 2)
+            position = length if newline < 0 else newline + 1
+        elif query.startswith("/*", position):
+            position = _skip_sql_comment(query, position)
+        elif char == "$":
+            position = _skip_dollar_quote(query, position) or position + 1
+        elif char == ";":
+            statement = query[start:position].strip()
+            if statement:
+                statements.append(statement)
+            start = position + 1
+            position += 1
+        else:
+            position += 1
+
+    statement = query[start:].strip()
+    if statement:
+        statements.append(statement)
+    return statements or [query]
+
+
+def _skip_sql_quote(query: str, position: int, quote: str) -> int:
+    position += 1
+    while position < len(query):
+        if query[position] == quote:
+            if position + 1 < len(query) and query[position + 1] == quote:
+                position += 2
+            else:
+                return position + 1
+        elif quote == "'" and query[position] == "\\":
+            position += 2
+        else:
+            position += 1
+    return position
+
+
+def _skip_sql_comment(query: str, position: int) -> int:
+    depth = 1
+    position += 2
+    while position < len(query) and depth:
+        if query.startswith("/*", position):
+            depth += 1
+            position += 2
+        elif query.startswith("*/", position):
+            depth -= 1
+            position += 2
+        else:
+            position += 1
+    return position
+
+
+def _skip_dollar_quote(query: str, position: int) -> int | None:
+    tag_end = query.find("$", position + 1)
+    if tag_end < 0:
+        return None
+
+    tag = query[position + 1 : tag_end]
+    if tag and (
+        not (tag[0].isalpha() or tag[0] == "_")
+        or not all(char.isalnum() or char == "_" for char in tag)
+    ):
+        return None
+
+    delimiter = query[position : tag_end + 1]
+    content_end = query.find(delimiter, tag_end + 1)
+    return len(query) if content_end < 0 else content_end + len(delimiter)
 
 
 class _NoTlsSessionLike(Protocol):
@@ -615,7 +725,7 @@ class BackendResultCursor:
             return None
         return self._statusmessages[self._index]
 
-    def fetchone(self) -> list[str | None] | None:
+    def fetchone(self) -> list[bytes | str | None] | None:
         result = self.current_result
         if result is None:
             return None
@@ -628,7 +738,7 @@ class BackendResultCursor:
         self._pos += 1
         return row
 
-    def fetchall(self) -> list[list[str | None]]:
+    def fetchall(self) -> list[list[bytes | str | None]]:
         result = self.current_result
         if result is None:
             return []
@@ -778,6 +888,7 @@ class NoTlsCursorAdapter:
         self._closed = False
         self._row_factory = row_factory
         self._make_row: RowMaker | None = None
+        self._result_transformer: AdaptTransformer | None = None
         self._rownumber: int | None = 0
         self.arraysize = 1
 
@@ -826,7 +937,7 @@ class NoTlsCursorAdapter:
         current = result.current_result
         if current is None:
             return None
-        if not current.columns and not current.rows:
+        if not getattr(current, "is_tuples", bool(current.columns or current.rows)):
             return None
         return self._rownumber
 
@@ -854,6 +965,7 @@ class NoTlsCursorAdapter:
     def close(self) -> None:
         self._closed = True
         self._result = None
+        self._result_transformer = None
 
     def copy(
         self,
@@ -888,9 +1000,17 @@ class NoTlsCursorAdapter:
             raise e.NotSupportedError(
                 "ferrocopg doesn't support binary cursor execution yet"
             )
-        self._result = self._conn._execute(query, params, prepare=prepare)
+        self._result = self._conn._execute(
+            query,
+            params,
+            prepare=prepare,
+            prefer_extended=self._row_factory not in _LEGACY_ROW_FACTORIES,
+        )
         self._make_row = None
+        self._result_transformer = None
         self._rownumber = 0
+        if self._row_factory not in _LEGACY_ROW_FACTORIES:
+            self._make_row_for_result(self._result)
         return self
 
     def executemany(
@@ -923,6 +1043,7 @@ class NoTlsCursorAdapter:
             synthetic.statusmessage = _statusmessage_for_query(query, synthetic)
             self._result = BackendResultCursor([synthetic])
         self._make_row = None
+        self._result_transformer = None
         self._rownumber = 0
 
     def stream(
@@ -950,6 +1071,7 @@ class NoTlsCursorAdapter:
 
     def _fetchone_row(self) -> object:
         result = self._require_result()
+        self._check_result_for_fetch(result)
         row = result.fetchone()
         if row is None:
             return _NO_ROW
@@ -958,6 +1080,7 @@ class NoTlsCursorAdapter:
 
     def fetchall(self) -> list[object]:
         result = self._require_result()
+        self._check_result_for_fetch(result)
         rows = result.fetchall()
         self._rownumber = (self._rownumber or 0) + len(rows)
         make_row = self._make_row_for_result(result)
@@ -965,6 +1088,7 @@ class NoTlsCursorAdapter:
 
     def fetchmany(self, size: int = 0) -> list[object]:
         result = self._require_result()
+        self._check_result_for_fetch(result)
         if not size:
             size = self.arraysize
         rows: list[object] = []
@@ -996,6 +1120,7 @@ class NoTlsCursorAdapter:
         rv = result.nextset()
         if rv:
             self._make_row = None
+            self._result_transformer = None
             self._rownumber = 0
         return rv
 
@@ -1003,6 +1128,7 @@ class NoTlsCursorAdapter:
         result = self._require_result()
         result.set_result(index)
         self._make_row = None
+        self._result_transformer = None
         self._rownumber = 0
         return self
 
@@ -1047,6 +1173,13 @@ class NoTlsCursorAdapter:
             raise e.ProgrammingError("no result available")
         return self._result
 
+    def _check_result_for_fetch(self, result: BackendResultCursor) -> None:
+        current = result.current_result
+        if current is None or not getattr(
+            current, "is_tuples", bool(current.columns or current.rows)
+        ):
+            raise e.ProgrammingError("the last operation didn't produce a result")
+
     def _make_row_for_result(self, result: BackendResultCursor) -> RowMaker:
         current = result.current_result
         if current is None:
@@ -1056,13 +1189,47 @@ class NoTlsCursorAdapter:
             legacy = cast(LegacyRowFactory, row_factory)
 
             def make_legacy_row(row: Sequence[object]) -> object:
-                return legacy(current.columns, cast(list[str | None], list(row)))
+                values = self._load_result_values(current, row)
+                return legacy(current.columns, cast(list[str | None], list(values)))
 
             return make_legacy_row
 
         if self._make_row is None:
             self._make_row = cast(RowMaker, row_factory(self))
-        return self._make_row
+        make_row = self._make_row
+
+        def make_typed_row(row: Sequence[object]) -> object:
+            return make_row(self._load_result_values(current, row))
+
+        return make_typed_row
+
+    def _load_result_values(
+        self, result: _ResultSetLike, row: Sequence[object]
+    ) -> tuple[object, ...]:
+        descriptions = getattr(result, "column_descriptions", None)
+        if not descriptions:
+            return tuple(row)
+
+        # Test doubles and simple-query results may already carry text. Live
+        # extended-query results always arrive here as binary wire values.
+        if any(
+            value is not None and not isinstance(value, (bytes, bytearray, memoryview))
+            for value in row
+        ):
+            return tuple(row)
+
+        if self._result_transformer is None:
+            tx = AdaptTransformer(
+                _AdaptContext(self._conn, _pure_python_adapters(self._conn.adapters))
+            )
+            tx.set_loader_types(
+                [column.oid for column in descriptions], pq.Format.BINARY
+            )
+            self._result_transformer = tx
+
+        return self._result_transformer.load_sequence(
+            cast(Sequence[Buffer | None], row)
+        )
 
 
 class NoTlsCopyAdapter:
@@ -1613,11 +1780,14 @@ class NoTlsConnectionAdapter:
         params: Params | None,
         *,
         prepare: bool,
+        prefer_extended: bool = False,
     ) -> BackendResultCursor:
         self._ensure_cancel_handle()
         self._ensure_transaction()
         query, params = self._convert_query_params(query, params)
         if params is None:
+            if prefer_extended:
+                return self._execute_extended_no_params(query)
             return self._session.execute_simple(query)
 
         if not prepare and self.prepare_threshold is not None:
@@ -1641,6 +1811,17 @@ class NoTlsConnectionAdapter:
             )
 
         return self._session.execute_params(query, params)
+
+    def _execute_extended_no_params(self, query: str) -> BackendResultCursor:
+        results: list[_ResultSetLike] = []
+        statuses: list[str | None] = []
+        for statement in _split_extended_statements(query):
+            result_cursor = self._session.execute_params(statement, [])
+            result = result_cursor.current_result
+            if result is not None:
+                results.append(result)
+                statuses.append(_statusmessage_for_query(statement, result))
+        return BackendResultCursor(results, statuses)
 
     def _convert_query_params(
         self, query: Query, params: Params | None
