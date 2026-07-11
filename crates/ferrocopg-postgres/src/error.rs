@@ -21,6 +21,15 @@ pub struct PostgresDiagnostic {
     pub source_file: Option<String>,
     pub source_line: Option<String>,
     pub source_function: Option<String>,
+    raw_fields: Vec<(u8, Vec<u8>)>,
+}
+
+impl PostgresDiagnostic {
+    pub fn raw_field(&self, field_type: u8) -> Option<&[u8]> {
+        self.raw_fields
+            .iter()
+            .find_map(|(type_, value)| (*type_ == field_type).then_some(value.as_slice()))
+    }
 }
 
 #[derive(Debug)]
@@ -81,6 +90,7 @@ fn postgres_error_message(err: &postgres::Error) -> String {
 }
 
 pub(crate) fn postgres_diagnostic(db_err: &postgres::error::DbError) -> PostgresDiagnostic {
+    const FIELD_TYPES: &[u8] = b"SVCMDHPpqWstcdnFLR";
     let (statement_position, internal_position, internal_query) = match db_err.position() {
         Some(postgres::error::ErrorPosition::Original(position)) => {
             (Some(position.to_string()), None, None)
@@ -112,5 +122,13 @@ pub(crate) fn postgres_diagnostic(db_err: &postgres::error::DbError) -> Postgres
         source_file: db_err.file().map(str::to_owned),
         source_line: db_err.line().map(|line| line.to_string()),
         source_function: db_err.routine().map(str::to_owned),
+        raw_fields: FIELD_TYPES
+            .iter()
+            .filter_map(|type_| {
+                db_err
+                    .field_bytes(*type_)
+                    .map(|value| (*type_, value.to_vec()))
+            })
+            .collect(),
     }
 }

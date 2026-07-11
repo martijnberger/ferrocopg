@@ -116,7 +116,7 @@ disallow_untyped_calls = false
 
 [tool.codespell]
 ignore-words-list = "alot,ans,ba,fo,te,erro,varning,perfor"
-skip = "build,_build,.tox,.mypy_cache,.venv,pq.c,_psycopg.c,*.html"
+skip = "build,_build,.tox,.mypy_cache,.venv,pq.c,_psycopg.c,*.html,vendor/*"
 
 [tool.ruff]
 line-length = 88

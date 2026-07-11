@@ -931,6 +931,7 @@ class NoTlsSessionAdapter:
 
     def __init__(self, session: _NoTlsSessionLike):
         self._session = session
+        self.encoding = "utf-8"
         self.notice_handler: (
             Callable[[Sequence[dict[int, bytes | None]]], None] | None
         ) = None
@@ -1058,14 +1059,19 @@ class NoTlsSessionAdapter:
         self._drain_notices()
         return result
 
-    @staticmethod
     def _normalize_error(
-        ex: e.Error, method: Callable[..., object], args: tuple[object, ...]
+        self, ex: e.Error, method: Callable[..., object], args: tuple[object, ...]
     ) -> None:
         if not isinstance(ex._info, dict):
             return
 
-        message = str(ex)
+        raw_message = ex._info.get(pq.DiagnosticField.MESSAGE_PRIMARY)
+        message = (
+            raw_message.decode(self.encoding, "replace")
+            if raw_message is not None
+            else str(ex)
+        )
+        ex._encoding = self.encoding
         method_name = getattr(method, "__name__", "")
         if (
             method_name
@@ -1083,7 +1089,8 @@ class NoTlsSessionAdapter:
             query = args[0].strip()
             if query and query not in message:
                 message = f"{message}\nLINE 1: {query}"
-                ex.args = (message,)
+
+        ex.args = (message,)
 
         ex._info = cast(Any, _BackendErrorResult(ex._info, message))
 
@@ -1706,11 +1713,13 @@ class NoTlsConnectionAdapter:
         self._closed = False
         self._adapters: AdaptersMap | None = None
         self._pgconn = _PgconnEncodingShim("utf-8", self)
+        self._session.encoding = self._pgconn._encoding
         self._isolation_level: IsolationLevel | None = None
         self._read_only: bool | None = None
         self._deferrable: bool | None = None
         self._notice_handlers: list[NoticeHandler] = []
         self._notify_handlers: list[NotifyHandler] = []
+        self._encoding_changed_in_transaction = False
         self._session.notice_handler = self._dispatch_notices
         self._cancel_handle: _CancelHandleLike | None = None
         self._ensure_cancel_handle()
@@ -1897,7 +1906,9 @@ class NoTlsConnectionAdapter:
             pass
         result = result_cursor.current_result
         if result is None:
+            self._refresh_client_encoding(query)
             return None
+        self._refresh_client_encoding(query)
         return _BackendPgResultShim(
             result,
             self._pgconn._encoding,
@@ -2052,7 +2063,7 @@ class NoTlsConnectionAdapter:
 
     def _dispatch_notices(self, notices: Sequence[dict[int, bytes | None]]) -> None:
         for info in notices:
-            diag = e.Diagnostic(info)
+            diag = e.Diagnostic(info, encoding=self._pgconn._encoding)
             for callback in self._notice_handlers:
                 try:
                     callback(diag)
@@ -2089,33 +2100,65 @@ class NoTlsConnectionAdapter:
         query, params = self._convert_query_params(query, params, adapters=adapters)
         if params is None:
             if prefer_extended:
-                return self._execute_extended_no_params(query)
-            return self._session.execute_simple(query)
+                result = self._execute_extended_no_params(query)
+            else:
+                result = self._session.execute_simple(query)
+        elif isinstance(params, _BoundParams):
+            result = self._execute_bound(query, params, prepare)
+        else:
+            if not prepare and self.prepare_threshold is not None:
+                count = self._prepare_counts.get(query, 0)
+                prepare = count >= self.prepare_threshold
+                self._prepare_counts[query] = count + 1
 
-        if isinstance(params, _BoundParams):
-            return self._execute_bound(query, params, prepare)
-
-        if not prepare and self.prepare_threshold is not None:
-            count = self._prepare_counts.get(query, 0)
-            prepare = count >= self.prepare_threshold
-            self._prepare_counts[query] = count + 1
-
-        if prepare:
-            statement_id = self._prepared.get(query)
-            if statement_id is None:
-                prepared = self._session.prepare_text(query)
-                statement_id = prepared.statement_id
-                self._prepared[query] = statement_id
-                self._prepared_statusmessages[statement_id] = _statusmessage_for_query(
-                    query
+            if prepare:
+                statement_id = self._prepared.get(query)
+                if statement_id is None:
+                    prepared = self._session.prepare_text(query)
+                    statement_id = prepared.statement_id
+                    self._prepared[query] = statement_id
+                    self._prepared_statusmessages[statement_id] = (
+                        _statusmessage_for_query(query)
+                    )
+                result = self._session.execute_prepared(
+                    statement_id,
+                    params,
+                    statusmessage=self._prepared_statusmessages.get(statement_id),
                 )
-            return self._session.execute_prepared(
-                statement_id,
-                params,
-                statusmessage=self._prepared_statusmessages.get(statement_id),
-            )
+            else:
+                result = self._session.execute_params(query, params)
 
-        return self._session.execute_params(query, params)
+        self._refresh_client_encoding(query)
+        return result
+
+    def _refresh_client_encoding(self, query: str) -> None:
+        normalized = query.lstrip().lower()
+        changes_encoding = (
+            "client_encoding" in normalized
+            or normalized.startswith("set names")
+            or normalized.startswith("reset all")
+            or normalized.startswith("discard all")
+        )
+        transaction_boundary = normalized.startswith(("commit", "rollback"))
+        if not changes_encoding and not (
+            transaction_boundary and self._encoding_changed_in_transaction
+        ):
+            return
+
+        row = self._session.execute_params(
+            "select current_setting($1::text, true)::text as value",
+            ["client_encoding"],
+        ).fetchone()
+        pg_encoding = row[0] if row else None
+        if isinstance(pg_encoding, bytes):
+            pg_encoding = pg_encoding.decode("ascii")
+        if isinstance(pg_encoding, str):
+            self._pgconn._encoding = pg2pyenc(pg_encoding.encode("ascii"))
+            self._session.encoding = self._pgconn._encoding
+        if changes_encoding and self._in_transaction:
+            self._encoding_changed_in_transaction = True
+        elif transaction_boundary and not normalized.startswith("rollback to"):
+            self._encoding_changed_in_transaction = False
 
     def _execute_bound(
         self, query: str, params: _BoundParams, prepare: bool

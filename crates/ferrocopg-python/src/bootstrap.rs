@@ -302,13 +302,11 @@ fn set_diagnostic_field(
     info: &Bound<'_, PyDict>,
     fields: &Bound<'_, PyAny>,
     name: &str,
-    value: Option<&str>,
+    raw_value: Option<&[u8]>,
+    fallback: Option<&str>,
 ) -> PyResult<()> {
-    if let Some(value) = value {
-        info.set_item(
-            fields.getattr(name)?,
-            PyBytes::new(info.py(), value.as_bytes()),
-        )?;
+    if let Some(value) = raw_value.or_else(|| fallback.map(str::as_bytes)) {
+        info.set_item(fields.getattr(name)?, PyBytes::new(info.py(), value))?;
     }
     Ok(())
 }
@@ -319,97 +317,130 @@ fn backend_diagnostic_info<'py>(
 ) -> PyResult<Bound<'py, PyDict>> {
     let fields = py.import("psycopg.pq")?.getattr("DiagnosticField")?;
     let info = PyDict::new(py);
-    set_diagnostic_field(&info, &fields, "SEVERITY", diagnostic.severity.as_deref())?;
+    set_diagnostic_field(
+        &info,
+        &fields,
+        "SEVERITY",
+        diagnostic.raw_field(b'S'),
+        diagnostic.severity.as_deref(),
+    )?;
     set_diagnostic_field(
         &info,
         &fields,
         "SEVERITY_NONLOCALIZED",
+        diagnostic.raw_field(b'V'),
         diagnostic.severity_nonlocalized.as_deref(),
     )?;
-    set_diagnostic_field(&info, &fields, "SQLSTATE", Some(&diagnostic.sqlstate))?;
+    set_diagnostic_field(
+        &info,
+        &fields,
+        "SQLSTATE",
+        diagnostic.raw_field(b'C'),
+        Some(&diagnostic.sqlstate),
+    )?;
     set_diagnostic_field(
         &info,
         &fields,
         "MESSAGE_PRIMARY",
+        diagnostic.raw_field(b'M'),
         Some(&diagnostic.message_primary),
     )?;
     set_diagnostic_field(
         &info,
         &fields,
         "MESSAGE_DETAIL",
+        diagnostic.raw_field(b'D'),
         diagnostic.message_detail.as_deref(),
     )?;
     set_diagnostic_field(
         &info,
         &fields,
         "MESSAGE_HINT",
+        diagnostic.raw_field(b'H'),
         diagnostic.message_hint.as_deref(),
     )?;
     set_diagnostic_field(
         &info,
         &fields,
         "STATEMENT_POSITION",
+        diagnostic.raw_field(b'P'),
         diagnostic.statement_position.as_deref(),
     )?;
     set_diagnostic_field(
         &info,
         &fields,
         "INTERNAL_POSITION",
+        diagnostic.raw_field(b'p'),
         diagnostic.internal_position.as_deref(),
     )?;
     set_diagnostic_field(
         &info,
         &fields,
         "INTERNAL_QUERY",
+        diagnostic.raw_field(b'q'),
         diagnostic.internal_query.as_deref(),
     )?;
-    set_diagnostic_field(&info, &fields, "CONTEXT", diagnostic.context.as_deref())?;
+    set_diagnostic_field(
+        &info,
+        &fields,
+        "CONTEXT",
+        diagnostic.raw_field(b'W'),
+        diagnostic.context.as_deref(),
+    )?;
     set_diagnostic_field(
         &info,
         &fields,
         "SCHEMA_NAME",
+        diagnostic.raw_field(b's'),
         diagnostic.schema_name.as_deref(),
     )?;
     set_diagnostic_field(
         &info,
         &fields,
         "TABLE_NAME",
+        diagnostic.raw_field(b't'),
         diagnostic.table_name.as_deref(),
     )?;
     set_diagnostic_field(
         &info,
         &fields,
         "COLUMN_NAME",
+        diagnostic.raw_field(b'c'),
         diagnostic.column_name.as_deref(),
     )?;
     set_diagnostic_field(
         &info,
         &fields,
         "DATATYPE_NAME",
+        diagnostic.raw_field(b'd'),
         diagnostic.datatype_name.as_deref(),
     )?;
     set_diagnostic_field(
         &info,
         &fields,
         "CONSTRAINT_NAME",
+        diagnostic.raw_field(b'n'),
         diagnostic.constraint_name.as_deref(),
     )?;
     set_diagnostic_field(
         &info,
         &fields,
         "SOURCE_FILE",
+        diagnostic.raw_field(b'F'),
         diagnostic.source_file.as_deref(),
     )?;
     set_diagnostic_field(
         &info,
         &fields,
         "SOURCE_LINE",
+        diagnostic.raw_field(b'L'),
         diagnostic.source_line.as_deref(),
     )?;
     set_diagnostic_field(
         &info,
         &fields,
         "SOURCE_FUNCTION",
+        diagnostic.raw_field(b'R'),
         diagnostic.source_function.as_deref(),
     )?;
     Ok(info)

@@ -4916,7 +4916,7 @@ def test_backend_notice_handler_dispatch(
                     psycopg.pq.DiagnosticField.SEVERITY: b"NOTICE",
                     psycopg.pq.DiagnosticField.SEVERITY_NONLOCALIZED: b"NOTICE",
                     psycopg.pq.DiagnosticField.SQLSTATE: b"00000",
-                    psycopg.pq.DiagnosticField.MESSAGE_PRIMARY: b"hello from rust",
+                    psycopg.pq.DiagnosticField.MESSAGE_PRIMARY: b"price \xa4",
                     psycopg.pq.DiagnosticField.MESSAGE_DETAIL: b"queued safely",
                 }
             )
@@ -4936,6 +4936,8 @@ def test_backend_notice_handler_dispatch(
 
     session = module.NoTlsSessionAdapter(cast(Any, StubSession()))
     conn = module.NoTlsConnectionAdapter(session)
+    conn.pgconn._encoding = "iso8859-15"
+    session.encoding = conn.pgconn._encoding
     received: list[psycopg.errors.Diagnostic] = []
 
     def broken_handler(diag: psycopg.errors.Diagnostic) -> None:
@@ -4950,7 +4952,7 @@ def test_backend_notice_handler_dispatch(
     assert received[0].severity == "NOTICE"
     assert received[0].severity_nonlocalized == "NOTICE"
     assert received[0].sqlstate == "00000"
-    assert received[0].message_primary == "hello from rust"
+    assert received[0].message_primary == "price \u20ac"
     assert received[0].message_detail == "queued safely"
     assert "broken notice handler" in caplog.text
 
@@ -4993,6 +4995,7 @@ def test_backend_error_adapter_compatibility() -> None:
                         psycopg.pq.DiagnosticField.MESSAGE_PRIMARY: (
                             b'relation "wat" does not exist'
                         ),
+                        psycopg.pq.DiagnosticField.MESSAGE_DETAIL: b"price \xa4",
                         psycopg.pq.DiagnosticField.STATEMENT_POSITION: b"15",
                     },
                 )
@@ -5011,7 +5014,10 @@ def test_backend_error_adapter_compatibility() -> None:
             return SimpleNamespace(columns=["value"], rows=[["UTF8"]], rows_affected=1)
 
     stub = StubSession()
-    conn = module.NoTlsConnectionAdapter(module.NoTlsSessionAdapter(cast(Any, stub)))
+    session = module.NoTlsSessionAdapter(cast(Any, stub))
+    conn = module.NoTlsConnectionAdapter(session)
+    conn.pgconn._encoding = "iso8859-15"
+    session.encoding = conn.pgconn._encoding
 
     with pytest.raises(psycopg.errors.UndefinedTable) as excinfo:
         conn.execute("select * from wat")
@@ -5022,6 +5028,7 @@ def test_backend_error_adapter_compatibility() -> None:
     assert exc.pgresult is not None
     assert exc.pgresult.error_field(psycopg.pq.DiagnosticField.SQLSTATE) == b"42P01"
     assert exc.diag.message_primary == 'relation "wat" does not exist'
+    assert exc.diag.message_detail == "price \u20ac"
 
     pickled = pickle.loads(pickle.dumps(exc))
     assert pickled.pgresult is None
@@ -5065,9 +5072,16 @@ def test_backend_notice_handler_live(dsn: str) -> None:
         assert diag.source_line
         assert diag.source_function
 
+        conn.execute("set client_encoding to latin9")
+        assert conn.info.encoding == "iso8859-15"
+        conn.execute(
+            "do $$begin raise notice 'price %', chr(8364); end$$ language plpgsql"
+        )
+        assert received[-1].message_primary == "price \u20ac"
+
         conn.remove_notice_handler(received.append)
         conn.execute("do $$begin raise notice 'ignored'; end$$ language plpgsql")
-        assert len(received) == 1
+        assert len(received) == 2
 
 
 def test_backend_no_tls_error_mapping_live(dsn: str) -> None:
