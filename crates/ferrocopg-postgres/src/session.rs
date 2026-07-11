@@ -1,5 +1,5 @@
 use crate::conninfo::TlsOptions;
-use crate::error::ProbeError;
+use crate::error::{PostgresDiagnostic, ProbeError};
 use crate::model::{
     BackendNotification, BoundParam, CopyOutResult, ExecuteResult, PreparedStatementInfo,
     ResultSet, SimpleQueryMessage, SimpleQueryResult, StatementColumn, StatementDescription,
@@ -11,9 +11,10 @@ use crate::params::{
 };
 use fallible_iterator::FallibleIterator;
 use postgres::types::{FromSql, Type};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::error::Error;
 use std::io::{Read, Write};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 #[derive(Clone, Copy)]
@@ -21,6 +22,8 @@ enum SessionTlsMode {
     NoTls,
     Tls,
 }
+
+pub(crate) type NoticeQueue = Arc<Mutex<VecDeque<PostgresDiagnostic>>>;
 
 #[derive(Clone)]
 pub struct SyncNoTlsCancelHandle {
@@ -70,6 +73,7 @@ impl<'a> FromSql<'a> for WireValue {
 
 pub struct SyncNoTlsSession {
     client: Option<postgres::Client>,
+    notices: NoticeQueue,
     tls_mode: SessionTlsMode,
     tls: Option<TlsOptions>,
     prepared: HashMap<u64, postgres::Statement>,
@@ -78,9 +82,10 @@ pub struct SyncNoTlsSession {
 }
 
 impl SyncNoTlsSession {
-    pub(crate) fn from_client(client: postgres::Client) -> Self {
+    pub(crate) fn from_client(client: postgres::Client, notices: NoticeQueue) -> Self {
         Self {
             client: Some(client),
+            notices,
             tls_mode: SessionTlsMode::NoTls,
             tls: None,
             prepared: HashMap::new(),
@@ -89,9 +94,14 @@ impl SyncNoTlsSession {
         }
     }
 
-    pub(crate) fn from_tls_client(client: postgres::Client, tls: TlsOptions) -> Self {
+    pub(crate) fn from_tls_client(
+        client: postgres::Client,
+        tls: TlsOptions,
+        notices: NoticeQueue,
+    ) -> Self {
         Self {
             client: Some(client),
+            notices,
             tls_mode: SessionTlsMode::Tls,
             tls: Some(tls),
             prepared: HashMap::new(),
@@ -104,6 +114,7 @@ impl SyncNoTlsSession {
     pub(crate) fn closed_for_tests() -> Self {
         Self {
             client: None,
+            notices: Arc::new(Mutex::new(VecDeque::new())),
             tls_mode: SessionTlsMode::NoTls,
             tls: None,
             prepared: HashMap::new(),
@@ -469,6 +480,18 @@ impl SyncNoTlsSession {
             .next()
             .map_err(ProbeError::Query)
             .map(|notification| notification.map(backend_notification))
+    }
+
+    pub fn drain_notices(&self) -> Result<Vec<PostgresDiagnostic>, ProbeError> {
+        if self.closed() {
+            return Err(ProbeError::Closed);
+        }
+
+        let mut notices = self
+            .notices
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        Ok(notices.drain(..).collect())
     }
 
     fn client_mut(&mut self) -> Result<&mut postgres::Client, ProbeError> {

@@ -8,18 +8,19 @@ extension to be present in every environment.
 
 from __future__ import annotations
 
+import logging
 import warnings
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import timedelta, timezone, tzinfo
 from time import monotonic
-from typing import Any, NamedTuple, Protocol, cast
+from typing import Any, NamedTuple, ParamSpec, Protocol, TypeVar, cast
 from zoneinfo import ZoneInfo
 
 from . import errors as e
 from . import postgres, pq
 from ._adapters_map import AdaptersMap
 from ._compat import Template
-from ._connection_base import Notify
+from ._connection_base import NoticeHandler, Notify
 from ._copy_base import _format_row_text, _parse_row_text
 from ._encodings import conninfo_encoding, pg2pyenc
 from ._enums import IsolationLevel, PyFormat
@@ -35,6 +36,10 @@ from .conninfo import _param_escape, conninfo_to_dict, make_conninfo
 from .pq import ExecStatus
 from .transaction import Rollback
 from .types.string import BytesDumper
+
+logger = logging.getLogger("psycopg")
+P = ParamSpec("P")
+T = TypeVar("T")
 
 
 class _StatementColumnLike(Protocol):
@@ -160,6 +165,31 @@ class _PgconnEncodingShim:
             return None
         value = self._conn.info.parameter_status(param_name.decode(self._encoding))
         return None if value is None else value.encode(self._encoding)
+
+    def exec_(self, query: bytes) -> _BackendPgResultShim | None:
+        if self._conn is None:
+            raise e.OperationalError("connection is closed")
+        return self._conn._exec_command(query)
+
+
+class _BackendErrorResult:
+    def __init__(self, info: dict[int, bytes | None], message: str):
+        self._info = info
+        self._message = message
+
+    def error_field(self, field: int) -> bytes | None:
+        return self._info.get(field)
+
+    def get_error_message(self, encoding: str = "utf-8") -> str:
+        del encoding
+        return self._message
+
+
+class _BackendConnectPgconn:
+    def __init__(self, conninfo: str):
+        summary = conninfo_summary(conninfo)
+        dbname = getattr(summary, "dbname", "") if summary is not None else ""
+        self.db = str(dbname or "").encode()
 
 
 class _AdaptContext:
@@ -600,6 +630,8 @@ class _NoTlsSessionLike(Protocol):
         self, timeout_ms: int
     ) -> _BackendNotificationLike | None: ...
 
+    def drain_notices(self) -> list[dict[int, bytes | None]]: ...
+
     def copy_from_stdin(self, query: str, data: bytes) -> int: ...
 
     def copy_to_stdout(self, query: str) -> _BackendCopyOutLike: ...
@@ -791,7 +823,12 @@ def backend_session(conninfo: str) -> object | None:
     """
     if not _ferrocopg:
         return None
-    return cast(object, _ferrocopg.connect_session(conninfo))
+    try:
+        return cast(object, _ferrocopg.connect_session(conninfo))
+    except e.Error as ex:
+        raise e.OperationalError(
+            str(ex), info=ex._info, pgconn=cast(Any, _BackendConnectPgconn(conninfo))
+        ) from None
 
 
 class BackendResultCursor:
@@ -894,6 +931,9 @@ class NoTlsSessionAdapter:
 
     def __init__(self, session: _NoTlsSessionLike):
         self._session = session
+        self.notice_handler: (
+            Callable[[Sequence[dict[int, bytes | None]]], None] | None
+        ) = None
 
     @property
     def closed(self) -> bool:
@@ -903,15 +943,15 @@ class NoTlsSessionAdapter:
         self._session.close()
 
     def probe(self) -> _BackendProbeLike:
-        return self._session.probe()
+        return self._call(self._session.probe)
 
     def execute_simple(self, query: str) -> BackendResultCursor:
-        results = self._session.simple_query_results(query)
+        results = self._call(self._session.simple_query_results, query)
         statuses = [_statusmessage_for_query(query, result) for result in results]
         return BackendResultCursor(results, statuses)
 
     def execute_pipeline_simple(self, queries: list[str]) -> list[BackendResultCursor]:
-        batches = self._session.pipeline_simple_query_results(queries)
+        batches = self._call(self._session.pipeline_simple_query_results, queries)
         return [
             BackendResultCursor(
                 results,
@@ -923,11 +963,11 @@ class NoTlsSessionAdapter:
     def execute_params(
         self, query: str, params: list[str | None]
     ) -> BackendResultCursor:
-        result = self._session.run_text_params(query, params)
+        result = self._call(self._session.run_text_params, query, params)
         return BackendResultCursor([result], [_statusmessage_for_query(query, result)])
 
     def execute_bound(self, query: str, params: _BoundParams) -> BackendResultCursor:
-        result = self._session.run_params(query, params.values)
+        result = self._call(self._session.run_params, query, params.values)
         return BackendResultCursor([result], [_statusmessage_for_query(query, result)])
 
     def execute_prepared(
@@ -937,11 +977,13 @@ class NoTlsSessionAdapter:
         *,
         statusmessage: str | None = None,
     ) -> BackendResultCursor:
-        result = self._session.run_prepared_text_params(statement_id, params)
+        result = self._call(
+            self._session.run_prepared_text_params, statement_id, params
+        )
         return BackendResultCursor([result], [statusmessage])
 
     def prepare_bound(self, query: str, params: _BoundParams) -> _PreparedStatementLike:
-        return self._session.prepare_params(query, list(params.types))
+        return self._call(self._session.prepare_params, query, list(params.types))
 
     def execute_prepared_bound(
         self,
@@ -950,39 +992,41 @@ class NoTlsSessionAdapter:
         *,
         statusmessage: str | None = None,
     ) -> BackendResultCursor:
-        result = self._session.run_prepared_params(statement_id, params.values)
+        result = self._call(
+            self._session.run_prepared_params, statement_id, params.values
+        )
         return BackendResultCursor([result], [statusmessage])
 
     def begin(self) -> None:
-        self._session.begin()
+        self._call(self._session.begin)
 
     def commit(self) -> None:
-        self._session.commit()
+        self._call(self._session.commit)
 
     def rollback(self) -> None:
-        self._session.rollback()
+        self._call(self._session.rollback)
 
     def cancel_handle(self) -> _CancelHandleLike:
-        return self._session.cancel_handle()
+        return self._call(self._session.cancel_handle)
 
     def listen(self, channel: str) -> None:
-        self._session.listen(channel)
+        self._call(self._session.listen, channel)
 
     def unlisten(self, channel: str) -> None:
-        self._session.unlisten(channel)
+        self._call(self._session.unlisten, channel)
 
     def notify(self, channel: str, payload: str = "") -> None:
-        self._session.notify(channel, payload)
+        self._call(self._session.notify, channel, payload)
 
     def drain_notifications(self) -> list[Notify]:
         return [
             Notify(n.channel, n.payload, n.process_id)
-            for n in self._session.drain_notifications()
+            for n in self._call(self._session.drain_notifications)
         ]
 
     def wait_for_notification(self, timeout: float = 0.0) -> Notify | None:
         timeout_ms = max(0, int(timeout * 1000))
-        notification = self._session.wait_for_notification(timeout_ms)
+        notification = self._call(self._session.wait_for_notification, timeout_ms)
         if notification is None:
             return None
         return Notify(
@@ -992,13 +1036,67 @@ class NoTlsSessionAdapter:
         )
 
     def copy_from_stdin(self, query: str, data: bytes) -> int:
-        return self._session.copy_from_stdin(query, data)
+        return self._call(self._session.copy_from_stdin, query, data)
 
     def copy_to_stdout(self, query: str) -> bytes:
-        return self._session.copy_to_stdout(query).data
+        return self._call(self._session.copy_to_stdout, query).data
 
     def prepare_text(self, query: str) -> _PreparedStatementLike:
-        return self._session.prepare_text(query)
+        return self._call(self._session.prepare_text, query)
+
+    def _call(self, method: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
+        try:
+            result = method(*args, **kwargs)
+        except BaseException as ex:
+            if isinstance(ex, e.Error):
+                self._normalize_error(ex, method, tuple(args))
+            try:
+                self._drain_notices()
+            except Exception:
+                logger.exception("error draining notices after backend failure")
+            raise
+        self._drain_notices()
+        return result
+
+    @staticmethod
+    def _normalize_error(
+        ex: e.Error, method: Callable[..., object], args: tuple[object, ...]
+    ) -> None:
+        if not isinstance(ex._info, dict):
+            return
+
+        message = str(ex)
+        method_name = getattr(method, "__name__", "")
+        if (
+            method_name
+            in {
+                "simple_query_results",
+                "pipeline_simple_query_results",
+                "run_text_params",
+                "run_params",
+                "prepare_text",
+                "prepare_params",
+            }
+            and args
+            and isinstance(args[0], str)
+        ):
+            query = args[0].strip()
+            if query and query not in message:
+                message = f"{message}\nLINE 1: {query}"
+                ex.args = (message,)
+
+        ex._info = cast(Any, _BackendErrorResult(ex._info, message))
+
+    def _drain_notices(self) -> None:
+        drain = cast(
+            Callable[[], list[dict[int, bytes | None]]] | None,
+            getattr(self._session, "drain_notices", None),
+        )
+        if drain is None:
+            return
+        notices = drain()
+        if notices and self.notice_handler is not None:
+            self.notice_handler(notices)
 
     def __getattr__(self, name: str) -> object:
         return getattr(self._session, name)
@@ -1570,6 +1668,17 @@ class NoTlsPipelineAdapter:
 class NoTlsConnectionAdapter:
     """Experimental connection-like bridge over the ferrocopg session adapter."""
 
+    Warning = e.Warning
+    Error = e.Error
+    InterfaceError = e.InterfaceError
+    DatabaseError = e.DatabaseError
+    DataError = e.DataError
+    OperationalError = e.OperationalError
+    IntegrityError = e.IntegrityError
+    InternalError = e.InternalError
+    ProgrammingError = e.ProgrammingError
+    NotSupportedError = e.NotSupportedError
+
     def __init__(
         self,
         session: NoTlsSessionAdapter,
@@ -1600,7 +1709,9 @@ class NoTlsConnectionAdapter:
         self._isolation_level: IsolationLevel | None = None
         self._read_only: bool | None = None
         self._deferrable: bool | None = None
+        self._notice_handlers: list[NoticeHandler] = []
         self._notify_handlers: list[NotifyHandler] = []
+        self._session.notice_handler = self._dispatch_notices
         self._cancel_handle: _CancelHandleLike | None = None
         self._ensure_cancel_handle()
 
@@ -1632,6 +1743,9 @@ class NoTlsConnectionAdapter:
     @property
     def pgconn(self) -> _PgconnEncodingShim:
         return self._pgconn
+
+    def parameter_status(self, param_name: bytes) -> bytes | None:
+        return self._pgconn.parameter_status(param_name)
 
     @property
     def autocommit(self) -> bool:
@@ -1876,13 +1990,11 @@ class NoTlsConnectionAdapter:
     def remove_notify_handler(self, callback: NotifyHandler) -> None:
         self._notify_handlers.remove(callback)
 
-    def add_notice_handler(self, callback: object) -> None:
-        del callback
-        raise e.NotSupportedError("ferrocopg doesn't support notice handlers yet")
+    def add_notice_handler(self, callback: NoticeHandler) -> None:
+        self._notice_handlers.append(callback)
 
-    def remove_notice_handler(self, callback: object) -> None:
-        del callback
-        raise e.NotSupportedError("ferrocopg doesn't support notice handlers yet")
+    def remove_notice_handler(self, callback: NoticeHandler) -> None:
+        self._notice_handlers.remove(callback)
 
     def notifies(
         self, *, timeout: float | None = None, stop_after: int | None = None
@@ -1937,6 +2049,17 @@ class NoTlsConnectionAdapter:
         for notification in notifications:
             for callback in self._notify_handlers:
                 callback(notification)
+
+    def _dispatch_notices(self, notices: Sequence[dict[int, bytes | None]]) -> None:
+        for info in notices:
+            diag = e.Diagnostic(info)
+            for callback in self._notice_handlers:
+                try:
+                    callback(diag)
+                except Exception as ex:
+                    logger.exception(
+                        "error processing notice callback '%s': %s", callback, ex
+                    )
 
     def __enter__(self) -> NoTlsConnectionAdapter:
         return self

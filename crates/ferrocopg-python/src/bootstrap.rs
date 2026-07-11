@@ -313,14 +313,10 @@ fn set_diagnostic_field(
     Ok(())
 }
 
-fn backend_error_info<'py>(
+fn backend_diagnostic_info<'py>(
     py: Python<'py>,
-    err: &ferrocopg_postgres::ProbeError,
-) -> PyResult<Option<Bound<'py, PyDict>>> {
-    let Some(diagnostic) = err.diagnostic() else {
-        return Ok(None);
-    };
-
+    diagnostic: &ferrocopg_postgres::PostgresDiagnostic,
+) -> PyResult<Bound<'py, PyDict>> {
     let fields = py.import("psycopg.pq")?.getattr("DiagnosticField")?;
     let info = PyDict::new(py);
     set_diagnostic_field(&info, &fields, "SEVERITY", diagnostic.severity.as_deref())?;
@@ -416,7 +412,17 @@ fn backend_error_info<'py>(
         "SOURCE_FUNCTION",
         diagnostic.source_function.as_deref(),
     )?;
-    Ok(Some(info))
+    Ok(info)
+}
+
+fn backend_error_info<'py>(
+    py: Python<'py>,
+    err: &ferrocopg_postgres::ProbeError,
+) -> PyResult<Option<Bound<'py, PyDict>>> {
+    err.diagnostic()
+        .as_ref()
+        .map(|diagnostic| backend_diagnostic_info(py, diagnostic))
+        .transpose()
 }
 
 fn psycopg_error_from_type(
@@ -1119,6 +1125,14 @@ impl BackendSyncNoTlsSession {
             session.wait_for_notification(timeout_ms)
         })
         .map(|notification| notification.map(BackendNotification::from))
+    }
+
+    fn drain_notices(&self, py: Python<'_>) -> PyResult<Vec<Py<PyDict>>> {
+        let notices = with_session(py, self, |session| session.drain_notices())?;
+        notices
+            .iter()
+            .map(|notice| backend_diagnostic_info(py, notice).map(Bound::unbind))
+            .collect()
     }
 
     fn describe_text(&self, py: Python<'_>, query: &str) -> PyResult<BackendStatementDescription> {

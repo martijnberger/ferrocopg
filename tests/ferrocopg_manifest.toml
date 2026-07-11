@@ -73,11 +73,6 @@ tag = "tpc"
 reason = "two-phase transactions are tracked in Milestone 3.6"
 
 [[rules]]
-glob = "tests/test_notify.py::*notice*"
-tag = "notice"
-reason = "notice handlers are tracked in Milestone 3.4"
-
-[[rules]]
 glob = "tests/test_pipeline.py::*"
 tag = "pipeline"
 reason = "full pipeline semantics are tracked in Milestone 3.6"

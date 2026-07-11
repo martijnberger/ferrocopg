@@ -97,12 +97,12 @@ Psycopg workflows:
 - Psycopg dumpers/loaders, typed results, cursor descriptions, and row factories
 - transactions, savepoints, transaction characteristics, and cancellation
 - text COPY in/out
-- LISTEN/NOTIFY and notification handlers
+- LISTEN/NOTIFY, notification handlers, and queued notice handlers
 - an explicit pipeline adapter
 
 Known gaps are kept in `plan.md` and `tests/ferrocopg_manifest.toml`. The main
 ones are async connections, server-cursor parity, binary/custom COPY, two-phase
-transactions, notice handlers, and exact libpq pipeline semantics. Raw libpq
+transactions, and exact libpq pipeline semantics. Raw libpq
 socket access and Psycopg's concrete cursor classes are documented backend
 boundaries. A ferrocopg-specific custom cursor must subclass
 `psycopg._ferrocopg.NoTlsCursorAdapter`.

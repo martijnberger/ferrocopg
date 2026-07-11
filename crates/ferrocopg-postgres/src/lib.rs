@@ -18,7 +18,7 @@ pub use bootstrap::{
     query_text_params_no_tls, run_text_params_no_tls, simple_query_no_tls,
     simple_query_results_no_tls,
 };
-pub use error::ProbeError;
+pub use error::{PostgresDiagnostic, ProbeError};
 pub use model::{
     BackendNotification, BoundParam, ConnectEndpoint, ConnectPlan, ConnectTarget, ConninfoSummary,
     CopyOutResult, ExecuteResult, ParamFormat, PreparedStatementInfo, ResultSet,
@@ -200,6 +200,7 @@ mod tests {
             session.wait_for_notification(10),
             Err(ProbeError::Closed)
         ));
+        assert!(matches!(session.drain_notices(), Err(ProbeError::Closed)));
         assert!(matches!(
             session.describe_text("select 1"),
             Err(ProbeError::Closed)

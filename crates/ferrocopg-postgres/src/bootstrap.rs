@@ -1,12 +1,14 @@
 use crate::conninfo::{LibpqSslMode, TlsOptions, normalize_conninfo};
-use crate::error::ProbeError;
+use crate::error::{ProbeError, postgres_diagnostic};
 use crate::model::{
     ConnectEndpoint, ConnectPlan, ConnectTarget, ConninfoSummary, ExecuteResult, ResultSet,
     SimpleQueryMessage, SimpleQueryResult, StatementDescription, SyncNoTlsProbe, TextQueryResult,
 };
-use crate::session::SyncNoTlsSession;
+use crate::session::{NoticeQueue, SyncNoTlsSession};
 use crate::tls::make_tls_connector;
+use std::collections::VecDeque;
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 
 const DEFAULT_CONNECT_TIMEOUT_SECS: u64 = 130;
 const MIN_CONNECT_TIMEOUT_SECS: u64 = 2;
@@ -220,12 +222,12 @@ impl BootstrapConfig {
             return Err(ProbeError::NoTlsNotSupported);
         }
 
-        let client = postgres::Config::from_str(self.tokio_conninfo())
-            .map_err(ProbeError::Parse)?
+        let (config, notices) = self.sync_config_with_notices()?;
+        let client = config
             .connect(postgres::NoTls)
             .map_err(ProbeError::Connect)?;
 
-        Ok(SyncNoTlsSession::from_client(client))
+        Ok(SyncNoTlsSession::from_client(client, notices))
     }
 
     pub fn connect_session(&self) -> Result<SyncNoTlsSession, ProbeError> {
@@ -248,8 +250,7 @@ impl BootstrapConfig {
     }
 
     fn connect_tls_session(&self, require_tls: bool) -> Result<SyncNoTlsSession, ProbeError> {
-        let mut config =
-            postgres::Config::from_str(self.tokio_conninfo()).map_err(ProbeError::Parse)?;
+        let (mut config, notices) = self.sync_config_with_notices()?;
         if require_tls {
             config.ssl_mode(postgres::config::SslMode::Require);
         }
@@ -257,7 +258,25 @@ impl BootstrapConfig {
             .connect(make_tls_connector(&self.tls).map_err(ProbeError::TlsConfig)?)
             .map_err(ProbeError::Connect)?;
 
-        Ok(SyncNoTlsSession::from_tls_client(client, self.tls.clone()))
+        Ok(SyncNoTlsSession::from_tls_client(
+            client,
+            self.tls.clone(),
+            notices,
+        ))
+    }
+
+    fn sync_config_with_notices(&self) -> Result<(postgres::Config, NoticeQueue), ProbeError> {
+        let mut config =
+            postgres::Config::from_str(self.tokio_conninfo()).map_err(ProbeError::Parse)?;
+        let notices = Arc::new(Mutex::new(VecDeque::new()));
+        let callback_notices = Arc::clone(&notices);
+        config.notice_callback(move |notice| {
+            callback_notices
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push_back(postgres_diagnostic(&notice));
+        });
+        Ok((config, notices))
     }
 }
 

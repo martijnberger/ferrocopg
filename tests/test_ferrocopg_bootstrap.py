@@ -4416,10 +4416,14 @@ def test_no_tls_connection_adapter_notice_and_fileno_contract(
 
     with pytest.raises(psycopg.NotSupportedError, match="socket fileno"):
         conn.fileno()
-    with pytest.raises(psycopg.NotSupportedError, match="notice handlers"):
-        conn.add_notice_handler(lambda notice: None)
-    with pytest.raises(psycopg.NotSupportedError, match="notice handlers"):
-        conn.remove_notice_handler(lambda notice: None)
+
+    def handler(notice: object) -> None:
+        del notice
+
+    conn.add_notice_handler(handler)
+    conn.remove_notice_handler(handler)
+    with pytest.raises(ValueError):
+        conn.remove_notice_handler(handler)
 
     conn._session._session.closed = True
     assert conn.closed is True
@@ -4725,6 +4729,45 @@ def test_backend_merge_conninfo_only_parses_base(
     )
 
 
+def test_backend_connect_error_preserves_operational_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import pickle
+
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubRustModule:
+        def connect_session(self, conninfo: str) -> None:
+            raise psycopg.errors.InvalidCatalogName(
+                'database "missing" does not exist',
+                info={
+                    psycopg.pq.DiagnosticField.SQLSTATE: b"3D000",
+                    psycopg.pq.DiagnosticField.MESSAGE_PRIMARY: (
+                        b'database "missing" does not exist'
+                    ),
+                },
+            )
+
+        def parse_conninfo_summary(self, conninfo: str) -> object:
+            return SimpleNamespace(dbname="missing")
+
+    monkeypatch.setattr(module, "_ferrocopg", StubRustModule())
+
+    with pytest.raises(psycopg.OperationalError) as excinfo:
+        module.backend_session("host=localhost dbname=missing")
+
+    assert type(excinfo.value) is psycopg.OperationalError
+    assert excinfo.value.diag.sqlstate == "3D000"
+    assert excinfo.value.pgconn is not None
+    assert excinfo.value.pgconn.db == b"missing"
+
+    pickled = pickle.loads(pickle.dumps(excinfo.value))
+    assert pickled.pgconn is None
+    assert pickled.diag.sqlstate == "3D000"
+
+
 @pytest.mark.parametrize(
     ("sslmode", "expected_ssl"),
     [
@@ -4842,6 +4885,189 @@ def test_backend_query_text_no_tls_live(dsn: str) -> None:
     assert len(result.rows) == 1
     assert result.rows[0][0]
     assert result.rows[0][1]
+
+
+def test_backend_notice_handler_dispatch(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubCancelHandle:
+        def cancel(self) -> None:
+            pass
+
+    class StubSession:
+        closed = False
+
+        def __init__(self) -> None:
+            self.notices: list[dict[int, bytes | None]] = []
+
+        def cancel_handle(self) -> StubCancelHandle:
+            return StubCancelHandle()
+
+        def close(self) -> None:
+            self.closed = True
+
+        def simple_query_results(self, query: str) -> list[object]:
+            self.notices.append(
+                {
+                    psycopg.pq.DiagnosticField.SEVERITY: b"NOTICE",
+                    psycopg.pq.DiagnosticField.SEVERITY_NONLOCALIZED: b"NOTICE",
+                    psycopg.pq.DiagnosticField.SQLSTATE: b"00000",
+                    psycopg.pq.DiagnosticField.MESSAGE_PRIMARY: b"hello from rust",
+                    psycopg.pq.DiagnosticField.MESSAGE_DETAIL: b"queued safely",
+                }
+            )
+            return [
+                SimpleNamespace(
+                    columns=[],
+                    column_descriptions=[],
+                    rows=[],
+                    rows_affected=0,
+                    is_tuples=False,
+                )
+            ]
+
+        def drain_notices(self) -> list[dict[int, bytes | None]]:
+            notices, self.notices = self.notices, []
+            return notices
+
+    session = module.NoTlsSessionAdapter(cast(Any, StubSession()))
+    conn = module.NoTlsConnectionAdapter(session)
+    received: list[psycopg.errors.Diagnostic] = []
+
+    def broken_handler(diag: psycopg.errors.Diagnostic) -> None:
+        del diag
+        raise RuntimeError("broken notice handler")
+
+    conn.add_notice_handler(broken_handler)
+    conn.add_notice_handler(received.append)
+    conn.execute("select 1")
+
+    assert len(received) == 1
+    assert received[0].severity == "NOTICE"
+    assert received[0].severity_nonlocalized == "NOTICE"
+    assert received[0].sqlstate == "00000"
+    assert received[0].message_primary == "hello from rust"
+    assert received[0].message_detail == "queued safely"
+    assert "broken notice handler" in caplog.text
+
+    conn.remove_notice_handler(broken_handler)
+    conn.remove_notice_handler(received.append)
+    with pytest.raises(ValueError):
+        conn.remove_notice_handler(received.append)
+
+
+def test_backend_error_adapter_compatibility() -> None:
+    import pickle
+
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubCancelHandle:
+        def cancel(self) -> None:
+            pass
+
+    class StubSession:
+        closed = False
+
+        def __init__(self) -> None:
+            self.fail = True
+
+        def cancel_handle(self) -> StubCancelHandle:
+            return StubCancelHandle()
+
+        def close(self) -> None:
+            self.closed = True
+
+        def simple_query_results(self, query: str) -> list[object]:
+            if self.fail:
+                raise psycopg.errors.UndefinedTable(
+                    'relation "wat" does not exist',
+                    info={
+                        psycopg.pq.DiagnosticField.SEVERITY: b"ERROR",
+                        psycopg.pq.DiagnosticField.SQLSTATE: b"42P01",
+                        psycopg.pq.DiagnosticField.MESSAGE_PRIMARY: (
+                            b'relation "wat" does not exist'
+                        ),
+                        psycopg.pq.DiagnosticField.STATEMENT_POSITION: b"15",
+                    },
+                )
+            return [
+                SimpleNamespace(
+                    columns=[],
+                    column_descriptions=[],
+                    rows=[],
+                    rows_affected=0,
+                    is_tuples=False,
+                )
+            ]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            assert params == ["client_encoding"]
+            return SimpleNamespace(columns=["value"], rows=[["UTF8"]], rows_affected=1)
+
+    stub = StubSession()
+    conn = module.NoTlsConnectionAdapter(module.NoTlsSessionAdapter(cast(Any, stub)))
+
+    with pytest.raises(psycopg.errors.UndefinedTable) as excinfo:
+        conn.execute("select * from wat")
+
+    exc = excinfo.value
+    assert isinstance(exc, conn.ProgrammingError)
+    assert "LINE 1: select * from wat" in str(exc)
+    assert exc.pgresult is not None
+    assert exc.pgresult.error_field(psycopg.pq.DiagnosticField.SQLSTATE) == b"42P01"
+    assert exc.diag.message_primary == 'relation "wat" does not exist'
+
+    pickled = pickle.loads(pickle.dumps(exc))
+    assert pickled.pgresult is None
+    assert pickled.diag.sqlstate == "42P01"
+
+    assert conn.parameter_status(b"client_encoding") == b"UTF8"
+    stub.fail = False
+    assert conn.pgconn.exec_(b"set client_min_messages to notice") is not None
+
+
+def test_backend_notice_handler_live(dsn: str) -> None:
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    received: list[psycopg.errors.Diagnostic] = []
+    with cast(Any, psycopg.connect(dsn, impl="ferrocopg")) as conn:
+        conn.add_notice_handler(received.append)
+        conn.execute("set client_min_messages to notice")
+        conn.execute("""
+            do $$begin
+                raise notice using
+                    message = 'hello from ferrocopg',
+                    detail = 'queued in rust',
+                    hint = 'dispatched in python';
+            end$$ language plpgsql
+            """)
+
+        assert len(received) == 1
+        diag = received[0]
+        assert diag.severity == "NOTICE"
+        assert diag.severity_nonlocalized == "NOTICE"
+        assert diag.sqlstate == "00000"
+        assert diag.message_primary == "hello from ferrocopg"
+        assert diag.message_detail == "queued in rust"
+        assert diag.message_hint == "dispatched in python"
+        assert diag.context and "PL/pgSQL" in diag.context
+        assert diag.source_file
+        assert diag.source_line
+        assert diag.source_function
+
+        conn.remove_notice_handler(received.append)
+        conn.execute("do $$begin raise notice 'ignored'; end$$ language plpgsql")
+        assert len(received) == 1
 
 
 def test_backend_no_tls_error_mapping_live(dsn: str) -> None:

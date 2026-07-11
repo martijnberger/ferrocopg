@@ -80,7 +80,7 @@ fn postgres_error_message(err: &postgres::Error) -> String {
         .unwrap_or_else(|| err.to_string())
 }
 
-fn postgres_diagnostic(db_err: &postgres::error::DbError) -> PostgresDiagnostic {
+pub(crate) fn postgres_diagnostic(db_err: &postgres::error::DbError) -> PostgresDiagnostic {
     let (statement_position, internal_position, internal_query) = match db_err.position() {
         Some(postgres::error::ErrorPosition::Original(position)) => {
             (Some(position.to_string()), None, None)

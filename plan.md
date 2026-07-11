@@ -287,7 +287,7 @@ implementation modes.
 | COPY in/out | Available | Available | Partial | Backend COPY facades exist and are exercised in focused tests; text row helpers now honor the ferrocopg connection encoding instead of assuming UTF-8. Binary COPY, COPY parameters, and custom writers are still rejected (see the gaps table). |
 | LISTEN/NOTIFY | Available | Available | Available | Live backend notification coverage exists. |
 | Result-set shaping | Available | Available | Available | Rust backend exposes unified result-set and simple-query result blocks; parameterized/prepared result sets now carry column OID/type metadata through to adapter cursor descriptions. |
-| Python-facing error mapping | Available | Available | Partial | SQLSTATE-backed server errors use `psycopg.errors.lookup()` and common diagnostic fields are attached; richer `pgconn`/`pgresult` metadata and notice handling remain open. |
+| Python-facing error mapping | Available | Available | Partial | SQLSTATE classes, all `DbError` diagnostic fields, synthetic `pgresult`/connect metadata, query context, and queued notice handlers are implemented. Non-UTF8 server diagnostics remain lossy in upstream `tokio-postgres`. |
 | Explicit opt-in selector | Available | Available | Available | `psycopg.connect(..., impl="ferrocopg")` and the transitional `connect_ferrocopg()` helper select the Rust backend without changing the default libpq path. |
 | Cursor-like adapter bridge | Available | Available | Partial | The default ferrocopg cursor supports normal and binary execution, typed rows, row factories, streaming, and cursor-local adapters. Server cursor modes and interchangeability with Psycopg's concrete `Cursor`/`RawCursor`/`ClientCursor` classes are incomplete. |
 | Pipeline mode | Available | Available | In progress | Rust backend now has an experimental batched simple-query facade plus an explicit `connection.pipeline()` bridge on the opt-in ferrocopg path, including queued parameterized execution on the adapter side; full libpq-style pipeline semantics are still a parity gap. |
@@ -312,9 +312,8 @@ permanent boundary with a documented fallback story.
 | Concrete cursor classes | The default ferrocopg cursor handles typed text/binary results. Psycopg's concrete cursor classes require libpq-specific locks and `PGconn` state, so injecting one now fails immediately with `NotSupportedError`; backend-specific custom cursors may subclass `NoTlsCursorAdapter`. | Documented boundary: use the default/custom ferrocopg cursor for Rust connections or `impl="libpq"` when a concrete Psycopg cursor class is required. | Boundary |
 | COPY options | Basic text COPY in/out exists; COPY parameters, custom writers, and binary row helpers are rejected. | rust-postgres COPY endpoints are raw byte pipes with no format opinion; options and binary format are SQL-level (`WITH (FORMAT binary, ...)`), reusing psycopg's statement building and the Track A binary row helpers. | 3.5 |
 | Two-phase transactions | TPC methods raise `NotSupportedError`. | Implementable adapter-side via `PREPARE TRANSACTION` / `COMMIT PREPARED` / `ROLLBACK PREPARED`, reusing `psycopg._tpc.Xid` verbatim and recovering via `pg_prepared_xacts`. | 3.6 |
-| Notice handlers | Notice handler APIs raise `NotSupportedError`; notify handlers are supported separately. | Sync `postgres` exposes `Config::notice_callback`; push notices into a queue drained by the adapter (same pattern as `drain_notifications`), never calling into Python from the callback thread. | 3.4 |
 | Full libpq pipeline semantics | Experimental pipeline adapter queues operations, but does not expose full libpq pipeline behavior. | tokio-postgres pipelines implicitly when futures are polled concurrently; a batch API can approximate sync points and abort-on-first-error, but exact `PQpipelineSync`/`PIPELINE_ABORTED` state-machine parity is not reachable — the residual delta becomes a documented boundary. | 3.6 |
-| Rich pgconn/pgresult error attachment | SQLSTATE and primary diagnostics are attached; full `pgconn`/`pgresult` metadata is not. | tokio-postgres `DbError` exposes the full diagnostic field set (severity, detail, hint, position, schema/table/column/datatype/constraint, file/line/routine); map it into `psycopg.errors.Diagnostic`. | 3.4 |
+| Non-UTF8 server diagnostics | Setting a non-UTF8 `client_encoding` can replace non-ASCII bytes in errors and notices before Psycopg sees them. | `tokio-postgres` currently parses error fields with `String::from_utf8_lossy`; Phase 3.4 must preserve raw fields or keep a UTF8 wire encoding with a separate logical client encoding. | 3.4 |
 
 ## Compatibility Contract Harness
 
@@ -572,6 +571,18 @@ Definition of done:
 - `tests/test_errors.py` and the notice-handler tests are green under
   `--impl=ferrocopg`; the `notice` tag is removed.
 - The equivalency matrix error-mapping row moves to Available.
+
+Current status: notice delivery and UTF8 diagnostics are implemented; non-UTF8
+diagnostics remain open.
+
+- Every plaintext and TLS session installs a Rust-only notice callback that
+  queues owned diagnostic data. The Python adapter drains the queue after
+  operations and isolates exceptions raised by user notice handlers.
+- SQLSTATE classes, the full `DbError` field set, query context, DB-API error
+  aliases, synthetic `pgresult`, and failed-connect metadata are implemented.
+- Focused unit and live PostgreSQL notice/diagnostic tests pass. The remaining
+  `tests/test_errors.py` gap is non-UTF8 diagnostic text because upstream
+  `tokio-postgres` irreversibly applies `String::from_utf8_lossy`.
 
 ### Milestone 3.5: Cursor and COPY completeness
 

@@ -76,7 +76,7 @@ that require:
   these remain libpq-only, while backend-specific custom cursors may subclass
   ``psycopg._ferrocopg.NoTlsCursorAdapter``
 - binary COPY, custom COPY writers, or COPY parameters
-- two-phase transactions, notice handlers, or exact libpq pipeline semantics
+- two-phase transactions or exact libpq pipeline semantics
 - raw libpq ``PGconn``/socket access such as ``fileno()``
 
 The dedicated CI matrix exercises all six SSL modes against SSL-enabled
