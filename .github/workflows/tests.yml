@@ -167,6 +167,7 @@ jobs:
 
   ferrocopg-rust:  # {{{
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     if: true
 
     strategy:
@@ -239,8 +240,6 @@ jobs:
             --test-dsn "$PSYCOPG_TEST_DSN" \
             --impl=ferrocopg \
             --randomly-dont-reorganize \
-            -o faulthandler_timeout=180 \
-            -vv \
             --junitxml=ferrocopg-compat.xml \
             tests
           pytest_status=$?
