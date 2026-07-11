@@ -13,6 +13,7 @@ import warnings
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import timedelta, timezone, tzinfo
 from time import monotonic
+from types import SimpleNamespace
 from typing import Any, NamedTuple, ParamSpec, Protocol, TypeVar, cast
 from zoneinfo import ZoneInfo
 
@@ -21,16 +22,16 @@ from . import postgres, pq
 from ._adapters_map import AdaptersMap
 from ._compat import Template
 from ._connection_base import NoticeHandler, Notify
-from ._copy_base import _format_row_text, _parse_row_text
+from ._copy_base import BinaryFormatter, TextFormatter
 from ._encodings import conninfo_encoding, pg2pyenc
 from ._enums import IsolationLevel, PyFormat
 from ._oids import BYTEA_OID
 from ._py_transformer import Transformer as AdaptTransformer
-from ._queries import PostgresQuery
+from ._queries import PostgresClientQuery, PostgresQuery
 from ._rmodule import __version__ as __version__
 from ._rmodule import _ferrocopg
 from ._tpc import Xid
-from .abc import Buffer, Params, Query, Transformer
+from .abc import Buffer, Params, Query
 from .adapt import Dumper
 from .conninfo import _param_escape, conninfo_to_dict, make_conninfo
 from .pq import ExecStatus
@@ -65,6 +66,7 @@ class _SyntheticResult:
         rows_affected: int = 0,
         statusmessage: str | None = None,
         is_tuples: bool = False,
+        wire_format: pq.Format | None = None,
     ):
         self.columns = columns or []
         self.column_descriptions = column_descriptions or []
@@ -72,6 +74,7 @@ class _SyntheticResult:
         self.rows_affected = rows_affected
         self.statusmessage = statusmessage
         self.is_tuples = is_tuples
+        self.wire_format = wire_format
 
 
 class _BoundParams(NamedTuple):
@@ -211,6 +214,28 @@ class _AdaptContext:
     @property
     def connection(self) -> Any:
         return self._connection
+
+
+class _BackendTransformer(AdaptTransformer):
+    """Keep connection-free dumpers/loaders on the backend wire encoding."""
+
+    def get_dumper(self, obj: Any, format: PyFormat) -> Any:
+        dumper = super().get_dumper(obj, format)
+        if hasattr(dumper, "_encoding"):
+            dumper._encoding = self.encoding
+        return dumper
+
+    def get_dumper_by_oid(self, oid: int, format: pq.Format) -> Any:
+        dumper = super().get_dumper_by_oid(oid, format)
+        if hasattr(dumper, "_encoding"):
+            dumper._encoding = self.encoding
+        return dumper
+
+    def get_loader(self, oid: int, format: pq.Format) -> Any:
+        loader = super().get_loader(oid, format)
+        if hasattr(loader, "_encoding"):
+            loader._encoding = self.encoding
+        return loader
 
 
 class _WireByteaDumper(Dumper):
@@ -426,11 +451,13 @@ class BackendConnectionInfo:
 
     @property
     def transaction_status(self) -> pq.TransactionStatus:
-        return (
-            pq.TransactionStatus.INTRANS
-            if self._conn._in_transaction
-            else pq.TransactionStatus.IDLE
-        )
+        if self._conn._copy_active:
+            return pq.TransactionStatus.ACTIVE
+        if self._conn._transaction_failed:
+            return pq.TransactionStatus.INERROR
+        if self._conn._in_transaction:
+            return pq.TransactionStatus.INTRANS
+        return pq.TransactionStatus.IDLE
 
     @property
     def pipeline_status(self) -> pq.PipelineStatus:
@@ -637,6 +664,8 @@ class _NoTlsSessionLike(Protocol):
     def copy_to_stdout(self, query: str) -> _BackendCopyOutLike: ...
 
     def prepare_text(self, query: str) -> _PreparedStatementLike: ...
+
+    def describe_text(self, query: str) -> Any: ...
 
     def prepare_params(
         self, query: str, param_oids: list[int]
@@ -932,6 +961,7 @@ class NoTlsSessionAdapter:
     def __init__(self, session: _NoTlsSessionLike):
         self._session = session
         self.encoding = "utf-8"
+        self.error_handler: Callable[[BaseException], None] | None = None
         self.notice_handler: (
             Callable[[Sequence[dict[int, bytes | None]]], None] | None
         ) = None
@@ -1045,12 +1075,17 @@ class NoTlsSessionAdapter:
     def prepare_text(self, query: str) -> _PreparedStatementLike:
         return self._call(self._session.prepare_text, query)
 
+    def describe_text(self, query: str) -> Any:
+        return self._call(self._session.describe_text, query)
+
     def _call(self, method: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
         try:
             result = method(*args, **kwargs)
         except BaseException as ex:
             if isinstance(ex, e.Error):
                 self._normalize_error(ex, method, tuple(args))
+                if self.error_handler is not None:
+                    self.error_handler(ex)
             try:
                 self._drain_notices()
             except Exception:
@@ -1126,6 +1161,7 @@ class NoTlsCursorAdapter:
         self._make_row: RowMaker | None = None
         self._result_transformer: AdaptTransformer | None = None
         self._rownumber: int | None = 0
+        self._query: PostgresQuery | PostgresClientQuery | None = None
         self.format = pq.Format.TEXT
         self.arraysize = 1
 
@@ -1210,22 +1246,14 @@ class NoTlsCursorAdapter:
 
     def copy(
         self,
-        statement: str,
-        params: list[str | None] | None = None,
+        statement: Query,
+        params: Params | None = None,
         *,
         writer: object | None = None,
     ) -> NoTlsCopyAdapter:
         self._check_closed()
         self._conn._check_closed()
-        if params is not None:
-            raise e.NotSupportedError(
-                "ferrocopg cursor.copy() doesn't support parameters yet"
-            )
-        if writer is not None:
-            raise e.NotSupportedError(
-                "ferrocopg cursor.copy() doesn't support custom writers yet"
-            )
-        return NoTlsCopyAdapter(self, statement)
+        return NoTlsCopyAdapter(self, statement, params=params, writer=writer)
 
     def execute(
         self,
@@ -1452,16 +1480,18 @@ class NoTlsCursorAdapter:
         if not descriptions:
             return tuple(row)
 
+        wire_format = getattr(result, "wire_format", None)
+
         # Test doubles and simple-query results may already carry text. Live
         # extended-query results always arrive here as binary wire values.
-        if any(
+        if wire_format is None and any(
             value is not None and not isinstance(value, (bytes, bytearray, memoryview))
             for value in row
         ):
             return tuple(row)
 
         if self._result_transformer is None:
-            tx = AdaptTransformer(
+            tx = _BackendTransformer(
                 _AdaptContext(
                     self._conn,
                     _pure_python_adapters(
@@ -1479,26 +1509,286 @@ class NoTlsCursorAdapter:
             tx._row_loaders = [
                 tx.get_loader(
                     column.oid,
-                    pq.Format.TEXT
-                    if self.format == pq.Format.TEXT and column.oid in _TEXT_WIRE_OIDS
-                    else pq.Format.BINARY,
+                    wire_format
+                    if wire_format is not None
+                    else (
+                        pq.Format.TEXT
+                        if self.format == pq.Format.TEXT
+                        and column.oid in _TEXT_WIRE_OIDS
+                        else pq.Format.BINARY
+                    ),
                 ).load
                 for column in descriptions
             ]
             self._result_transformer = tx
 
+        if wire_format == pq.Format.TEXT:
+            row = tuple(
+                value.encode(self._encoding) if isinstance(value, str) else value
+                for value in row
+            )
         return self._result_transformer.load_sequence(
             cast(Sequence[Buffer | None], row)
         )
 
 
-class NoTlsCopyAdapter:
-    """Small COPY bridge over the ferrocopg session adapter."""
+class NoTlsServerCursorAdapter(NoTlsCursorAdapter):
+    """Backend-native server cursor implemented with PostgreSQL cursor SQL."""
 
-    def __init__(self, cursor: NoTlsCursorAdapter, statement: str):
+    def __init__(
+        self,
+        conn: NoTlsConnectionAdapter,
+        name: str,
+        *,
+        row_factory: RowFactory = list_row,
+        scrollable: bool | None = None,
+        withhold: bool = False,
+        factory_name: str = "ServerCursor",
+    ):
+        super().__init__(conn, row_factory=row_factory)
+        self._name = name
+        self._scrollable = scrollable
+        self._withhold = withhold
+        self._factory_name = factory_name
+        self._declared = False
+        self._descriptions: list[_StatementColumnLike] = []
+        self._pos = 0
+        self.itersize = 100
+        self._iter_rows: Iterator[object] | None = None
+
+    def __repr__(self) -> str:
+        return f"<psycopg.{self._factory_name} {self._name!r} [{self._state_name()}]>"
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def scrollable(self) -> bool | None:
+        return self._scrollable
+
+    @property
+    def withhold(self) -> bool:
+        return self._withhold
+
+    @property
+    def rownumber(self) -> int | None:
+        return self._pos if self._descriptions else None
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool = False,
+        binary: bool | None = None,
+    ) -> NoTlsServerCursorAdapter:
+        del prepare
+        self._check_closed()
+        self._conn._check_closed()
+        if self._declared:
+            self._close_server_cursor()
+        if binary is not None:
+            self.format = pq.Format.BINARY if binary else pq.Format.TEXT
+
+        query_text, converted = self._conn._convert_query_params(
+            query, params, adapters=self.adapters
+        )
+        parts = ["DECLARE", _quoted_identifier(self._name)]
+        if self._scrollable is not None:
+            parts.append("SCROLL" if self._scrollable else "NO SCROLL")
+        parts.append("CURSOR")
+        if self._withhold:
+            parts.extend(("WITH", "HOLD"))
+        parts.extend(("FOR", query_text))
+        declaration = " ".join(parts)
+
+        self._conn._ensure_transaction()
+        query_params: Sequence[bytes | str | None] | None
+        if isinstance(converted, _BoundParams):
+            result = self._conn._session.execute_bound(declaration, converted)
+            query_params = [value for _oid, _binary, value in converted.values]
+        elif converted is not None:
+            result = self._conn._session.execute_params(declaration, converted)
+            query_params = converted
+        else:
+            result = self._conn._session.execute_params(declaration, [])
+            query_params = None
+        self._query = cast(
+            Any,
+            SimpleNamespace(
+                query=declaration.encode(self._encoding), params=query_params
+            ),
+        )
+        self._result = result
+        self._declared = True
+        self._pos = 0
+        self._iter_rows = None
+        self._describe_server_cursor()
+        return self
+
+    def executemany(self, *args: object, **kwargs: object) -> None:
+        del args, kwargs
+        raise e.NotSupportedError("executemany() is not supported on server cursors")
+
+    def fetchone(self) -> object | None:
+        rows = self._fetch_server_rows(1)
+        return rows[0] if rows else None
+
+    def fetchmany(self, size: int = 0) -> list[object]:
+        return self._fetch_server_rows(size or self.arraysize)
+
+    def fetchall(self) -> list[object]:
+        return self._fetch_server_rows(None)
+
+    def stream(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        binary: bool | None = None,
+        size: int = 1,
+    ) -> Iterator[object]:
+        del size
+        self.execute(query, params, binary=binary)
+        yield from self
+
+    def scroll(self, value: int, mode: str = "relative") -> None:
+        self._ensure_described()
+        if mode not in {"relative", "absolute"}:
+            raise ValueError(f"bad mode: {mode}. It should be 'relative' or 'absolute'")
+        direction = "ABSOLUTE " if mode == "absolute" else ""
+        self._conn._session.execute_simple(
+            f"MOVE {direction}{value} FROM {_quoted_identifier(self._name)}"
+        )
+        self._pos = value if mode == "absolute" else self._pos + value
+        self._iter_rows = None
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        try:
+            self._close_server_cursor()
+        finally:
+            super().close()
+
+    def nextset(self) -> None:
+        return None
+
+    def results(self) -> Iterator[NoTlsServerCursorAdapter]:
+        if self._result is not None:
+            yield self
+
+    def __next__(self) -> object:
+        if self._iter_rows is None:
+            self._iter_rows = iter(self._fetch_server_rows(self.itersize))
+        try:
+            return next(self._iter_rows)
+        except StopIteration:
+            rows = self._fetch_server_rows(self.itersize)
+            if not rows:
+                self._iter_rows = None
+                raise
+            self._iter_rows = iter(rows)
+            return next(self._iter_rows)
+
+    def _describe_server_cursor(self) -> None:
+        fetch = f"FETCH FORWARD 0 FROM {_quoted_identifier(self._name)}"
+        description = self._conn._session.describe_text(fetch)
+        self._descriptions = list(description.columns)
+        result = _SyntheticResult(
+            columns=[column.name for column in self._descriptions],
+            column_descriptions=self._descriptions,
+            rows=[],
+            is_tuples=True,
+            wire_format=self.format,
+        )
+        self._result = BackendResultCursor([result], [None])
+        self._make_row = None
+        self._result_transformer = None
+
+    def _ensure_described(self) -> None:
+        self._check_closed()
+        self._conn._check_closed()
+        if not self._descriptions:
+            self._describe_server_cursor()
+
+    def _fetch_server_rows(self, count: int | None) -> list[object]:
+        self._ensure_described()
+        amount = "ALL" if count is None else str(count)
+        fetch = f"FETCH FORWARD {amount} FROM {_quoted_identifier(self._name)}"
+        if self.format == pq.Format.BINARY:
+            result_cursor = self._conn._session.execute_params(fetch, [])
+        else:
+            simple = self._conn._session.execute_simple(fetch)
+            current = simple.current_result
+            rows = [] if current is None else current.rows
+            result = _SyntheticResult(
+                columns=[column.name for column in self._descriptions],
+                column_descriptions=self._descriptions,
+                rows=rows,
+                rows_affected=len(rows),
+                is_tuples=True,
+                wire_format=pq.Format.TEXT,
+            )
+            result_cursor = BackendResultCursor([result], [f"FETCH {len(rows)}"])
+        self._result = result_cursor
+        self._make_row = None
+        self._result_transformer = None
+        self._rownumber = 0
+        loaded_rows: list[object] = super().fetchall()
+        self._pos += len(loaded_rows)
+        return loaded_rows
+
+    def _close_server_cursor(self) -> None:
+        if self._conn.closed or self._conn._transaction_failed:
+            return
+        try:
+            self._conn._session.execute_simple(
+                f"CLOSE {_quoted_identifier(self._name)}"
+            )
+        except e.InvalidCursorName:
+            pass
+        self._declared = False
+
+    def _state_name(self) -> str:
+        if self._conn.closed:
+            return "BAD"
+        if self._conn._transaction_failed:
+            return "INERROR"
+        return "INTRANS" if self._conn._in_transaction else "IDLE"
+
+
+def _quoted_identifier(value: str) -> str:
+    return '"' + value.replace('"', '""') + '"'
+
+
+class NoTlsCopyAdapter:
+    """COPY bridge using Psycopg's formatters over the Rust byte pipes."""
+
+    def __init__(
+        self,
+        cursor: NoTlsCursorAdapter,
+        statement: Query,
+        *,
+        params: Params | None = None,
+        writer: object | None = None,
+    ):
         self._cursor = cursor
-        self._statement = statement
-        normalized = " ".join(statement.lower().split())
+        self.connection = cursor.connection
+        tx = _BackendTransformer(
+            _AdaptContext(
+                self.connection,
+                _pure_python_adapters(cursor.adapters),
+                expose_connection=False,
+            )
+        )
+        tx._encoding = cursor._conn.info.encoding
+        query = PostgresClientQuery(tx)
+        query.convert(statement, params)
+        cursor._query = query
+        self._statement = query.query.decode(tx.encoding)
+        normalized = " ".join(self._statement.lower().split())
         self._binary = _copy_statement_requests_binary(normalized)
         if " from stdin" in normalized:
             self._direction = "in"
@@ -1509,83 +1799,186 @@ class NoTlsCopyAdapter:
                 "copy() requires a COPY FROM STDIN or COPY TO STDOUT statement"
             )
         self._buffer = bytearray()
-        self._read_buffer = b""
+        self._read_blocks: list[bytes] = []
         self._read_pos = 0
-        self._tx = cast(Transformer, _TextCopyTransformer(cursor._conn.info.encoding))
+        self._tx = tx
+        self.formatter = (
+            BinaryFormatter(tx)
+            if self._binary
+            else TextFormatter(tx, encoding=tx.encoding)
+        )
+        self.writer = writer
+        writer_type = type(writer)
+        self._database_writer = writer is None or (
+            writer_type.__module__ == "psycopg._copy"
+            and writer_type.__name__ in {"LibpqWriter", "QueuedLibpqWriter"}
+        )
+        self._queued_writer = bool(
+            writer is not None and writer_type.__name__ == "QueuedLibpqWriter"
+        )
+        self._types_set = False
+        self._entered = False
+        self._finished = False
+        self._rowcount = 0
+
+    def __repr__(self) -> str:
+        status = (
+            "BAD"
+            if self.connection.closed
+            else (
+                "INERROR"
+                if self.connection._transaction_failed
+                else ("INTRANS" if self.connection._in_transaction else "IDLE")
+            )
+        )
+        if self._entered and not self._finished:
+            status = "ACTIVE"
+        return f"<{type(self).__module__}.{type(self).__qualname__} [{status}]>"
 
     def __enter__(self) -> NoTlsCopyAdapter:
+        if self._entered:
+            raise TypeError("copy blocks can be used only once")
+        self._entered = True
+        self.connection._ensure_transaction()
+        self.connection._copy_active = True
         if self._direction == "out":
-            self._read_buffer = self._cursor._conn._session.copy_to_stdout(
-                self._statement
+            try:
+                data = self._cursor._conn._session.copy_to_stdout(self._statement)
+            except BaseException:
+                self.connection._copy_active = False
+                raise
+            self._read_blocks = (
+                _split_binary_copy_blocks(data)
+                if self._binary
+                else data.splitlines(keepends=True)
             )
-            self._read_pos = 0
+            self._rowcount = (
+                _binary_copy_row_count(data) if self._binary else len(self._read_blocks)
+            )
+            descriptions: Sequence[_StatementColumnLike] = ()
+            if inner_query := _copy_inner_query(self._statement):
+                descriptions = self._cursor._conn._session.describe_text(
+                    inner_query
+                ).columns
+            self._set_cursor_result(self._rowcount, descriptions)
         return self
 
     def __exit__(self, exc_type: object, exc: BaseException | None, tb: object) -> None:
-        if exc is not None:
+        if self._finished:
             return
+        self._finished = True
+        self.connection._copy_active = False
+        if exc is None and self._direction == "in":
+            if data := self.formatter.end():
+                self._write_data(data)
+            if self._database_writer:
+                self._rowcount = self._cursor._conn._session.copy_from_stdin(
+                    self._statement, bytes(self._buffer)
+                )
+                self._set_cursor_result(self._rowcount)
+        elif exc is not None and self._direction == "in":
+            self.connection._transaction_failed = self.connection._in_transaction
+
+        if self._queued_writer and self.writer is not None:
+            setattr(self.writer, "_worker", None)
+        elif not self._database_writer and self.writer is not None:
+            finish = getattr(self.writer, "finish", None)
+            if finish is not None:
+                finish(exc)
+
+    def set_types(self, types: Sequence[int | str]) -> None:
+        registry = self._cursor.adapters.types
+        oids = [typ if isinstance(typ, int) else registry.get_oid(typ) for typ in types]
         if self._direction == "in":
-            rowcount = self._cursor._conn._session.copy_from_stdin(
-                self._statement, bytes(self._buffer)
-            )
-            synthetic = _SyntheticResult(rows_affected=rowcount)
-            synthetic.statusmessage = _statusmessage_for_query("COPY", synthetic)
-            self._cursor._result = BackendResultCursor([synthetic])
-            self._cursor._rownumber = None
+            self._tx.set_dumper_types(oids, self.formatter.format)
+        else:
+            self._tx.set_loader_types(oids, self.formatter.format)
+        self._types_set = True
 
     def write(self, buffer: bytes | str) -> None:
         if self._direction != "in":
             raise e.ProgrammingError("write() is only available during COPY FROM STDIN")
-        if isinstance(buffer, str):
-            buffer = buffer.encode(self._tx.encoding)
-        self._buffer.extend(buffer)
+        if data := self.formatter.write(buffer):
+            self._write_data(data)
 
     def write_row(self, row: Sequence[object]) -> None:
         if self._direction != "in":
             raise e.ProgrammingError(
                 "write_row() is only available during COPY FROM STDIN"
             )
-        if self._binary:
-            raise e.NotSupportedError(
-                "ferrocopg copy.write_row() doesn't support binary COPY yet"
-            )
-        _format_row_text(row, self._tx, self._buffer)
+        pending = self.formatter._write_buffer
+        size = len(pending)
+        try:
+            data = self.formatter.write_row(row)
+        except Exception:
+            del pending[size:]
+            raise
+        if data:
+            self._write_data(data)
 
     def read(self, size: int = -1) -> bytes:
         if self._direction != "out":
             raise e.ProgrammingError("read() is only available during COPY TO STDOUT")
-        if size < 0:
-            size = len(self._read_buffer) - self._read_pos
-        start = self._read_pos
-        end = min(len(self._read_buffer), start + size)
-        self._read_pos = end
-        return self._read_buffer[start:end]
+        if self._read_pos >= len(self._read_blocks):
+            return b""
+        block = self._read_blocks[self._read_pos]
+        self._read_pos += 1
+        if size >= 0 and size < len(block):
+            self._read_pos -= 1
+            self._read_blocks[self._read_pos] = block[size:]
+            return block[:size]
+        return block
 
-    def read_row(self) -> tuple[str | None, ...] | None:
+    def read_row(self) -> tuple[object, ...] | None:
         if self._direction != "out":
             raise e.ProgrammingError(
                 "read_row() is only available during COPY TO STDOUT"
             )
-        if self._binary:
-            raise e.NotSupportedError(
-                "ferrocopg copy.read_row() doesn't support binary COPY yet"
+        data = self.read()
+        if not data:
+            return None
+        if not self._types_set:
+            nfields = _copy_block_field_count(data, binary=self._binary)
+            loader = (
+                (lambda value: bytes(value))
+                if self._binary
+                else (lambda value: bytes(value).decode(self._tx.encoding))
             )
-        if self._read_pos >= len(self._read_buffer):
-            return None
-        end = self._read_buffer.find(b"\n", self._read_pos)
-        if end < 0:
-            return None
-        row = self._read_buffer[self._read_pos : end + 1]
-        self._read_pos = end + 1
-        return cast(tuple[str | None, ...], _parse_row_text(row, self._tx))
+            self._tx._row_loaders = [loader] * nfields
+        return self.formatter.parse_row(data)
 
-    def rows(self) -> Iterator[tuple[str | None, ...]]:
-        while row := self.read_row():
+    def rows(self) -> Iterator[tuple[object, ...]]:
+        while (row := self.read_row()) is not None:
             yield row
 
     def __iter__(self) -> Iterator[bytes]:
         while data := self.read():
             yield data
+
+    def _write_data(self, data: Buffer) -> None:
+        if self._database_writer:
+            self._buffer.extend(data)
+            if self._queued_writer and self.writer is not None:
+                setattr(self.writer, "_worker", object())
+        else:
+            assert self.writer is not None
+            write = cast(Callable[[Buffer], None], getattr(self.writer, "write"))
+            write(data)
+
+    def _set_cursor_result(
+        self,
+        rowcount: int,
+        descriptions: Sequence[_StatementColumnLike] = (),
+    ) -> None:
+        result = _SyntheticResult(
+            columns=[column.name for column in descriptions],
+            column_descriptions=list(descriptions),
+            rows_affected=rowcount,
+            is_tuples=False,
+        )
+        result.statusmessage = f"COPY {rowcount}"
+        self._cursor._result = BackendResultCursor([result])
+        self._cursor._rownumber = None
 
 
 def _copy_statement_requests_binary(normalized_statement: str) -> bool:
@@ -1594,6 +1987,112 @@ def _copy_statement_requests_binary(normalized_statement: str) -> bool:
         or "with binary" in normalized_statement
         or normalized_statement.endswith(" binary")
     )
+
+
+def _split_binary_copy_blocks(data: bytes) -> list[bytes]:
+    if not data:
+        return []
+    if not data.startswith(b"PGCOPY\n\xff\r\n\x00") or len(data) < 19:
+        return [data]
+
+    extension_length = int.from_bytes(data[15:19], "big")
+    pos = 19 + extension_length
+    start = 0
+    blocks: list[bytes] = []
+    while pos + 2 <= len(data):
+        row_start = pos
+        nfields = int.from_bytes(data[pos : pos + 2], "big", signed=True)
+        pos += 2
+        if nfields == -1:
+            if not blocks:
+                return [data[:pos]]
+            if start < row_start:
+                blocks.append(data[start:row_start])
+            blocks.append(data[row_start:pos])
+            return blocks
+        for _ in range(nfields):
+            if pos + 4 > len(data):
+                return [data]
+            length = int.from_bytes(data[pos : pos + 4], "big", signed=True)
+            pos += 4
+            if length >= 0:
+                pos += length
+                if pos > len(data):
+                    return [data]
+        if not blocks:
+            blocks.append(data[:pos])
+        else:
+            blocks.append(data[row_start:pos])
+        start = pos
+    return [data]
+
+
+def _binary_copy_row_count(data: bytes) -> int:
+    if not data.startswith(b"PGCOPY\n\xff\r\n\x00") or len(data) < 19:
+        return 0
+    pos = 19 + int.from_bytes(data[15:19], "big")
+    count = 0
+    while pos + 2 <= len(data):
+        nfields = int.from_bytes(data[pos : pos + 2], "big", signed=True)
+        pos += 2
+        if nfields == -1:
+            return count
+        for _ in range(nfields):
+            if pos + 4 > len(data):
+                return count
+            length = int.from_bytes(data[pos : pos + 4], "big", signed=True)
+            pos += 4
+            if length >= 0:
+                pos += length
+                if pos > len(data):
+                    return count
+        count += 1
+    return count
+
+
+def _copy_inner_query(statement: str) -> str | None:
+    normalized = statement.lstrip()
+    if normalized[:4].lower() != "copy":
+        return None
+    start = normalized.find("(", 4)
+    if start < 0:
+        return None
+
+    depth = 0
+    quote: str | None = None
+    pos = start
+    while pos < len(normalized):
+        char = normalized[pos]
+        if quote is not None:
+            if char == quote:
+                if pos + 1 < len(normalized) and normalized[pos + 1] == quote:
+                    pos += 1
+                else:
+                    quote = None
+        elif char in {"'", '"'}:
+            quote = char
+        elif char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                suffix = normalized[pos + 1 :].lstrip().lower()
+                return normalized[start + 1 : pos] if suffix.startswith("to") else None
+        pos += 1
+    return None
+
+
+def _copy_block_field_count(data: bytes, *, binary: bool) -> int:
+    if binary:
+        if data.startswith(b"PGCOPY\n\xff\r\n\x00"):
+            extension_length = int.from_bytes(data[15:19], "big")
+            pos = 19 + extension_length
+        else:
+            pos = 0
+        if len(data) < pos + 2:
+            return 0
+        return max(0, int.from_bytes(data[pos : pos + 2], "big", signed=True))
+    return max(1, data.count(b"\t") + 1)
 
 
 class NoTlsPipelineAdapter:
@@ -1693,6 +2192,7 @@ class NoTlsConnectionAdapter:
         conninfo: str = "",
         row_factory: RowFactory = list_row,
         cursor_factory: type[NoTlsCursorAdapter] = NoTlsCursorAdapter,
+        server_cursor_factory: type[object] | None = None,
         prepare_threshold: int | None = 5,
         autocommit: bool = True,
     ):
@@ -1700,6 +2200,7 @@ class NoTlsConnectionAdapter:
         self._conninfo = conninfo
         self.row_factory = row_factory
         self.cursor_factory = cursor_factory
+        self.server_cursor_factory = server_cursor_factory or NoTlsServerCursorAdapter
         self.prepare_threshold = prepare_threshold
         self._autocommit = autocommit
         self._info = BackendConnectionInfo(self)
@@ -1708,6 +2209,7 @@ class NoTlsConnectionAdapter:
         self._prepared_statusmessages: dict[int, str | None] = {}
         self._prepare_counts: dict[str | tuple[str, tuple[int, ...]], int] = {}
         self._in_transaction = False
+        self._transaction_failed = False
         self._pipeline_depth = 0
         self._tx_depth = 0
         self._closed = False
@@ -1720,7 +2222,9 @@ class NoTlsConnectionAdapter:
         self._notice_handlers: list[NoticeHandler] = []
         self._notify_handlers: list[NotifyHandler] = []
         self._encoding_changed_in_transaction = False
+        self._copy_active = False
         self._session.notice_handler = self._dispatch_notices
+        self._session.error_handler = self._on_backend_error
         self._cancel_handle: _CancelHandleLike | None = None
         self._ensure_cancel_handle()
 
@@ -1820,15 +2324,28 @@ class NoTlsConnectionAdapter:
     ) -> NoTlsCursorAdapter:
         self._check_closed()
         if name:
-            raise e.NotSupportedError(
-                "ferrocopg doesn't support server-side cursors yet"
+            factory = self.server_cursor_factory
+            adapter_factory = (
+                factory
+                if isinstance(factory, type)
+                and issubclass(factory, NoTlsServerCursorAdapter)
+                else NoTlsServerCursorAdapter
             )
-        if scrollable is not None:
-            raise e.NotSupportedError(
-                "ferrocopg doesn't support scrollable cursors yet"
+            return cast(
+                NoTlsCursorAdapter,
+                adapter_factory(
+                    self,
+                    name,
+                    row_factory=row_factory or self.row_factory,
+                    scrollable=scrollable,
+                    withhold=withhold,
+                    factory_name=getattr(factory, "__name__", "ServerCursor"),
+                ),
             )
-        if withhold:
-            raise e.NotSupportedError("ferrocopg doesn't support withhold cursors yet")
+        if scrollable is not None or withhold:
+            raise e.ProgrammingError(
+                "scrollable and withhold options require a named server cursor"
+            )
         if row_factory is None:
             row_factory = self.row_factory
         cur = self.cursor_factory(self, row_factory=row_factory)
@@ -1871,6 +2388,7 @@ class NoTlsConnectionAdapter:
         if not self._in_transaction:
             self._exec_command(self._tx_start_query())
             self._in_transaction = True
+            self._transaction_failed = False
 
     def commit(self) -> None:
         self._check_closed()
@@ -1878,6 +2396,7 @@ class NoTlsConnectionAdapter:
             return
         self._exec_command("COMMIT")
         self._in_transaction = False
+        self._transaction_failed = False
 
     def rollback(self) -> None:
         self._check_closed()
@@ -1885,6 +2404,7 @@ class NoTlsConnectionAdapter:
             return
         self._exec_command("ROLLBACK")
         self._in_transaction = False
+        self._transaction_failed = False
 
     def _exec_command(
         self, command: Query, result_format: pq.Format = pq.Format.TEXT
@@ -2061,6 +2581,11 @@ class NoTlsConnectionAdapter:
             for callback in self._notify_handlers:
                 callback(notification)
 
+    def _on_backend_error(self, ex: BaseException) -> None:
+        del ex
+        if self._in_transaction:
+            self._transaction_failed = True
+
     def _dispatch_notices(self, notices: Sequence[dict[int, bytes | None]]) -> None:
         for info in notices:
             diag = e.Diagnostic(info, encoding=self._pgconn._encoding)
@@ -2215,7 +2740,7 @@ class NoTlsConnectionAdapter:
         if isinstance(query, bytes) and b"%" not in query:
             return query.decode(self._pgconn._encoding), _coerce_native_params(params)
 
-        tx = AdaptTransformer(
+        tx = _BackendTransformer(
             _AdaptContext(self, adapters or self.adapters, expose_connection=False)
         )
         tx._encoding = self._pgconn._encoding
@@ -2449,6 +2974,7 @@ def no_tls_connection_adapter(
     *,
     row_factory: RowFactory = list_row,
     cursor_factory: type[NoTlsCursorAdapter] = NoTlsCursorAdapter,
+    server_cursor_factory: type[object] | None = None,
     prepare_threshold: int | None = 5,
     autocommit: bool = True,
     isolation_level: IsolationLevel | int | None = None,
@@ -2466,10 +2992,12 @@ def no_tls_connection_adapter(
         conninfo=conninfo,
         row_factory=row_factory,
         cursor_factory=cursor_factory,
+        server_cursor_factory=server_cursor_factory,
         prepare_threshold=prepare_threshold,
         autocommit=autocommit,
     )
     conn.pgconn._encoding = conninfo_encoding(conninfo)
+    session.encoding = conn.pgconn._encoding
     if isolation_level is not None:
         conn.set_isolation_level(isolation_level)
     if read_only is not None:
@@ -2484,6 +3012,7 @@ def backend_connection_adapter(
     *,
     row_factory: RowFactory = list_row,
     cursor_factory: type[NoTlsCursorAdapter] = NoTlsCursorAdapter,
+    server_cursor_factory: type[object] | None = None,
     prepare_threshold: int | None = 5,
     autocommit: bool = True,
     isolation_level: IsolationLevel | int | None = None,
@@ -2501,10 +3030,12 @@ def backend_connection_adapter(
         conninfo=conninfo,
         row_factory=row_factory,
         cursor_factory=cursor_factory,
+        server_cursor_factory=server_cursor_factory,
         prepare_threshold=prepare_threshold,
         autocommit=autocommit,
     )
     conn.pgconn._encoding = conn.info.encoding
+    session.encoding = conn.pgconn._encoding
     if isolation_level is not None:
         conn.set_isolation_level(isolation_level)
     if read_only is not None:

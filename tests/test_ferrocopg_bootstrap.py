@@ -2364,6 +2364,7 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
         *,
         row_factory: object = ferrocopg_module.list_row,
         cursor_factory: type[object] = ferrocopg_module.NoTlsCursorAdapter,
+        server_cursor_factory: type[object] | None = None,
         prepare_threshold: int | None = 5,
         autocommit: bool = True,
         isolation_level: object | None = None,
@@ -2374,6 +2375,7 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
         str,
         object,
         type[object],
+        type[object] | None,
         int | None,
         bool,
         object | None,
@@ -2386,6 +2388,7 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
             conninfo,
             row_factory,
             cursor_factory,
+            server_cursor_factory,
             prepare_threshold,
             autocommit,
             isolation_level,
@@ -2410,6 +2413,7 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
         "dbname=postgres host=localhost port=5432 application_name=ferrocopg-tests",
         psycopg_module.tuple_row,
         ferrocopg_module.NoTlsCursorAdapter,
+        None,
         5,
         True,
         None,
@@ -2430,6 +2434,7 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
         "dbname=postgres",
         ferrocopg_module.scalar_row,
         ferrocopg_module.NoTlsCursorAdapter,
+        None,
         0,
         False,
         psycopg_module.IsolationLevel.SERIALIZABLE,
@@ -2445,6 +2450,7 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
         "dbname=postgres",
         psycopg_module.tuple_row,
         TrackingCursor,
+        None,
         5,
         True,
         None,
@@ -2567,13 +2573,9 @@ def test_package_connect_ferrocopg_unsupported_connect_options(
     ):
         psycopg.connect_ferrocopg("dbname=postgres", context=StubContext())
 
-    with pytest.raises(
-        psycopg.NotSupportedError,
-        match="server-side cursor factories",
-    ):
-        psycopg.connect(
-            "dbname=postgres", impl="ferrocopg", server_cursor_factory=StubServerCursor
-        )
+    psycopg.connect(
+        "dbname=postgres", impl="ferrocopg", server_cursor_factory=StubServerCursor
+    )
 
     with pytest.raises(
         psycopg.NotSupportedError,
@@ -2583,7 +2585,7 @@ def test_package_connect_ferrocopg_unsupported_connect_options(
             "dbname=postgres", impl="ferrocopg", cursor_factory=psycopg.Cursor
         )
 
-    assert calls == []
+    assert calls == ["dbname=postgres"]
 
 
 def test_backend_result_cursor_navigation() -> None:
@@ -3950,6 +3952,8 @@ def test_no_tls_cursor_adapter_stream(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_no_tls_cursor_adapter_copy(monkeypatch: pytest.MonkeyPatch) -> None:
     import psycopg
 
+    from ._test_copy import sample_binary
+
     module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
 
     class StubSession:
@@ -3987,8 +3991,16 @@ def test_no_tls_cursor_adapter_copy(monkeypatch: pytest.MonkeyPatch) -> None:
             self.copy_in_calls.append((query, data))
             return 2
 
+        def describe_text(self, query: str) -> object:
+            del query
+            return SimpleNamespace(
+                columns=[SimpleNamespace(name="value", oid=25, type_name="text")]
+            )
+
         def copy_to_stdout(self, query: str) -> object:
             self.copy_out_calls.append(query)
+            if "binary" in query.lower():
+                return SimpleNamespace(data=sample_binary)
             return SimpleNamespace(data=b"10\talpha\n11\tbeta\n13\tcaf\xe9\n")
 
     stub = StubSession()
@@ -4012,13 +4024,15 @@ def test_no_tls_cursor_adapter_copy(monkeypatch: pytest.MonkeyPatch) -> None:
     with conn.cursor() as cur:
         with cur.copy("copy demo to stdout") as copy:
             assert copy.read(3) == b"10\t"
-            assert copy.read() == b"alpha\n11\tbeta\n13\tcaf\xe9\n"
+            assert copy.read() == b"alpha\n"
+            assert copy.read() == b"11\tbeta\n"
+            assert copy.read() == b"13\tcaf\xe9\n"
             assert copy.read() == b""
         assert stub.copy_out_calls == ["copy demo to stdout"]
 
     with conn.cursor() as cur:
         with cur.copy("copy demo to stdout") as copy:
-            assert list(copy) == [b"10\talpha\n11\tbeta\n13\tcaf\xe9\n"]
+            assert list(copy) == [b"10\talpha\n", b"11\tbeta\n", b"13\tcaf\xe9\n"]
 
     with conn.cursor() as cur:
         with cur.copy("copy demo to stdout") as copy:
@@ -4028,10 +4042,27 @@ def test_no_tls_cursor_adapter_copy(monkeypatch: pytest.MonkeyPatch) -> None:
             assert copy.read_row() is None
 
     with conn.cursor() as cur:
-        with pytest.raises(psycopg.NotSupportedError, match="parameters"):
-            cur.copy("copy demo from stdin", params=["x"])
-        with pytest.raises(psycopg.NotSupportedError, match="custom writers"):
-            cur.copy("copy demo from stdin", writer=object())
+        with cur.copy("copy (select %s::text) to stdout", params=["x"]) as copy:
+            assert copy.read_row() == ("10", "alpha")
+        assert stub.copy_out_calls[-1] == "copy (select 'x'::text) to stdout"
+
+        class Writer:
+            def __init__(self) -> None:
+                self.data = bytearray()
+                self.finished = False
+
+            def write(self, data: bytes | bytearray | memoryview) -> None:
+                self.data.extend(data)
+
+            def finish(self, exc: BaseException | None = None) -> None:
+                assert exc is None
+                self.finished = True
+
+        writer = Writer()
+        with cur.copy("copy demo from stdin", writer=writer) as copy:
+            copy.write_row(["written"])
+        assert writer.data == b"written\n"
+        assert writer.finished is True
         with pytest.raises(
             psycopg.ProgrammingError, match="COPY FROM STDIN or COPY TO STDOUT"
         ):
@@ -4044,12 +4075,13 @@ def test_no_tls_cursor_adapter_copy(monkeypatch: pytest.MonkeyPatch) -> None:
                 copy.write_row(["bad"])
         with cur.copy("copy demo from stdin with binary") as copy:
             copy.write(b"binary payload")
-            with pytest.raises(psycopg.NotSupportedError, match="binary COPY"):
-                copy.write_row(["bad"])
+        assert stub.copy_in_calls[-1] == (
+            "copy demo from stdin with binary",
+            b"binary payload",
+        )
         with cur.copy("copy demo to stdout with \\(format binary\\)") as copy:
-            assert copy.read(2) == b"10"
-            with pytest.raises(psycopg.NotSupportedError, match="binary COPY"):
-                copy.read_row()
+            copy.set_types(["int4", "int4", "text"])
+            assert copy.read_row() == (40010, 40020, "hello")
 
 
 def test_no_tls_connection_adapter_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -4434,7 +4466,7 @@ def test_no_tls_connection_adapter_notice_and_fileno_contract(
     assert conn.broken is False
 
 
-def test_no_tls_connection_adapter_unsupported_cursor_modes(
+def test_no_tls_connection_adapter_cursor_modes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import psycopg
@@ -4455,17 +4487,101 @@ def test_no_tls_connection_adapter_unsupported_cursor_modes(
     conn = module.no_tls_connection_adapter("host=localhost")
     assert conn is not None
 
-    with pytest.raises(psycopg.NotSupportedError, match="server-side cursors"):
-        conn.cursor("named")
+    server_cursor = conn.cursor("named", scrollable=True, withhold=True)
+    assert isinstance(server_cursor, module.NoTlsServerCursorAdapter)
+    assert server_cursor.name == "named"
+    assert server_cursor.scrollable is True
+    assert server_cursor.withhold is True
+    server_cursor.close()
     binary_cursor = conn.cursor(binary=True)
     assert binary_cursor.format == psycopg.pq.Format.BINARY
-    with pytest.raises(psycopg.NotSupportedError, match="scrollable cursors"):
+    with pytest.raises(psycopg.ProgrammingError, match="named server cursor"):
         conn.cursor(scrollable=True)
-    with pytest.raises(psycopg.NotSupportedError, match="withhold cursors"):
+    with pytest.raises(psycopg.ProgrammingError, match="named server cursor"):
         conn.cursor(withhold=True)
     binary_cur = conn.execute("select 1", binary=True)
     assert binary_cur.fetchall() == [["one"]]
     assert binary_cur.format == psycopg.pq.Format.BINARY
+
+
+def test_no_tls_server_cursor_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
+
+    class StubSession:
+        closed = False
+
+        def __init__(self) -> None:
+            self.rows = [[str(value)] for value in range(6)]
+            self.pos = 0
+            self.calls: list[str] = []
+
+        def close(self) -> None:
+            self.closed = True
+
+        def simple_query_results(self, query: str) -> list[object]:
+            self.calls.append(query)
+            normalized = query.upper()
+            if normalized.startswith("FETCH FORWARD"):
+                amount = query.split()[2]
+                count = len(self.rows) if amount == "ALL" else int(amount)
+                rows = self.rows[self.pos : self.pos + count]
+                self.pos += len(rows)
+                return [
+                    SimpleNamespace(
+                        columns=["value"],
+                        rows=rows,
+                        rows_affected=len(rows),
+                        is_tuples=True,
+                    )
+                ]
+            if normalized.startswith("MOVE ABSOLUTE"):
+                self.pos = int(query.split()[2])
+            elif normalized.startswith("MOVE"):
+                self.pos += int(query.split()[1])
+            return [
+                SimpleNamespace(columns=[], rows=[], rows_affected=0, is_tuples=False)
+            ]
+
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            del params
+            self.calls.append(query)
+            return SimpleNamespace(
+                columns=[],
+                column_descriptions=[],
+                rows=[],
+                rows_affected=0,
+                is_tuples=False,
+            )
+
+        def describe_text(self, query: str) -> object:
+            self.calls.append(query)
+            return SimpleNamespace(
+                columns=[SimpleNamespace(name="value", oid=23, type_name="int4")]
+            )
+
+    stub = StubSession()
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: stub)
+    conn = module.no_tls_connection_adapter(
+        "host=localhost", autocommit=False, row_factory=module.tuple_row
+    )
+    assert conn is not None
+
+    with conn.cursor("odd-name", scrollable=True) as cur:
+        cur.execute("select generate_series(0, 5)::int4 as value")
+        assert cur.name == "odd-name"
+        assert cur.description[0].name == "value"
+        assert cur.fetchone() == (0,)
+        assert cur.fetchmany(2) == [(1,), (2,)]
+        cur.scroll(1)
+        assert cur.fetchone() == (4,)
+        cur.scroll(2, mode="absolute")
+        assert cur.fetchall() == [(2,), (3,), (4,), (5,)]
+
+    assert stub.calls[0] == "BEGIN"
+    assert (
+        'DECLARE "odd-name" SCROLL CURSOR FOR select generate_series' in stub.calls[1]
+    )
+    assert stub.calls[-1] == 'CLOSE "odd-name"'
 
 
 def test_no_tls_connection_adapter_info(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -5082,6 +5198,42 @@ def test_backend_notice_handler_live(dsn: str) -> None:
         conn.remove_notice_handler(received.append)
         conn.execute("do $$begin raise notice 'ignored'; end$$ language plpgsql")
         assert len(received) == 2
+
+
+def test_backend_phase35_cursor_copy_live(dsn: str) -> None:
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    with cast(Any, psycopg.connect(dsn, impl="ferrocopg")) as conn:
+        conn.execute(
+            "create temp table ferrocopg_copy35 (id int4 primary key, label text)"
+        )
+        with conn.cursor().copy(
+            "copy ferrocopg_copy35 from stdin (format binary)"
+        ) as copy:
+            copy.set_types(["int4", "text"])
+            copy.write_row((1, "one"))
+            copy.write_row((2, "two"))
+            copy.write_row((3, "three"))
+
+        with conn.cursor().copy(
+            "copy (select id, label from ferrocopg_copy35 "
+            "where id >= %s order by id) to stdout (format binary)",
+            (2,),
+        ) as copy:
+            copy.set_types(["int4", "text"])
+            assert list(copy.rows()) == [(2, "two"), (3, "three")]
+
+        with conn.cursor("phase35", scrollable=True) as cur:
+            cur.execute("select id, label from ferrocopg_copy35 order by id")
+            assert cur.fetchone() == (1, "one")
+            cur.scroll(1)
+            assert cur.fetchone() == (3, "three")
+            cur.scroll(1, mode="absolute")
+            assert cur.fetchone() == (2, "two")
 
 
 def test_backend_no_tls_error_mapping_live(dsn: str) -> None:
