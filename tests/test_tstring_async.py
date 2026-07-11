@@ -2,14 +2,14 @@ from random import random
 from typing import Any
 
 import pytest
+from psycopg.pq import Format
 
 import psycopg
 from psycopg import sql
-from psycopg.pq import Format
 
 from .acompat import alist, skip_async
-from .test_sql import no_e
 from .test_adapt import make_dumper
+from .test_sql import no_e
 
 vstr = "hello"
 vint = 16

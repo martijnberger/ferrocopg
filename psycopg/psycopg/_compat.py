@@ -7,7 +7,7 @@ compatibility functions for different Python versions
 from __future__ import annotations
 
 import sys
-from typing import Any, Iterator
+from typing import Any, Generic, Iterator
 
 if sys.version_info >= (3, 11):
     from typing import LiteralString, Self
@@ -30,6 +30,8 @@ if sys.version_info >= (3, 13):
 else:
     from typing_extensions import TypeVar
 
+T = TypeVar("T")
+
 if sys.version_info >= (3, 14):
     from string.templatelib import Interpolation, Template
 else:
@@ -37,18 +39,18 @@ else:
 
     class Template:
         strings: tuple[str]
-        interpolations: tuple[Interpolation]
+        interpolations: tuple[Interpolation[Any]]
 
-        def __new__(cls, *args: str | Interpolation) -> Self:
+        def __new__(cls, *args: str | Interpolation[Any]) -> Self:
             return cls()
 
-        def __iter__(self) -> Iterator[str | Interpolation]:
+        def __iter__(self) -> Iterator[str | Interpolation[Any]]:
             return
             yield
 
     @dataclass
-    class Interpolation:
-        value: Any
+    class Interpolation(Generic[T]):
+        value: T
         expression: str
         conversion: str | None
         format_spec: str

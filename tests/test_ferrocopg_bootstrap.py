@@ -4661,6 +4661,10 @@ def test_backend_connect_ferrocopg_routes_tls_required(
         def rollback(self) -> None:
             pass
 
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            assert params == ["client_encoding"]
+            return SimpleNamespace(columns=["value"], rows=[["UTF8"]], rows_affected=1)
+
     def stub_backend_session(conninfo: str) -> StubSession:
         calls.append(conninfo)
         return StubSession()
@@ -4673,10 +4677,52 @@ def test_backend_connect_ferrocopg_routes_tls_required(
         "host=localhost sslmode=require dbname=postgres", impl="ferrocopg"
     )
     assert selected is not None
-    assert calls == [
+    channel_bound = psycopg.connect(
+        "host=localhost dbname=postgres",
+        impl="ferrocopg",
+        sslmode="verify-full",
+        channel_binding="require",
+    )
+    assert channel_bound is not None
+    assert calls[:2] == [
         "host=localhost sslmode=require dbname=postgres",
         "host=localhost sslmode=require dbname=postgres",
     ]
+    assert dict(item.split("=", 1) for item in calls[2].split()) == {
+        "host": "localhost",
+        "dbname": "postgres",
+        "sslmode": "verify-full",
+        "channel_binding": "require",
+    }
+
+
+def test_backend_merge_conninfo_only_parses_base(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+    calls: list[str] = []
+
+    def parse_base(conninfo: str) -> dict[str, str]:
+        calls.append(conninfo)
+        return {"host": "localhost", "user": "postgres"}
+
+    monkeypatch.setattr(module, "conninfo_to_dict", parse_base)
+
+    assert module.merge_conninfo(
+        "host=localhost user=postgres",
+        {
+            "channel_binding": "require",
+            "application_name": "ferro copg",
+            "port": None,
+        },
+    ) == (
+        "host=localhost user=postgres channel_binding=require "
+        "application_name='ferro copg'"
+    )
+    assert calls == ["host=localhost user=postgres"]
+    assert module.merge_conninfo("channel_binding=require", {}) == (
+        "channel_binding=require"
+    )
 
 
 @pytest.mark.parametrize(

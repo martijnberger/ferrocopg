@@ -84,7 +84,6 @@ def connect_ferrocopg(
     selector or the `PSYCOPG_IMPL` libpq-wrapper selection.
     """
     from . import _ferrocopg as _ferrocopg_module
-    from .conninfo import make_conninfo
 
     if context is not None:
         raise NotSupportedError(
@@ -107,7 +106,7 @@ def connect_ferrocopg(
         row_factory = tuple_row
 
     return _ferrocopg_module.backend_connection_adapter(
-        make_conninfo(conninfo, **kwargs),
+        _ferrocopg_module.merge_conninfo(conninfo, kwargs),
         row_factory=cast(Callable[[list[str], list[str | None]], object], row_factory),
         cursor_factory=cursor_factory or _ferrocopg_module.NoTlsCursorAdapter,
         prepare_threshold=prepare_threshold,

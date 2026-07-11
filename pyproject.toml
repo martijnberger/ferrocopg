@@ -121,7 +121,11 @@ skip = "build,_build,.tox,.mypy_cache,.venv,pq.c,_psycopg.c,*.html"
 [tool.ruff]
 line-length = 88
 target-version = "py310"
-exclude = ["tests/test_tstring.py"]
+exclude = ["tests/test_tstring.py", "tests/test_tstring_async.py"]
+
+[tool.ruff.per-file-target-version]
+"tests/test_tstring.py" = "py314"
+"tests/test_tstring_async.py" = "py314"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
@@ -136,4 +140,4 @@ ignore = ["E203", "E501"]
 "tests/test_transaction.py" = ["F401"]
 
 [tool.ruff.format]
-exclude = ["tests/test_tstring.py"]
+exclude = ["tests/test_tstring.py", "tests/test_tstring_async.py"]

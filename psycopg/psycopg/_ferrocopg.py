@@ -31,7 +31,7 @@ from ._rmodule import _ferrocopg
 from ._tpc import Xid
 from .abc import Buffer, Params, Query, Transformer
 from .adapt import Dumper
-from .conninfo import conninfo_to_dict, make_conninfo
+from .conninfo import _param_escape, conninfo_to_dict, make_conninfo
 from .pq import ExecStatus
 from .transaction import Rollback
 from .types.string import BytesDumper
@@ -663,6 +663,26 @@ def connect_target(conninfo: str) -> object | None:
     if not _ferrocopg:
         return None
     return cast(object, _ferrocopg.parse_connect_target(conninfo))
+
+
+def merge_conninfo(conninfo: str, params: Mapping[str, str | int | None]) -> str:
+    """Merge connection parameters without validating them through libpq."""
+    overrides: dict[str, str | int] = {}
+    for key, value in params.items():
+        if value is not None:
+            overrides[key] = value
+    if not overrides:
+        return str(conninfo)
+
+    merged: dict[str, str | int] = {}
+    if conninfo:
+        for key, value in conninfo_to_dict(conninfo).items():
+            if value is not None:
+                merged[key] = value
+    merged.update(overrides)
+    return " ".join(
+        f"{key}={_param_escape(str(value))}" for key, value in merged.items()
+    )
 
 
 def connect_no_tls_probe(conninfo: str) -> object | None:
@@ -2318,7 +2338,7 @@ def backend_connection_adapter(
         prepare_threshold=prepare_threshold,
         autocommit=autocommit,
     )
-    conn.pgconn._encoding = conninfo_encoding(conninfo)
+    conn.pgconn._encoding = conn.info.encoding
     if isolation_level is not None:
         conn.set_isolation_level(isolation_level)
     if read_only is not None:

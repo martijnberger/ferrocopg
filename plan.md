@@ -848,13 +848,20 @@ cutover milestones are activated.
 
 ## Recommended Next Actions
 
-1. Confirm the universally resolvable `uv.lock` and new compatibility floor in
-   the normal post-upstream CI workflows.
-2. Implement the backend-neutral cursor/connection protocol beginning with
-   `_exec_command`, or explicitly declare concrete Psycopg cursor classes a
-   libpq-only boundary.
-3. Use measured impact to order diagnostics/notices, server cursors, and COPY
-   options.
-4. Defer async bridging, TPC, and deeper pipeline parity until the supported
+1. Close the post-upstream CI follow-up: confirm Python 3.14 lint, PyPy 3.10
+   dependency resolution, old-libpq connection option handling, the universal
+   `uv.lock`, the compatibility floor, and the rustls matrix on the remote
+   workflows. Keep this green baseline as the gate for new feature work.
+2. Start Milestone 3.4 with diagnostics and notices. Complete `DbError` field
+   mapping and queued notice delivery, then remove the `notice` manifest tag
+   when the focused and compatibility tests prove the behavior.
+3. Re-run the complete compatibility harness after that slice and use its
+   JUnit evidence to choose between server-cursor support and COPY options in
+   Milestone 3.5. Keep concrete Psycopg cursor classes at the documented
+   libpq-only boundary instead of growing a fake `PGconn` compatibility shim.
+4. Treat `_exec_command`, the concrete-cursor decision, and the SSL-enabled
+   PostgreSQL 14-18 matrix as completed foundations. Extend their protocols or
+   tests only when a supported feature requires it.
+5. Defer async bridging, TPC, and deeper pipeline parity until the supported
    synchronous contract is stable, unless a concrete user requirement changes
    that priority.
