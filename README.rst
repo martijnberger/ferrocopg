@@ -72,15 +72,18 @@ that require:
 
 - ``AsyncConnection``
 - server-side, scrollable, or withhold cursors
-- full compatibility with custom Psycopg cursor classes and streaming modes
+- Psycopg's concrete ``Cursor``, ``ClientCursor``, or ``RawCursor`` classes;
+  these remain libpq-only, while backend-specific custom cursors may subclass
+  ``psycopg._ferrocopg.NoTlsCursorAdapter``
 - binary COPY, custom COPY writers, or COPY parameters
 - two-phase transactions, notice handlers, or exact libpq pipeline semantics
 - raw libpq ``PGconn``/socket access such as ``fileno()``
 
-The rustls transport is present, but the complete SSL mode, certificate, and
-channel-binding compatibility matrix is still being closed. Unsupported
-features raise an error; ferrocopg never silently swaps an active connection
-to libpq.
+The dedicated CI matrix exercises all six SSL modes against SSL-enabled
+PostgreSQL 14-18, including custom roots, required channel binding, and client
+certificate authentication. The backend remains experimental; unsupported
+features raise an error and ferrocopg never silently swaps an active
+connection to libpq.
 
 
 Installing upstream Psycopg

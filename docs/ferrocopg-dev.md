@@ -101,10 +101,11 @@ Psycopg workflows:
 - an explicit pipeline adapter
 
 Known gaps are kept in `plan.md` and `tests/ferrocopg_manifest.toml`. The main
-ones are async connections, full TLS certificate-mode parity, concrete Psycopg
-cursor-class and server-cursor parity, binary/custom COPY, two-phase
+ones are async connections, server-cursor parity, binary/custom COPY, two-phase
 transactions, notice handlers, and exact libpq pipeline semantics. Raw libpq
-socket access is a documented backend boundary.
+socket access and Psycopg's concrete cursor classes are documented backend
+boundaries. A ferrocopg-specific custom cursor must subclass
+`psycopg._ferrocopg.NoTlsCursorAdapter`.
 
 ## Side-by-side validation
 
@@ -137,17 +138,24 @@ The full Psycopg suite is executable against the Rust backend with:
 uv run pytest \
   --impl=ferrocopg \
   --test-dsn "$PSYCOPG_TEST_DSN" \
+  --randomly-dont-reorganize \
   --junitxml=ferrocopg-compat.xml \
   tests
 ```
 
 `tests/fix_ferrocopg.py` applies the declarative gap manifest and
 `tools/ci/ferrocopg_pass_rate.py` calculates the non-manifested pass rate. The
-CI plumbing is active, but `tests/ferrocopg_pass_rate.txt` is still `0.0`.
-Establishing a measured baseline and raising that floor is required before the
-job acts as a real compatibility regression ratchet.
+CI ratchet enforces a conservative `0.65` floor, calibrated from a complete
+local run measuring `3113/4326` (`0.720`) non-manifested cases. Known unsafe or
+inapplicable families are hard-skipped; ordinary compatibility gaps remain
+visible as non-strict xfails or failures.
+
+The sync rust-postgres driver applies `connect_timeout` to socket establishment,
+not to the entire PostgreSQL handshake. Tests that deliberately accept TCP and
+then stall the handshake are therefore excluded under the `handshake-timeout`
+tag instead of being allowed to block the report indefinitely.
 
 The next work should be selected from the current roadmap rather than the old
-bootstrap sequence: calibrate the pass-rate floor, close the TLS test matrix,
-then continue diagnostics/notices and cursor/COPY parity. Async support remains
-a separate major milestone.
+bootstrap sequence: use the measured harness to prioritize diagnostics/notices
+and server-cursor/COPY parity. `_exec_command` and the SSL-enabled PostgreSQL
+matrix are implemented. Async support remains a separate major milestone.

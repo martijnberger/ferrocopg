@@ -433,7 +433,13 @@ _LEGACY_ROW_FACTORIES = frozenset({list_row, tuple_row, dict_row, scalar_row})
 
 
 class _BackendPgResultShim:
-    def __init__(self, result: _ResultSetLike, encoding: str, format: pq.Format):
+    def __init__(
+        self,
+        result: _ResultSetLike,
+        encoding: str,
+        format: pq.Format,
+        statusmessage: str | None = None,
+    ):
         self._result = result
         self._encoding = encoding
         self._format = format
@@ -443,6 +449,8 @@ class _BackendPgResultShim:
             else ExecStatus.COMMAND_OK
         )
         self.nfields = len(result.columns)
+        self.ntuples = len(result.rows)
+        self.command_status = (statusmessage or "").encode(encoding)
 
     def fname(self, index: int) -> bytes | None:
         return self._result.columns[index].encode(self._encoding)
@@ -451,6 +459,20 @@ class _BackendPgResultShim:
         if not 0 <= index < len(self._result.columns):
             raise IndexError(index)
         return int(self._format)
+
+    def ftype(self, index: int) -> int:
+        descriptions = getattr(self._result, "column_descriptions", ())
+        if not 0 <= index < len(descriptions):
+            return 0
+        return int(descriptions[index].oid)
+
+    def get_value(self, row: int, column: int) -> bytes | None:
+        value = self._result.rows[row][column]
+        if value is None or isinstance(value, bytes):
+            return value
+        return (
+            bytes(value) if not isinstance(value, str) else value.encode(self._encoding)
+        )
 
 
 def _buffer_to_text(value: Buffer, encoding: str) -> str:
@@ -1552,7 +1574,6 @@ class NoTlsConnectionAdapter:
         self._in_transaction = False
         self._pipeline_depth = 0
         self._tx_depth = 0
-        self._savepoint_counter = 0
         self._closed = False
         self._adapters: AdaptersMap | None = None
         self._pgconn = _PgconnEncodingShim("utf-8", self)
@@ -1705,26 +1726,50 @@ class NoTlsConnectionAdapter:
     def begin(self) -> None:
         self._check_closed()
         if not self._in_transaction:
-            begin_sql = self._tx_start_query()
-            if begin_sql == "BEGIN":
-                self._session.begin()
-            else:
-                self._session.execute_simple(begin_sql)
+            self._exec_command(self._tx_start_query())
             self._in_transaction = True
 
     def commit(self) -> None:
         self._check_closed()
         if not self._in_transaction:
             return
-        self._session.commit()
+        self._exec_command("COMMIT")
         self._in_transaction = False
 
     def rollback(self) -> None:
         self._check_closed()
         if not self._in_transaction:
             return
-        self._session.rollback()
+        self._exec_command("ROLLBACK")
         self._in_transaction = False
+
+    def _exec_command(
+        self, command: Query, result_format: pq.Format = pq.Format.TEXT
+    ) -> _BackendPgResultShim | None:
+        """Execute an internal command through the backend-native session API."""
+        self._check_closed()
+        query, params = self._convert_query_params(command, None)
+        if params is not None:
+            raise e.ProgrammingError("internal commands cannot have parameters")
+
+        if result_format == pq.Format.TEXT:
+            result_cursor = self._session.execute_simple(query)
+        elif result_format == pq.Format.BINARY:
+            result_cursor = self._execute_extended_no_params(query)
+        else:
+            raise ValueError(f"bad result format: {result_format!r}")
+
+        while result_cursor.nextset():
+            pass
+        result = result_cursor.current_result
+        if result is None:
+            return None
+        return _BackendPgResultShim(
+            result,
+            self._pgconn._encoding,
+            result_format,
+            result_cursor.statusmessage,
+        )
 
     def cancel(self) -> None:
         if self._closed:
@@ -2091,17 +2136,21 @@ class NoTlsTransactionAdapter:
         if self._conn._tx_depth == 0:
             if self._conn._in_transaction:
                 if self._savepoint_name is None:
-                    self._conn._savepoint_counter += 1
-                    self._savepoint_name = f"_ferrocopg_{self._conn._savepoint_counter}"
-                self._conn.execute(_savepoint_sql("SAVEPOINT", self._savepoint_name))
+                    self._savepoint_name = "_pg3_1"
+                self._conn._exec_command(
+                    _savepoint_sql("SAVEPOINT", self._savepoint_name)
+                )
             else:
                 self._outer = True
                 self._conn.begin()
+                if self._savepoint_name is not None:
+                    self._conn._exec_command(
+                        _savepoint_sql("SAVEPOINT", self._savepoint_name)
+                    )
         else:
             if self._savepoint_name is None:
-                self._conn._savepoint_counter += 1
-                self._savepoint_name = f"_ferrocopg_{self._conn._savepoint_counter}"
-            self._conn.execute(_savepoint_sql("SAVEPOINT", self._savepoint_name))
+                self._savepoint_name = f"_pg3_{self._conn._tx_depth + 1}"
+            self._conn._exec_command(_savepoint_sql("SAVEPOINT", self._savepoint_name))
 
         self._conn._tx_depth += 1
         return self
@@ -2115,14 +2164,20 @@ class NoTlsTransactionAdapter:
                 self._conn.rollback()
             else:
                 assert self._savepoint_name is not None
-                self._conn.execute(_savepoint_sql("ROLLBACK TO", self._savepoint_name))
-                self._conn.execute(_savepoint_sql("RELEASE", self._savepoint_name))
+                self._conn._exec_command(
+                    _savepoint_sql("ROLLBACK TO", self._savepoint_name)
+                )
+                self._conn._exec_command(
+                    _savepoint_sql("RELEASE", self._savepoint_name)
+                )
         else:
             if self._outer:
                 self._conn.commit()
             else:
                 assert self._savepoint_name is not None
-                self._conn.execute(_savepoint_sql("RELEASE", self._savepoint_name))
+                self._conn._exec_command(
+                    _savepoint_sql("RELEASE", self._savepoint_name)
+                )
 
         if isinstance(exc, Rollback):
             target = cast(object | None, exc.transaction)

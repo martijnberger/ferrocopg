@@ -1,4 +1,5 @@
 import importlib
+import os
 import socket
 import threading
 import uuid
@@ -2574,6 +2575,14 @@ def test_package_connect_ferrocopg_unsupported_connect_options(
             "dbname=postgres", impl="ferrocopg", server_cursor_factory=StubServerCursor
         )
 
+    with pytest.raises(
+        psycopg.NotSupportedError,
+        match="concrete cursor factories require libpq",
+    ):
+        psycopg.connect(
+            "dbname=postgres", impl="ferrocopg", cursor_factory=psycopg.Cursor
+        )
+
     assert calls == []
 
 
@@ -2733,6 +2742,13 @@ def test_no_tls_connection_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
         assert cur.execute("select 1").fetchone() == ["one"]
         assert cur.rowcount == 1
 
+    command_result = conn._exec_command("select 1")
+    assert command_result is not None
+    assert command_result.status == module.ExecStatus.TUPLES_OK
+    assert command_result.ntuples == 1
+    assert command_result.nfields == 1
+    assert command_result.get_value(0, 0) == b"one"
+
     conn.begin()
     conn.commit()
     conn.rollback()
@@ -2746,8 +2762,9 @@ def test_no_tls_connection_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
         ("prepared", 11, ["x"]),
         ("prepared", 11, ["y"]),
         ("simple", "select 1"),
-        ("begin",),
-        ("commit",),
+        ("simple", "select 1"),
+        ("simple", "BEGIN"),
+        ("simple", "COMMIT"),
         ("close",),
     ]
 
@@ -2944,12 +2961,12 @@ def test_no_tls_connection_adapter_autocommit(
         conn.autocommit = True
 
     assert stub.calls == [
-        ("begin",),
+        ("simple", "BEGIN"),
         ("simple", "select 1"),
         ("params", "select $1::text", ["x"]),
-        ("rollback",),
+        ("simple", "ROLLBACK"),
         ("simple", "select 1"),
-        ("begin",),
+        ("simple", "BEGIN"),
         ("simple", "select 1"),
     ]
 
@@ -3018,9 +3035,9 @@ def test_no_tls_connection_adapter_commit_rollback_idle(
     conn.commit()
     conn.rollback()
     assert stub.calls == [
-        ("begin",),
+        ("simple", "BEGIN"),
         ("simple", "select 1"),
-        ("commit",),
+        ("simple", "COMMIT"),
     ]
 
 
@@ -3434,9 +3451,9 @@ def test_no_tls_connection_adapter_context_manager(
         conn.execute("select 1")
 
     assert committed.calls == [
-        ("begin",),
+        ("simple", "BEGIN"),
         ("simple", "select 1"),
-        ("commit",),
+        ("simple", "COMMIT"),
         ("close",),
     ]
 
@@ -3451,9 +3468,9 @@ def test_no_tls_connection_adapter_context_manager(
             raise RuntimeError("boom")
 
     assert rolled_back.calls == [
-        ("begin",),
+        ("simple", "BEGIN"),
         ("simple", "select 1"),
-        ("rollback",),
+        ("simple", "ROLLBACK"),
         ("close",),
     ]
 
@@ -4205,23 +4222,23 @@ def test_no_tls_connection_adapter_transaction(monkeypatch: pytest.MonkeyPatch) 
             raise module.Rollback(inner)
 
     assert stub.calls == [
-        ("begin",),
+        ("simple", "BEGIN"),
         ("simple", "select 1"),
-        ("commit",),
-        ("begin",),
+        ("simple", "COMMIT"),
+        ("simple", "BEGIN"),
         ("simple", "select 2"),
-        ("rollback",),
-        ("begin",),
+        ("simple", "ROLLBACK"),
+        ("simple", "BEGIN"),
         ("simple", "select outer"),
         ("simple", 'SAVEPOINT "s1"'),
         ("simple", "select inner"),
         ("simple", 'RELEASE "s1"'),
-        ("commit",),
-        ("begin",),
-        ("simple", 'SAVEPOINT "_ferrocopg_1"'),
-        ("simple", 'ROLLBACK TO "_ferrocopg_1"'),
-        ("simple", 'RELEASE "_ferrocopg_1"'),
-        ("commit",),
+        ("simple", "COMMIT"),
+        ("simple", "BEGIN"),
+        ("simple", 'SAVEPOINT "_pg3_2"'),
+        ("simple", 'ROLLBACK TO "_pg3_2"'),
+        ("simple", 'RELEASE "_pg3_2"'),
+        ("simple", "COMMIT"),
     ]
 
 
@@ -4660,6 +4677,94 @@ def test_backend_connect_ferrocopg_routes_tls_required(
         "host=localhost sslmode=require dbname=postgres",
         "host=localhost sslmode=require dbname=postgres",
     ]
+
+
+@pytest.mark.parametrize(
+    ("sslmode", "expected_ssl"),
+    [
+        ("disable", False),
+        ("allow", False),
+        ("prefer", True),
+        ("require", True),
+        ("verify-ca", True),
+        ("verify-full", True),
+    ],
+)
+def test_backend_tls_modes_live(dsn: str, sslmode: str, expected_ssl: bool) -> None:
+    import psycopg
+
+    rootcert = os.environ.get("FERROCOPG_TEST_TLS_ROOTCERT")
+    if not rootcert:
+        pytest.skip("FERROCOPG_TEST_TLS_ROOTCERT is not configured")
+
+    kwargs = {"sslmode": sslmode}
+    if sslmode in {"verify-ca", "verify-full"}:
+        kwargs["sslrootcert"] = rootcert
+
+    conn_cm = cast(Any, psycopg.connect(dsn, impl="ferrocopg", **kwargs))
+    with conn_cm as conn:
+        row = conn.execute(
+            "select ssl from pg_catalog.pg_stat_ssl where pid = pg_backend_pid()"
+        ).fetchone()
+        assert row == (expected_ssl,)
+
+
+def test_backend_tls_channel_binding_required_live(dsn: str) -> None:
+    import psycopg
+
+    rootcert = os.environ.get("FERROCOPG_TEST_TLS_ROOTCERT")
+    if not rootcert:
+        pytest.skip("FERROCOPG_TEST_TLS_ROOTCERT is not configured")
+
+    conn_cm = cast(
+        Any,
+        psycopg.connect(
+            dsn,
+            impl="ferrocopg",
+            sslmode="verify-full",
+            sslrootcert=rootcert,
+            channel_binding="require",
+        ),
+    )
+    with conn_cm as conn:
+        assert conn.execute(
+            "select ssl from pg_catalog.pg_stat_ssl where pid = pg_backend_pid()"
+        ).fetchone() == (True,)
+
+
+def test_backend_tls_client_certificate_live(dsn: str) -> None:
+    import psycopg
+
+    rootcert = os.environ.get("FERROCOPG_TEST_TLS_ROOTCERT")
+    sslcert = os.environ.get("FERROCOPG_TEST_TLS_CERT")
+    sslkey = os.environ.get("FERROCOPG_TEST_TLS_KEY")
+    if not rootcert or not sslcert or not sslkey:
+        pytest.skip("ferrocopg client TLS certificate paths are not configured")
+
+    options = {
+        "user": "certuser",
+        "dbname": "postgres",
+        "sslmode": "verify-full",
+        "sslrootcert": rootcert,
+    }
+    with pytest.raises(psycopg.OperationalError):
+        psycopg.connect(dsn, impl="ferrocopg", **options)
+
+    conn_cm = cast(
+        Any,
+        psycopg.connect(
+            dsn,
+            impl="ferrocopg",
+            sslcert=sslcert,
+            sslkey=sslkey,
+            **options,
+        ),
+    )
+    with conn_cm as conn:
+        assert conn.execute(
+            "select current_user, ssl "
+            "from pg_catalog.pg_stat_ssl where pid = pg_backend_pid()"
+        ).fetchone() == ("certuser", True)
 
 
 def test_backend_connect_no_tls_probe_live(dsn: str) -> None:

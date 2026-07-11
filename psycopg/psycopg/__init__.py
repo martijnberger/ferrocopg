@@ -94,6 +94,14 @@ def connect_ferrocopg(
         raise NotSupportedError(
             "ferrocopg doesn't support server-side cursor factories yet"
         )
+    if cursor_factory is not None and (
+        not isinstance(cursor_factory, type)
+        or not issubclass(cursor_factory, _ferrocopg_module.NoTlsCursorAdapter)
+    ):
+        raise NotSupportedError(
+            "Psycopg concrete cursor factories require libpq; ferrocopg custom "
+            "cursors must subclass NoTlsCursorAdapter"
+        )
 
     if row_factory is None:
         row_factory = tuple_row
@@ -101,10 +109,7 @@ def connect_ferrocopg(
     return _ferrocopg_module.backend_connection_adapter(
         make_conninfo(conninfo, **kwargs),
         row_factory=cast(Callable[[list[str], list[str | None]], object], row_factory),
-        cursor_factory=cast(
-            type[_ferrocopg_module.NoTlsCursorAdapter],
-            cursor_factory or _ferrocopg_module.NoTlsCursorAdapter,
-        ),
+        cursor_factory=cursor_factory or _ferrocopg_module.NoTlsCursorAdapter,
         prepare_threshold=prepare_threshold,
         autocommit=autocommit,
         isolation_level=isolation_level,

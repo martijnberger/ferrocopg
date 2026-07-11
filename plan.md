@@ -56,16 +56,16 @@ Current evidence:
   Python 3.10/3.11 because the newest docs tools require newer Python versions.
   Version-marked docs dependencies correct the resolution in this
   re-evaluation; confirmation from the normal CI workflows remains Priority 0.
-- A full `--impl=ferrocopg` run can terminate before writing JUnit output, so
-  the compatibility floor cannot yet be measured reliably.
+- A deterministic full `--impl=ferrocopg` run now completes and writes JUnit.
+  The local Python 3.13/PostgreSQL 17 run measured `3113/4326` (`0.720`)
+  non-manifested cases and supports a conservative `0.65` compatibility floor.
 - A deterministic 20-failure slice stopped entirely in
   `tests/test_cursor_client.py`. The concrete `ClientCursor` path expects a
   connection lock and a full libpq `PGconn` transaction/status surface that
   the ferrocopg adapter intentionally does not provide.
-- The broad async manifest rules produce large numbers of XPASS results for
-  tests that do not exercise an async ferrocopg connection. They keep those
-  tests out of the denominator but make the harness noisy and obscure what the
-  async gap actually covers.
+- Async and concrete-cursor families are now hard-skipped where executing them
+  cannot measure the sync adapter. Fixture-aware classification remains the
+  preferred rule for new tests.
 
 The resulting priority order is:
 
@@ -83,9 +83,9 @@ The resulting priority order is:
 - Classify known concrete-cursor incompatibilities before setting the floor.
   Crash-prone tests should be skipped until the path is safe to execute; normal
   compatibility gaps should remain non-strict xfails.
-- Replace broad async filename rules with fixture- or behavior-based
-  classification so passing tests unrelated to `AsyncConnection` are not
-  reported as gap XPASS noise.
+- Hard-skip files dedicated to unavailable async connection APIs, and use
+  fixture- or behavior-based classification for mixed sync/async files so
+  unrelated passing tests are not reported as gap XPASS noise.
 - Split or shard the harness if needed so a single unsafe family cannot erase
   the compatibility result for the rest of the suite.
 - Record a nonzero floor only after the same denominator and result complete
@@ -93,21 +93,24 @@ The resulting priority order is:
 
 ### Priority 2: Build the backend-neutral cursor foundation
 
-- Decide explicitly whether Psycopg's existing concrete cursor classes become
-  backend-neutral or remain a documented libpq-only boundary.
+- Psycopg's existing concrete cursor classes remain a documented libpq-only
+  boundary. Ferrocopg-specific custom cursors subclass `NoTlsCursorAdapter`.
 - Do not grow `_PgconnEncodingShim` into a fake libpq connection merely to
   satisfy tests. Prefer a small explicit execution protocol shared by the
   ferrocopg cursor and any concrete cursor classes that are intentionally
   supported.
-- Implement `_exec_command` on that protocol first. It unlocks command-fixture
-  coverage and is the foundation for server cursors and richer COPY behavior.
+- `_exec_command` is implemented on the backend-native session protocol and
+  now carries transaction/savepoint command-fixture coverage. It is the
+  foundation for server cursors and richer COPY behavior.
 - Use the stabilized harness to measure this slice before moving to another
   feature family.
 
 ### Priority 3: Close production-readiness evidence
 
-- Complete the SSL-enabled PostgreSQL matrix for the rustls implementation.
-- Then continue diagnostics/notices and COPY/server-cursor closure in the order
+- Confirm the new SSL-enabled PostgreSQL 14-18 matrix on remote CI. It covers
+  all sslmodes, custom roots, required channel binding, and client-certificate
+  authentication.
+- Continue diagnostics/notices and COPY/server-cursor closure in the order
   indicated by measured compatibility impact.
 - Keep async, TPC, and exact pipeline work behind the sync contract unless a
   product requirement changes that ordering.
@@ -274,7 +277,7 @@ implementation modes.
 | --- | --- | --- | --- | --- |
 | Conninfo parsing and connect planning | Available | Available | Available | `ferrocopg-postgres` now exposes explicit connect target planning. |
 | Session bootstrap and connect | Available | Available | Available | The opt-in backend supports plaintext and rustls-backed sessions. |
-| TLS transport | Available | Available | Partial | rustls connection support and libpq-style sslmode planning are present; the full certificate/client-certificate/channel-binding test matrix and compatibility tag remain open. |
+| TLS transport | Available | Available | Available | rustls connections and all libpq-style sslmodes are implemented; the PostgreSQL 14-18 CI matrix covers custom roots, required channel binding, and client-certificate authentication. |
 | Simple query execution | Available | Available | Available | Covered through backend simple-query facades and adapter tests. |
 | Parameterized query execution | Available | Available | Available | The public adapter uses Psycopg's `%s`/`%t`/`%b` query conversion and dumper maps, including positional and mapping parameters, typed OIDs, text/binary formats, and prepared statements. |
 | Statement describe and metadata | Available | Available | Available | Parameter and column metadata are exposed on the Rust path. |
@@ -304,10 +307,9 @@ permanent boundary with a documented fallback story.
 | Gap | Current behavior | Compatibility impact | Milestone |
 | --- | --- | --- | --- |
 | Async adapter (`AsyncConnection`) | No async ferrocopg adapter exists at all. | Roughly half the main suite is async; drop-in claims are impossible without it. tokio-postgres is natively async, so the work is bridging (pyo3-async-runtimes) or a thread-offload stopgap. | 3.7 |
-| TLS compatibility closure | The backend connects through rustls and plans all libpq sslmodes, but the full SSL-enabled PostgreSQL CI matrix, client certificate behavior, and channel-binding parity are not yet proven. | Production use needs explicit evidence for certificate and mode semantics before the `tls` manifest tag can be removed. | 3.2 |
 | Full libpq socket access | `fileno()` raises `NotSupportedError`; ferrocopg does not expose a libpq socket. | Permanent boundary: the socket is owned by the sync wrapper's internal runtime, and exposing the raw fd would invite reads that corrupt the protocol stream. Fallback story: `notifies(timeout=...)` and notification handlers cover LISTEN loops; fd-level integrations keep `impl="libpq"`; a wakeup-only self-pipe fd is an optional future nicety. | Boundary |
 | Server-side, scrollable, and withhold cursors | Cursor factory rejects these modes with `NotSupportedError`. | Implementable adapter-side with `DECLARE`/`FETCH`/`MOVE`/`CLOSE` SQL, mirroring `psycopg/server_cursor.py`; requires an internal `_exec_command` channel. | 3.5 |
-| Concrete cursor classes and streaming parity | The default ferrocopg cursor handles typed text/binary results, but injecting Psycopg's concrete cursor classes still reaches libpq-specific locks and `PGconn` state. Some stream and per-call format override combinations therefore fail. | Blocks broad cursor-suite parity and custom `cursor_factory` claims. Keep the adapter cursor explicit or provide a shared cursor protocol before claiming interchangeability. | 3.5 |
+| Concrete cursor classes | The default ferrocopg cursor handles typed text/binary results. Psycopg's concrete cursor classes require libpq-specific locks and `PGconn` state, so injecting one now fails immediately with `NotSupportedError`; backend-specific custom cursors may subclass `NoTlsCursorAdapter`. | Documented boundary: use the default/custom ferrocopg cursor for Rust connections or `impl="libpq"` when a concrete Psycopg cursor class is required. | Boundary |
 | COPY options | Basic text COPY in/out exists; COPY parameters, custom writers, and binary row helpers are rejected. | rust-postgres COPY endpoints are raw byte pipes with no format opinion; options and binary format are SQL-level (`WITH (FORMAT binary, ...)`), reusing psycopg's statement building and the Track A binary row helpers. | 3.5 |
 | Two-phase transactions | TPC methods raise `NotSupportedError`. | Implementable adapter-side via `PREPARE TRANSACTION` / `COMMIT PREPARED` / `ROLLBACK PREPARED`, reusing `psycopg._tpc.Xid` verbatim and recovering via `pg_prepared_xacts`. | 3.6 |
 | Notice handlers | Notice handler APIs raise `NotSupportedError`; notify handlers are supported separately. | Sync `postgres` exposes `Config::notice_callback`; push notices into a queue drained by the adapter (same pattern as `drain_notifications`), never calling into Python from the callback thread. | 3.4 |
@@ -352,10 +354,9 @@ Design:
   committed floor file. CI fails if the rate regresses below the floor; the
   floor is raised manually as gaps close.
 
-The harness and CI plumbing are active, but the committed floor is currently
-the placeholder `0.0`. Establishing and then ratcheting a meaningful measured
-baseline is still required; a zero floor does not protect compatibility from
-regression.
+The harness and CI plumbing are active. A complete deterministic run measured
+`3113/4326` (`0.720`) non-manifested cases; the committed `0.65` floor leaves
+cross-version headroom while protecting the current compatibility baseline.
 
 The conditional cutover gate derived from this harness: the floor reaches 100%
 of non-manifested tests (sync and async) and the manifest contains only the
@@ -472,14 +473,14 @@ Current status:
 
 - The selector, fixtures, manifest, JUnit report, pass-rate script, and CI job
   are implemented and the full suite executes against ferrocopg.
-- The committed floor is still `0.0`, so the harness is not yet a meaningful
-  regression ratchet.
-- A fresh audit showed that the harness can terminate before producing JUnit
-  and that known concrete-cursor incompatibilities are not classified in the
-  manifest. Broad async rules also produce substantial XPASS noise.
-- Stabilizing completion and classification is now Milestone 3.1's first
-  closure task. Recording and raising the floor follows that work; it must not
-  precede it.
+- Concrete cursor and async families are classified as hard skips because they
+  currently exercise libpq-only or unavailable adapter paths.
+- Whole-handshake timeout tests are explicitly skipped: rust-postgres applies
+  `connect_timeout` to socket establishment and otherwise blocks forever when
+  a peer accepts TCP but never begins the PostgreSQL handshake.
+- A full deterministic run completed in 320 seconds and measured `3113/4326`
+  (`0.720`) non-manifested cases. The committed `0.65` floor makes the harness
+  a real regression ratchet with cross-version headroom.
 
 ### Milestone 3.2: TLS via rustls
 
@@ -510,9 +511,12 @@ Current status:
 
 - `rustls`, `tokio-postgres-rustls`, native root loading, sslmode routing, and
   TLS-backed session construction are implemented.
-- Focused tests cover planning, routing, and configuration failures, but the
-  SSL-enabled PostgreSQL service matrix and full certificate/channel-binding
-  parity are not yet in CI. The `tls` manifest tag therefore remains.
+- The ferrocopg PostgreSQL 14-18 workflow now starts an SSL-enabled service
+  with an ephemeral CA, server certificate, and client certificate.
+- Live tests cover all six sslmodes, custom-root verification, required channel
+  binding, rejection without a required client certificate, and successful
+  client-certificate authentication. The obsolete `tls` manifest tag is
+  removed; remote matrix confirmation remains before release claims.
 
 ### Milestone 3.3: Result adaptation and rows protocol
 
@@ -576,12 +580,12 @@ Close the cursor-mode and COPY-option gaps.
 
 Tasks:
 
-- Implement `_exec_command` on the adapter connection as the internal SQL
-  command channel.
-- Decide whether Psycopg's concrete `Cursor`, `RawCursor`, and `ClientCursor`
-  classes will use a backend-neutral execution protocol or remain a documented
-  libpq-only boundary. Do not emulate a full `PGconn` through an expanding
-  compatibility shim.
+- Keep `_exec_command` on the adapter connection as the internal SQL command
+  channel and extend its small result protocol only when server-cursor behavior
+  needs it.
+- Keep Psycopg's concrete `Cursor`, `RawCursor`, and `ClientCursor` classes as
+  a documented libpq-only boundary. Reject them at connect time rather than
+  emulating a full `PGconn` through an expanding compatibility shim.
 - Close the related streaming and per-call format override failures for the
   intentionally supported cursor surface.
 - Implement server-side, scrollable, and withhold cursors with
@@ -683,8 +687,8 @@ Current status:
 - The current safe operating model remains explicit opt-in through
   `psycopg.connect_ferrocopg(...)` or `psycopg.connect(..., impl="ferrocopg")`.
 - No upstreaming or default-cutover decision has been made.
-- The compatibility floor remains `0.0`, so the measured cutover contract is
-  not yet enforceable.
+- The compatibility floor is `0.65`, calibrated from a measured `0.720` local
+  run, so regressions in the supported sync surface are now enforceable.
 
 ### Milestone 5: Conditional packaging cutover
 
@@ -824,7 +828,7 @@ both implementation coverage and CI evidence.
 | Unsupported feature routing | Every gap in the gaps table is either implemented (Milestones 3.2–3.7) or on the permanent-boundary list with a documented fallback story; unsupported features raise hard errors naming `impl="libpq"`. | In progress; the routing decision is settled (hard errors plus documented boundaries, no transparent fallback), explicit unsupported-mode tests exist, and each gap now has an assigned milestone or boundary status. |
 | Error and diagnostic compatibility | SQLSTATE classes, diagnostic fields, and user-facing exception types match Psycopg expectations for common server and connection errors. | Partial; SQLSTATE, primary diagnostics, and structured constraint diagnostics are covered; richer pgconn/pgresult metadata remains. |
 | Packaging readiness | Rust wheels build through maturin without relying on Cython for the accelerated path, while Python fallback remains usable. | Not started for default cutover; maturin is wired for the optional extension only. |
-| CI default-path safety | Existing Python and Cython/C jobs stay green while Rust-path jobs fail independently on Rust regressions. | The dedicated `ferrocopg-rust` job is separate from the default matrix, but its pass-rate floor must be raised above the current `0.0` placeholder. |
+| CI default-path safety | Existing Python and Cython/C jobs stay green while Rust-path jobs fail independently on Rust regressions. | The dedicated `ferrocopg-rust` job is separate from the default matrix and enforces the measured `0.65` pass-rate floor. |
 
 ## Success Criteria
 
@@ -844,18 +848,13 @@ cutover milestones are activated.
 
 ## Recommended Next Actions
 
-1. Restore a universally resolvable `uv.lock` and require the post-upstream
-   lint/test workflows to become green.
-2. Stabilize and clean up the compatibility harness: deterministic completion,
-   safe classification of concrete cursor tests, narrower async rules, and a
-   JUnit report that is always produced.
-3. Run the stabilized harness to completion, record its real denominator, and
-   raise `tests/ferrocopg_pass_rate.txt` above `0.0`.
-4. Implement the backend-neutral cursor/connection protocol beginning with
+1. Confirm the universally resolvable `uv.lock` and new compatibility floor in
+   the normal post-upstream CI workflows.
+2. Implement the backend-neutral cursor/connection protocol beginning with
    `_exec_command`, or explicitly declare concrete Psycopg cursor classes a
    libpq-only boundary.
-5. Finish Milestone 3.2's SSL-enabled PostgreSQL CI matrix, then use measured
-   impact to order diagnostics/notices, server cursors, and COPY options.
-6. Defer async bridging, TPC, and deeper pipeline parity until the supported
+3. Use measured impact to order diagnostics/notices, server cursors, and COPY
+   options.
+4. Defer async bridging, TPC, and deeper pipeline parity until the supported
    synchronous contract is stable, unless a concrete user requirement changes
    that priority.

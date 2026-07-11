@@ -182,6 +182,9 @@ jobs:
     env:
       PSYCOPG_IMPL: python
       PSYCOPG_TEST_DSN: "host=127.0.0.1 user=postgres password=password"
+      FERROCOPG_TEST_TLS_ROOTCERT: ".ci-tls/ca.crt"
+      FERROCOPG_TEST_TLS_CERT: ".ci-tls/client.crt"
+      FERROCOPG_TEST_TLS_KEY: ".ci-tls/client.key"
 
     steps:
       - uses: actions/checkout@v6
@@ -198,9 +201,18 @@ jobs:
       - name: Start PostgreSQL service
         run: |
           docker pull ${{ matrix.postgres }}
+          sh tools/ci/ci_make_ferrocopg_tls_certs.sh .ci-tls
+          postgres_uid=$(docker run --rm ${{ matrix.postgres }} id -u postgres)
+          sudo chown "$postgres_uid" .ci-tls/server.key
           docker run --rm -d --name postgres -p 5432:5432 \
+            -v "$PWD/.ci-tls:/tls:ro" \
+            -v "$PWD/tools/ci/ci_init_ferrocopg_tls.sh:/docker-entrypoint-initdb.d/10-ferrocopg-tls.sh:ro" \
             -e POSTGRES_PASSWORD=password ${{ matrix.postgres }} \
-            -c max_prepared_transactions=10
+            -c max_prepared_transactions=10 \
+            -c ssl=on \
+            -c ssl_cert_file=/tls/server.crt \
+            -c ssl_key_file=/tls/server.key \
+            -c ssl_ca_file=/tls/ca.crt
 
       - name: Install the wanted libpq version
         run: sudo ./tools/ci/ci_install_libpq.sh ${{ matrix.libpq }}
@@ -226,6 +238,7 @@ jobs:
           uv run --no-sync pytest \
             --test-dsn "$PSYCOPG_TEST_DSN" \
             --impl=ferrocopg \
+            --randomly-dont-reorganize \
             --junitxml=ferrocopg-compat.xml \
             tests
           pytest_status=$?

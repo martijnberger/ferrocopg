@@ -5,19 +5,46 @@ reason = "pq tests assert raw libpq wrapper behavior"
 action = "skip"
 
 [[rules]]
-glob = "tests/*_async.py::*"
+glob = "tests/test_*_async.py::*"
 tag = "async"
 reason = "AsyncConnection parity is tracked in Milestone 3.7"
+action = "skip"
 
 [[rules]]
 glob = "tests/pool/*_async.py::*"
 tag = "async"
 reason = "AsyncConnection parity is tracked in Milestone 3.7"
+action = "skip"
 
 [[rules]]
-glob = "tests/test_connection.py::*ssl*"
-tag = "tls"
-reason = "TLS-backed ferrocopg connections are tracked in Milestone 3.2"
+glob = "tests/crdb/*_async.py::*"
+tag = "async"
+reason = "AsyncConnection parity is tracked in Milestone 3.7"
+action = "skip"
+
+[[rules]]
+glob = "tests/test_cursor.py::*"
+tag = "concrete-cursor"
+reason = "Psycopg concrete cursors currently require libpq connection internals"
+action = "skip"
+
+[[rules]]
+glob = "tests/test_cursor_client.py::*"
+tag = "concrete-cursor"
+reason = "ClientCursor currently requires libpq connection internals"
+action = "skip"
+
+[[rules]]
+glob = "tests/test_cursor_common.py::*"
+tag = "concrete-cursor"
+reason = "Psycopg concrete cursor factories are a documented libpq-only boundary"
+action = "skip"
+
+[[rules]]
+glob = "tests/test_cursor_raw.py::*"
+tag = "concrete-cursor"
+reason = "RawCursor currently requires libpq connection internals"
+action = "skip"
 
 [[rules]]
 glob = "tests/test_copy.py::*binary*"
@@ -35,9 +62,10 @@ tag = "server-cursor"
 reason = "server-side cursors are tracked in Milestone 3.5"
 
 [[rules]]
-glob = "tests/test_server_cursor.py::*"
+glob = "tests/test_cursor_server.py::*"
 tag = "server-cursor"
 reason = "server-side cursors are tracked in Milestone 3.5"
+action = "skip"
 
 [[rules]]
 glob = "tests/test_tpc.py::*"
@@ -58,4 +86,28 @@ reason = "full pipeline semantics are tracked in Milestone 3.6"
 glob = "tests/test_connection.py::*fileno*"
 tag = "fileno"
 reason = "raw socket access is a documented ferrocopg boundary"
+action = "skip"
+
+[[rules]]
+glob = "tests/test_connection.py::test_connect_error_single_host_original_message_preserved*"
+tag = "handshake-timeout"
+reason = "rust-postgres connect_timeout covers socket establishment, not a stalled PostgreSQL handshake"
+action = "skip"
+
+[[rules]]
+glob = "tests/test_connection.py::test_connect_timeout"
+tag = "handshake-timeout"
+reason = "rust-postgres connect_timeout covers socket establishment, not a stalled PostgreSQL handshake"
+action = "skip"
+
+[[rules]]
+glob = "tests/test_connection.py::test_multi_hosts*"
+tag = "handshake-timeout"
+reason = "rust-postgres cannot advance to another host while the first PostgreSQL handshake is stalled"
+action = "skip"
+
+[[rules]]
+glob = "tests/test_concurrency.py::test_break_attempts*"
+tag = "handshake-timeout"
+reason = "interrupting a stalled libpq connection attempt is outside the Rust adapter contract"
 action = "skip"
