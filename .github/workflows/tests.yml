@@ -239,6 +239,8 @@ jobs:
             --test-dsn "$PSYCOPG_TEST_DSN" \
             --impl=ferrocopg \
             --randomly-dont-reorganize \
+            -o faulthandler_timeout=180 \
+            -vv \
             --junitxml=ferrocopg-compat.xml \
             tests
           pytest_status=$?
