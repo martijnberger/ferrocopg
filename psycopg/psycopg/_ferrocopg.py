@@ -2212,6 +2212,7 @@ class NoTlsConnectionAdapter:
         self._transaction_failed = False
         self._pipeline_depth = 0
         self._tx_depth = 0
+        self._tpc: tuple[Xid, bool] | None = None
         self._closed = False
         self._adapters: AdaptersMap | None = None
         self._pgconn = _PgconnEncodingShim("utf-8", self)
@@ -2392,6 +2393,10 @@ class NoTlsConnectionAdapter:
 
     def commit(self) -> None:
         self._check_closed()
+        if self._tpc:
+            raise e.ProgrammingError(
+                "commit() cannot be used during a two-phase transaction"
+            )
         if not self._in_transaction:
             return
         self._exec_command("COMMIT")
@@ -2400,6 +2405,10 @@ class NoTlsConnectionAdapter:
 
     def rollback(self) -> None:
         self._check_closed()
+        if self._tpc:
+            raise e.ProgrammingError(
+                "rollback() cannot be used during a two-phase transaction"
+            )
         if not self._in_transaction:
             return
         self._exec_command("ROLLBACK")
@@ -2439,6 +2448,10 @@ class NoTlsConnectionAdapter:
     def cancel(self) -> None:
         if self._closed:
             return
+        if self._tpc and self._tpc[1]:
+            raise e.ProgrammingError(
+                "cancel() cannot be used during a prepared two-phase transaction"
+            )
         self._ensure_cancel_handle().cancel()
 
     def cancel_safe(self, *, timeout: float = 30.0) -> None:
@@ -2460,30 +2473,104 @@ class NoTlsConnectionAdapter:
     def xid(self, format_id: int, gtrid: str, bqual: str) -> Xid:
         return Xid.from_parts(format_id, gtrid, bqual)
 
-    def tpc_begin(self, xid: object) -> None:
-        raise e.NotSupportedError(
-            "ferrocopg doesn't support two-phase transactions yet"
-        )
+    def tpc_begin(self, xid: Xid | str) -> None:
+        self._check_closed()
+        if self._tpc:
+            raise e.ProgrammingError(
+                "can't start two-phase transaction: transaction already active"
+            )
+        if self._in_transaction:
+            raise e.ProgrammingError(
+                "can't start two-phase transaction: connection in status INTRANS"
+            )
+        if self._autocommit:
+            raise e.ProgrammingError(
+                "can't use two-phase transactions in autocommit mode"
+            )
+        if not isinstance(xid, Xid):
+            xid = Xid.from_string(xid)
+        self._tpc = (xid, False)
+        self.begin()
 
     def tpc_prepare(self) -> None:
-        raise e.NotSupportedError(
-            "ferrocopg doesn't support two-phase transactions yet"
-        )
+        self._check_closed()
+        if not self._tpc:
+            raise e.ProgrammingError(
+                "'tpc_prepare()' must be called inside a two-phase transaction"
+            )
+        if self._tpc[1]:
+            raise e.ProgrammingError(
+                "'tpc_prepare()' cannot be used during a prepared two-phase transaction"
+            )
+        xid = self._tpc[0]
+        try:
+            self._exec_tpc_command("PREPARE TRANSACTION", xid)
+        except e.ObjectNotInPrerequisiteState as ex:
+            raise e.NotSupportedError(str(ex)) from None
+        self._tpc = (xid, True)
+        self._in_transaction = False
+        self._transaction_failed = False
 
-    def tpc_commit(self, xid: object | None = None) -> None:
-        raise e.NotSupportedError(
-            "ferrocopg doesn't support two-phase transactions yet"
-        )
+    def tpc_commit(self, xid: Xid | str | None = None) -> None:
+        self._tpc_finish("COMMIT", xid)
 
-    def tpc_rollback(self, xid: object | None = None) -> None:
-        raise e.NotSupportedError(
-            "ferrocopg doesn't support two-phase transactions yet"
-        )
+    def tpc_rollback(self, xid: Xid | str | None = None) -> None:
+        self._tpc_finish("ROLLBACK", xid)
 
-    def tpc_recover(self) -> list[object]:
-        raise e.NotSupportedError(
-            "ferrocopg doesn't support two-phase transactions yet"
+    def tpc_recover(self) -> list[Xid]:
+        self._check_closed()
+        result = self._session.execute_params(Xid._get_recover_query(), [])
+        cursor = self.cursor(row_factory=tuple_row)
+        cursor._result = result
+        rows = cursor.fetchall()
+        return [
+            Xid._from_record(
+                cast(str, row[0]),
+                cast(Any, row[1]),
+                cast(str, row[2]),
+                cast(str, row[3]),
+            )
+            for row in cast(list[Sequence[object]], rows)
+        ]
+
+    def _tpc_finish(self, action: str, xid: Xid | str | None) -> None:
+        self._check_closed()
+        fname = f"tpc_{action.lower()}()"
+        if xid is None:
+            if not self._tpc:
+                raise e.ProgrammingError(
+                    f"{fname} without xid must be called inside a two-phase transaction"
+                )
+            xid = self._tpc[0]
+        else:
+            if self._tpc:
+                raise e.ProgrammingError(
+                    f"{fname} with xid must be called outside a two-phase transaction"
+                )
+            if not isinstance(xid, Xid):
+                xid = Xid.from_string(xid)
+
+        if self._tpc and not self._tpc[1]:
+            self._tpc = None
+            if action == "COMMIT":
+                self.commit()
+            else:
+                self.rollback()
+            return
+
+        self._exec_tpc_command(f"{action} PREPARED", xid)
+        self._tpc = None
+        self._in_transaction = False
+        self._transaction_failed = False
+
+    def _exec_tpc_command(self, command: str, xid: Xid) -> None:
+        tx = _BackendTransformer(
+            _AdaptContext(self, self.adapters, expose_connection=False)
         )
+        tx._encoding = self._pgconn._encoding
+        query = PostgresClientQuery(tx)
+        query.convert(f"{command} %s", (str(xid),))
+        self._exec_command(query.query.decode(tx.encoding))
 
     def transaction(
         self, savepoint_name: str | None = None, force_rollback: bool = False

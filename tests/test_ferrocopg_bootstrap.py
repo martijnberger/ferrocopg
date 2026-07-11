@@ -4274,9 +4274,11 @@ def test_no_tls_connection_adapter_transaction(monkeypatch: pytest.MonkeyPatch) 
     ]
 
 
-def test_no_tls_connection_adapter_tpc_unsupported(
+def test_no_tls_connection_adapter_tpc(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from datetime import datetime, timezone
+
     import psycopg
 
     module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
@@ -4284,21 +4286,40 @@ def test_no_tls_connection_adapter_tpc_unsupported(
     class StubSession:
         closed = False
 
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
         def close(self) -> None:
             pass
 
-        def begin(self) -> None:
-            pass
+        def simple_query_results(self, query: str) -> list[object]:
+            self.calls.append(query)
+            return [
+                SimpleNamespace(columns=[], rows=[], rows_affected=0, is_tuples=False)
+            ]
 
-        def commit(self) -> None:
-            pass
+        def run_text_params(self, query: str, params: list[str | None]) -> object:
+            assert params == []
+            self.calls.append(query)
+            return SimpleNamespace(
+                columns=["gid", "prepared", "owner", "database"],
+                column_descriptions=[],
+                rows=[
+                    [
+                        "42_Z3RyaWQ=_YnF1YWw=",
+                        datetime(2026, 1, 1, tzinfo=timezone.utc),
+                        "postgres",
+                        "postgres",
+                    ]
+                ],
+                rows_affected=1,
+                is_tuples=True,
+            )
 
-        def rollback(self) -> None:
-            pass
+    stub = StubSession()
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: stub)
 
-    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: StubSession())
-
-    conn = module.no_tls_connection_adapter("host=localhost")
+    conn = module.no_tls_connection_adapter("host=localhost", autocommit=False)
     assert conn is not None
 
     xid = conn.xid(42, "gtrid", "bqual")
@@ -4306,16 +4327,34 @@ def test_no_tls_connection_adapter_tpc_unsupported(
     assert xid.gtrid == "gtrid"
     assert xid.bqual == "bqual"
 
-    with pytest.raises(psycopg.NotSupportedError, match="two-phase transactions"):
-        conn.tpc_begin(xid)
-    with pytest.raises(psycopg.NotSupportedError, match="two-phase transactions"):
-        conn.tpc_prepare()
-    with pytest.raises(psycopg.NotSupportedError, match="two-phase transactions"):
-        conn.tpc_commit(xid)
-    with pytest.raises(psycopg.NotSupportedError, match="two-phase transactions"):
-        conn.tpc_rollback(xid)
-    with pytest.raises(psycopg.NotSupportedError, match="two-phase transactions"):
-        conn.tpc_recover()
+    conn.tpc_begin(xid)
+    assert conn.info.transaction_status == psycopg.pq.TransactionStatus.INTRANS
+    conn.tpc_prepare()
+    assert conn.info.transaction_status == psycopg.pq.TransactionStatus.IDLE
+    with pytest.raises(psycopg.ProgrammingError, match="prepared two-phase"):
+        conn.cancel()
+    conn.tpc_commit()
+
+    conn.tpc_begin("plain")
+    conn.tpc_rollback()
+    conn.tpc_commit(xid)
+
+    recovered = conn.tpc_recover()
+    assert len(recovered) == 1
+    assert recovered[0].format_id == 42
+    assert recovered[0].gtrid == "gtrid"
+    assert recovered[0].bqual == "bqual"
+    assert recovered[0].owner == "postgres"
+    assert recovered[0].database == "postgres"
+    assert stub.calls == [
+        "BEGIN",
+        "PREPARE TRANSACTION '42_Z3RyaWQ=_YnF1YWw='",
+        "COMMIT PREPARED '42_Z3RyaWQ=_YnF1YWw='",
+        "BEGIN",
+        "ROLLBACK",
+        "COMMIT PREPARED '42_Z3RyaWQ=_YnF1YWw='",
+        "SELECT gid, prepared, owner, database FROM pg_prepared_xacts",
+    ]
 
 
 def test_no_tls_connection_info_parameters(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -5236,6 +5275,60 @@ def test_backend_phase35_cursor_copy_live(dsn: str) -> None:
             assert cur.fetchone() == (2, "two")
 
 
+def test_backend_phase36_tpc_live(dsn: str) -> None:
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    table_name = f"ferrocopg_tpc36_{uuid.uuid4().hex[:12]}"
+    prepared_gid = f"ferrocopg-prepare-{uuid.uuid4().hex}"
+    rollback_gid = f"ferrocopg-rollback-{uuid.uuid4().hex}"
+
+    setup = cast(Any, psycopg.connect(dsn, impl="ferrocopg", autocommit=True))
+    try:
+        if int(setup.execute("show max_prepared_transactions").fetchone()[0]) == 0:
+            pytest.skip("prepared transactions are disabled")
+        setup.execute(f'create table "{table_name}" (value text primary key)')
+    finally:
+        setup.close()
+
+    try:
+        conn = cast(Any, psycopg.connect(dsn, impl="ferrocopg"))
+        conn.tpc_begin(prepared_gid)
+        conn.execute(f'insert into "{table_name}" values (%s)', ("committed",))
+        conn.tpc_prepare()
+        assert conn.info.transaction_status == psycopg.pq.TransactionStatus.IDLE
+        conn.close()
+
+        recovered = cast(Any, psycopg.connect(dsn, impl="ferrocopg"))
+        xids = recovered.tpc_recover()
+        prepared = next(xid for xid in xids if xid.gtrid == prepared_gid)
+        recovered.tpc_commit(prepared)
+        assert recovered.execute(f'select value from "{table_name}"').fetchone() == (
+            "committed",
+        )
+        recovered.rollback()
+
+        recovered.tpc_begin(rollback_gid)
+        recovered.execute(f'insert into "{table_name}" values (%s)', ("rolled-back",))
+        recovered.tpc_rollback()
+        assert recovered.execute(f'select count(*) from "{table_name}"').fetchone() == (
+            1,
+        )
+        recovered.close()
+    finally:
+        cleanup = cast(Any, psycopg.connect(dsn, impl="ferrocopg", autocommit=True))
+        try:
+            for xid in cleanup.tpc_recover():
+                if xid.gtrid in {prepared_gid, rollback_gid}:
+                    cleanup.tpc_rollback(xid)
+            cleanup.execute(f'drop table if exists "{table_name}"')
+        finally:
+            cleanup.close()
+
+
 def test_backend_no_tls_error_mapping_live(dsn: str) -> None:
     import psycopg
 
@@ -6093,7 +6186,8 @@ def test_backend_no_tls_connection_adapter_live(dsn: str) -> None:
             "copy (select id::text, label from ferrocopg_conn_copy_test order by id) to stdout"
         ) as copy:
             assert copy.read(6) == b"1\tone\n"
-            assert copy.read() == b"2\ttwo\n3\tthree\n"
+            assert copy.read() == b"2\ttwo\n"
+            assert copy.read() == b"3\tthree\n"
             assert copy.read() == b""
 
     with conn.cursor() as cur_copy_rows:
