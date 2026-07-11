@@ -1800,6 +1800,7 @@ def test_composite_dump_binary_sequence_equivalent() -> None:
     [
         (b"foo,bar", [b"foo", b"bar"]),
         (b'"a","b""c",', [b"a", b'b"c', None]),
+        (b'"\\\\",plain', [b"\\", b"plain"]),
         (b",", [None, None]),
         (b'"",plain', [b"", b"plain"]),
     ],

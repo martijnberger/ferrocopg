@@ -1323,6 +1323,11 @@ fn parse_composite_text_record(data: &[u8]) -> Vec<Option<Vec<u8>>> {
                 i += 1;
                 continue;
             }
+            if ch == b'\\' && i + 1 < data.len() && data[i + 1] == b'\\' {
+                current.push(b'\\');
+                i += 2;
+                continue;
+            }
             current.push(ch);
             i += 1;
             continue;

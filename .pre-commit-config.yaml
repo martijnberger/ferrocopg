@@ -21,7 +21,7 @@ repos:
         language: system
         entry: ruff check --output-format=full
         files: \.py[i]?$
-        exclude: tests/test_tstring.py
+        exclude: tests/test_tstring(_async)?.py
 
       - id: ruff-format
         name: ruff format

@@ -5,9 +5,8 @@ from psycopg.adapt import PyFormat
 from psycopg.types import TypeInfo
 from psycopg.types.enum import EnumInfo, register_enum
 
-from psycopg import ClientCursor
+from psycopg import ClientCursor, pq, sql
 from psycopg import errors as e
-from psycopg import pq, sql
 
 from ..fix_crdb import crdb_encoding
 
