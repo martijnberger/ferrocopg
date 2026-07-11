@@ -19,6 +19,7 @@ from ._column import Column
 from ._connection_base import BaseConnection, Notify
 from ._connection_info import ConnectionInfo
 from ._enums import IsolationLevel
+from ._ferrocopg_async import FerrocopgAsyncConnection
 from ._pipeline import Pipeline
 from ._pipeline_async import AsyncPipeline
 from ._server_cursor import ServerCursor
@@ -190,6 +191,7 @@ types.array.register_all_arrays(adapters)
 __all__ = [
     "AsyncClientCursor",
     "AsyncConnection",
+    "FerrocopgAsyncConnection",
     "AsyncCopy",
     "AsyncCursor",
     "AsyncPipeline",

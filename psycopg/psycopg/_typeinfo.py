@@ -86,10 +86,38 @@ class TypeInfo:
             return cls._fetch(conn, name)
         elif isinstance(conn, AsyncConnection):
             return cls._fetch_async(conn, name)
+        elif getattr(conn, "_is_ferrocopg", False):
+            return cls._fetch_ferrocopg(conn, name)
+        elif getattr(conn, "_is_ferrocopg_async", False):
+            return cls._fetch_ferrocopg_async(conn, name)
         else:
             raise TypeError(
                 f"expected Connection or AsyncConnection, got {type(conn).__name__}"
             )
+
+    @classmethod
+    def _fetch_ferrocopg(cls: type[T], conn: Any, name: str) -> T | None:
+        try:
+            with conn.transaction(), conn.cursor(row_factory=dict_row) as cur:
+                if conn_encoding(conn) == "ascii":
+                    cur.execute("set local client_encoding to utf8")
+                cur.execute(cls._get_info_query(conn), {"name": name})
+                recs = cur.fetchall()
+        except e.UndefinedObject:
+            return None
+        return cls._from_records(name, recs)
+
+    @classmethod
+    async def _fetch_ferrocopg_async(cls: type[T], conn: Any, name: str) -> T | None:
+        try:
+            async with conn.transaction(), conn.cursor(row_factory=dict_row) as cur:
+                if conn_encoding(conn) == "ascii":
+                    await cur.execute("set local client_encoding to utf8")
+                await cur.execute(cls._get_info_query(conn), {"name": name})
+                recs = await cur.fetchall()
+        except e.UndefinedObject:
+            return None
+        return cls._from_records(name, recs)
 
     @classmethod
     def _fetch(cls: type[T], conn: Connection[Any], name: str) -> T | None:

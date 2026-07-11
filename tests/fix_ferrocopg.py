@@ -13,7 +13,6 @@ except ModuleNotFoundError:  # pragma: no cover - Python 3.10 fallback.
 
 
 _LIBPQ_FIXTURES = frozenset({"pgconn"})
-_ASYNC_FIXTURES = frozenset({"aconn", "aconn_cls", "apipeline", "acommands"})
 
 
 @dataclass(frozen=True)
@@ -60,15 +59,6 @@ def pytest_collection_modifyitems(
                     tag="pgconn",
                     reason="ferrocopg doesn't expose raw libpq PGconn access",
                     action="skip",
-                ),
-            )
-        if fixture_names & _ASYNC_FIXTURES:
-            _mark_rule(
-                item,
-                FerrocopgRule(
-                    glob=item.nodeid,
-                    tag="async",
-                    reason="ferrocopg doesn't provide an async adapter yet",
                 ),
             )
 

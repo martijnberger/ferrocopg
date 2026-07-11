@@ -14,8 +14,7 @@ MANIFEST = Path(__file__).with_name("ferrocopg_manifest.toml")
         ("tests/test_cursor_client.py::test_str", "concrete-cursor"),
         ("tests/test_cursor_common.py::test_execute", "concrete-cursor"),
         ("tests/test_cursor_raw.py::test_execute", "concrete-cursor"),
-        ("tests/test_cursor_server.py::test_scroll", "server-cursor"),
-        ("tests/test_connection_async.py::test_connect", "async"),
+        ("tests/test_cursor_server.py::test_scroll", "concrete-cursor"),
         ("tests/pool/test_pool_async.py::test_open", "async"),
         ("tests/crdb/test_cursor_async.py::test_execute", "async"),
         (

@@ -13,7 +13,7 @@ use fallible_iterator::FallibleIterator;
 use postgres::types::{FromSql, Type};
 use std::collections::{HashMap, VecDeque};
 use std::error::Error;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -124,7 +124,7 @@ impl SyncNoTlsSession {
     }
 
     pub fn closed(&self) -> bool {
-        self.client.is_none()
+        self.client.as_ref().is_none_or(postgres::Client::is_closed)
     }
 
     pub fn close(&mut self) {
@@ -204,9 +204,11 @@ impl SyncNoTlsSession {
         &mut self,
         queries: &[String],
     ) -> Result<Vec<Vec<SimpleQueryResult>>, ProbeError> {
-        queries
-            .iter()
-            .map(|query| self.simple_query_results(query))
+        self.client_mut()?
+            .pipeline_simple_query(queries)
+            .map_err(ProbeError::Query)?
+            .into_iter()
+            .map(simple_query_results)
             .collect()
     }
 
@@ -429,8 +431,8 @@ impl SyncNoTlsSession {
             .map_err(ProbeError::Query)?;
         let mut data = Vec::new();
         reader
-            .read_to_end(&mut data)
-            .map_err(io_error_as_postgres_bad_param)?;
+            .read_to_end_result(&mut data)
+            .map_err(ProbeError::Query)?;
         Ok(CopyOutResult { data })
     }
 

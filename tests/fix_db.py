@@ -247,10 +247,12 @@ def pipeline(request, conn):
 async def aconn(dsn, aconn_cls, request, tracefile):
     """Return an `AsyncConnection` connected to the ``--test-dsn`` database."""
     check_connection_version(request.node)
-    if is_ferrocopg(request.config):
-        pytest.skip("ferrocopg doesn't provide an async connection adapter yet")
-
     conn = await aconn_cls.connect(dsn)
+    if is_ferrocopg(request.config):
+        yield conn
+        await conn.close()
+        return
+
     with maybe_trace(conn.pgconn, tracefile, request.function):
         yield conn
     await conn.close()
@@ -289,7 +291,11 @@ def conn_cls(request, session_dsn):
 @pytest.fixture(scope="session")
 def aconn_cls(request, session_dsn, anyio_backend):
     if is_ferrocopg(request.config):
-        pytest.skip("ferrocopg doesn't provide an async connection adapter yet")
+        if crdb_version:
+            pytest.skip("ferrocopg compatibility harness doesn't support CockroachDB")
+        from psycopg._ferrocopg_async import FerrocopgAsyncConnection
+
+        return FerrocopgAsyncConnection
 
     cls = psycopg.AsyncConnection
     if crdb_version:

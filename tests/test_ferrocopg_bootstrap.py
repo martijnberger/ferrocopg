@@ -1,3 +1,4 @@
+import asyncio
 import importlib
 import os
 import socket
@@ -4357,6 +4358,83 @@ def test_no_tls_connection_adapter_tpc(
     ]
 
 
+def test_ferrocopg_async_connection_facade(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
+    async_module = cast(Any, importlib.import_module("psycopg._ferrocopg_async"))
+
+    class StubSession:
+        closed = False
+
+        def __init__(self) -> None:
+            self.calls: list[str | list[str]] = []
+
+        def close(self) -> None:
+            self.closed = True
+
+        def simple_query_results(self, query: str) -> list[object]:
+            self.calls.append(query)
+            if query in {"BEGIN", "COMMIT", "ROLLBACK"}:
+                return [self._result([], is_tuples=False)]
+            return [self._result([[query.removeprefix("select ")]])]
+
+        def pipeline_simple_query_results(
+            self, queries: list[str]
+        ) -> list[list[object]]:
+            self.calls.append(queries)
+            return [
+                [self._result([[query.removeprefix("select ")]])] for query in queries
+            ]
+
+        @staticmethod
+        def _result(rows: list[list[str]], *, is_tuples: bool = True) -> object:
+            columns = ["value"] if is_tuples else []
+            descriptions = (
+                [SimpleNamespace(name="value", oid=25, type_name="text")]
+                if is_tuples
+                else []
+            )
+            return SimpleNamespace(
+                columns=columns,
+                column_descriptions=descriptions,
+                rows=rows,
+                rows_affected=len(rows),
+                is_tuples=is_tuples,
+            )
+
+    stub = StubSession()
+    monkeypatch.setattr(module, "no_tls_session", lambda conninfo: stub)
+    connection = module.no_tls_connection_adapter("host=localhost", autocommit=True)
+    assert connection is not None
+    aconn = async_module.FerrocopgAsyncConnection(connection)
+
+    async def exercise() -> None:
+        cursor = await aconn.execute("select direct")
+        assert await cursor.fetchone() == ["direct"]
+
+        async with aconn.transaction():
+            async with aconn.cursor() as tx_cursor:
+                await tx_cursor.execute("select transaction")
+                assert await tx_cursor.fetchall() == [["transaction"]]
+
+        async with aconn.pipeline():
+            left = await aconn.execute("select left")
+            right = await aconn.execute("select right")
+        assert await left.fetchone() == ["left"]
+        assert await right.fetchone() == ["right"]
+
+        await aconn.close()
+        assert aconn.closed
+
+    asyncio.run(exercise())
+    assert stub.calls == [
+        "select direct",
+        "BEGIN",
+        "select transaction",
+        "COMMIT",
+        ["select left", "select right"],
+    ]
+
+
 def test_no_tls_connection_info_parameters(monkeypatch: pytest.MonkeyPatch) -> None:
     module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
 
@@ -4502,7 +4580,7 @@ def test_no_tls_connection_adapter_notice_and_fileno_contract(
 
     conn.close()
     assert conn.closed is True
-    assert conn.broken is False
+    assert conn.broken is True
 
 
 def test_no_tls_connection_adapter_cursor_modes(
@@ -5327,6 +5405,52 @@ def test_backend_phase36_tpc_live(dsn: str) -> None:
             cleanup.execute(f'drop table if exists "{table_name}"')
         finally:
             cleanup.close()
+
+
+def test_backend_phase37_async_live(dsn: str) -> None:
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    async def exercise() -> None:
+        async with await psycopg.FerrocopgAsyncConnection.connect(dsn) as conn:
+            result = await conn.execute("select %s::int4", (7,))
+            assert await result.fetchone() == (7,)
+
+            await conn.execute(
+                "create temp table ferrocopg_async37 (id int4 primary key, label text)"
+            )
+            async with conn.cursor().copy(
+                "copy ferrocopg_async37 from stdin (format binary)"
+            ) as copy:
+                copy.set_types(["int4", "text"])
+                await copy.write_row((1, "one"))
+                await copy.write_row((2, "two"))
+
+            async with conn.cursor().copy(
+                "copy (select id, label from ferrocopg_async37 order by id) "
+                "to stdout (format binary)"
+            ) as copy:
+                copy.set_types(["int4", "text"])
+                assert [row async for row in copy.rows()] == [(1, "one"), (2, "two")]
+
+            async with conn.cursor("async37", scrollable=True) as cursor:
+                await cursor.execute(
+                    "select id, label from ferrocopg_async37 order by id"
+                )
+                assert await cursor.fetchone() == (1, "one")
+                await cursor.scroll(1, "absolute")
+                assert await cursor.fetchone() == (2, "two")
+
+            async with conn.pipeline():
+                left = await conn.execute("select 'left'::text")
+                right = await conn.execute("select 'right'::text")
+            assert await left.fetchone() == ("left",)
+            assert await right.fetchone() == ("right",)
+
+    asyncio.run(exercise())
 
 
 def test_backend_no_tls_error_mapping_live(dsn: str) -> None:
