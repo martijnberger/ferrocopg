@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Callable, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from typing import Any, TypeVar, cast
 
@@ -27,6 +28,9 @@ class FerrocopgAsyncConnection:
         self._connection = connection
         self._is_ferrocopg_async = True
         self._lock = asyncio.Lock()
+        self._executor: ThreadPoolExecutor | None = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="ferrocopg"
+        )
         self._pipeline: FerrocopgAsyncPipeline | None = None
 
     @classmethod
@@ -43,7 +47,17 @@ class FerrocopgAsyncConnection:
 
     async def _run(self, func: Callable[..., T], /, *args: Any, **kwargs: Any) -> T:
         async with self._lock:
-            return await asyncio.to_thread(partial(func, *args, **kwargs))
+            executor = self._executor
+            if executor is None:
+                # Closed-connection methods only perform local state checks.
+                return func(*args, **kwargs)
+            loop = asyncio.get_running_loop()
+            return await loop.run_in_executor(executor, partial(func, *args, **kwargs))
+
+    def _shutdown_executor(self) -> None:
+        if executor := self._executor:
+            self._executor = None
+            executor.shutdown(wait=True)
 
     @property
     def closed(self) -> bool:
@@ -98,7 +112,10 @@ class FerrocopgAsyncConnection:
         self._connection.prepare_threshold = value
 
     async def close(self) -> None:
-        await self._run(self._connection.close)
+        try:
+            await self._run(self._connection.close)
+        finally:
+            self._shutdown_executor()
 
     async def commit(self) -> None:
         await self._run(self._connection.commit)
@@ -227,7 +244,10 @@ class FerrocopgAsyncConnection:
     async def __aexit__(
         self, exc_type: object, exc: BaseException | None, tb: object
     ) -> None:
-        await self._run(self._connection.__exit__, exc_type, exc, tb)
+        try:
+            await self._run(self._connection.__exit__, exc_type, exc, tb)
+        finally:
+            self._shutdown_executor()
 
 
 class FerrocopgAsyncCursor:

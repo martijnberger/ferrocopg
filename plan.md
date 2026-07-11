@@ -282,7 +282,7 @@ implementation modes.
 | Pipeline mode | Available | Available | Available with boundary | The Rust batch API polls tokio-postgres request futures concurrently on the session runtime and preserves submission order. Exact libpq sync/aborted state-machine behavior remains a documented boundary. |
 | Default-path integration | Available | Available | Opt-in | `impl="ferrocopg"` is intentionally explicit. Whether it should ever become a default is undecided and separate from backend compatibility. |
 | Result typing and rows protocol | Available | Available | Available | Raw Rust result bytes and OIDs flow through Psycopg loaders, cursor descriptions, adapters, and the standard `psycopg.rows` factory protocol for text and binary execution. |
-| Async connection API (`AsyncConnection`) | Available | Available | Available | `FerrocopgAsyncConnection` provides serialized thread-offload connection, cursor, transaction, pipeline, COPY, TPC, server-cursor, and notification surfaces; the main async fixture suite is included in the compatibility denominator. |
+| Async connection API (`AsyncConnection`) | Available | Available | Available | `FerrocopgAsyncConnection` provides connection-affine single-worker thread offload for connection, cursor, transaction, pipeline, COPY, TPC, server-cursor, and notification surfaces; the main async fixture suite is included in the compatibility denominator. |
 
 ## Known ferrocopg Backend Gaps
 
@@ -669,9 +669,9 @@ Definition of done:
 
 Current status: complete.
 
-- `FerrocopgAsyncConnection` uses the planned serialized thread-offload
-  mechanism and exposes async connection, cursor, transaction, pipeline,
-  COPY, TPC, named-cursor, cancellation, and notification operations.
+- `FerrocopgAsyncConnection` uses a connection-affine single-worker
+  thread-offload mechanism and exposes async connection, cursor, transaction,
+  pipeline, COPY, TPC, named-cursor, cancellation, and notification operations.
 - `aconn_cls` now selects this facade and the blanket main-async manifest rule
   is removed, so main async tests count toward the compatibility denominator.
 - Concrete Psycopg async cursor classes, pool injection, and exact libpq

@@ -4408,6 +4408,14 @@ def test_ferrocopg_async_connection_facade(monkeypatch: pytest.MonkeyPatch) -> N
     aconn = async_module.FerrocopgAsyncConnection(connection)
 
     async def exercise() -> None:
+        worker_threads = {await aconn._run(threading.get_ident) for _ in range(4)}
+        assert len(worker_threads) == 1
+        assert worker_threads != {threading.get_ident()}
+
+        owned_lock = threading.RLock()
+        await aconn._run(owned_lock.acquire)
+        await aconn._run(owned_lock.release)
+
         cursor = await aconn.execute("select direct")
         assert await cursor.fetchone() == ["direct"]
 
@@ -4424,6 +4432,9 @@ def test_ferrocopg_async_connection_facade(monkeypatch: pytest.MonkeyPatch) -> N
 
         await aconn.close()
         assert aconn.closed
+        await aconn.close()
+        with pytest.raises(module.e.OperationalError):
+            await cursor.execute("select after_close")
 
     asyncio.run(exercise())
     assert stub.calls == [

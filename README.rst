@@ -87,7 +87,7 @@ pipe::
             copy.write_row((1, "started"))
 
 Async applications use the thread-offload facade. Backend calls are serialized
-per connection and run outside the event-loop thread::
+on one connection-affine worker thread and run outside the event-loop thread::
 
     async with await psycopg.FerrocopgAsyncConnection.connect(
         dsn, row_factory=dict_row
