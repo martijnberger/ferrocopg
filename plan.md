@@ -41,6 +41,77 @@ The next phase should optimize for making the optional Rust backend more
 useful and measurable. No default-path or upstreaming decision is required to
 close the remaining compatibility gaps.
 
+## Current Priority Re-evaluation (2026-07-11)
+
+The upstream rebase and a fresh compatibility audit changed the immediate
+ordering of the work. The implementation milestones remain valid, but feature
+work should not proceed ahead of CI and harness reliability.
+
+Current evidence:
+
+- Focused validation is healthy: pre-commit passes, the Rust workspace has 22
+  passing tests, and the DSN-backed bootstrap suite has 179 passing tests with
+  7 expected accelerator-dependent skips.
+- The post-rebase locked `uv` sync exposed an unsatisfiable docs toolchain on
+  Python 3.10/3.11 because the newest docs tools require newer Python versions.
+  Version-marked docs dependencies correct the resolution in this
+  re-evaluation; confirmation from the normal CI workflows remains Priority 0.
+- A full `--impl=ferrocopg` run can terminate before writing JUnit output, so
+  the compatibility floor cannot yet be measured reliably.
+- A deterministic 20-failure slice stopped entirely in
+  `tests/test_cursor_client.py`. The concrete `ClientCursor` path expects a
+  connection lock and a full libpq `PGconn` transaction/status surface that
+  the ferrocopg adapter intentionally does not provide.
+- The broad async manifest rules produce large numbers of XPASS results for
+  tests that do not exercise an async ferrocopg connection. They keep those
+  tests out of the denominator but make the harness noisy and obscure what the
+  async gap actually covers.
+
+The resulting priority order is:
+
+### Priority 0: Restore a green upstream-sync baseline
+
+- Keep the universal `uv.lock` resolvable for every supported Python version.
+- Require the normal lint and test workflows to reach backend validation after
+  every upstream sync.
+- Treat a red default workflow as a release blocker for further feature work.
+
+### Priority 1: Make the compatibility harness trustworthy
+
+- Make the harness complete deterministically without crashing or hanging and
+  always emit its JUnit report.
+- Classify known concrete-cursor incompatibilities before setting the floor.
+  Crash-prone tests should be skipped until the path is safe to execute; normal
+  compatibility gaps should remain non-strict xfails.
+- Replace broad async filename rules with fixture- or behavior-based
+  classification so passing tests unrelated to `AsyncConnection` are not
+  reported as gap XPASS noise.
+- Split or shard the harness if needed so a single unsafe family cannot erase
+  the compatibility result for the rest of the suite.
+- Record a nonzero floor only after the same denominator and result complete
+  reliably in local runs and CI.
+
+### Priority 2: Build the backend-neutral cursor foundation
+
+- Decide explicitly whether Psycopg's existing concrete cursor classes become
+  backend-neutral or remain a documented libpq-only boundary.
+- Do not grow `_PgconnEncodingShim` into a fake libpq connection merely to
+  satisfy tests. Prefer a small explicit execution protocol shared by the
+  ferrocopg cursor and any concrete cursor classes that are intentionally
+  supported.
+- Implement `_exec_command` on that protocol first. It unlocks command-fixture
+  coverage and is the foundation for server cursors and richer COPY behavior.
+- Use the stabilized harness to measure this slice before moving to another
+  feature family.
+
+### Priority 3: Close production-readiness evidence
+
+- Complete the SSL-enabled PostgreSQL matrix for the rustls implementation.
+- Then continue diagnostics/notices and COPY/server-cursor closure in the order
+  indicated by measured compatibility impact.
+- Keep async, TPC, and exact pipeline work behind the sync contract unless a
+  product requirement changes that ordering.
+
 ## Coexistence Policy
 
 During backend development, `ferrocopg` must support three coexisting
@@ -401,9 +472,14 @@ Current status:
 
 - The selector, fixtures, manifest, JUnit report, pass-rate script, and CI job
   are implemented and the full suite executes against ferrocopg.
-- The committed floor is still `0.0`, so the harness is observable but not yet
-  a meaningful regression ratchet. Recording a real baseline and raising the
-  floor is the remaining 3.1 closure task.
+- The committed floor is still `0.0`, so the harness is not yet a meaningful
+  regression ratchet.
+- A fresh audit showed that the harness can terminate before producing JUnit
+  and that known concrete-cursor incompatibilities are not classified in the
+  manifest. Broad async rules also produce substantial XPASS noise.
+- Stabilizing completion and classification is now Milestone 3.1's first
+  closure task. Recording and raising the floor follows that work; it must not
+  precede it.
 
 ### Milestone 3.2: TLS via rustls
 
@@ -502,10 +578,12 @@ Tasks:
 
 - Implement `_exec_command` on the adapter connection as the internal SQL
   command channel.
-- Either make Psycopg's concrete `Cursor`, `RawCursor`, and `ClientCursor`
-  classes compatible with the backend or document the ferrocopg cursor class
-  as the required boundary; close the related streaming and per-call format
-  override failures.
+- Decide whether Psycopg's concrete `Cursor`, `RawCursor`, and `ClientCursor`
+  classes will use a backend-neutral execution protocol or remain a documented
+  libpq-only boundary. Do not emulate a full `PGconn` through an expanding
+  compatibility shim.
+- Close the related streaming and per-call format override failures for the
+  intentionally supported cursor surface.
 - Implement server-side, scrollable, and withhold cursors with
   `DECLARE`/`FETCH`/`MOVE`/`CLOSE`, mirroring `psycopg/server_cursor.py`.
 - Implement COPY options, binary COPY, and custom writers, reusing
@@ -766,11 +844,18 @@ cutover milestones are activated.
 
 ## Recommended Next Actions
 
-1. Run the compatibility harness to completion, record the real baseline, and
-   raise `tests/ferrocopg_pass_rate.txt` above its `0.0` placeholder.
-2. Finish Milestone 3.2's SSL-enabled PostgreSQL CI matrix and remove the
-   `tls` manifest tag when certificate and channel-binding behavior is proven.
-3. Continue Milestone 3.4 diagnostics/notices and Milestone 3.5 concrete
-   cursor, server-cursor, streaming, and COPY-option parity.
-4. Choose the Milestone 3.7 async bridging approach before making any
-   drop-in-compatibility claim.
+1. Restore a universally resolvable `uv.lock` and require the post-upstream
+   lint/test workflows to become green.
+2. Stabilize and clean up the compatibility harness: deterministic completion,
+   safe classification of concrete cursor tests, narrower async rules, and a
+   JUnit report that is always produced.
+3. Run the stabilized harness to completion, record its real denominator, and
+   raise `tests/ferrocopg_pass_rate.txt` above `0.0`.
+4. Implement the backend-neutral cursor/connection protocol beginning with
+   `_exec_command`, or explicitly declare concrete Psycopg cursor classes a
+   libpq-only boundary.
+5. Finish Milestone 3.2's SSL-enabled PostgreSQL CI matrix, then use measured
+   impact to order diagnostics/notices, server cursors, and COPY options.
+6. Defer async bridging, TPC, and deeper pipeline parity until the supported
+   synchronous contract is stable, unless a concrete user requirement changes
+   that priority.

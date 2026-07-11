@@ -90,10 +90,13 @@ dev = [
     "wheel >= 0.37",
 ]
 docs = [
-    "Sphinx >= 9.1",
+    "Sphinx >= 7.0, < 9.1; python_version < \"3.12\"",
+    "Sphinx >= 9.1; python_version >= \"3.12\"",
     "furo == 2025.12.19",
-    "sphinx-autobuild >= 2025.8.25",
-    "sphinx-autodoc-typehints >= 3.10.2",
+    "sphinx-autobuild >= 2021.3.14, < 2025.8.25; python_version < \"3.11\"",
+    "sphinx-autobuild >= 2025.8.25; python_version >= \"3.11\"",
+    "sphinx-autodoc-typehints >= 1.12, < 3.10.2; python_version < \"3.12\"",
+    "sphinx-autodoc-typehints >= 3.10.2; python_version >= \"3.12\"",
 ]
 
 [tool.setuptools]
