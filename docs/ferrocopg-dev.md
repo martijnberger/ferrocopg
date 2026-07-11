@@ -1,10 +1,20 @@
-# ferrocopg Bootstrap Workflow
+# ferrocopg Development and Compatibility Workflow
 
-The repository still contains the upstream Python and Cython packaging, but the
-initial `ferrocopg` Rust port scaffold now lives in `crates/ferrocopg-python`.
-The backend direction is now anchored on the `rust-postgres` ecosystem through
-the `crates/ferrocopg-postgres` crate, with `tokio-postgres` as the intended
-transport core.
+This repository keeps Psycopg's upstream Python and Cython implementations as
+trusted baselines while developing a Rust-native PostgreSQL backend in the
+same tree. The backend speaks PostgreSQL through the `rust-postgres` ecosystem;
+it is not a Rust wrapper around libpq.
+
+The Rust work has two main packages:
+
+- `crates/ferrocopg-postgres` implements connection planning, rustls transport,
+  sessions, queries, parameters, prepared statements, transactions, COPY,
+  cancellation, and notifications.
+- `crates/ferrocopg-python` exposes the PyO3 extension as `ferrocopg_rust` and
+  connects the Rust backend and helper fast paths to the `psycopg` package.
+
+The public backend remains explicit and experimental. Whether it is eventually
+proposed upstream, kept as a fork, or packaged separately is not decided.
 
 ## Python environment
 
@@ -16,24 +26,15 @@ source .venv/bin/activate
 uv sync --dev --locked
 ```
 
-The default locked `uv` environment includes the shared Python test baseline,
-including optional test dependencies such as `gevent`, `shapely`, `dnspython`,
-and `numpy`. Add the `c` group when you want to exercise the current
-Cython-backed implementation too:
-
-```bash
-uv sync --dev --group c --locked
-```
-
-Add the `rust` group to keep the `ferrocopg-rust` package installed in the
-same environment, so the current Cython path and the Rust port can be compared
-side by side:
+The default locked environment includes the shared Python test baseline. Add
+the `c` group when comparing with the Cython implementation and the `rust`
+group when working on ferrocopg:
 
 ```bash
 uv sync --dev --group c --group rust --locked
 ```
 
-To run database-backed tests, point `pytest` at a working PostgreSQL database:
+To run database-backed tests, point pytest at a working PostgreSQL database:
 
 ```bash
 tools/test-db start
@@ -43,78 +44,110 @@ uv run pytest --test-dsn "$PSYCOPG_TEST_DSN"
 
 ## Rust toolchain
 
-The repository pins a Rust toolchain in `rust-toolchain.toml`.
+The repository pins its Rust toolchain in `rust-toolchain.toml` and defines the
+workspace in the root `Cargo.toml`.
 
-The current workspace root is `Cargo.toml`, with the first Rust extension
-package defined in `crates/ferrocopg-python`.
-
-## Building the ferrocopg scaffold
-
-Install the bootstrap extension into the active uv-managed environment with
-`maturin` when you want an editable Rust build while porting:
+Install an editable extension into the active environment with:
 
 ```bash
 uv run maturin develop \
-    --manifest-path crates/ferrocopg-python/Cargo.toml
+  --manifest-path crates/ferrocopg-python/Cargo.toml
 ```
 
-You can then smoke test the import:
+The extension import can be smoke-tested directly:
 
 ```bash
 uv run python -c "import ferrocopg_rust; print(ferrocopg_rust.milestone())"
 ```
 
-You can also inspect how the Rust backend currently parses conninfo:
+## Using the backend
 
-```bash
-uv run python - <<'PY'
-import ferrocopg_rust
+Prefer the per-connection selector in user-facing code:
 
-summary = ferrocopg_rust.parse_conninfo_summary(
-    "host=localhost dbname=postgres user=postgres connect_timeout=1"
-)
-print(summary.user, summary.dbname, summary.host_count)
-print(summary.effective_connect_timeout_seconds)
-PY
+```python
+import psycopg
+from psycopg.rows import dict_row
+
+with psycopg.connect(
+    "postgresql://postgres:password@localhost/postgres",
+    impl="ferrocopg",
+    row_factory=dict_row,
+) as conn:
+    print(conn.execute("select %s::int4 as answer", (42,)).fetchone())
 ```
 
-## Scope of the scaffold
+Use `impl="libpq"` to select the stable backend explicitly. There is no
+automatic per-feature fallback: unsupported ferrocopg behavior raises an
+error because switching transport in the middle of a connection would be
+incorrect.
 
-The bootstrap extension is intentionally small. It proves:
+`psycopg.connect_ferrocopg()` is a transitional direct helper. Pass
+`autocommit` explicitly when using it because its bootstrap default currently
+differs from `psycopg.connect()`. Do not set `PSYCOPG_IMPL=ferrocopg`; that
+environment variable selects Psycopg's libpq wrapper implementation, not the
+connection backend.
 
-- the Rust workspace layout
-- the `maturin` integration path
-- the Python import path for future `ferrocopg` acceleration work
-- the initial backend direction via the `rust-postgres` stack
-- a first real backend-facing parser around `tokio-postgres::Config`
-- a first Rust-backed COPY formatting/parsing seam behind `psycopg._copy_base`
+## Current scope
 
-## Side-By-Side Equivalency
+The default ferrocopg connection and cursor currently cover common synchronous
+Psycopg workflows:
 
-The current goal is to keep the Rust and Cython implementations available at
-the same time and prove behavior before switching default paths.
+- plaintext and rustls-backed connections
+- simple, parameterized, prepared, text, and binary execution
+- Psycopg dumpers/loaders, typed results, cursor descriptions, and row factories
+- transactions, savepoints, transaction characteristics, and cancellation
+- text COPY in/out
+- LISTEN/NOTIFY and notification handlers
+- an explicit pipeline adapter
 
-With both optional groups installed, the ferrocopg bootstrap tests compare:
+Known gaps are kept in `plan.md` and `tests/ferrocopg_manifest.toml`. The main
+ones are async connections, full TLS certificate-mode parity, concrete Psycopg
+cursor-class and server-cursor parity, binary/custom COPY, two-phase
+transactions, notice handlers, and exact libpq pipeline semantics. Raw libpq
+socket access is a documented backend boundary.
 
-- the pure Python COPY helpers
-- the Rust COPY helpers from `ferrocopg_rust`
-- the Cython COPY helpers from `psycopg_c._psycopg` when present
+## Side-by-side validation
 
-You can run the current equivalency checks with:
+The focused bootstrap suite compares Rust helpers with Python and Cython
+implementations where applicable and exercises the live Rust backend:
 
 ```bash
 uv sync --dev --group c --group rust --locked
-uv run pytest tests/test_ferrocopg_bootstrap.py -q
+uv run maturin develop \
+  --manifest-path crates/ferrocopg-python/Cargo.toml
+uv run pytest \
+  --test-dsn "$PSYCOPG_TEST_DSN" \
+  tests/test_ferrocopg_bootstrap.py -q
 ```
 
-The next implementation slice should attach a narrow real helper behind this
-package, then begin replacing pieces of `_psycopg`.
+The adapter and row-protocol slices can be checked directly with:
 
-## Compatibility Contract Harness
+```bash
+uv run pytest \
+  --impl=ferrocopg \
+  --test-dsn "$PSYCOPG_TEST_DSN" \
+  tests/test_adapt.py tests/test_rows.py -q
+```
 
-Beyond the focused bootstrap suite, the migration plan defines a harness that
-runs the main `tests/` suite against the ferrocopg adapter via
-`pytest tests --impl=ferrocopg` (or `PSYCOPG_TEST_IMPL=ferrocopg`), with a
-declarative xfail/skip manifest for known gaps and a CI-enforced pass-rate
-ratchet. See the "Compatibility Contract Harness" section and Milestone 3.1
-in `plan.md` for the design and cutover gates.
+## Compatibility contract harness
+
+The full Psycopg suite is executable against the Rust backend with:
+
+```bash
+uv run pytest \
+  --impl=ferrocopg \
+  --test-dsn "$PSYCOPG_TEST_DSN" \
+  --junitxml=ferrocopg-compat.xml \
+  tests
+```
+
+`tests/fix_ferrocopg.py` applies the declarative gap manifest and
+`tools/ci/ferrocopg_pass_rate.py` calculates the non-manifested pass rate. The
+CI plumbing is active, but `tests/ferrocopg_pass_rate.txt` is still `0.0`.
+Establishing a measured baseline and raising that floor is required before the
+job acts as a real compatibility regression ratchet.
+
+The next work should be selected from the current roadmap rather than the old
+bootstrap sequence: calibrate the pass-rate floor, close the TLS test matrix,
+then continue diagnostics/notices and cursor/COPY parity. Async support remains
+a separate major milestone.
