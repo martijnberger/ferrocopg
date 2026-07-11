@@ -284,16 +284,16 @@ implementation modes.
 | Prepared statements | Available | Available | Available | Rust backend has prepared statement caching and reuse. |
 | Transactions and savepoints | Available | Available | Available | The opt-in adapter covers autocommit, context-manager commit/rollback, nested savepoints, rollback controls, and transaction characteristics. Two-phase commit is tracked separately. |
 | Cancellation | Available | Available | Available | Explicit backend cancel handle exists with live coverage. |
-| COPY in/out | Available | Available | Partial | Backend COPY facades exist and are exercised in focused tests; text row helpers now honor the ferrocopg connection encoding instead of assuming UTF-8. Binary COPY, COPY parameters, and custom writers are still rejected (see the gaps table). |
+| COPY in/out | Available | Available | Available | Text and binary COPY, parameters, row helpers, type pinning, generic custom writers, rowcount, descriptions, error state, and connection locking are implemented. Concrete `LibpqWriter` classes remain a libpq-only boundary. |
 | LISTEN/NOTIFY | Available | Available | Available | Live backend notification coverage exists. |
 | Result-set shaping | Available | Available | Available | Rust backend exposes unified result-set and simple-query result blocks; parameterized/prepared result sets now carry column OID/type metadata through to adapter cursor descriptions. |
-| Python-facing error mapping | Available | Available | Partial | SQLSTATE classes, all `DbError` diagnostic fields, synthetic `pgresult`/connect metadata, query context, and queued notice handlers are implemented. Non-UTF8 server diagnostics remain lossy in upstream `tokio-postgres`. |
+| Python-facing error mapping | Available | Available | Available | SQLSTATE classes, all `DbError` diagnostic fields, raw non-UTF8 fields, synthetic `pgresult`/connect metadata, query context, and queued notice handlers are implemented. |
 | Explicit opt-in selector | Available | Available | Available | `psycopg.connect(..., impl="ferrocopg")` and the transitional `connect_ferrocopg()` helper select the Rust backend without changing the default libpq path. |
-| Cursor-like adapter bridge | Available | Available | Partial | The default ferrocopg cursor supports normal and binary execution, typed rows, row factories, streaming, and cursor-local adapters. Server cursor modes and interchangeability with Psycopg's concrete `Cursor`/`RawCursor`/`ClientCursor` classes are incomplete. |
-| Pipeline mode | Available | Available | In progress | Rust backend now has an experimental batched simple-query facade plus an explicit `connection.pipeline()` bridge on the opt-in ferrocopg path, including queued parameterized execution on the adapter side; full libpq-style pipeline semantics are still a parity gap. |
+| Cursor-like adapter bridge | Available | Available | Available | The default cursor supports text/binary execution, typed rows, row factories, streaming, cursor-local adapters, and named scrollable/withhold server cursors. Psycopg's concrete cursor classes remain a libpq-only boundary. |
+| Pipeline mode | Available | Available | Available with boundary | The Rust batch API polls tokio-postgres request futures concurrently on the session runtime and preserves submission order. Exact libpq sync/aborted state-machine behavior remains a documented boundary. |
 | Default-path integration | Available | Available | Opt-in | `impl="ferrocopg"` is intentionally explicit. Whether it should ever become a default is undecided and separate from backend compatibility. |
 | Result typing and rows protocol | Available | Available | Available | Raw Rust result bytes and OIDs flow through Psycopg loaders, cursor descriptions, adapters, and the standard `psycopg.rows` factory protocol for text and binary execution. |
-| Async connection API (`AsyncConnection`) | Available | Available | Missing | There is no async ferrocopg adapter; roughly half the main test suite is async, so cutover cannot claim drop-in status without it (Milestone 3.7). |
+| Async connection API (`AsyncConnection`) | Available | Available | Available | `FerrocopgAsyncConnection` provides serialized thread-offload connection, cursor, transaction, pipeline, COPY, TPC, server-cursor, and notification surfaces; the main async fixture suite is included in the compatibility denominator. |
 
 ## Known ferrocopg Backend Gaps
 
@@ -306,14 +306,10 @@ permanent boundary with a documented fallback story.
 
 | Gap | Current behavior | Compatibility impact | Milestone |
 | --- | --- | --- | --- |
-| Async adapter (`AsyncConnection`) | No async ferrocopg adapter exists at all. | Roughly half the main suite is async; drop-in claims are impossible without it. tokio-postgres is natively async, so the work is bridging (pyo3-async-runtimes) or a thread-offload stopgap. | 3.7 |
 | Full libpq socket access | `fileno()` raises `NotSupportedError`; ferrocopg does not expose a libpq socket. | Permanent boundary: the socket is owned by the sync wrapper's internal runtime, and exposing the raw fd would invite reads that corrupt the protocol stream. Fallback story: `notifies(timeout=...)` and notification handlers cover LISTEN loops; fd-level integrations keep `impl="libpq"`; a wakeup-only self-pipe fd is an optional future nicety. | Boundary |
-| Server-side, scrollable, and withhold cursors | Cursor factory rejects these modes with `NotSupportedError`. | Implementable adapter-side with `DECLARE`/`FETCH`/`MOVE`/`CLOSE` SQL, mirroring `psycopg/server_cursor.py`; requires an internal `_exec_command` channel. | 3.5 |
 | Concrete cursor classes | The default ferrocopg cursor handles typed text/binary results. Psycopg's concrete cursor classes require libpq-specific locks and `PGconn` state, so injecting one now fails immediately with `NotSupportedError`; backend-specific custom cursors may subclass `NoTlsCursorAdapter`. | Documented boundary: use the default/custom ferrocopg cursor for Rust connections or `impl="libpq"` when a concrete Psycopg cursor class is required. | Boundary |
-| COPY options | Basic text COPY in/out exists; COPY parameters, custom writers, and binary row helpers are rejected. | rust-postgres COPY endpoints are raw byte pipes with no format opinion; options and binary format are SQL-level (`WITH (FORMAT binary, ...)`), reusing psycopg's statement building and the Track A binary row helpers. | 3.5 |
-| Two-phase transactions | TPC methods raise `NotSupportedError`. | Implementable adapter-side via `PREPARE TRANSACTION` / `COMMIT PREPARED` / `ROLLBACK PREPARED`, reusing `psycopg._tpc.Xid` verbatim and recovering via `pg_prepared_xacts`. | 3.6 |
-| Full libpq pipeline semantics | Experimental pipeline adapter queues operations, but does not expose full libpq pipeline behavior. | tokio-postgres pipelines implicitly when futures are polled concurrently; a batch API can approximate sync points and abort-on-first-error, but exact `PQpipelineSync`/`PIPELINE_ABORTED` state-machine parity is not reachable — the residual delta becomes a documented boundary. | 3.6 |
-| Non-UTF8 server diagnostics | Setting a non-UTF8 `client_encoding` can replace non-ASCII bytes in errors and notices before Psycopg sees them. | `tokio-postgres` currently parses error fields with `String::from_utf8_lossy`; Phase 3.4 must preserve raw fields or keep a UTF8 wire encoding with a separate logical client encoding. | 3.4 |
+| Concrete libpq COPY writers | `LibpqWriter` and `QueuedLibpqWriter` require a real `PGconn`; ferrocopg instead handles its byte pipe directly and supports generic writer objects. | Documented boundary: use the default COPY writer or a generic custom writer with ferrocopg; use `impl="libpq"` for the concrete libpq writer classes. | Boundary |
+| Exact libpq pipeline state machine | Ferrocopg pipelines queued batches but does not emulate `PQpipelineSync` or produce `PIPELINE_ABORTED` results. | Documented boundary: normal batching and ordered results are supported; applications depending on exact libpq sync/abort transitions keep `impl="libpq"`. | Boundary |
 
 ## Compatibility Contract Harness
 
@@ -572,17 +568,18 @@ Definition of done:
   `--impl=ferrocopg`; the `notice` tag is removed.
 - The equivalency matrix error-mapping row moves to Available.
 
-Current status: notice delivery and UTF8 diagnostics are implemented; non-UTF8
-diagnostics remain open.
+Current status: complete.
 
 - Every plaintext and TLS session installs a Rust-only notice callback that
   queues owned diagnostic data. The Python adapter drains the queue after
   operations and isolates exceptions raised by user notice handlers.
 - SQLSTATE classes, the full `DbError` field set, query context, DB-API error
   aliases, synthetic `pgresult`, and failed-connect metadata are implemented.
-- Focused unit and live PostgreSQL notice/diagnostic tests pass. The remaining
-  `tests/test_errors.py` gap is non-UTF8 diagnostic text because upstream
-  `tokio-postgres` irreversibly applies `String::from_utf8_lossy`.
+- The exact locked tokio-postgres source is patched locally to retain raw
+  protocol diagnostic fields, allowing Psycopg to decode errors and notices
+  with the active client encoding instead of accepting lossy UTF-8 conversion.
+- Focused unit and live PostgreSQL notice/diagnostic tests pass, including
+  non-UTF8 error and notice text.
 
 ### Milestone 3.5: Cursor and COPY completeness
 
@@ -611,6 +608,18 @@ Definition of done:
   under `--impl=ferrocopg`; the `server-cursor` and `copy-options` tags are
   removed.
 
+Current status: complete for the backend-supported cursor and COPY surface.
+
+- Named, scrollable, and withhold cursors use backend-native
+  `DECLARE`/`FETCH`/`MOVE`/`CLOSE` commands and have focused live coverage.
+- Sync COPY passes the upstream module for backend-supported behavior,
+  including binary format, parameters, type pinning, generic writers,
+  descriptions, error state, and locking. Only concrete libpq writer classes
+  are manifested under their permanent boundary.
+- The former `server-cursor` and `copy-options` gap tags are removed. Upstream
+  tests that directly instantiate concrete `ServerCursor`/`RawServerCursor`
+  remain under the existing concrete-cursor boundary.
+
 ### Milestone 3.6: TPC and pipeline
 
 Objective:
@@ -634,6 +643,17 @@ Definition of done:
 - Pipeline-marked tests pass or the residual delta is documented and
   manifested as a boundary.
 
+Current status: complete.
+
+- TPC begin, prepare, one- and two-phase commit/rollback, recovery, Xid
+  encoding, cancellation rules, and state transitions are implemented; the
+  sync upstream TPC module is green and the `tpc` gap tag is removed.
+- The exact locked `postgres` wrapper is patched with a batch method that
+  polls tokio-postgres simple-query futures concurrently on its existing
+  runtime, preserving the active session and submission order.
+- Exact `PQpipelineSync`/`PIPELINE_ABORTED` behavior is documented and
+  manifested as a permanent protocol boundary.
+
 ### Milestone 3.7: Async adapter
 
 Objective:
@@ -650,6 +670,18 @@ Definition of done:
 
 - The async suite is included in the pass-rate denominator under
   `--impl=ferrocopg`.
+
+Current status: implementation complete; PostgreSQL 14-18 matrix validation is
+in progress.
+
+- `FerrocopgAsyncConnection` uses the planned serialized thread-offload
+  mechanism and exposes async connection, cursor, transaction, pipeline,
+  COPY, TPC, named-cursor, cancellation, and notification operations.
+- `aconn_cls` now selects this facade and the blanket main-async manifest rule
+  is removed, so main async tests count toward the compatibility denominator.
+- Concrete Psycopg async cursor classes, pool injection, and exact libpq
+  pipeline behavior remain separately documented boundaries rather than
+  being hidden by an `async` gap tag.
 
 ### Milestone 4: Define conditional cutover readiness
 
@@ -834,10 +866,10 @@ both implementation coverage and CI evidence.
 | Gate | Required evidence | Current status |
 | --- | --- | --- |
 | Selector coexistence | Python-only, Cython/C, and ferrocopg selectors can be installed and imported in the same checkout without shadowing each other. | Available in the source workspace; explicit connection selectors are tested and default behavior remains unchanged. |
-| Backend live contract | DSN-backed tests cover connect, query, parameters, describe, prepare, transactions, cancel, COPY, notify, and error mapping against real PostgreSQL. | Substantially covered by `test_ferrocopg_bootstrap.py`; TLS certificate parity, COPY options, notices, TPC, and broader cursor modes remain open. |
+| Backend live contract | DSN-backed tests cover connect, query, parameters, describe, prepare, transactions, cancel, COPY, notify, and error mapping against real PostgreSQL. | Covered by `test_ferrocopg_bootstrap.py` across PostgreSQL 14-18, including TLS certificates, diagnostics/notices, binary COPY, named cursors, TPC, pipeline batches, and the async facade. |
 | Helper seam parity | COPY helpers, waiting, generators, transformer, and selected type helpers behave equivalently to Python/Cython seams when Rust is present. | In progress; focused side-by-side tests exist for many helper seams. |
-| Unsupported feature routing | Every gap in the gaps table is either implemented (Milestones 3.2–3.7) or on the permanent-boundary list with a documented fallback story; unsupported features raise hard errors naming `impl="libpq"`. | In progress; the routing decision is settled (hard errors plus documented boundaries, no transparent fallback), explicit unsupported-mode tests exist, and each gap now has an assigned milestone or boundary status. |
-| Error and diagnostic compatibility | SQLSTATE classes, diagnostic fields, and user-facing exception types match Psycopg expectations for common server and connection errors. | Partial; SQLSTATE, primary diagnostics, and structured constraint diagnostics are covered; richer pgconn/pgresult metadata remains. |
+| Unsupported feature routing | Every gap in the gaps table is either implemented (Milestones 3.2–3.7) or on the permanent-boundary list with a documented fallback story; unsupported features raise hard errors naming `impl="libpq"`. | Phase 3 implementation complete; remaining entries are explicit libpq-only boundaries with no transparent mid-session fallback. |
+| Error and diagnostic compatibility | SQLSTATE classes, diagnostic fields, and user-facing exception types match Psycopg expectations for common server and connection errors. | Available, including raw non-UTF8 diagnostic fields, SQLSTATE subclasses, structured constraint metadata, notices, and fatal-connection state. |
 | Packaging readiness | Rust wheels build through maturin without relying on Cython for the accelerated path, while Python fallback remains usable. | Not started for default cutover; maturin is wired for the optional extension only. |
 | CI default-path safety | Existing Python and Cython/C jobs stay green while Rust-path jobs fail independently on Rust regressions. | The dedicated `ferrocopg-rust` job is separate from the default matrix and enforces the measured `0.65` pass-rate floor. |
 
@@ -845,7 +877,8 @@ both implementation coverage and CI evidence.
 
 The current backend program is successful when all of the following are true:
 
-- The Rust backend is useful for documented synchronous Psycopg workflows.
+- The Rust backend is useful for documented synchronous and asynchronous
+  Psycopg workflows.
 - Rust-backed behavior passes a meaningful, ratcheted compatibility contract.
 - Unsupported features and libpq-specific boundaries are explicit.
 - `uv` is the standard contributor workflow.
@@ -859,20 +892,18 @@ cutover milestones are activated.
 
 ## Recommended Next Actions
 
-1. Close the post-upstream CI follow-up: confirm Python 3.14 lint, PyPy 3.10
-   dependency resolution, old-libpq connection option handling, the universal
-   `uv.lock`, the compatibility floor, and the rustls matrix on the remote
-   workflows. Keep this green baseline as the gate for new feature work.
-2. Start Milestone 3.4 with diagnostics and notices. Complete `DbError` field
-   mapping and queued notice delivery, then remove the `notice` manifest tag
-   when the focused and compatibility tests prove the behavior.
-3. Re-run the complete compatibility harness after that slice and use its
-   JUnit evidence to choose between server-cursor support and COPY options in
-   Milestone 3.5. Keep concrete Psycopg cursor classes at the documented
-   libpq-only boundary instead of growing a fake `PGconn` compatibility shim.
-4. Treat `_exec_command`, the concrete-cursor decision, and the SSL-enabled
-   PostgreSQL 14-18 matrix as completed foundations. Extend their protocols or
-   tests only when a supported feature requires it.
-5. Defer async bridging, TPC, and deeper pipeline parity until the supported
-   synchronous contract is stable, unless a concrete user requirement changes
-   that priority.
+1. Close Phase 3 validation by confirming the PostgreSQL 14-18 matrix and its
+   recalculated compatibility rate after the main async suite entered the
+   denominator. Ratchet `ferrocopg_pass_rate.txt` to the measured floor.
+2. Begin Milestone 4 only as a conditional-readiness exercise: decide whether
+   the remaining concrete libpq boundaries are acceptable for a supported
+   optional backend. This does not imply changing Psycopg's default.
+3. Prioritize packaging evidence from Milestone 5: build and smoke-test wheels
+   for supported Python/platform combinations and document installation
+   without a source checkout.
+4. Add performance and cancellation stress measurements for the thread-offload
+   async facade and pipelined batch path before considering a native
+   pyo3-async-runtimes bridge.
+5. Keep upstreaming deliberately undecided. First establish a stable optional
+   backend release and collect user feedback on the API and permanent
+   boundaries.

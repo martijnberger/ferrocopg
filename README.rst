@@ -61,23 +61,55 @@ environment variable is *not* the ferrocopg selector; it selects Psycopg's
 libpq wrapper implementation. Choose ``impl="ferrocopg"`` or
 ``impl="libpq"`` at connection time instead.
 
-The opt-in backend already covers common synchronous workflows: Psycopg-style
+The opt-in backend covers common synchronous workflows: Psycopg-style
 ``%s``/``%t``/``%b`` parameters, typed results, row factories, prepared
-statements, transactions and savepoints, cancellation, text COPY,
-LISTEN/NOTIFY, and a basic pipeline adapter. Text and binary execution are
-supported by the default ferrocopg cursor.
+statements, transactions and savepoints, two-phase commit, cancellation,
+text and binary COPY, named server cursors, LISTEN/NOTIFY, and a pipelined
+batch adapter. Text and binary execution are supported by the default
+ferrocopg cursor.
+
+Named cursors use backend-native ``DECLARE``/``FETCH``/``MOVE``/``CLOSE``
+commands and support scrolling and ``withhold``::
+
+    with psycopg.connect(dsn, impl="ferrocopg") as conn:
+        with conn.cursor("events", scrollable=True) as cur:
+            cur.execute("select id, payload from events order by id")
+            print(cur.fetchmany(100))
+
+Binary COPY reuses Psycopg's formatters and type registry over the Rust byte
+pipe::
+
+    with psycopg.connect(dsn, impl="ferrocopg") as conn:
+        with conn.cursor().copy(
+            "copy events (id, payload) from stdin (format binary)"
+        ) as copy:
+            copy.set_types(["int4", "text"])
+            copy.write_row((1, "started"))
+
+Async applications use the thread-offload facade. Backend calls are serialized
+per connection and run outside the event-loop thread::
+
+    async with await psycopg.FerrocopgAsyncConnection.connect(
+        dsn, row_factory=dict_row
+    ) as conn:
+        row = await (await conn.execute(
+            "select %s::int4 as answer", (42,)
+        )).fetchone()
+        print(row)
 
 It is not a drop-in replacement yet. Keep ``impl="libpq"`` for applications
 that require:
 
-- ``AsyncConnection``
-- server-side, scrollable, or withhold cursors
 - Psycopg's concrete ``Cursor``, ``ClientCursor``, or ``RawCursor`` classes;
   these remain libpq-only, while backend-specific custom cursors may subclass
   ``psycopg._ferrocopg.NoTlsCursorAdapter``
-- binary COPY, custom COPY writers, or COPY parameters
-- two-phase transactions or exact libpq pipeline semantics
+- concrete ``LibpqWriter``/``QueuedLibpqWriter`` COPY writers; normal COPY,
+  COPY parameters, binary row helpers, and generic custom writers are supported
+- exact libpq ``PQpipelineSync``/``PIPELINE_ABORTED`` state-machine semantics;
+  ferrocopg pipelines queued simple-query batches but documents this residual
+  protocol boundary
 - raw libpq ``PGconn``/socket access such as ``fileno()``
+- libpq-specific stalled-handshake and aggregated multi-host error behavior
 
 The dedicated CI matrix exercises all six SSL modes against SSL-enabled
 PostgreSQL 14-18, including custom roots, required channel binding, and client
