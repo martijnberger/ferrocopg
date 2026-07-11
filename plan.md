@@ -37,83 +37,72 @@ The following foundation work is already in place:
 - The main test suite is executable under `--impl=ferrocopg` with a declarative
   gap manifest and CI pass-rate check.
 
-The next phase should optimize for making the optional Rust backend more
-useful and measurable. No default-path or upstreaming decision is required to
-close the remaining compatibility gaps.
+Phase 3 is complete: the optional backend now has sync and async facades,
+explicit libpq-only boundaries, and a passing PostgreSQL 14-18 compatibility
+matrix. The next phase is a product and release-readiness decision, not more
+unbounded backend-surface work. No default-path or upstreaming decision is
+implied by completing Phase 3.
 
-## Current Priority Re-evaluation (2026-07-11)
+## Phase 3 Closure (2026-07-11)
 
-The upstream rebase and a fresh compatibility audit changed the immediate
-ordering of the work. The implementation milestones remain valid, but feature
-work should not proceed ahead of CI and harness reliability.
+The upstream rebase, compatibility audit, and final matrix run close the Phase
+3 implementation and validation loop.
 
-Current evidence:
+Closure evidence:
 
-- Focused validation is healthy: pre-commit passes, the Rust workspace has 22
-  passing tests, and the DSN-backed bootstrap suite has 179 passing tests with
-  7 expected accelerator-dependent skips.
-- The post-rebase locked `uv` sync exposed an unsatisfiable docs toolchain on
-  Python 3.10/3.11 because the newest docs tools require newer Python versions.
-  Version-marked docs dependencies correct the resolution in this
-  re-evaluation; confirmation from the normal CI workflows remains Priority 0.
-- A deterministic full `--impl=ferrocopg` run now completes and writes JUnit.
-  The local Python 3.13/PostgreSQL 17 run measured `3113/4326` (`0.720`)
-  non-manifested cases and supports a conservative `0.65` compatibility floor.
-- A deterministic 20-failure slice stopped entirely in
-  `tests/test_cursor_client.py`. The concrete `ClientCursor` path expects a
-  connection lock and a full libpq `PGconn` transaction/status surface that
-  the ferrocopg adapter intentionally does not provide.
-- Async and concrete-cursor families are now hard-skipped where executing them
-  cannot measure the sync adapter. Fixture-aware classification remains the
-  preferred rule for new tests.
+- The normal lint workflow is green after the upstream sync and the universal
+  lock resolves on every supported Python version.
+- Every PostgreSQL 14-18 ferrocopg job passes on Python 3.10-3.14. Each job
+  runs 22 Rust backend tests, the PyO3 crate tests, 196 focused live bootstrap
+  tests, and the complete compatibility harness.
+- The final non-manifested pass rates are `0.837`, `0.840`, `0.840`, `0.841`,
+  and `0.834` for PostgreSQL 14 through 18 respectively. The committed floor
+  is ratcheted to `0.80`, below the observed minimum but materially above the
+  old pre-async baseline.
+- The main async connection suite is in the compatibility denominator through
+  `FerrocopgAsyncConnection`; only pool injection, CockroachDB async support,
+  concrete Psycopg cursor classes, and protocol-specific libpq behavior remain
+  manifested boundaries.
+- Diagnostics/notices, server cursors, COPY, TPC, pipelined batching, and the
+  async facade all have focused live coverage in the matrix.
 
-The resulting priority order is:
+The resulting next-focus order is:
 
-### Priority 0: Restore a green upstream-sync baseline
+### Priority 0: Preserve the Phase 3 contract
 
-- Keep the universal `uv.lock` resolvable for every supported Python version.
-- Require the normal lint and test workflows to reach backend validation after
-  every upstream sync.
-- Treat a red default workflow as a release blocker for further feature work.
+- Keep the PostgreSQL 14-18 jobs, focused bootstrap suite, and `0.80` ratchet
+  green after every upstream sync.
+- Treat a Rust-path regression or a newly unclassified hang as a release
+  blocker for the optional backend.
+- Keep unsupported behavior explicit instead of growing a fake `PGconn` shim.
 
-### Priority 1: Make the compatibility harness trustworthy
+### Priority 1: Decide supported-backend scope
 
-- Make the harness complete deterministically without crashing or hanging and
-  always emit its JUnit report.
-- Classify known concrete-cursor incompatibilities before setting the floor.
-  Crash-prone tests should be skipped until the path is safe to execute; normal
-  compatibility gaps should remain non-strict xfails.
-- Hard-skip files dedicated to unavailable async connection APIs, and use
-  fixture- or behavior-based classification for mixed sync/async files so
-  unrelated passing tests are not reported as gap XPASS noise.
-- Split or shard the harness if needed so a single unsafe family cannot erase
-  the compatibility result for the rest of the suite.
-- Record a nonzero floor only after the same denominator and result complete
-  reliably in local runs and CI.
+- Decide whether the documented concrete cursor, concrete COPY writer,
+  `fileno()`, and exact libpq pipeline boundaries are acceptable for a
+  supported optional backend.
+- Keep upstreaming and default-selection decisions separate from that support
+  decision.
+- Continue to ratchet compatibility as ordinary gaps close, without requiring
+  permanent libpq boundaries to be emulated.
 
-### Priority 2: Build the backend-neutral cursor foundation
+### Priority 2: Prove packaging and installation
 
-- Psycopg's existing concrete cursor classes remain a documented libpq-only
-  boundary. Ferrocopg-specific custom cursors subclass `NoTlsCursorAdapter`.
-- Do not grow `_PgconnEncodingShim` into a fake libpq connection merely to
-  satisfy tests. Prefer a small explicit execution protocol shared by the
-  ferrocopg cursor and any concrete cursor classes that are intentionally
-  supported.
-- `_exec_command` is implemented on the backend-native session protocol and
-  now carries transaction/savepoint command-fixture coverage. It is the
-  foundation for server cursors and richer COPY behavior.
-- Use the stabilized harness to measure this slice before moving to another
-  feature family.
+- Build and smoke-test wheels on the intended Linux, macOS, and Windows
+  targets without a source checkout.
+- Document the package naming and installation story for users selecting
+  `impl="ferrocopg"`.
+- Preserve side-by-side Python, Cython/C, and Rust installations until a
+  separate cutover decision is made.
 
-### Priority 3: Close production-readiness evidence
+### Priority 3: Measure operational behavior
 
-- Confirm the new SSL-enabled PostgreSQL 14-18 matrix on remote CI. It covers
-  all sslmodes, custom roots, required channel binding, and client-certificate
-  authentication.
-- Continue diagnostics/notices and COPY/server-cursor closure in the order
-  indicated by measured compatibility impact.
-- Keep async, TPC, and exact pipeline work behind the sync contract unless a
-  product requirement changes that ordering.
+- Add performance, cancellation, and soak measurements for the serialized
+  thread-offload async facade and wire-pipelined batch path.
+- Use those measurements to decide whether a native asyncio/Tokio bridge is
+  worth its packaging and maintenance cost.
+- Collect user feedback before deciding whether to propose the backend
+  upstream or keep it as a fork-specific capability.
 
 ## Coexistence Policy
 
@@ -331,27 +320,30 @@ Design:
   current default drift where `connect_ferrocopg()` defaults
   `autocommit=True` while psycopg defaults to `False`.
 - Fixtures that are inherently libpq-level auto-skip under ferrocopg: the raw
-  `pgconn` fixture, `aconn_cls`/`aconn` (until the async adapter exists), and
-  `tests/pq/` is deselected wholesale. Combining `--pq-trace`/`--pq-debug`
-  with `--impl=ferrocopg` is a `pytest.UsageError`.
+  `pgconn` fixture and `tests/pq/`. The `aconn_cls`/`aconn` fixtures select
+  `FerrocopgAsyncConnection`, so the main async suite participates in the
+  denominator. Combining `--pq-trace`/`--pq-debug` with
+  `--impl=ferrocopg` is a `pytest.UsageError`.
 - The `tests/fix_ferrocopg.py` plugin applies markers from a declarative
   manifest (`tests/ferrocopg_manifest.toml`) mapping test node-id globs to
-  reason tags: `tls`, `async`, `pgconn`, `server-cursor`, `tpc`, `notice`,
-  `pipeline`, `copy-options`, and `fileno`. Tags tied to a
-  gap-closure milestone use `xfail(strict=False)` so fixes surface as XPASS
-  and shrink the manifest; only permanent boundaries use hard `skip`.
-- The `commands` fixture monkeypatches `conn._exec_command`, which the
-  adapter lacks; those tests stay manifested until `_exec_command` lands
-  (Milestone 3.5 needs it for server-side cursors anyway).
+  current boundary tags: raw `pgconn`, pool/CRDB async injection, concrete
+  cursor classes, concrete libpq COPY writers, exact pipeline semantics,
+  `fileno()`, and libpq-specific handshake/cancel behavior. Implemented
+  feature tags such as TLS, notices, TPC, server cursors, and COPY options have
+  been removed.
+- The backend-native `_exec_command` protocol supports transaction commands,
+  server cursor operations, COPY control, and related command fixtures without
+  pretending that the Rust session is a libpq `PGconn`.
 - Pass-rate ratchet: a CI step in the `ferrocopg-rust` job runs
   `pytest tests --impl=ferrocopg` with a JUnit report; a small script
   computes the pass rate over non-manifested tests and compares it against a
   committed floor file. CI fails if the rate regresses below the floor; the
   floor is raised manually as gaps close.
 
-The harness and CI plumbing are active. A complete deterministic run measured
-`3113/4326` (`0.720`) non-manifested cases; the committed `0.65` floor leaves
-cross-version headroom while protecting the current compatibility baseline.
+The harness and CI plumbing are active. The completed PostgreSQL 14-18 matrix
+measured non-manifested rates from `0.834` to `0.841`; the committed `0.80`
+floor leaves cross-version headroom while protecting the sync and async
+compatibility baseline.
 
 The conditional cutover gate derived from this harness: the floor reaches 100%
 of non-manifested tests (sync and async) and the manifest contains only the
@@ -440,6 +432,9 @@ Current status:
 - The job is intentionally independent from the default Python/Cython test
   matrix so Rust regressions are visible without changing default-path
   behavior.
+- Complete: the final Python 3.10-3.14/PostgreSQL 14-18 matrix passes all five
+  jobs, including crate, focused bootstrap, TLS, and full compatibility
+  validation.
 
 ### Milestone 3.1: Compatibility harness
 
@@ -468,14 +463,15 @@ Current status:
 
 - The selector, fixtures, manifest, JUnit report, pass-rate script, and CI job
   are implemented and the full suite executes against ferrocopg.
-- Concrete cursor and async families are classified as hard skips because they
-  currently exercise libpq-only or unavailable adapter paths.
+- Concrete cursor, pool/CRDB async injection, and raw libpq families are
+  classified as boundaries; the main async connection suite is enabled.
 - Whole-handshake timeout tests are explicitly skipped: rust-postgres applies
   `connect_timeout` to socket establishment and otherwise blocks forever when
   a peer accepts TCP but never begins the PostgreSQL handshake.
-- A full deterministic run completed in 320 seconds and measured `3113/4326`
-  (`0.720`) non-manifested cases. The committed `0.65` floor makes the harness
-  a real regression ratchet with cross-version headroom.
+- The full deterministic matrix completes in roughly 11-14 minutes per job
+  and measures `0.834`-`0.841` across PostgreSQL 14-18. The committed `0.80`
+  floor makes the async-inclusive harness a real regression ratchet with
+  cross-version headroom.
 
 ### Milestone 3.2: TLS via rustls
 
@@ -511,7 +507,7 @@ Current status:
 - Live tests cover all six sslmodes, custom-root verification, required channel
   binding, rejection without a required client certificate, and successful
   client-certificate authentication. The obsolete `tls` manifest tag is
-  removed; remote matrix confirmation remains before release claims.
+  removed and all five remote matrix jobs pass.
 
 ### Milestone 3.3: Result adaptation and rows protocol
 
@@ -671,8 +667,7 @@ Definition of done:
 - The async suite is included in the pass-rate denominator under
   `--impl=ferrocopg`.
 
-Current status: implementation complete; PostgreSQL 14-18 matrix validation is
-in progress.
+Current status: complete.
 
 - `FerrocopgAsyncConnection` uses the planned serialized thread-offload
   mechanism and exposes async connection, cursor, transaction, pipeline,
@@ -682,6 +677,8 @@ in progress.
 - Concrete Psycopg async cursor classes, pool injection, and exact libpq
   pipeline behavior remain separately documented boundaries rather than
   being hidden by an `async` gap tag.
+- The async-inclusive compatibility harness passes on Python 3.10-3.14 and
+  PostgreSQL 14-18, satisfying the Phase 3.7 definition of done.
 
 ### Milestone 4: Define conditional cutover readiness
 
@@ -730,8 +727,9 @@ Current status:
 - The current safe operating model remains explicit opt-in through
   `psycopg.connect_ferrocopg(...)` or `psycopg.connect(..., impl="ferrocopg")`.
 - No upstreaming or default-cutover decision has been made.
-- The compatibility floor is `0.65`, calibrated from a measured `0.720` local
-  run, so regressions in the supported sync surface are now enforceable.
+- The compatibility floor is `0.80`, calibrated from the final `0.834`-`0.841`
+  matrix, so regressions in the supported sync and async surfaces are now
+  enforceable.
 
 ### Milestone 5: Conditional packaging cutover
 
@@ -871,7 +869,7 @@ both implementation coverage and CI evidence.
 | Unsupported feature routing | Every gap in the gaps table is either implemented (Milestones 3.2–3.7) or on the permanent-boundary list with a documented fallback story; unsupported features raise hard errors naming `impl="libpq"`. | Phase 3 implementation complete; remaining entries are explicit libpq-only boundaries with no transparent mid-session fallback. |
 | Error and diagnostic compatibility | SQLSTATE classes, diagnostic fields, and user-facing exception types match Psycopg expectations for common server and connection errors. | Available, including raw non-UTF8 diagnostic fields, SQLSTATE subclasses, structured constraint metadata, notices, and fatal-connection state. |
 | Packaging readiness | Rust wheels build through maturin without relying on Cython for the accelerated path, while Python fallback remains usable. | Not started for default cutover; maturin is wired for the optional extension only. |
-| CI default-path safety | Existing Python and Cython/C jobs stay green while Rust-path jobs fail independently on Rust regressions. | The dedicated `ferrocopg-rust` job is separate from the default matrix and enforces the measured `0.65` pass-rate floor. |
+| CI default-path safety | Existing Python and Cython/C jobs stay green while Rust-path jobs fail independently on Rust regressions. | The dedicated `ferrocopg-rust` job is separate from the default matrix and enforces the measured `0.80` pass-rate floor across PostgreSQL 14-18. |
 
 ## Success Criteria
 
@@ -892,18 +890,15 @@ cutover milestones are activated.
 
 ## Recommended Next Actions
 
-1. Close Phase 3 validation by confirming the PostgreSQL 14-18 matrix and its
-   recalculated compatibility rate after the main async suite entered the
-   denominator. Ratchet `ferrocopg_pass_rate.txt` to the measured floor.
-2. Begin Milestone 4 only as a conditional-readiness exercise: decide whether
+1. Begin Milestone 4 only as a conditional-readiness exercise: decide whether
    the remaining concrete libpq boundaries are acceptable for a supported
    optional backend. This does not imply changing Psycopg's default.
-3. Prioritize packaging evidence from Milestone 5: build and smoke-test wheels
+2. Prioritize packaging evidence from Milestone 5: build and smoke-test wheels
    for supported Python/platform combinations and document installation
    without a source checkout.
-4. Add performance and cancellation stress measurements for the thread-offload
+3. Add performance and cancellation stress measurements for the thread-offload
    async facade and pipelined batch path before considering a native
    pyo3-async-runtimes bridge.
-5. Keep upstreaming deliberately undecided. First establish a stable optional
+4. Keep upstreaming deliberately undecided. First establish a stable optional
    backend release and collect user feedback on the API and permanent
    boundaries.
