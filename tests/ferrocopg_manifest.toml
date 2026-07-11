@@ -171,6 +171,18 @@ reason = "rust-postgres cannot advance after a stalled PostgreSQL handshake"
 action = "skip"
 
 [[rules]]
+glob = "tests/test_connection.py::test_cancel_safe_timeout*"
+tag = "handshake-timeout"
+reason = "rust-postgres cancel_query does not expose libpq 17 bounded cancel-safe handshake semantics"
+action = "skip"
+
+[[rules]]
+glob = "tests/test_connection_async.py::test_cancel_safe_timeout*"
+tag = "handshake-timeout"
+reason = "rust-postgres cancel_query does not expose libpq 17 bounded cancel-safe handshake semantics"
+action = "skip"
+
+[[rules]]
 glob = "tests/test_concurrency.py::test_break_attempts*"
 tag = "handshake-timeout"
 reason = "interrupting a stalled libpq connection attempt is outside the Rust adapter contract"
