@@ -98,11 +98,11 @@ The focused C and pure-Python bootstrap/harness slices are green, and the user
 and contributor documentation now reflects the Phase 3 implementation and
 the separate `ferrocopg` product direction.
 
-Phase 4.0 and Phase 4.1 are complete. Omitted synchronous `connect()` now uses
+Phase 4.0 through Phase 4.2 are complete. Omitted synchronous `connect()` uses
 Rust, missing Rust is a hard actionable error, and comparison jobs select
-libpq explicitly. Phase 4.2 is in progress: the staging tool builds a separate
-`ferrocopg` wheel, records its vendored upstream revision, and has proved
-side-by-side installation and lazy official-Psycopg delegation locally.
+libpq explicitly. The staging tool builds a standalone `ferrocopg` wheel,
+records its vendored upstream revision, and passes clean installed-wheel CI for
+Rust-only use, side-by-side delegation, coexistence, and uninstall isolation.
 
 ## Architecture
 
@@ -352,7 +352,7 @@ Definition of done:
 
 ### Phase 4.2: Prove the ferrocopg package boundary
 
-Status: implementation complete; final package CI validation pending.
+Status: complete.
 
 Tasks:
 
@@ -368,7 +368,7 @@ Tasks:
   the vendored upstream revision.
 - [x] Make the Rust-default package import and connect without system libpq;
   libpq may only be required when the optional official-Psycopg fallback is used.
-- [ ] Pass the clean installed-wheel CI smoke with a live Rust query, explicit
+- [x] Pass the clean installed-wheel CI smoke with a live Rust query, explicit
   delegation, coexistence, and uninstall-isolation checks.
 
 Definition of done:
@@ -511,11 +511,9 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Finish Phase 4.2 by removing the Rust path's import-time libpq requirement,
-   correcting delegated typing, and validating the supported fallback versions.
-2. Pass the staged wheel's clean-environment package CI, including live Rust,
-   delegation, coexistence, and uninstall-isolation checks.
-3. Start Phase 4.3 with the measured transaction/savepoint failures, then type
+1. Start Phase 4.3 with the measured transaction/savepoint failures, then type
    adaptation and metadata.
-4. Re-run the complete sync compatibility matrix after each closure slice and
+2. Re-run the complete sync compatibility matrix after each closure slice and
    remove obsolete manifest entries while ratcheting the floor upward.
+3. Preserve the standalone package, explicit delegation, and source-tree
+   comparison proofs while each compatibility slice changes shared Python code.
