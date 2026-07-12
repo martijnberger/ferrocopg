@@ -76,9 +76,9 @@ Validation evidence:
   CPython 3.11-3.14 range.
 - The latest complete local PostgreSQL 14 / CPython 3.14 compatibility run
   reports:
-  - sync: `3969/4420` (`0.898`)
-  - async: `394/581` (`0.678`)
-  - mixed: `4363/5001` (`0.872`)
+  - sync: `4622/5010` (`0.923`)
+  - async: `435/581` (`0.749`)
+  - mixed: `5057/5591` (`0.904`)
 - CI enforces the current `0.80` mixed sync/async compatibility floor and the
   `0.85` sync-only floor.
 - CI reports sync and async independently and uploads family-level JSON and
@@ -89,7 +89,7 @@ Validation evidence:
   node ID, so fixing an execution error cannot masquerade as collection drift.
 - The initial sync-only ratchet is `0.85`; observed complete runs currently
   range from `0.865` on the fixed-interpreter PostgreSQL 14-18 CI axis to
-  `0.898` in the latest local run.
+  `0.923` in the latest local run.
 - The corrected complete workflow is green with all 53 jobs passing, including
   pure-Python, C/Cython, and all five Rust backend lanes.
 - Lint, formatting, typing, documentation, and Rust checks pass.
@@ -448,6 +448,13 @@ Completed slices:
   leak checks. The dedicated module passes `28/28`, and the complete synchronous
   default, server, raw, client, and common cursor surface passes `571` tests
   with 11 intentional or version-gated skips on both ferrocopg and libpq.
+- [x] The complete synchronous type tail: LATIN1 enum loading and dumping,
+  SQL-standard negative intervals, and tuple-row integration. Enum metadata now
+  crosses the Rust/Python boundary, the non-UTF protocol bridge preserves
+  ordinary PostgreSQL encoding errors, SQL composition remains libpq-free, and
+  hosted cursors retain their selected row maker. The complete type, metadata,
+  and row family has zero synchronous failures, and the full harness gained 25
+  sync passes without changing its denominator.
 
 Active cursor closure evidence:
 
@@ -461,22 +468,21 @@ Active cursor closure evidence:
 - No synchronous default, raw, client, common, or server cursor module remains
   manifested. Async cursor manifests remain outside the first release contract.
 
-Current local full-harness evidence is `4597/5010` sync (`0.918`) on CPython
-3.14, with zero synchronous errors, `104` failures, `309` skips, and `288`
+Current local full-harness evidence is `4622/5010` sync (`0.923`) on CPython
+3.14, with zero synchronous errors, `79` failures, `309` skips, and `288`
 manifested cases. Cursor coverage is `571/582` (`0.981`) with zero failures and
-zero manifested cases. Types and metadata report `2681/2775` (`0.966`) with 46
-failures, but 25 are async tests in mixed modules that the path-based reporter
-classifies as sync. The actual synchronous type tail is 21 cases: 18 non-ASCII
-enum loader/dumper variants under LATIN1, two SQL-standard negative-interval
-cases, and one tuple-row integration case. Prepared statements are the next
-separate 21-failure cluster. This development environment collects optional
-dependency cases not present in the CI key, so its denominator is reported
-independently; the committed PostgreSQL 14-18 CI matrix remains the release gate
-and must establish the new minimum before the sync floor is raised.
+zero manifested cases. Types and metadata report `2702/2775` (`0.974`) with 25
+failures, all of which are async tests in mixed modules that the path-based
+reporter classifies as sync; no actual synchronous type failure remains.
+Prepared statements are the next separate 21-failure cluster. This development
+environment collects optional dependency cases not present in the CI key, so
+its denominator is reported independently; the committed PostgreSQL 14-18 CI
+matrix remains the release gate and must establish the new minimum before the
+sync floor is raised.
 
-The implementation for all 21 synchronous type-tail cases is now live-family
-green. The 18 enum variants pass all 48 focused non-ASCII cases, and the
-interval and tuple-row slice passes 33 focused cases. Enum result metadata now
+The implementation for all 21 synchronous type-tail cases is now complete. The
+18 enum variants pass all 48 focused non-ASCII cases, and the interval and
+tuple-row slice passes 33 focused cases. Enum result metadata now
 crosses the Rust/Python boundary, non-UTF sessions transcode only textual
 parameters and results through the UTF-8 Rust protocol bridge, SQL composition
 uses backend-native identifier and literal quoting instead of libpq escaping,
@@ -486,22 +492,19 @@ seven environment skips, 37 expected failures, and 25 failures that are all
 experimental async-facade cases from mixed modules; no synchronous failure
 remains. The database-independent bootstrap suite passes `179` cases with 30
 expected live skips, and all 22 Rust backend tests pass. The complete sync
-harness and PostgreSQL 14-18 CI reruns are still required before this slice is
-marked complete.
+harness satisfies the `0.85` floor at `0.923`; the PostgreSQL 14-18 CI rerun is
+still required before raising that floor.
 
-Continue in measured order, verifying the current type work before reopening
+Continue in measured order, using the supported-server matrix before reopening
 the next broad failure cluster:
 
-1. Re-run the complete sync harness to verify the live-family-green LATIN1 enum,
-   SQL-standard negative-interval, and tuple-row fixes without cross-family
-   regressions.
-2. Re-run the complete PostgreSQL 14-18 CI matrix and ratchet the sync floor to
+1. Re-run the complete PostgreSQL 14-18 CI matrix and ratchet the sync floor to
    a conservative value below the new observed matrix minimum.
-3. Close prepared statement behavior.
-4. Close COPY writers, COPY edge cases, pipeline state, and error recovery.
-5. Return to handshake-stall timeouts, bounded cancellation, and concurrent
+2. Close prepared statement behavior.
+3. Close COPY writers, COPY edge cases, pipeline state, and error recovery.
+4. Return to handshake-stall timeouts, bounded cancellation, and concurrent
    synchronous use before claiming the release-critical connection gate.
-6. Close remaining low-volume synchronous failures.
+5. Close remaining low-volume synchronous failures.
 
 For every slice:
 
@@ -621,10 +624,9 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Re-run the complete sync harness for the live-family-green LATIN1 enum,
-   SQL-standard interval, and tuple-row implementation.
-2. Use the PostgreSQL 14-18 CI result to ratchet the sync floor without exceeding
+1. Use the PostgreSQL 14-18 CI result to ratchet the sync floor without exceeding
    the slowest supported lane.
+2. Close the 21-failure prepared-statement cluster.
 3. Return to handshake-stall and bounded cancellation timeout boundaries before
    the release-critical gate.
 4. Preserve the standalone package, explicit delegation, and source-tree
