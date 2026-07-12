@@ -76,9 +76,9 @@ Validation evidence:
   CPython 3.11-3.14 range.
 - The latest complete local PostgreSQL 14 / CPython 3.14 compatibility run
   reports:
-  - sync: `4622/5010` (`0.923`)
-  - async: `435/581` (`0.749`)
-  - mixed: `5057/5591` (`0.904`)
+  - sync: `4640/5009` (`0.926`)
+  - async: `439/581` (`0.756`)
+  - mixed: `5079/5590` (`0.909`)
 - CI enforces the current `0.80` mixed sync/async compatibility floor and the
   `0.85` sync-only floor.
 - CI reports sync and async independently and uploads family-level JSON and
@@ -89,7 +89,7 @@ Validation evidence:
   node ID, so fixing an execution error cannot masquerade as collection drift.
 - The initial sync-only ratchet is `0.85`; observed complete runs currently
   range from `0.865` on the fixed-interpreter PostgreSQL 14-18 CI axis to
-  `0.923` in the latest local run.
+  `0.926` in the latest local run.
 - The corrected complete workflow is green with all 53 jobs passing, including
   pure-Python, C/Cython, and all five Rust backend lanes.
 - Lint, formatting, typing, documentation, and Rust checks pass.
@@ -455,6 +455,15 @@ Completed slices:
   hosted cursors retain their selected row maker. The complete type, metadata,
   and row family has zero synchronous failures, and the full harness gained 25
   sync passes without changing its denominator.
+- [x] Prepared statement state, reuse, invalidation, and deallocation parity.
+  The Rust backend now follows Psycopg's prepare threshold and tri-state
+  `prepare` behavior, reuses named statements, evicts them through the
+  `prepared_max` LRU, clears stale state across rollback and invalidating DDL,
+  and executes unprepared bound queries through PostgreSQL's unnamed statement.
+  The focused ferrocopg module reports `32/32`; one raw `PGconn` debug-call test
+  is explicitly manifested, while explicit libpq remains `33/33`. Catalog type
+  discovery and simple-query result metadata no longer leak named statements or
+  lose OIDs across multi-result queries.
 
 Active cursor closure evidence:
 
@@ -468,43 +477,36 @@ Active cursor closure evidence:
 - No synchronous default, raw, client, common, or server cursor module remains
   manifested. Async cursor manifests remain outside the first release contract.
 
-Current local full-harness evidence is `4622/5010` sync (`0.923`) on CPython
-3.14, with zero synchronous errors, `79` failures, `309` skips, and `288`
-manifested cases. Cursor coverage is `571/582` (`0.981`) with zero failures and
-zero manifested cases. Types and metadata report `2702/2775` (`0.974`) with 25
-failures, all of which are async tests in mixed modules that the path-based
-reporter classifies as sync; no actual synchronous type failure remains.
-Prepared statements are the next separate 21-failure cluster. This development
-environment collects optional dependency cases not present in the CI key, so
-its denominator is reported independently; the committed PostgreSQL 14-18 CI
-matrix remains the release gate and must establish the new minimum before the
-sync floor is raised.
+Current local full-harness evidence is `4640/5009` sync (`0.926`) on CPython
+3.14, with zero synchronous errors, `60` reported failures, `309` skips, and
+`289` manifested cases. Twenty-five reported sync failures are experimental
+async type-info tests in mixed modules; the actual remaining synchronous
+failure count is 35. Cursor coverage is `571/582` (`0.981`) with zero failures
+and zero manifested cases. Types and metadata report `2702/2775` (`0.974`)
+with no actual synchronous failure. Prepared statements report `32/32`
+(`1.000`) with the raw-libpq deallocation assertion manifested.
 
-The implementation for all 21 synchronous type-tail cases is now complete. The
-18 enum variants pass all 48 focused non-ASCII cases, and the interval and
-tuple-row slice passes 33 focused cases. Enum result metadata now
-crosses the Rust/Python boundary, non-UTF sessions transcode only textual
-parameters and results through the UTF-8 Rust protocol bridge, SQL composition
-uses backend-native identifier and literal quoting instead of libpq escaping,
-and hosted cursors retain the row maker selected by the backend adapter. The
-complete local type, metadata, and row family reports `2590` passing tests,
-seven environment skips, 37 expected failures, and 25 failures that are all
-experimental async-facade cases from mixed modules; no synchronous failure
-remains. The database-independent bootstrap suite passes `179` cases with 30
-expected live skips, and all 22 Rust backend tests pass. The complete sync
-harness satisfies the `0.85` floor at `0.923`; the PostgreSQL 14-18 CI rerun is
-still required before raising that floor.
+The completed type tail still reports `2590` passing tests, seven environment
+skips, 37 expected failures, and only the 25 experimental async-facade failures
+from mixed modules. The database-independent bootstrap suite passes `179`
+cases with 30 expected live skips, all 22 Rust backend tests pass, and the
+focused cursor family remains `571` passing with 11 version or intentional
+skips. The complete sync harness satisfies the `0.85` floor at `0.926`. This
+development environment collects optional dependency cases not present in the
+CI key, so its denominator is reported independently; the post-prepared
+PostgreSQL 14-18 matrix must establish the supported-server minimum before the
+floor is raised.
 
 Continue in measured order, using the supported-server matrix before reopening
 the next broad failure cluster:
 
 1. Re-run the complete PostgreSQL 14-18 CI matrix and ratchet the sync floor to
    a conservative value below the new observed matrix minimum.
-2. Close prepared statement behavior.
-3. Close COPY writers, COPY edge cases, pipeline state, and error recovery.
-4. Return to handshake-stall timeouts, bounded cancellation, and concurrent
+2. Close COPY writers, COPY edge cases, pipeline state, and error recovery.
+3. Return to handshake-stall timeouts, bounded cancellation, and concurrent
    synchronous use before claiming the release-critical connection gate.
-5. Close remaining low-volume synchronous failures.
+4. Close notification delivery, pool integration, and the remaining low-volume
+   synchronous failures.
 
 For every slice:
 
@@ -624,10 +626,13 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Use the PostgreSQL 14-18 CI result to ratchet the sync floor without exceeding
-   the slowest supported lane.
-2. Close the 21-failure prepared-statement cluster.
-3. Return to handshake-stall and bounded cancellation timeout boundaries before
-   the release-critical gate.
-4. Preserve the standalone package, explicit delegation, and source-tree
+1. Use the post-prepared PostgreSQL 14-18 CI result to ratchet the sync floor
+   without exceeding the slowest supported lane.
+2. Close COPY writer and edge-case behavior, then unmask pipeline state and
+   error recovery as the next measured compatibility cluster.
+3. Return to handshake-stall, bounded cancellation, and concurrent synchronous
+   use before the release-critical connection gate.
+4. Address the measured notification and official `psycopg_pool` integration
+   failures before Phase 5 soak and performance work.
+5. Preserve the standalone package, explicit delegation, and source-tree
    comparison proofs while each compatibility slice changes shared Python code.
