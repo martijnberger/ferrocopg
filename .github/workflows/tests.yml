@@ -331,7 +331,13 @@ jobs:
           uv venv /tmp/ferrocopg-smoke --python 3.11
           uv pip install \
             --python /tmp/ferrocopg-smoke/bin/python \
-            /tmp/ferrocopg-wheelhouse/*.whl \
+            /tmp/ferrocopg-wheelhouse/*.whl
+          /tmp/ferrocopg-smoke/bin/python \
+            tools/ci/ferrocopg_wheel_smoke.py \
+            --dsn "$PSYCOPG_TEST_DSN" \
+            --rust-only
+          uv pip install \
+            --python /tmp/ferrocopg-smoke/bin/python \
             "psycopg >= 3.3, < 3.4"
           /tmp/ferrocopg-smoke/bin/python \
             tools/ci/ferrocopg_wheel_smoke.py \

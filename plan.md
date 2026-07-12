@@ -366,9 +366,9 @@ Tasks:
 - [x] Test side-by-side imports and distribution uninstall behavior.
 - [x] Establish version metadata independent from upstream Psycopg while recording
   the vendored upstream revision.
-- [ ] Make the Rust-default package import and connect without system libpq;
+- [x] Make the Rust-default package import and connect without system libpq;
   libpq may only be required when the optional official-Psycopg fallback is used.
-- [ ] Pass the clean installed-wheel CI smoke with a live Rust query, explicit
+- [x] Pass the clean installed-wheel CI smoke with a live Rust query, explicit
   delegation, coexistence, and uninstall-isolation checks.
 
 Definition of done:

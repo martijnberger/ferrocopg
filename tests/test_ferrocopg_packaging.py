@@ -43,6 +43,7 @@ def test_stage_package_rewrites_namespace_and_preserves_accelerator_names(
     connection = (package / "connection.py").read_text()
     version = (package / "version.py").read_text()
     cmodule = (package / "_cmodule.py").read_text()
+    pq_init = (package / "pq" / "__init__.py").read_text()
     rmodule = (package / "_rmodule.py").read_text()
     init = (package / "__init__.py").read_text()
     official = (package / "_official.py").read_text()
@@ -51,6 +52,9 @@ def test_stage_package_rewrites_namespace_and_preserves_accelerator_names(
     assert 'metadata.version("ferrocopg")' in version
     assert "import psycopg_c._psycopg" in cmodule
     assert "import psycopg_binary._psycopg" in cmodule
+    assert 'pq.__impl__ in ("python", "ferrocopg")' in cmodule
+    assert 'impl = "ferrocopg"' in pq_init
+    assert "from .. import _pq_compat as module" in pq_init
     assert "from ._rust import _ferrocopg as rust_extension" in rmodule
     assert "ferrocopg_rust" not in rmodule
     assert "from ._official import AsyncConnection" in init
@@ -75,10 +79,13 @@ def test_staged_package_imports_with_ferrocopg_identities(tmp_path: Path) -> Non
             "print(ferrocopg.__name__); "
             "print(ferrocopg.Connection.__module__); "
             "print(ferrocopg.Error.__module__); "
+            "print(ferrocopg.pq.__impl__); "
+            'assert ferrocopg.sql.Identifier(\'a\\"b\').as_string() == \'"a\\"\\"b"\'; '
             "print(ferrocopg.__vendored_psycopg_revision__)",
         ],
         cwd=tmp_path,
-        env={**os.environ, "PYTHONPATH": str(output), "PSYCOPG_IMPL": "python"},
+        env={k: v for k, v in os.environ.items() if k != "PSYCOPG_IMPL"}
+        | {"PYTHONPATH": str(output)},
         text=True,
         capture_output=True,
         check=False,
@@ -86,6 +93,7 @@ def test_staged_package_imports_with_ferrocopg_identities(tmp_path: Path) -> Non
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
+        "ferrocopg",
         "ferrocopg",
         "ferrocopg",
         "ferrocopg",

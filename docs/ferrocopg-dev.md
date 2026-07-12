@@ -79,7 +79,9 @@ The staging tool refuses to overwrite an existing directory. It copies the
 vendored Python package to `ferrocopg`, rewrites public module identities,
 nests the extension at `ferrocopg._rust._ferrocopg`, records
 `UPSTREAM_REVISION`, includes the LGPL license, and emits independent `0.1.0`
-metadata. Generated staging output is never committed.
+metadata. The staged package uses a Rust-oriented `pq` compatibility surface,
+so importing the Rust default does not probe or load a system libpq wrapper.
+Generated staging output is never committed.
 
 The wheel can coexist with official Psycopg. Rust is the synchronous default;
 install the fallback extra when using `impl="libpq"` or delegated async

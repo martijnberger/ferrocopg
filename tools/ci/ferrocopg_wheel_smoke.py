@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dsn")
+    parser.add_argument("--rust-only", action="store_true")
     parser.add_argument("--after-uninstall", action="store_true")
     args = parser.parse_args()
 
@@ -21,7 +22,23 @@ def main() -> int:
         return _check_uninstalled()
     if not args.dsn:
         parser.error("--dsn is required before uninstall")
+    if args.rust_only:
+        return _check_rust_only(args.dsn)
     return _check_installed(args.dsn)
+
+
+def _check_rust_only(dsn: str) -> int:
+    assert importlib.util.find_spec("psycopg") is None
+
+    import ferrocopg
+
+    assert ferrocopg.pq.__impl__ == "ferrocopg"
+    conn = ferrocopg.connect(dsn)
+    try:
+        assert conn.execute("select %s::int4", (42,)).fetchone() == (42,)
+    finally:
+        conn.close()
+    return 0
 
 
 def _check_installed(dsn: str) -> int:
@@ -38,6 +55,7 @@ def _check_installed(dsn: str) -> int:
     assert not any(path.startswith("psycopg/") for path in installed_files)
     assert ferrocopg is not psycopg
     assert ferrocopg.Connection.__module__ == "ferrocopg"
+    assert ferrocopg.pq.__impl__ == "ferrocopg"
     assert psycopg.Connection.__module__ == "psycopg"
     assert adapter.is_available()
     assert rust.__version__ == "0.1.0"
@@ -46,7 +64,7 @@ def _check_installed(dsn: str) -> int:
         == (ROOT / "UPSTREAM_REVISION").read_text().strip()
     )
 
-    conn = ferrocopg.connect(dsn, connect_timeout=10)
+    conn = ferrocopg.connect(dsn)
     try:
         assert conn.execute("select %s::int4", (42,)).fetchone() == (42,)
     finally:

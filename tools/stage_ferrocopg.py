@@ -34,6 +34,17 @@ from .version import __version__ as __version__  # noqa: F401
 from ._vendored import PSYCOPG_REVISION as __vendored_psycopg_revision__
 """.rstrip()
 SOURCE_OS_IMPORT = "import os\n"
+SOURCE_PQ_IMPL = '    impl = os.environ.get("PSYCOPG_IMPL", "").lower()\n'
+STAGED_PQ_IMPL = '    impl = "ferrocopg"\n'
+PQ_ATTEMPTS = "    attempts: list[str] = []\n"
+STAGED_PQ_ATTEMPTS = """\
+    attempts: list[str] = []
+
+    if impl == "ferrocopg":
+        from .. import _pq_compat as module
+"""
+SOURCE_CMODULE_PYTHON = 'elif pq.__impl__ == "python":\n'
+STAGED_CMODULE_PYTHON = 'elif pq.__impl__ in ("python", "ferrocopg"):\n'
 SOURCE_SELECTOR_DOC = """\
     `impl="libpq"` selects the temporary source-tree comparison path. The
     `PSYCOPG_SOURCE_IMPL` environment variable exists only for upstream
@@ -91,6 +102,81 @@ class AsyncConnection:
         return await _package().AsyncConnection.connect(conninfo, **kwargs)
 '''
 
+PQ_COMPAT_MODULE = '''\
+"""libpq-free compatibility surface used by the Rust backend."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from .pq.misc import ConninfoOption
+
+__impl__ = "ferrocopg"
+__build_version__ = 0
+
+
+def version() -> int:
+    """Return zero because this implementation is not backed by libpq."""
+    return 0
+
+
+def _unsupported() -> None:
+    from .errors import NotSupportedError
+
+    raise NotSupportedError(
+        "raw libpq operations are unavailable in the ferrocopg Rust backend; "
+        "use impl='libpq' with ferrocopg[libpq]"
+    )
+
+
+class _Unavailable:
+    def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+        _unsupported()
+
+
+class Conninfo:
+    @classmethod
+    def get_defaults(cls) -> list[ConninfoOption]:
+        _unsupported()
+
+    @classmethod
+    def parse(cls, _conninfo: bytes) -> list[ConninfoOption]:
+        _unsupported()
+
+
+class Escaping:
+    """Pure-Python SQL escaping needed by the vendored adaptation layer."""
+
+    def __init__(self, _conn: object | None = None) -> None:
+        pass
+
+    def escape_string(self, data: Any) -> bytes:
+        return bytes(data).replace(b"'", b"''").replace(b"\\\\", b"\\\\\\\\")
+
+    def escape_literal(self, data: Any) -> bytes:
+        escaped = self.escape_string(data)
+        prefix = b" E" if b"\\\\" in escaped else b""
+        return prefix + b"'" + escaped + b"'"
+
+    def escape_identifier(self, data: Any) -> bytes:
+        return b'"' + bytes(data).replace(b'"', b'""') + b'"'
+
+    def escape_bytea(self, data: Any) -> bytes:
+        return b"\\\\x" + bytes(data).hex().encode("ascii")
+
+    def unescape_bytea(self, data: Any) -> bytes:
+        value = bytes(data)
+        if value.startswith(b"\\\\x"):
+            return bytes.fromhex(value[2:].decode("ascii"))
+        return value
+
+
+PGconn = _Unavailable
+PGresult = _Unavailable
+PGcancel = _Unavailable
+PGcancelConn = _Unavailable
+'''
+
 
 def stage_package(
     output: Path,
@@ -136,6 +222,7 @@ def stage_package(
         if path.suffix in {".py", ".pyi"}:
             path.write_text(_transform_source(path, path.read_text()))
     (package / "_official.py").write_text(OFFICIAL_MODULE)
+    (package / "_pq_compat.py").write_text(PQ_COMPAT_MODULE)
     (package / "_vendored.py").write_text(
         f'"""Vendored Psycopg source provenance."""\n\nPSYCOPG_REVISION = "{revision}"\n'
     )
@@ -210,6 +297,23 @@ def _transform_source(path: Path, source: str) -> str:
                     f"cannot locate package-boundary source in {path.name}: {original!r}"
                 )
             transformed = transformed.replace(original, replacement, 1)
+    elif path.name == "__init__.py" and path.parent.name == "pq":
+        replacements = (
+            (SOURCE_PQ_IMPL, STAGED_PQ_IMPL),
+            (PQ_ATTEMPTS, STAGED_PQ_ATTEMPTS),
+        )
+        for original, replacement in replacements:
+            if original not in transformed:
+                raise RuntimeError(
+                    f"cannot locate pq source in {path.name}: {original!r}"
+                )
+            transformed = transformed.replace(original, replacement, 1)
+    elif path.name == "_cmodule.py":
+        if SOURCE_CMODULE_PYTHON not in transformed:
+            raise RuntimeError("cannot locate pure-Python cmodule branch")
+        transformed = transformed.replace(
+            SOURCE_CMODULE_PYTHON, STAGED_CMODULE_PYTHON, 1
+        )
     return transformed
 
 
