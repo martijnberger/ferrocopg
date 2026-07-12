@@ -73,18 +73,23 @@ Validation evidence:
 - The focused live bootstrap suite reports 196 passing tests with 8 expected
   accelerator-dependent skips in the PostgreSQL matrix.
 - All five ferrocopg jobs pass on Python 3.10-3.14 and PostgreSQL 14-18.
-- The current broad compatibility rate is approximately `0.834`-`0.842`.
+- A complete local PostgreSQL 17 / CPython 3.14 compatibility run reports:
+  - sync: `3790/4453` (`0.851`)
+  - async: `365/586` (`0.623`)
+  - mixed: `4155/5039` (`0.825`)
 - CI enforces the current `0.80` mixed sync/async compatibility floor.
+- CI reports sync and async independently and uploads family-level JSON and
+  JUnit evidence for every PostgreSQL 14-18 matrix job.
 - Lint, formatting, typing, documentation, and Rust checks pass.
 
-The complete workflow is not yet green. The current C/Cython jobs share one
-ferrocopg bootstrap failure: `test_no_tls_cursor_adapter_copy` selects the C
-COPY formatter for a backend-specific transformer. This is an isolated
-backend-test dispatch defect, but it violates the coexistence contract and is
-the first item in the new roadmap.
+The C/Cython coexistence failure in `test_no_tls_cursor_adapter_copy` is fixed.
+The focused C and pure-Python bootstrap/harness slices are green, and the user
+and contributor documentation now reflects the Phase 3 implementation and
+the separate `ferrocopg` product direction.
 
-The development guide is also stale: it still describes several completed
-Phase 3 capabilities as missing and cites the old `0.65` floor.
+Phase 4.0 remains open until the corrected full workflow is green and the
+sync denominator is confirmed stable across PostgreSQL 14-18. The committed
+sync floor remains measurement-only until those five reports are available.
 
 ## Architecture
 
@@ -289,15 +294,18 @@ checkout and pass:
 
 ### Phase 4.0: Restore a trustworthy baseline
 
+Status: in progress.
+
 Tasks:
 
-- Fix `test_no_tls_cursor_adapter_copy` so backend COPY tests do not select a
+- [x] Fix `test_no_tls_cursor_adapter_copy` so backend COPY tests do not select a
   C formatter for a Rust-only transformer.
-- Restore a green complete upstream Python/C/Cython workflow.
-- Update the README and development guide to match Phase 3 reality.
-- Split compatibility reporting into sync and async result sets.
-- Measure and commit the initial sync-only denominator and floor.
-- Record failure counts by feature family in CI artifacts.
+- [ ] Restore a green complete upstream Python/C/Cython workflow.
+- [x] Update the README and development guide to match Phase 3 reality.
+- [x] Split compatibility reporting into sync and async result sets.
+- [ ] Confirm the sync-only denominator across PostgreSQL 14-18 and replace the
+  measurement-only floor with the observed minimum.
+- [x] Record failure counts by feature family in CI artifacts.
 
 Definition of done:
 
@@ -480,11 +488,11 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Restore the complete green CI baseline.
-2. Update stale user and contributor documentation.
-3. Introduce sync-only compatibility reporting.
-4. Switch the synchronous source default to Rust with hard missing-extension
+1. Confirm the corrected complete CI workflow and PostgreSQL 14-18 sync
+   denominators.
+2. Commit a conservative nonzero sync-only floor from the observed minimum.
+3. Switch the synchronous source default to Rust with hard missing-extension
    errors.
-5. Build the ferrocopg namespace staging proof of concept.
-6. Prove explicit official-Psycopg delegation inside the staged namespace.
-7. Start compatibility closure with transactions, then types and metadata.
+4. Build the ferrocopg namespace staging proof of concept.
+5. Prove explicit official-Psycopg delegation inside the staged namespace.
+6. Start compatibility closure with transactions, then types and metadata.
