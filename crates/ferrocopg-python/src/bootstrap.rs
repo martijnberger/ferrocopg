@@ -2,7 +2,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
 use pyo3::wrap_pyfunction;
-use std::sync::Mutex;
+use std::sync::{Mutex, TryLockError};
 
 use crate::python_helpers::psycopg_import;
 
@@ -994,15 +994,15 @@ impl BackendSyncNoTlsCancelHandle {
 impl BackendSyncNoTlsSession {
     #[getter]
     fn closed(&self) -> PyResult<bool> {
-        Ok(self
-            .inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+        match self.inner.try_lock() {
+            Ok(inner) => Ok(inner.closed()),
+            Err(TryLockError::WouldBlock) => Ok(false),
+            Err(TryLockError::Poisoned(_)) => {
+                Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
                     "backend session mutex is poisoned",
-                )
-            })?
-            .closed())
+                ))
+            }
+        }
     }
 
     fn close(&self) -> PyResult<()> {

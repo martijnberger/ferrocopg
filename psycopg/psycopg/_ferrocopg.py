@@ -3115,6 +3115,11 @@ class NoTlsConnectionAdapter:
         self._session.error_handler = self._on_backend_error
         self._cancel_handle: _CancelHandleLike | None = None
         self._ensure_cancel_handle()
+        try:
+            self._probe_cache = self._session.probe()
+        except AttributeError:
+            # Lightweight bootstrap doubles may not expose connection metadata.
+            pass
 
     @property
     def closed(self) -> bool:
@@ -3248,15 +3253,25 @@ class NoTlsConnectionAdapter:
     def close(self) -> None:
         if self._closed:
             return
-        if self._session.closed:
-            self._broken = True
-        self._session.close()
-        self._prepared = PrepareManager()
-        self._prepared_ids.clear()
-        self._prepared_statusmessages.clear()
-        self._cancel_handle = None
-        self._closed = True
-        self._last_error_message = "NULL"
+        acquired = self.lock.acquire(blocking=False)
+        if not acquired:
+            try:
+                self._ensure_cancel_handle().cancel()
+            except e.Error:
+                pass
+            self.lock.acquire()
+        try:
+            if self._session.closed:
+                self._broken = True
+            self._session.close()
+            self._prepared = PrepareManager()
+            self._prepared_ids.clear()
+            self._prepared_statusmessages.clear()
+            self._cancel_handle = None
+            self._closed = True
+            self._last_error_message = "NULL"
+        finally:
+            self.lock.release()
 
     def cursor(
         self,
@@ -3326,6 +3341,10 @@ class NoTlsConnectionAdapter:
         return cursors
 
     def begin(self) -> None:
+        with self.lock:
+            self._begin()
+
+    def _begin(self) -> None:
         self._check_closed()
         if not self._in_transaction:
             self._exec_command(self._tx_start_query())
@@ -3333,6 +3352,10 @@ class NoTlsConnectionAdapter:
             self._transaction_failed = False
 
     def commit(self) -> None:
+        with self.lock:
+            self._commit()
+
+    def _commit(self) -> None:
         self._check_closed()
         self._check_transaction_context("commit")
         if self._tpc:
@@ -3353,6 +3376,10 @@ class NoTlsConnectionAdapter:
         self._transaction_failed = False
 
     def rollback(self) -> None:
+        with self.lock:
+            self._rollback()
+
+    def _rollback(self) -> None:
         self._check_closed()
         self._check_transaction_context("rollback")
         if self._tpc:

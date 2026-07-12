@@ -473,6 +473,14 @@ Completed slices:
   and rolls back failed outer and nested transactions. The complete local COPY
   and pipeline run reports `151` passing cases with six exact raw-libpq skips;
   explicit libpq reports `152` passing cases with five platform trace skips.
+- [x] Core synchronous concurrency parity. Connection-level transaction
+  operations are serialized, concurrent `close()` performs best-effort
+  cancellation before waiting for the active operation, and Rust connection
+  state probes no longer block behind the session mutex. The upstream
+  `test_commit_concurrency`, `test_concurrent_close`, and
+  `test_identify_closure` regressions pass together against the live Rust
+  backend. Handshake-stall timeout coverage remains a separate release-critical
+  connection slice.
 
 Active cursor closure evidence:
 
@@ -486,7 +494,8 @@ Active cursor closure evidence:
 - No synchronous default, raw, client, common, or server cursor module remains
   manifested. Async cursor manifests remain outside the first release contract.
 
-Current local full-harness evidence is `4686/5053` sync (`0.927`) on CPython
+The latest complete local full-harness evidence, measured before the concurrency
+slice above, is `4686/5053` sync (`0.927`) on CPython
 3.14, with zero synchronous errors, `58` reported failures, `309` skips, and
 `245` manifested cases. Twenty-five reported sync failures are experimental
 async type-info tests and two are async transaction parameters in mixed
@@ -498,13 +507,16 @@ Prepared statements report `32/32`, COPY reports `111/111`, and pipeline reports
 
 The completed type tail still reports `2590` passing tests, seven environment
 skips, 37 expected failures, and only the 25 experimental async-facade failures
-from mixed modules. The database-independent bootstrap suite passes `179`
-cases with 30 expected live skips, all 22 Rust backend tests pass, and the
-focused cursor family remains `571` passing with 11 version or intentional
-skips. The complete sync harness satisfies the `0.85` floor at `0.927`. This
-development environment collects optional dependency cases not present in the
-CI key, so its denominator is reported independently; the post-COPY/pipeline
-PostgreSQL 14-18 matrix must establish the supported-server minimum before the
+from mixed modules. The focused bootstrap suite now passes `200` cases with nine
+expected TLS or prepared-transaction skips, all 22 Rust backend tests pass, and
+the focused cursor family remains `571` passing with 11 version or intentional
+skips. The focused concurrency slice closes three of the 31 actual synchronous
+failures from the last complete run; the next full run must provide the updated
+authoritative count. The complete sync harness satisfies the `0.85` floor at
+`0.927`. This development environment collects optional dependency cases not
+present in the CI key, so its denominator is reported independently. The
+post-COPY/pipeline PostgreSQL 14-18 workflow for revision `22683450` is queued;
+its completed matrix must establish the supported-server minimum before the
 floor is raised.
 
 Continue in measured order, using the supported-server matrix before reopening
@@ -512,8 +524,8 @@ the next broad failure cluster:
 
 1. Re-run the complete PostgreSQL 14-18 CI matrix and ratchet the sync floor to
    a conservative value below the new observed matrix minimum.
-2. Close handshake-stall timeouts, bounded cancellation, and concurrent
-   synchronous use before claiming the release-critical connection gate.
+2. Close handshake-stall timeouts, then classify the remaining wait/remote-close
+   cases as supported public behavior or exact raw `PGconn`/socket boundaries.
 3. Close notification delivery, pool integration, and the remaining low-volume
    synchronous failures.
 
@@ -637,8 +649,8 @@ the synchronous beta is established.
 
 1. Use the post-COPY/pipeline PostgreSQL 14-18 CI result to ratchet the sync floor
    without exceeding the slowest supported lane.
-2. Close handshake-stall, bounded cancellation, and concurrent synchronous use
-   before the release-critical connection gate.
+2. Close handshake-stall timeout behavior and exact raw `PGconn`/socket
+   boundaries before claiming the release-critical connection gate.
 3. Address the measured notification and official `psycopg_pool` integration
    failures before Phase 5 soak and performance work.
 4. Preserve the standalone package, explicit delegation, and source-tree
