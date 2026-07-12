@@ -44,7 +44,7 @@ from ._tpc import Xid
 from ._tz import get_tzinfo
 from .abc import Buffer, Params, Query
 from .adapt import Dumper, RecursiveDumper, RecursiveLoader
-from .conninfo import _param_escape, conninfo_to_dict, make_conninfo
+from .conninfo import _param_escape, conninfo_attempts, conninfo_to_dict, make_conninfo
 from .pq import ExecStatus
 from .transaction import Rollback
 from .types.string import BytesDumper
@@ -585,21 +585,67 @@ class FerrocopgConnection:
         deferrable: bool | None = None,
         **kwargs: str | int | None,
     ) -> object | None:
+        params = cls._get_connection_params(conninfo, **kwargs)
+        attempts = conninfo_attempts(params)
+        has_target = "target_session_attrs" in params
+        target = str(params.get("target_session_attrs") or "any")
+        passes = ("standby", "any") if target == "prefer-standby" else (target,)
+        errors: list[tuple[e.Error, str]] = []
+        connect_options: dict[str, Any] = {
+            "autocommit": autocommit,
+            "prepare_threshold": prepare_threshold,
+        }
+        optional_options = {
+            "context": context,
+            "row_factory": row_factory,
+            "cursor_factory": cursor_factory,
+            "server_cursor_factory": server_cursor_factory,
+            "isolation_level": isolation_level,
+            "read_only": read_only,
+            "deferrable": deferrable,
+        }
+        connect_options.update(
+            (name, value)
+            for name, value in optional_options.items()
+            if value is not None
+        )
+
+        for pass_target in passes:
+            for attempt in attempts:
+                attempt = dict(attempt)
+                if has_target or pass_target != "any":
+                    attempt["target_session_attrs"] = pass_target
+                else:
+                    attempt.pop("target_session_attrs", None)
+                description = "host: %r, port: %r, hostaddr: %r" % (
+                    attempt.get("host"),
+                    attempt.get("port"),
+                    attempt.get("hostaddr"),
+                )
+                try:
+                    return cls._connect_gen(
+                        make_conninfo("", **attempt), **connect_options
+                    )
+                except e.Error as ex:
+                    errors.append((ex, description))
+
+        if not errors:
+            raise e.OperationalError("no connection attempts available")
+
+        last_error = errors[-1][0]
+        lines = [str(last_error)]
+        if len(errors) > 1:
+            lines.append("Multiple connection attempts failed. All failures were:")
+            lines.extend(f"- {description}: {error}" for error, description in errors)
+        elif errors[0][1] not in lines[0]:
+            lines.append(errors[0][1])
+        raise type(last_error)("\n".join(lines), pgconn=last_error.pgconn) from None
+
+    @classmethod
+    def _connect_gen(cls, conninfo: str, **kwargs: Any) -> object:
         from . import connect_ferrocopg
 
-        return connect_ferrocopg(
-            conninfo,
-            autocommit=autocommit,
-            prepare_threshold=prepare_threshold,
-            context=context,
-            row_factory=row_factory,
-            cursor_factory=cursor_factory,
-            server_cursor_factory=server_cursor_factory,
-            isolation_level=isolation_level,
-            read_only=read_only,
-            deferrable=deferrable,
-            **kwargs,
-        )
+        return connect_ferrocopg(conninfo, **kwargs)
 
     @classmethod
     def _get_connection_params(
@@ -1631,15 +1677,21 @@ class NoTlsCursorAdapter:
         if binary is not None:
             self.format = pq.Format.BINARY if binary else pq.Format.TEXT
         with self._conn.lock:
-            self._result = self._conn._execute(
-                query,
-                params,
-                prepare=prepare,
-                prefer_extended=self._row_factory not in _LEGACY_ROW_FACTORIES,
-                adapters=self.adapters,
-                result_format=self.format,
-                cursor_state=self,
-            )
+            try:
+                self._result = self._conn._execute(
+                    query,
+                    params,
+                    prepare=prepare,
+                    prefer_extended=self._row_factory not in _LEGACY_ROW_FACTORIES,
+                    adapters=self.adapters,
+                    result_format=self.format,
+                    cursor_state=self,
+                )
+            except e.Error as ex:
+                translated = self._conn._translate_session_error(ex)
+                if translated is not ex:
+                    raise translated from None
+                raise
         self._make_row = None
         self._result_transformer = None
         self._rownumber = 0
@@ -2723,6 +2775,7 @@ class NoTlsConnectionAdapter:
         self._copy_active = False
         self._last_error_message = ""
         self._unsupported_client_encoding: e.NotSupportedError | None = None
+        self._idle_transaction_timeout_active = False
         self._session.notice_handler = self._dispatch_notices
         self._session.error_handler = self._on_backend_error
         self._cancel_handle: _CancelHandleLike | None = None
@@ -2991,6 +3044,12 @@ class NoTlsConnectionAdapter:
     def cancel_safe(self, *, timeout: float = 30.0) -> None:
         del timeout
         self.cancel()
+
+    def _try_cancel(self, *, timeout: float = 5.0) -> None:
+        try:
+            self.cancel_safe(timeout=timeout)
+        except Exception as ex:
+            logger.warning("%s", ex)
 
     def set_isolation_level(self, value: IsolationLevel | int | None) -> None:
         self._check_set_transaction_param("isolation_level")
@@ -3292,6 +3351,7 @@ class NoTlsConnectionAdapter:
                 result = self._session.execute_params(query, params, result_format)
 
         self._refresh_client_encoding(query)
+        self._refresh_session_timeout(query)
         self._update_transaction_state(query)
         return result
 
@@ -3328,6 +3388,25 @@ class NoTlsConnectionAdapter:
             self._encoding_changed_in_transaction = True
         elif transaction_boundary and not normalized.startswith("rollback to"):
             self._encoding_changed_in_transaction = False
+
+    def _refresh_session_timeout(self, query: str) -> None:
+        if "idle_in_transaction_session_timeout" not in query.lower():
+            return
+        row = self._session.execute_params(
+            "select current_setting('idle_in_transaction_session_timeout')::text",
+            [],
+        ).fetchone()
+        value = str(row[0]).lower() if row else "0"
+        self._idle_transaction_timeout_active = value not in {"0", "0ms"}
+
+    def _translate_session_error(self, ex: e.Error) -> e.Error:
+        if (
+            self._idle_transaction_timeout_active
+            and self._in_transaction
+            and self._session.closed
+        ):
+            return e.IdleInTransactionSessionTimeout(str(ex))
+        return ex
 
     def _execute_bound(
         self,

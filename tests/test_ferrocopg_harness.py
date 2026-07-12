@@ -19,7 +19,7 @@ PASS_RATE_SCRIPT = ROOT / "tools" / "ci" / "ferrocopg_pass_rate.py"
         ("tests/test_cursor_common.py::test_execute", "concrete-cursor"),
         ("tests/test_cursor_raw.py::test_execute", "concrete-cursor"),
         (
-            "tests/test_transaction.py::test_context_active_rollback_no_clobber",
+            "tests/test_connection.py::test_context_active_rollback_no_clobber",
             "pgconn",
         ),
         ("tests/pool/test_pool_async.py::test_open", "async"),

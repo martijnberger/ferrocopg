@@ -425,14 +425,21 @@ Completed slices:
   newly unmasked cursor and server-cursor modules pass `188/188` on both
   ferrocopg and explicit libpq; focused connection modules are now `112`
   passing, `10` failing, and `22` boundary or environment skips.
+- [x] Connection attempt routing and diagnostic parity, including DNS-to-hostaddr
+  resolution, ordered multi-host attempts, all target-session modes,
+  prefer-standby fallback, top-level selector routing, cancellation I/O errors,
+  best-effort cancellation, and idle-in-transaction timeout classification. The
+  focused connection modules report `121` passing, zero failures, and `23`
+  explicit boundary or environment skips. Handshake-stall timeout limitations
+  remain release-critical work and are not considered closed by this slice.
 
 Current local full-harness evidence is `3969/4420` sync (`0.898`) on CPython
 3.14/PostgreSQL 14, with zero synchronous errors. Type adaptation improved from
 `123` to `48` failures and now passes at `0.966`; connections also had `48`
 failures in that full run but passed at only `0.728`, followed by other behavior
 (`26`) and prepared statements (`20`). The active focused connection slice has
-already improved from `74` passing and `48` failing to `112` passing and `10`
-failing, with `22` boundary or environment skips. This development environment
+already improved from `74` passing and `48` failing to `121` passing with zero
+failures and `23` boundary or environment skips. This development environment
 collects optional-dependency cases not present in the CI key, so its denominator
 is reported independently; the committed CI matrix remains the release gate.
 
@@ -567,10 +574,10 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Complete timeout, multi-host, target-session selection, cancellation, and
-   exact connection error reporting.
-2. Unmask and close common, client, and raw cursor modules now that concrete
+1. Unmask and close common, client, and raw cursor modules now that concrete
    cursor hosting is established.
+2. Return to the remaining handshake-stall and bounded cancellation timeout
+   boundaries before the release-critical gate.
 3. Re-run the complete sync compatibility matrix after each closure slice and
    remove obsolete manifest entries while ratcheting the floor upward.
 4. Preserve the standalone package, explicit delegation, and source-tree

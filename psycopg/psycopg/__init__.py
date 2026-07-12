@@ -94,6 +94,26 @@ def connect_ferrocopg(
     effective_conninfo = _ferrocopg_module.merge_conninfo(
         conninfo, kwargs, use_environment=True
     )
+    target_session_attrs = str(
+        conninfo_to_dict(effective_conninfo).get("target_session_attrs") or "any"
+    )
+    valid_targets = {
+        "any",
+        "read-write",
+        "read-only",
+        "primary",
+        "standby",
+        "prefer-standby",
+    }
+    if target_session_attrs not in valid_targets:
+        raise OperationalError(
+            f"invalid target_session_attrs value: {target_session_attrs}"
+        )
+    rust_conninfo = effective_conninfo
+    if target_session_attrs in {"primary", "standby", "prefer-standby"}:
+        rust_conninfo = _ferrocopg_module.merge_conninfo(
+            effective_conninfo, {"target_session_attrs": "any"}
+        )
     adapter_options: dict[str, Any] = {
         "row_factory": cast(
             Callable[[list[str], list[str | None]], object], row_factory
@@ -109,14 +129,36 @@ def connect_ferrocopg(
     if context is not None:
         adapter_options["adapters"] = cast(Any, context).adapters
 
-    conn = _ferrocopg_module.backend_connection_adapter(
-        effective_conninfo,
-        **adapter_options,
-    )
+    try:
+        conn = _ferrocopg_module.backend_connection_adapter(
+            rust_conninfo,
+            **adapter_options,
+        )
+    except OperationalError as ex:
+        if target_session_attrs == "any":
+            raise
+        raise OperationalError(
+            f"target_session_attrs={target_session_attrs}: {ex}"
+        ) from None
     if conn is None:
         _ferrocopg_module.require_available()
         raise OperationalError("the ferrocopg Rust backend failed to initialize")
     if isinstance(conn, _ferrocopg_module.NoTlsConnectionAdapter):
+        conn._conninfo = effective_conninfo
+        if target_session_attrs in {"primary", "standby"}:
+            row = conn._session.execute_params(
+                "select pg_is_in_recovery()::text", []
+            ).fetchone()
+            in_recovery = bool(row and str(row[0]).lower() in {"t", "true", "on"})
+            matches = (
+                not in_recovery if target_session_attrs == "primary" else in_recovery
+            )
+            if not matches:
+                conn.close()
+                raise OperationalError(
+                    f"target_session_attrs={target_session_attrs}: "
+                    "server does not satisfy requested session attributes"
+                )
         client_encoding = os.environ.get("PGCLIENTENCODING")
         if client_encoding and "client_encoding" not in (
             conninfo_to_dict(effective_conninfo)
@@ -179,7 +221,9 @@ def connect(
         return Connection.connect(conninfo, **kwargs)
     if selected_impl == "ferrocopg":
         kwargs.setdefault("autocommit", False)
-        return connect_ferrocopg(conninfo, **kwargs)
+        from ._ferrocopg import FerrocopgConnection
+
+        return FerrocopgConnection.connect(conninfo, **kwargs)
 
     raise ValueError(
         f"unsupported connect() implementation {selected_impl!r}: "

@@ -308,6 +308,9 @@ fn backend_fallback_error_name(err: &ferrocopg_postgres::ProbeError) -> &'static
         ferrocopg_postgres::ProbeError::Connect(_)
         | ferrocopg_postgres::ProbeError::TlsConfig(_)
         | ferrocopg_postgres::ProbeError::Closed => "OperationalError",
+        ferrocopg_postgres::ProbeError::Query(err) if err.as_db_error().is_none() => {
+            "OperationalError"
+        }
         ferrocopg_postgres::ProbeError::BadParam(_)
         | ferrocopg_postgres::ProbeError::Parse(_)
         | ferrocopg_postgres::ProbeError::Query(_) => "ProgrammingError",

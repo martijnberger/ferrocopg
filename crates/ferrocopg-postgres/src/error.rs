@@ -84,9 +84,20 @@ impl Error for ProbeError {
 }
 
 fn postgres_error_message(err: &postgres::Error) -> String {
-    err.as_db_error()
-        .map(|db_err| db_err.message().to_owned())
-        .unwrap_or_else(|| err.to_string())
+    if let Some(db_err) = err.as_db_error() {
+        return db_err.message().to_owned();
+    }
+
+    let mut messages = vec![err.to_string()];
+    let mut source = err.source();
+    while let Some(error) = source {
+        let message = error.to_string();
+        if messages.last() != Some(&message) {
+            messages.push(message);
+        }
+        source = error.source();
+    }
+    messages.join(": ")
 }
 
 pub(crate) fn postgres_diagnostic(db_err: &postgres::error::DbError) -> PostgresDiagnostic {

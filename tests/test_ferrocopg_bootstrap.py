@@ -2478,6 +2478,7 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_package_connect_impl_selector(monkeypatch: pytest.MonkeyPatch) -> None:
     psycopg_module = importlib.import_module("psycopg")
+    ferrocopg_module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
     monkeypatch.delenv("PSYCOPG_SOURCE_IMPL", raising=False)
 
     calls: list[tuple[str, str, object]] = []
@@ -2493,7 +2494,11 @@ def test_package_connect_impl_selector(monkeypatch: pytest.MonkeyPatch) -> None:
         return ("ferrocopg", conninfo, dict(kwargs))
 
     monkeypatch.setattr(psycopg_module.Connection, "connect", stub_connect)
-    monkeypatch.setattr(psycopg_module, "connect_ferrocopg", stub_connect_ferrocopg)
+    monkeypatch.setattr(
+        ferrocopg_module.FerrocopgConnection,
+        "connect",
+        stub_connect_ferrocopg,
+    )
 
     got_default = psycopg_module.connect("dbname=postgres", prepare_threshold=7)
     assert got_default == (
@@ -4997,11 +5002,17 @@ def test_backend_connect_ferrocopg_routes_tls_required(
         ),
     )
     assert channel_bound is not None
-    assert calls[:2] == [
-        "host=localhost sslmode=require dbname=postgres",
-        "host=localhost sslmode=require dbname=postgres",
-    ]
-    assert dict(item.split("=", 1) for item in calls[2].split()) == {
+    assert calls[0] == "host=localhost sslmode=require dbname=postgres"
+    selected_params = dict(item.split("=", 1) for item in calls[1].split())
+    assert selected_params.pop("hostaddr") in {"127.0.0.1", "::1"}
+    assert selected_params == {
+        "host": "localhost",
+        "dbname": "postgres",
+        "sslmode": "require",
+    }
+    channel_params = dict(item.split("=", 1) for item in calls[2].split())
+    assert channel_params.pop("hostaddr") in {"127.0.0.1", "::1"}
+    assert channel_params == {
         "host": "localhost",
         "dbname": "postgres",
         "sslmode": "verify-full",
