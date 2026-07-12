@@ -4845,7 +4845,7 @@ def test_no_tls_connection_adapter_info(monkeypatch: pytest.MonkeyPatch) -> None
     assert conn.info.application_name == "ferrocopg-tests"
     assert conn.info.server_version == 170004
     assert conn.info.backend_pid == 4321
-    assert conn.info.host == "127.0.0.1"
+    assert conn.info.host == "localhost"
     assert conn.info.hostaddr == "127.0.0.1"
     assert conn.info.port == 5432
     assert conn.info.parameter_status("application_name") == "ferrocopg-tests"
@@ -4978,17 +4978,26 @@ def test_backend_connect_ferrocopg_routes_tls_required(
 
     monkeypatch.setattr(module, "backend_session", stub_backend_session)
 
-    conn = psycopg.connect_ferrocopg("host=localhost sslmode=require dbname=postgres")
+    conn = cast(
+        Any,
+        psycopg.connect_ferrocopg("host=localhost sslmode=require dbname=postgres"),
+    )
     assert conn is not None
-    selected = psycopg.connect(
-        "host=localhost sslmode=require dbname=postgres", impl="ferrocopg"
+    selected = cast(
+        Any,
+        psycopg.connect(
+            "host=localhost sslmode=require dbname=postgres", impl="ferrocopg"
+        ),
     )
     assert selected is not None
-    channel_bound = psycopg.connect(
-        "host=localhost dbname=postgres",
-        impl="ferrocopg",
-        sslmode="verify-full",
-        channel_binding="require",
+    channel_bound = cast(
+        Any,
+        psycopg.connect(
+            "host=localhost dbname=postgres",
+            impl="ferrocopg",
+            sslmode="verify-full",
+            channel_binding="require",
+        ),
     )
     assert channel_bound is not None
     assert calls[:2] == [
@@ -5001,6 +5010,9 @@ def test_backend_connect_ferrocopg_routes_tls_required(
         "sslmode": "verify-full",
         "channel_binding": "require",
     }
+    conn.close()
+    selected.close()
+    channel_bound.close()
 
 
 def test_backend_merge_conninfo_only_parses_base(

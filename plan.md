@@ -407,20 +407,29 @@ Completed slices:
   synchronous composite cases pass on PostgreSQL 14; the complete module is
   `77/79` on Rust with only two deferred async-facade failures, while libpq is
   `79/79`.
+- [x] Connection metadata and lifecycle parity, including PGconn and
+  ConnectionInfo attributes, closed and broken state, repr, error state,
+  deletion warnings, SQL-issued transaction boundaries, connection-parameter
+  normalization, and unsupported client-encoding timing. The focused connection
+  modules improved from `74` passing and `48` failing to `103` passing and `19`
+  failing, with `22` boundary or environment skips.
 
 Current local full-harness evidence is `3969/4420` sync (`0.898`) on CPython
 3.14/PostgreSQL 14, with zero synchronous errors. Type adaptation improved from
-`123` to `48` failures and now passes at `0.966`; connections also have `48`
-failures but pass at only `0.728`, followed by other behavior (`26`) and
-prepared statements (`20`). This development environment collects
-optional-dependency cases not present in the CI key, so its denominator is
-reported independently; the committed CI matrix remains the release gate.
+`123` to `48` failures and now passes at `0.966`; connections also had `48`
+failures in that full run but passed at only `0.728`, followed by other behavior
+(`26`) and prepared statements (`20`). The active focused connection slice has
+already improved from `74` passing and `48` failing to `103` passing and `19`
+failing, with `22` boundary or environment skips. This development environment
+collects optional-dependency cases not present in the CI key, so its denominator
+is reported independently; the committed CI matrix remains the release gate.
 
 Continue in measured order, starting with the largest current failure clusters:
 
-1. remaining type adaptation beyond the completed metadata, string, and
+1. connection and connection-info behavior, including factories, adaptation
+   contexts, timeout and host routing, and exact error reporting
+2. remaining type adaptation beyond the completed metadata, string, and
    composite slices
-2. connection and connection-info behavior
 3. prepared statement behavior
 4. concrete default, raw, client, and server cursors
 5. COPY writers and COPY edge cases
@@ -546,13 +555,13 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Close connection metadata and lifecycle behavior, beginning with PGconn and
-   ConnectionInfo attributes, closed-state status, repr, and transaction-state
-   reporting. The focused connection modules currently report `74` passing,
-   `48` failing, and `22` boundary or environment skips.
-2. Continue through adaptation contexts and cursor factories, then
-   target-session selection and connection error reporting.
-3. Re-run the complete sync compatibility matrix after each closure slice and
+1. Close connection environment and startup-parameter handling plus adaptation
+   context inheritance.
+2. Support the concrete default, custom, and server cursor factories without
+   exposing or requiring libpq.
+3. Complete timeout, multi-host, target-session selection, cancellation, and
+   exact connection error reporting.
+4. Re-run the complete sync compatibility matrix after each closure slice and
    remove obsolete manifest entries while ratcheting the floor upward.
-4. Preserve the standalone package, explicit delegation, and source-tree
+5. Preserve the standalone package, explicit delegation, and source-tree
    comparison proofs while each compatibility slice changes shared Python code.

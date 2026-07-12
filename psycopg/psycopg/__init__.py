@@ -117,6 +117,8 @@ def connect_ferrocopg(
     if conn is None:
         _ferrocopg_module.require_available()
         raise OperationalError("the ferrocopg Rust backend failed to initialize")
+    if isinstance(conn, _ferrocopg_module.NoTlsConnectionAdapter):
+        conn._warn_on_del = True
     return conn
 
 

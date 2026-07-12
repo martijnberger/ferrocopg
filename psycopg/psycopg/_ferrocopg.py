@@ -12,12 +12,12 @@ import logging
 import threading
 import warnings
 from collections.abc import Callable, Iterator, Mapping, Sequence
-from datetime import timedelta, timezone, tzinfo
+from datetime import timedelta, tzinfo
 from enum import Enum
 from time import monotonic
 from types import SimpleNamespace
 from typing import Any, NamedTuple, ParamSpec, Protocol, TypeVar, cast
-from zoneinfo import ZoneInfo
+from warnings import warn
 
 from . import _rmodule, postgres, pq
 from . import errors as e
@@ -40,6 +40,7 @@ from ._queries import PostgresClientQuery, PostgresQuery
 from ._rmodule import __version__ as __version__
 from ._rmodule import _ferrocopg
 from ._tpc import Xid
+from ._tz import get_tzinfo
 from .abc import Buffer, Params, Query
 from .adapt import Dumper, RecursiveDumper, RecursiveLoader
 from .conninfo import _param_escape, conninfo_to_dict, make_conninfo
@@ -182,8 +183,62 @@ class _PgconnEncodingShim:
         return self._conn.info.backend_pid
 
     @property
-    def transaction_status(self) -> pq.TransactionStatus:
+    def db(self) -> bytes:
+        return self._info_bytes("dbname")
+
+    @property
+    def host(self) -> bytes:
+        return self._info_bytes("host")
+
+    @property
+    def hostaddr(self) -> bytes:
+        return self._info_bytes("hostaddr")
+
+    @property
+    def user(self) -> bytes:
+        return self._info_bytes("user")
+
+    @property
+    def password(self) -> bytes:
+        return self._info_bytes("password")
+
+    @property
+    def options(self) -> bytes:
+        return self._info_bytes("options")
+
+    @property
+    def port(self) -> bytes:
         if self._conn is None:
+            return b""
+        return str(self._conn.info.port).encode("ascii")
+
+    @property
+    def server_version(self) -> int:
+        if self._conn is None:
+            return 0
+        return self._conn.info.server_version
+
+    @property
+    def protocol_version(self) -> int:
+        if self._conn is None or self._conn.closed:
+            raise e.OperationalError("the connection is closed")
+        return 3
+
+    @property
+    def full_protocol_version(self) -> int:
+        if self._conn is None or self._conn.closed:
+            raise e.OperationalError("the connection is closed")
+        return 30000
+
+    @property
+    def error_message(self) -> bytes:
+        if self._conn is None:
+            return b"NULL"
+        return self._conn._last_error_message.encode(self._encoding, "replace")
+
+    @property
+    def transaction_status(self) -> pq.TransactionStatus:
+        if self._conn is None or self._conn.closed:
             return pq.TransactionStatus.UNKNOWN
         return self._conn.info.transaction_status
 
@@ -203,6 +258,11 @@ class _PgconnEncodingShim:
         if self._conn is None:
             raise e.OperationalError("connection is closed")
         return self._conn._exec_command(query)
+
+    def _info_bytes(self, name: str) -> bytes:
+        if self._conn is None:
+            raise e.OperationalError("the connection is closed")
+        return str(getattr(self._conn.info, name)).encode(self._encoding)
 
 
 class _BackendErrorResult:
@@ -501,7 +561,6 @@ LegacyRowFactory = Callable[[list[str], list[str | None]], object]
 RowFactory = Callable[..., object]
 RowMaker = Callable[[Sequence[object]], object]
 NotifyHandler = Callable[[Notify], None]
-_timezones: dict[str | None, tzinfo] = {None: timezone.utc, "UTC": timezone.utc}
 _NO_ROW = object()
 _TEXT_WIRE_OIDS = frozenset({INVALID_OID, 18, 19, 25, 1042, 1043, 114, 142})
 
@@ -541,6 +600,13 @@ class FerrocopgConnection:
             **kwargs,
         )
 
+    @classmethod
+    def _get_connection_params(
+        cls, conninfo: str, **kwargs: str | int | None
+    ) -> dict[str, str | int | None]:
+        """Manipulate connection parameters before connecting."""
+        return conninfo_to_dict(conninfo, **kwargs)
+
 
 class BackendConnectionInfo:
     __module__ = "psycopg"
@@ -554,42 +620,53 @@ class BackendConnectionInfo:
 
     @property
     def dbname(self) -> str:
+        self._ensure_open()
         return self._conn._probe().current_database
 
     @property
     def user(self) -> str:
+        self._ensure_open()
         return self._conn._probe().current_user
 
     @property
     def password(self) -> str:
+        self._ensure_open()
         return str(conninfo_to_dict(self._conn._conninfo).get("password") or "")
 
     @property
     def options(self) -> str:
+        self._ensure_open()
         return str(conninfo_to_dict(self._conn._conninfo).get("options") or "")
 
     @property
     def application_name(self) -> str:
+        self._ensure_open()
         return self._conn._probe().application_name
 
     @property
     def server_version(self) -> int:
+        self._ensure_open()
         return self._conn._probe().server_version_num
 
     @property
     def backend_pid(self) -> int:
+        self._ensure_open()
         return self._conn._probe().backend_pid
 
     @property
     def host(self) -> str:
-        return self.hostaddr
+        self._ensure_open()
+        params = conninfo_to_dict(self._conn._conninfo)
+        return str(params.get("host") or self.hostaddr)
 
     @property
     def hostaddr(self) -> str:
+        self._ensure_open()
         return self._conn._probe().server_address or ""
 
     @property
     def port(self) -> int:
+        self._ensure_open()
         port = self._conn._probe().server_port
         if port is None:
             raise e.InternalError("couldn't find the connection port")
@@ -608,6 +685,7 @@ class BackendConnectionInfo:
         return pq.ConnStatus.BAD if self._conn.closed else pq.ConnStatus.OK
 
     def parameter_status(self, param_name: str) -> str | None:
+        self._ensure_open()
         row = self._conn._session.execute_params(
             "select current_setting($1::text, true)::text as value",
             [param_name],
@@ -624,27 +702,22 @@ class BackendConnectionInfo:
 
     @property
     def full_protocol_version(self) -> int:
+        self._ensure_open()
         return 30000
 
     @property
     def error_message(self) -> str:
-        return ""
+        return self._conn._last_error_message
 
     @property
     def timezone(self) -> tzinfo:
-        tzname = self.parameter_status("TimeZone")
-        try:
-            return _timezones[tzname]
-        except KeyError:
-            try:
-                zi: tzinfo = ZoneInfo(tzname or "UTC")
-            except Exception:
-                zi = timezone.utc
-            _timezones[tzname] = zi
-            return zi
+        self._ensure_open()
+        return get_tzinfo(cast(Any, self._conn.pgconn))
 
     @property
     def transaction_status(self) -> pq.TransactionStatus:
+        if self._conn.closed:
+            return pq.TransactionStatus.UNKNOWN
         if self._conn._copy_active:
             return pq.TransactionStatus.ACTIVE
         if self._conn._transaction_failed:
@@ -660,6 +733,10 @@ class BackendConnectionInfo:
             if self._conn._pipeline_depth > 0
             else pq.PipelineStatus.OFF
         )
+
+    def _ensure_open(self) -> None:
+        if self._conn.closed:
+            raise e.OperationalError("the connection is closed")
 
 
 def list_row(columns: list[str], row: list[str | None]) -> list[str | None]:
@@ -2590,6 +2667,7 @@ class NoTlsConnectionAdapter:
         self._tpc: tuple[Xid, bool] | None = None
         self._closed = False
         self._broken = False
+        self._warn_on_del = False
         self._adapters: AdaptersMap | None = None
         self._pgconn = _PgconnEncodingShim("utf-8", self)
         self._session.encoding = self._pgconn._encoding
@@ -2600,6 +2678,8 @@ class NoTlsConnectionAdapter:
         self._notify_handlers: list[NotifyHandler] = []
         self._encoding_changed_in_transaction = False
         self._copy_active = False
+        self._last_error_message = ""
+        self._unsupported_client_encoding: e.NotSupportedError | None = None
         self._session.notice_handler = self._dispatch_notices
         self._session.error_handler = self._on_backend_error
         self._cancel_handle: _CancelHandleLike | None = None
@@ -2608,6 +2688,26 @@ class NoTlsConnectionAdapter:
     @property
     def closed(self) -> bool:
         return self._closed or self._session.closed
+
+    def __del__(self, __warn: Any = warn) -> None:
+        if (
+            not getattr(self, "_warn_on_del", False)
+            or self.closed
+            or hasattr(self, "_pool")
+        ):
+            return
+        __warn(
+            f"FerrocopgConnection {object.__repr__(self)} was deleted while still open."
+            " Please use 'with' or '.close()' to close the connection properly",
+            ResourceWarning,
+        )
+
+    def __repr__(self) -> str:
+        status = "BAD" if self.closed else self.info.transaction_status.name
+        cls = f"{type(self).__module__}.{type(self).__qualname__}"
+        return f"<{cls} [{status}] at 0x{id(self):x}>"
+
+    __str__ = __repr__
 
     @property
     def broken(self) -> bool:
@@ -2692,6 +2792,7 @@ class NoTlsConnectionAdapter:
         self._prepare_counts.clear()
         self._cancel_handle = None
         self._closed = True
+        self._last_error_message = "NULL"
 
     def cursor(
         self,
@@ -2779,7 +2880,13 @@ class NoTlsConnectionAdapter:
             )
         if not self._in_transaction:
             return
-        self._exec_command("COMMIT")
+        try:
+            self._exec_command("COMMIT")
+        except BaseException:
+            # PostgreSQL ends a failed COMMIT by rolling the transaction back.
+            self._in_transaction = False
+            self._transaction_failed = False
+            raise
         self._in_transaction = False
         self._transaction_failed = False
 
@@ -2805,20 +2912,26 @@ class NoTlsConnectionAdapter:
         if params is not None:
             raise e.ProgrammingError("internal commands cannot have parameters")
 
-        if result_format == pq.Format.TEXT:
-            result_cursor = self._session.execute_simple(query)
-        elif result_format == pq.Format.BINARY:
-            result_cursor = self._execute_extended_no_params(query, result_format)
-        else:
-            raise ValueError(f"bad result format: {result_format!r}")
+        try:
+            if result_format == pq.Format.TEXT:
+                result_cursor = self._session.execute_simple(query)
+            elif result_format == pq.Format.BINARY:
+                result_cursor = self._execute_extended_no_params(query, result_format)
+            else:
+                raise ValueError(f"bad result format: {result_format!r}")
+        except BaseException:
+            self._update_transaction_state(query, failed=True)
+            raise
 
         while result_cursor.nextset():
             pass
         result = result_cursor.current_result
         if result is None:
             self._refresh_client_encoding(query)
+            self._update_transaction_state(query)
             return None
         self._refresh_client_encoding(query)
+        self._update_transaction_state(query)
         return _BackendPgResultShim(
             result,
             self._pgconn._encoding,
@@ -3050,7 +3163,9 @@ class NoTlsConnectionAdapter:
                 callback(notification)
 
     def _on_backend_error(self, ex: BaseException) -> None:
-        del ex
+        diag = getattr(ex, "diag", None)
+        severity = getattr(diag, "severity", None)
+        self._last_error_message = f"{severity}: {ex}" if severity else str(ex)
         if self._in_transaction:
             self._transaction_failed = True
 
@@ -3071,13 +3186,21 @@ class NoTlsConnectionAdapter:
     def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
         if self.closed:
             return
-        if exc_type:
-            if self._in_transaction:
-                self.rollback()
-        else:
-            if self._in_transaction:
+        try:
+            if exc_type:
+                if self._in_transaction:
+                    try:
+                        self.rollback()
+                    except Exception as rollback_error:
+                        logger.warning(
+                            "error ignored in rollback of %s: %s",
+                            self,
+                            rollback_error,
+                        )
+            elif self._in_transaction:
                 self.commit()
-        self.close()
+        finally:
+            self.close()
 
     def _execute(
         self,
@@ -3090,8 +3213,10 @@ class NoTlsConnectionAdapter:
         result_format: pq.Format = pq.Format.TEXT,
     ) -> BackendResultCursor:
         self._ensure_cancel_handle()
-        self._ensure_transaction()
         query, params = self._convert_query_params(query, params, adapters=adapters)
+        if self._unsupported_client_encoding and not _changes_client_encoding(query):
+            raise e.NotSupportedError(str(self._unsupported_client_encoding))
+        self._ensure_transaction()
         if params is None:
             if prefer_extended:
                 result = self._execute_extended_no_params(query, result_format)
@@ -3124,16 +3249,12 @@ class NoTlsConnectionAdapter:
                 result = self._session.execute_params(query, params, result_format)
 
         self._refresh_client_encoding(query)
+        self._update_transaction_state(query)
         return result
 
     def _refresh_client_encoding(self, query: str) -> None:
         normalized = query.lstrip().lower()
-        changes_encoding = (
-            "client_encoding" in normalized
-            or normalized.startswith("set names")
-            or normalized.startswith("reset all")
-            or normalized.startswith("discard all")
-        )
+        changes_encoding = _changes_client_encoding(query)
         transaction_boundary = normalized.startswith(("commit", "rollback"))
         if not changes_encoding and not (
             transaction_boundary and self._encoding_changed_in_transaction
@@ -3148,8 +3269,14 @@ class NoTlsConnectionAdapter:
         if isinstance(pg_encoding, bytes):
             pg_encoding = pg_encoding.decode("ascii")
         if isinstance(pg_encoding, str):
-            self._pgconn._encoding = pg2pyenc(pg_encoding.encode("ascii"))
-            self._session.encoding = self._pgconn._encoding
+            try:
+                encoding = pg2pyenc(pg_encoding.encode("ascii"))
+            except e.NotSupportedError as ex:
+                self._unsupported_client_encoding = ex
+            else:
+                self._unsupported_client_encoding = None
+                self._pgconn._encoding = encoding
+                self._session.encoding = encoding
         if changes_encoding and self._in_transaction:
             self._encoding_changed_in_transaction = True
         elif transaction_boundary and not normalized.startswith("rollback to"):
@@ -3250,6 +3377,17 @@ class NoTlsConnectionAdapter:
     def _ensure_transaction(self) -> None:
         if not self._autocommit and not self._in_transaction:
             self.begin()
+
+    def _update_transaction_state(self, query: str, *, failed: bool = False) -> None:
+        normalized = query.lstrip().lower()
+        if normalized.startswith(("commit", "rollback")) and not normalized.startswith(
+            "rollback to"
+        ):
+            self._in_transaction = False
+            self._transaction_failed = False
+        elif not failed and normalized.startswith(("begin", "start transaction")):
+            self._in_transaction = True
+            self._transaction_failed = False
 
     def _check_closed(self) -> None:
         if self.closed:
@@ -3482,6 +3620,16 @@ def _statusmessage_for_query(
     if has_tuples:
         return f"{first} {rows_affected}"
     return first
+
+
+def _changes_client_encoding(query: str) -> bool:
+    normalized = query.lstrip().lower()
+    return (
+        "client_encoding" in normalized
+        or normalized.startswith("set names")
+        or normalized.startswith("reset all")
+        or normalized.startswith("discard all")
+    )
 
 
 def no_tls_session_adapter(conninfo: str) -> NoTlsSessionAdapter | None:
