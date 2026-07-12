@@ -418,13 +418,20 @@ Completed slices:
   are reflected in connection state, and caller adapter maps are copied without
   losing ferrocopg wire handling. The focused connection modules now report
   `109` passing, `13` failing, and `22` boundary or environment skips.
+- [x] Concrete default, custom, server, and raw-server cursor hosting without
+  libpq. The public factories retain exact Psycopg classes, while backend state,
+  query metadata, binary formats, row factories, iteration, pipelines, COPY,
+  and the experimental async facade route through hosted Rust adapters. The
+  newly unmasked cursor and server-cursor modules pass `188/188` on both
+  ferrocopg and explicit libpq; focused connection modules are now `112`
+  passing, `10` failing, and `22` boundary or environment skips.
 
 Current local full-harness evidence is `3969/4420` sync (`0.898`) on CPython
 3.14/PostgreSQL 14, with zero synchronous errors. Type adaptation improved from
 `123` to `48` failures and now passes at `0.966`; connections also had `48`
 failures in that full run but passed at only `0.728`, followed by other behavior
 (`26`) and prepared statements (`20`). The active focused connection slice has
-already improved from `74` passing and `48` failing to `109` passing and `13`
+already improved from `74` passing and `48` failing to `112` passing and `10`
 failing, with `22` boundary or environment skips. This development environment
 collects optional-dependency cases not present in the CI key, so its denominator
 is reported independently; the committed CI matrix remains the release gate.
@@ -560,10 +567,10 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Support the concrete default, custom, and server cursor factories without
-   exposing or requiring libpq.
-2. Complete timeout, multi-host, target-session selection, cancellation, and
+1. Complete timeout, multi-host, target-session selection, cancellation, and
    exact connection error reporting.
+2. Unmask and close common, client, and raw cursor modules now that concrete
+   cursor hosting is established.
 3. Re-run the complete sync compatibility matrix after each closure slice and
    remove obsolete manifest entries while ratcheting the floor upward.
 4. Preserve the standalone package, explicit delegation, and source-tree

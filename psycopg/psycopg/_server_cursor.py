@@ -10,7 +10,7 @@ psycopg server-side cursor (sync).
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any, overload
+from typing import TYPE_CHECKING, Any, cast, overload
 
 from . import errors as e
 from ._compat import Self
@@ -61,11 +61,28 @@ class ServerCursor(ServerCursorMixin["Connection[Any]", Row], Cursor[Row]):
             self, connection, row_factory=row_factory or connection.row_factory
         )
         ServerCursorMixin.__init__(self, name, scrollable, withhold)
+        if getattr(connection, "_is_ferrocopg", False):
+            from ._ferrocopg import NoTlsServerCursorAdapter
+
+            self._ferrocopg_cursor = NoTlsServerCursorAdapter(
+                cast(Any, connection),
+                name,
+                row_factory=cast(Any, row_factory or connection.row_factory),
+                scrollable=scrollable,
+                withhold=withhold,
+                factory_name=type(self).__name__,
+                query_cls=self._query_cls,
+            )
 
     def close(self) -> None:
         """
         Close the current cursor and free associated resources.
         """
+        if self._ferrocopg_cursor is not None:
+            self._ferrocopg_cursor.close()
+            self._sync_ferrocopg_cursor()
+            return
+
         with self._conn.lock:
             if self.closed:
                 return
@@ -86,6 +103,11 @@ class ServerCursor(ServerCursorMixin["Connection[Any]", Row], Cursor[Row]):
         """
         if kwargs:
             raise TypeError(f"keyword not supported: {list(kwargs)[0]}")
+        if self._ferrocopg_cursor is not None:
+            self._ferrocopg_cursor.format = self.format
+            self._ferrocopg_cursor.execute(query, params, binary=binary)
+            self._sync_ferrocopg_cursor()
+            return self
         if self._pgconn.pipeline_status:
             raise e.NotSupportedError(
                 "server-side cursors not supported in pipeline mode"
@@ -106,6 +128,11 @@ class ServerCursor(ServerCursorMixin["Connection[Any]", Row], Cursor[Row]):
         raise e.NotSupportedError("executemany not supported on server-side cursors")
 
     def fetchone(self) -> Row | None:
+        if self._ferrocopg_cursor is not None:
+            row = self._ferrocopg_cursor.fetchone()
+            self._sync_ferrocopg_cursor()
+            return cast(Row | None, row)
+
         with self._conn.lock:
             recs = self._conn.wait(self._fetch_gen(1))
         if recs:
@@ -115,6 +142,11 @@ class ServerCursor(ServerCursorMixin["Connection[Any]", Row], Cursor[Row]):
             return None
 
     def fetchmany(self, size: int = 0) -> list[Row]:
+        if self._ferrocopg_cursor is not None:
+            rows = self._ferrocopg_cursor.fetchmany(size)
+            self._sync_ferrocopg_cursor()
+            return cast(list[Row], rows)
+
         if not size:
             size = self.arraysize
         with self._conn.lock:
@@ -123,6 +155,11 @@ class ServerCursor(ServerCursorMixin["Connection[Any]", Row], Cursor[Row]):
         return recs
 
     def fetchall(self) -> list[Row]:
+        if self._ferrocopg_cursor is not None:
+            rows = self._ferrocopg_cursor.fetchall()
+            self._sync_ferrocopg_cursor()
+            return cast(list[Row], rows)
+
         with self._conn.lock:
             recs = self._conn.wait(self._fetch_gen(None))
         self._pos += len(recs)
@@ -132,6 +169,12 @@ class ServerCursor(ServerCursorMixin["Connection[Any]", Row], Cursor[Row]):
         return self
 
     def __next__(self) -> Row:
+        if self._ferrocopg_cursor is not None:
+            self._ferrocopg_cursor.itersize = self.itersize
+            row = next(self._ferrocopg_cursor)
+            self._sync_ferrocopg_cursor()
+            return cast(Row, row)
+
         # Fetch a new page if we never fetched any, or we are at the end of
         # a page of size itersize, meaning there is likely a following one.
         if (
@@ -151,6 +194,11 @@ class ServerCursor(ServerCursorMixin["Connection[Any]", Row], Cursor[Row]):
         return rec
 
     def scroll(self, value: int, mode: str = "relative") -> None:
+        if self._ferrocopg_cursor is not None:
+            self._ferrocopg_cursor.scroll(value, mode)
+            self._sync_ferrocopg_cursor()
+            return
+
         with self._conn.lock:
             self._conn.wait(self._scroll_gen(value, mode))
         # Postgres doesn't have a reliable way to report a cursor out of bound

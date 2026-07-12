@@ -2424,8 +2424,8 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
         "adapter",
         "dbname=postgres host=localhost port=5432 application_name=ferrocopg-tests",
         psycopg_module.tuple_row,
-        ferrocopg_module.NoTlsCursorAdapter,
-        None,
+        psycopg_module.Cursor,
+        psycopg_module.ServerCursor,
         5,
         True,
         None,
@@ -2445,8 +2445,8 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
         "adapter",
         "dbname=postgres",
         ferrocopg_module.scalar_row,
-        ferrocopg_module.NoTlsCursorAdapter,
-        None,
+        psycopg_module.Cursor,
+        psycopg_module.ServerCursor,
         0,
         False,
         psycopg_module.IsolationLevel.SERIALIZABLE,
@@ -2462,7 +2462,7 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
         "dbname=postgres",
         psycopg_module.tuple_row,
         TrackingCursor,
-        None,
+        psycopg_module.ServerCursor,
         5,
         True,
         None,
@@ -2628,15 +2628,11 @@ def test_package_connect_ferrocopg_connect_options(
         "dbname=postgres", impl="ferrocopg", server_cursor_factory=StubServerCursor
     )
 
-    with pytest.raises(
-        psycopg.NotSupportedError,
-        match="concrete cursor factories require libpq",
-    ):
-        psycopg.connect(
-            "dbname=postgres", impl="ferrocopg", cursor_factory=psycopg.Cursor
-        )
+    psycopg.connect("dbname=postgres", impl="ferrocopg", cursor_factory=psycopg.Cursor)
+    assert calls[-1][1]["cursor_factory"] is psycopg.Cursor
 
     assert [conninfo for conninfo, _ in calls] == [
+        "dbname=postgres",
         "dbname=postgres",
         "dbname=postgres",
     ]

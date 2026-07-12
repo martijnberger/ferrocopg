@@ -1507,6 +1507,7 @@ class NoTlsCursorAdapter:
         conn: NoTlsConnectionAdapter,
         *,
         row_factory: RowFactory = list_row,
+        query_cls: type[PostgresQuery] = PostgresQuery,
     ):
         self._conn = conn
         self._result: BackendResultCursor | None = None
@@ -1517,6 +1518,7 @@ class NoTlsCursorAdapter:
         self._result_transformer: AdaptTransformer | None = None
         self._rownumber: int | None = 0
         self._query: PostgresQuery | PostgresClientQuery | None = None
+        self._query_cls = query_cls
         self.format = pq.Format.TEXT
         self.arraysize = 1
 
@@ -1636,6 +1638,7 @@ class NoTlsCursorAdapter:
                 prefer_extended=self._row_factory not in _LEGACY_ROW_FACTORIES,
                 adapters=self.adapters,
                 result_format=self.format,
+                cursor_state=self,
             )
         self._make_row = None
         self._result_transformer = None
@@ -1662,6 +1665,7 @@ class NoTlsCursorAdapter:
                     prepare=prepare,
                     adapters=self.adapters,
                     result_format=self.format,
+                    cursor_state=self,
                 ).current_result
                 for params in params_seq
             ]
@@ -1677,6 +1681,7 @@ class NoTlsCursorAdapter:
                     prepare=prepare,
                     adapters=self.adapters,
                     result_format=self.format,
+                    cursor_state=self,
                 ).current_result
                 if result is not None:
                     total += result.rows_affected
@@ -1918,8 +1923,9 @@ class NoTlsServerCursorAdapter(NoTlsCursorAdapter):
         scrollable: bool | None = None,
         withhold: bool = False,
         factory_name: str = "ServerCursor",
+        query_cls: type[PostgresQuery] = PostgresQuery,
     ):
-        super().__init__(conn, row_factory=row_factory)
+        super().__init__(conn, row_factory=row_factory, query_cls=query_cls)
         self._name = name
         self._scrollable = scrollable
         self._withhold = withhold
@@ -1929,6 +1935,7 @@ class NoTlsServerCursorAdapter(NoTlsCursorAdapter):
         self._pos = 0
         self.itersize = 100
         self._iter_rows: Iterator[object] | None = None
+        self._iter_exhausted = False
 
     def __repr__(self) -> str:
         return f"<psycopg.{self._factory_name} {self._name!r} [{self._state_name()}]>"
@@ -1966,7 +1973,7 @@ class NoTlsServerCursorAdapter(NoTlsCursorAdapter):
             self.format = pq.Format.BINARY if binary else pq.Format.TEXT
 
         query_text, converted = self._conn._convert_query_params(
-            query, params, adapters=self.adapters
+            query, params, adapters=self.adapters, cursor_state=self
         )
         parts = ["DECLARE", _quoted_identifier(self._name)]
         if self._scrollable is not None:
@@ -1998,6 +2005,7 @@ class NoTlsServerCursorAdapter(NoTlsCursorAdapter):
         self._declared = True
         self._pos = 0
         self._iter_rows = None
+        self._iter_exhausted = False
         self._describe_server_cursor()
         return self
 
@@ -2037,6 +2045,7 @@ class NoTlsServerCursorAdapter(NoTlsCursorAdapter):
         )
         self._pos = value if mode == "absolute" else self._pos + value
         self._iter_rows = None
+        self._iter_exhausted = False
 
     def close(self) -> None:
         if self._closed:
@@ -2055,16 +2064,24 @@ class NoTlsServerCursorAdapter(NoTlsCursorAdapter):
 
     def __next__(self) -> object:
         if self._iter_rows is None:
-            self._iter_rows = iter(self._fetch_server_rows(self.itersize))
+            rows = self._fetch_server_rows(self.itersize, advance=False)
+            self._iter_rows = iter(rows)
+            self._iter_exhausted = len(rows) < self.itersize
         try:
-            return next(self._iter_rows)
+            row = next(self._iter_rows)
         except StopIteration:
-            rows = self._fetch_server_rows(self.itersize)
+            if self._iter_exhausted:
+                self._iter_rows = None
+                raise
+            rows = self._fetch_server_rows(self.itersize, advance=False)
             if not rows:
                 self._iter_rows = None
                 raise
             self._iter_rows = iter(rows)
-            return next(self._iter_rows)
+            self._iter_exhausted = len(rows) < self.itersize
+            row = next(self._iter_rows)
+        self._pos += 1
+        return row
 
     def _describe_server_cursor(self) -> None:
         fetch = f"FETCH FORWARD 0 FROM {_quoted_identifier(self._name)}"
@@ -2087,31 +2104,34 @@ class NoTlsServerCursorAdapter(NoTlsCursorAdapter):
         if not self._descriptions:
             self._describe_server_cursor()
 
-    def _fetch_server_rows(self, count: int | None) -> list[object]:
+    def _fetch_server_rows(
+        self, count: int | None, *, advance: bool = True
+    ) -> list[object]:
         self._ensure_described()
         amount = "ALL" if count is None else str(count)
         fetch = f"FETCH FORWARD {amount} FROM {_quoted_identifier(self._name)}"
-        if self.format == pq.Format.BINARY:
-            result_cursor = self._conn._session.execute_params(fetch, [])
-        else:
-            simple = self._conn._session.execute_simple(fetch)
-            current = simple.current_result
-            rows = [] if current is None else current.rows
+        pgresult = self._conn._exec_command(fetch, result_format=self.format)
+        if pgresult is None:
+            raise e.InternalError("server cursor FETCH returned no result")
+        result = pgresult._result
+        if self.format == pq.Format.TEXT:
             result = _SyntheticResult(
                 columns=[column.name for column in self._descriptions],
                 column_descriptions=self._descriptions,
-                rows=rows,
-                rows_affected=len(rows),
+                rows=result.rows,
+                rows_affected=result.rows_affected,
                 is_tuples=True,
                 wire_format=pq.Format.TEXT,
             )
-            result_cursor = BackendResultCursor([result], [f"FETCH {len(rows)}"])
+        result_cursor = BackendResultCursor(
+            [result],
+            [pgresult.command_status.decode(self._encoding) or None],
+        )
         self._result = result_cursor
-        self._make_row = None
-        self._result_transformer = None
         self._rownumber = 0
         loaded_rows: list[object] = super().fetchall()
-        self._pos += len(loaded_rows)
+        if advance:
+            self._pos += len(loaded_rows)
         return loaded_rows
 
     def _close_server_cursor(self) -> None:
@@ -2548,12 +2568,17 @@ def _copy_block_field_count(data: bytes, *, binary: bool) -> int:
     return max(1, data.count(b"\t") + 1)
 
 
+def _backend_cursor_adapter(cursor: object) -> NoTlsCursorAdapter:
+    hosted = getattr(cursor, "_ferrocopg_cursor", None)
+    return cast(NoTlsCursorAdapter, hosted or cursor)
+
+
 class NoTlsPipelineAdapter:
     """Experimental pipeline context over the ferrocopg connection adapter."""
 
     def __init__(self, conn: NoTlsConnectionAdapter):
         self._conn = conn
-        self._queued: list[tuple[Query, NoTlsCursorAdapter, Params | None, bool]] = []
+        self._queued: list[tuple[Query, object, Params | None, bool]] = []
         self._entered = False
         self._closed = False
 
@@ -2568,10 +2593,10 @@ class NoTlsPipelineAdapter:
         row_factory: RowFactory | None = None,
         params: Params | None = None,
         prepare: bool = False,
-    ) -> NoTlsCursorAdapter:
+    ) -> object:
         self._check_open()
         cur = self._conn.cursor(row_factory=row_factory)
-        self._queued.append((query, cur, params, prepare))
+        self._queued.append((query, _backend_cursor_adapter(cur), params, prepare))
         return cur
 
     def sync(self) -> None:
@@ -2592,18 +2617,22 @@ class NoTlsPipelineAdapter:
             for (_query, queued_cur, _params, _prepare), result_cur in zip(
                 self._queued, results, strict=True
             ):
-                queued_cur._result = result_cur._result
-                queued_cur._rownumber = 0
+                queued = _backend_cursor_adapter(queued_cur)
+                result = _backend_cursor_adapter(result_cur)
+                queued._result = result._result
+                queued._rownumber = 0
         else:
             for query, queued_cur, params, prepare in self._queued:
-                queued_cur._result = self._conn._execute(
+                queued = _backend_cursor_adapter(queued_cur)
+                queued._result = self._conn._execute(
                     query,
                     params,
                     prepare=prepare,
-                    adapters=queued_cur.adapters,
-                    result_format=queued_cur.format,
+                    adapters=queued.adapters,
+                    result_format=queued.format,
+                    cursor_state=queued,
                 )
-                queued_cur._rownumber = 0
+                queued._rownumber = 0
         self._queued.clear()
 
     def __enter__(self) -> NoTlsPipelineAdapter:
@@ -2819,24 +2848,21 @@ class NoTlsConnectionAdapter:
     ) -> NoTlsCursorAdapter:
         self._check_closed()
         if name:
-            factory = self.server_cursor_factory
-            adapter_factory = (
-                factory
-                if isinstance(factory, type)
-                and issubclass(factory, NoTlsServerCursorAdapter)
-                else NoTlsServerCursorAdapter
-            )
-            return cast(
+            factory = cast(Any, self.server_cursor_factory)
+            cur = cast(
                 NoTlsCursorAdapter,
-                adapter_factory(
+                factory(
                     self,
                     name,
                     row_factory=row_factory or self.row_factory,
                     scrollable=scrollable,
                     withhold=withhold,
-                    factory_name=getattr(factory, "__name__", "ServerCursor"),
                 ),
             )
+            if binary:
+                cur.format = pq.Format.BINARY
+                _backend_cursor_adapter(cur).format = pq.Format.BINARY
+            return cur
         if scrollable is not None or withhold:
             raise e.ProgrammingError(
                 "scrollable and withhold options require a named server cursor"
@@ -2866,15 +2892,15 @@ class NoTlsConnectionAdapter:
         queries: list[str],
         *,
         row_factory: RowFactory | None = None,
-    ) -> list[NoTlsCursorAdapter]:
+    ) -> list[object]:
         self._check_closed()
         self._ensure_transaction()
-        cursors: list[NoTlsCursorAdapter] = []
+        cursors: list[object] = []
         if row_factory is None:
             row_factory = self.row_factory
         for result in self._session.execute_pipeline_simple(queries):
             cur = self.cursor(row_factory=row_factory)
-            cur._result = result
+            _backend_cursor_adapter(cur)._result = result
             cursors.append(cur)
         return cursors
 
@@ -3225,9 +3251,12 @@ class NoTlsConnectionAdapter:
         prefer_extended: bool = False,
         adapters: AdaptersMap | None = None,
         result_format: pq.Format = pq.Format.TEXT,
+        cursor_state: NoTlsCursorAdapter | None = None,
     ) -> BackendResultCursor:
         self._ensure_cancel_handle()
-        query, params = self._convert_query_params(query, params, adapters=adapters)
+        query, params = self._convert_query_params(
+            query, params, adapters=adapters, cursor_state=cursor_state
+        )
         if self._unsupported_client_encoding and not _changes_client_encoding(query):
             raise e.NotSupportedError(str(self._unsupported_client_encoding))
         self._ensure_transaction()
@@ -3350,16 +3379,36 @@ class NoTlsConnectionAdapter:
         params: Params | None,
         *,
         adapters: AdaptersMap | None = None,
+        cursor_state: NoTlsCursorAdapter | None = None,
+        query_cls: type[PostgresQuery] | None = None,
     ) -> tuple[str, list[str | None] | _BoundParams | None]:
+        query_cls = query_cls or (
+            cursor_state._query_cls if cursor_state is not None else PostgresQuery
+        )
         if params is None:
             if isinstance(query, bytes):
+                if cursor_state is not None:
+                    cursor_state._query = cast(
+                        Any, SimpleNamespace(query=query, params=None)
+                    )
                 return query.decode(self._pgconn._encoding), None
             if isinstance(query, str):
+                if cursor_state is not None:
+                    cursor_state._query = cast(
+                        Any,
+                        SimpleNamespace(
+                            query=query.encode(self._pgconn._encoding), params=None
+                        ),
+                    )
                 return query, None
 
-        if isinstance(query, str) and "%" not in query:
+        if query_cls is PostgresQuery and isinstance(query, str) and "%" not in query:
             return query, _coerce_native_params(params)
-        if isinstance(query, bytes) and b"%" not in query:
+        if (
+            query_cls is PostgresQuery
+            and isinstance(query, bytes)
+            and b"%" not in query
+        ):
             return query.decode(self._pgconn._encoding), _coerce_native_params(params)
 
         tx = _BackendTransformer(
@@ -3370,7 +3419,9 @@ class NoTlsConnectionAdapter:
             )
         )
         tx._encoding = self._pgconn._encoding
-        pgq = PostgresQuery(tx)
+        pgq = query_cls(tx)
+        if cursor_state is not None:
+            cursor_state._query = pgq
         pgq.convert(query, params)
         if pgq.params is None:
             return pgq.query.decode(tx.encoding), None

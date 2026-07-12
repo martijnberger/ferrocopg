@@ -12,7 +12,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, overload
+from typing import TYPE_CHECKING, Any, cast, overload
 
 from . import errors as e
 from . import pq
@@ -46,6 +46,22 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
     ):
         super().__init__(connection)
         self._row_factory = row_factory or connection.row_factory
+        if getattr(connection, "_is_ferrocopg", False):
+            from ._ferrocopg import NoTlsCursorAdapter
+
+            self._ferrocopg_cursor = NoTlsCursorAdapter(
+                cast(Any, connection),
+                row_factory=cast(Any, self._row_factory),
+                query_cls=self._query_cls,
+            )
+
+    def _sync_ferrocopg_cursor(self) -> None:
+        if self._ferrocopg_cursor is not None:
+            if not hasattr(self, "_format"):
+                self.format = self._ferrocopg_cursor.format
+            self.pgresult = self._ferrocopg_cursor.pgresult
+            self._closed = self._ferrocopg_cursor.closed
+            self._query = self._ferrocopg_cursor._query
 
     def __enter__(self) -> Self:
         return self
@@ -62,16 +78,24 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
         """
         Close the current cursor and free associated resources.
         """
-        self._close()
+        if self._ferrocopg_cursor is not None:
+            self._ferrocopg_cursor.close()
+            self._sync_ferrocopg_cursor()
+        else:
+            self._close()
 
     @property
     def row_factory(self) -> RowFactory[Row]:
         """Writable attribute to control how result rows are formed."""
+        if self._ferrocopg_cursor is not None:
+            return cast(RowFactory[Row], self._ferrocopg_cursor.row_factory)
         return self._row_factory
 
     @row_factory.setter
     def row_factory(self, row_factory: RowFactory[Row]) -> None:
         self._row_factory = row_factory
+        if self._ferrocopg_cursor is not None:
+            self._ferrocopg_cursor.row_factory = row_factory
         if self.pgresult:
             self._make_row = row_factory(self)
 
@@ -108,6 +132,16 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
         """
         Execute a query or command to the database.
         """
+        if self._ferrocopg_cursor is not None:
+            self._ferrocopg_cursor.format = self.format
+            try:
+                self._ferrocopg_cursor.execute(
+                    query, params, prepare=bool(prepare), binary=binary
+                )
+            finally:
+                self._sync_ferrocopg_cursor()
+            return self
+
         try:
             with self._conn.lock:
                 self._conn.wait(
@@ -123,6 +157,13 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
         """
         Execute the same command with a sequence of input data.
         """
+        if self._ferrocopg_cursor is not None:
+            self._ferrocopg_cursor.executemany(
+                query, list(params_seq), returning=returning
+            )
+            self._sync_ferrocopg_cursor()
+            return
+
         try:
             with self._conn.lock:
                 if Pipeline.is_supported():
@@ -162,6 +203,15 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
             this size from the server (but still yielded row-by-row); this is only
             available from version 17 of the libpq.
         """
+        if self._ferrocopg_cursor is not None:
+            self._ferrocopg_cursor.format = self.format
+            yield from cast(
+                Iterator[Row],
+                self._ferrocopg_cursor.stream(query, params, binary=binary, size=size),
+            )
+            self._sync_ferrocopg_cursor()
+            return
+
         if self._pgconn.pipeline_status:
             raise e.ProgrammingError("stream() cannot be used in pipeline mode")
 
@@ -203,6 +253,12 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
         `!returning=True` or using `execute()` with more than one query in the
         command.
         """
+        if self._ferrocopg_cursor is not None:
+            for _ in self._ferrocopg_cursor.results():
+                self._sync_ferrocopg_cursor()
+                yield self
+            return
+
         if self.pgresult:
             while True:
                 yield self
@@ -226,6 +282,11 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
         The function returns self, so that the result may be followed by a
         fetch operation. See `results()` for details.
         """
+        if self._ferrocopg_cursor is not None:
+            self._ferrocopg_cursor.set_result(index)
+            self._sync_ferrocopg_cursor()
+            return self
+
         if not -len(self._results) <= index < len(self._results):
             raise IndexError(
                 f"index {index} out of range: {len(self._results)} result(s) available"
@@ -244,6 +305,11 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
 
         :rtype: Row | None, with Row defined by `row_factory`
         """
+        if self._ferrocopg_cursor is not None:
+            row = self._ferrocopg_cursor.fetchone()
+            self._sync_ferrocopg_cursor()
+            return cast(Row | None, row)
+
         self._fetch_pipeline()
         res = self._check_result_for_fetch()
         if self._pos < res.ntuples:
@@ -260,6 +326,11 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
 
         :rtype: Sequence[Row], with Row defined by `row_factory`
         """
+        if self._ferrocopg_cursor is not None:
+            rows = self._ferrocopg_cursor.fetchmany(size)
+            self._sync_ferrocopg_cursor()
+            return cast(list[Row], rows)
+
         self._fetch_pipeline()
         res = self._check_result_for_fetch()
 
@@ -277,6 +348,11 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
 
         :rtype: Sequence[Row], with Row defined by `row_factory`
         """
+        if self._ferrocopg_cursor is not None:
+            rows = self._ferrocopg_cursor.fetchall()
+            self._sync_ferrocopg_cursor()
+            return cast(list[Row], rows)
+
         self._fetch_pipeline()
         res = self._check_result_for_fetch()
         records = self._tx.load_rows(self._pos, res.ntuples, self._make_row)
@@ -287,6 +363,11 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
         return self
 
     def __next__(self) -> Row:
+        if self._ferrocopg_cursor is not None:
+            row = next(self._ferrocopg_cursor)
+            self._sync_ferrocopg_cursor()
+            return cast(Row, row)
+
         self._fetch_pipeline()
         res = self._check_result_for_fetch()
         if self._pos < res.ntuples:
@@ -306,8 +387,12 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
         Raise `!IndexError` in case a scroll operation would leave the result
         set. In this case the position will not change.
         """
-        self._fetch_pipeline()
-        self._scroll(value, mode)
+        if self._ferrocopg_cursor is not None:
+            self._ferrocopg_cursor.scroll(value, mode)
+            self._sync_ferrocopg_cursor()
+        else:
+            self._fetch_pipeline()
+            self._scroll(value, mode)
 
     @contextmanager
     def copy(
@@ -320,6 +405,12 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
         """
         Initiate a :sql:`COPY` operation and return an object to manage it.
         """
+        if self._ferrocopg_cursor is not None:
+            with self._ferrocopg_cursor.copy(statement, params, writer=writer) as copy:
+                yield cast(Copy, copy)
+            self._sync_ferrocopg_cursor()
+            return
+
         try:
             with self._conn.lock:
                 self._conn.wait(self._start_copy_gen(statement, params))

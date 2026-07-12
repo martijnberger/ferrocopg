@@ -8,7 +8,11 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from typing import Any, TypeVar, cast
 
-from ._ferrocopg import FerrocopgConnection, NoTlsConnectionAdapter
+from ._ferrocopg import (
+    FerrocopgConnection,
+    NoTlsConnectionAdapter,
+    NoTlsCursorAdapter,
+)
 from .abc import Params, Query
 
 T = TypeVar("T")
@@ -17,6 +21,15 @@ _DONE = object()
 
 def _next_or_done(iterator: Any) -> Any:
     return next(iterator, _DONE)
+
+
+def _backend_cursor(cursor: Any) -> NoTlsCursorAdapter:
+    hosted = getattr(cursor, "_ferrocopg_cursor", None)
+    if hosted is None:
+        return cast(NoTlsCursorAdapter, cursor)
+    cursor._ferrocopg_cursor = None
+    cursor._closed = True
+    return cast(NoTlsCursorAdapter, hosted)
 
 
 class FerrocopgAsyncConnection:
@@ -151,7 +164,7 @@ class FerrocopgAsyncConnection:
             scrollable=scrollable,
             withhold=withhold,
         )
-        return FerrocopgAsyncCursor(self, cursor)
+        return FerrocopgAsyncCursor(self, _backend_cursor(cursor))
 
     async def execute(
         self,
@@ -180,7 +193,7 @@ class FerrocopgAsyncConnection:
             binary=binary,
             row_factory=row_factory,
         )
-        return FerrocopgAsyncCursor(self, sync_cursor)
+        return FerrocopgAsyncCursor(self, _backend_cursor(sync_cursor))
 
     def transaction(
         self, savepoint_name: str | None = None, force_rollback: bool = False
@@ -483,7 +496,7 @@ class FerrocopgAsyncPipeline:
             prepare=prepare,
             row_factory=row_factory,
         )
-        return FerrocopgAsyncCursor(self.connection, cursor)
+        return FerrocopgAsyncCursor(self.connection, _backend_cursor(cursor))
 
     async def sync(self) -> None:
         await self.connection._run(self._pipeline.sync)

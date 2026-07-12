@@ -6,7 +6,7 @@ psycopg server-side cursor base objects.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 from warnings import warn
 
 from . import errors as e
@@ -92,6 +92,9 @@ class ServerCursorMixin(BaseCursor[ConnectionType, Row]):
 
         `!None` if there is no result to fetch.
         """
+        if self._ferrocopg_cursor is not None:
+            return cast(int | None, self._ferrocopg_cursor.rownumber)
+
         res = self.pgresult
         # command_status is empty if the result comes from
         # describe_portal, which means that we have just executed the DECLARE,

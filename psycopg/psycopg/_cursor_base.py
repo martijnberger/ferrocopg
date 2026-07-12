@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from functools import partial
-from typing import TYPE_CHECKING, Any, Generic, NoReturn
+from typing import TYPE_CHECKING, Any, Generic, NoReturn, cast
 from weakref import ReferenceType, ref
 
 from . import adapt, pq
@@ -48,7 +48,7 @@ class BaseCursor(Generic[ConnectionType, Row]):
     __slots__ = """
         _conn format _adapters arraysize _closed _results pgresult _pos
         _iresult _rowcount _query _tx _last_query _row_factory _make_row
-        _pgconn _execmany_returning _statusmessage
+        _pgconn _execmany_returning _statusmessage _ferrocopg_cursor
         __weakref__
         """.split()
 
@@ -58,6 +58,7 @@ class BaseCursor(Generic[ConnectionType, Row]):
     _query_cls: type[PostgresQuery] = PostgresQuery
 
     def __init__(self, connection: ConnectionType):
+        self._ferrocopg_cursor: Any | None = None
         self._conn = connection
         self.format = TEXT
         self._pgconn = connection.pgconn
@@ -99,15 +100,21 @@ class BaseCursor(Generic[ConnectionType, Row]):
     @property
     def connection(self) -> ConnectionType:
         """The connection this cursor is using."""
+        if self._ferrocopg_cursor is not None:
+            return cast(ConnectionType, self._ferrocopg_cursor.connection)
         return self._conn
 
     @property
     def adapters(self) -> adapt.AdaptersMap:
+        if self._ferrocopg_cursor is not None:
+            return cast(adapt.AdaptersMap, self._ferrocopg_cursor.adapters)
         return self._adapters
 
     @property
     def closed(self) -> bool:
         """`True` if the cursor is closed."""
+        if self._ferrocopg_cursor is not None:
+            return bool(self._ferrocopg_cursor.closed)
         return self._closed
 
     @property
@@ -117,6 +124,9 @@ class BaseCursor(Generic[ConnectionType, Row]):
 
         `!None` if the current resultset didn't return tuples.
         """
+        if self._ferrocopg_cursor is not None:
+            return cast(list[Column] | None, self._ferrocopg_cursor.description)
+
         res = self.pgresult
 
         # We return columns if we have nfields, but also if we don't but
@@ -138,6 +148,8 @@ class BaseCursor(Generic[ConnectionType, Row]):
         Number of records affected by the operation that produced
         the current result set.
         """
+        if self._ferrocopg_cursor is not None:
+            return int(self._ferrocopg_cursor.rowcount)
         return self._rowcount
 
     @property
@@ -146,6 +158,9 @@ class BaseCursor(Generic[ConnectionType, Row]):
 
         `!None` if there is no result to fetch.
         """
+        if self._ferrocopg_cursor is not None:
+            return cast(int | None, self._ferrocopg_cursor.rownumber)
+
         tuples = self.pgresult and self.pgresult.status == TUPLES_OK
         return self._pos if tuples else None
 
@@ -165,6 +180,11 @@ class BaseCursor(Generic[ConnectionType, Row]):
         Return `!True` if a new result is available, which will be the one
         methods `!fetch*()` will operate on.
         """
+        if self._ferrocopg_cursor is not None:
+            rv = self._ferrocopg_cursor.nextset()
+            self.pgresult = self._ferrocopg_cursor.pgresult
+            return cast(bool | None, rv)
+
         if self._iresult < len(self._results) - 1:
             self._select_current_result(self._iresult + 1)
             return True
@@ -178,6 +198,8 @@ class BaseCursor(Generic[ConnectionType, Row]):
 
         `!None` if the cursor doesn't have a result available.
         """
+        if self._ferrocopg_cursor is not None:
+            return cast(str | None, self._ferrocopg_cursor.statusmessage)
         return self._statusmessage.decode() if self._statusmessage else None
 
     def _make_row_maker(self) -> RowMaker[Row]:

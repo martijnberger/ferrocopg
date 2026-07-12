@@ -15,11 +15,9 @@ PASS_RATE_SCRIPT = ROOT / "tools" / "ci" / "ferrocopg_pass_rate.py"
 @pytest.mark.parametrize(
     ("nodeid", "tag"),
     [
-        ("tests/test_cursor.py::test_default_cursor", "concrete-cursor"),
         ("tests/test_cursor_client.py::test_str", "concrete-cursor"),
         ("tests/test_cursor_common.py::test_execute", "concrete-cursor"),
         ("tests/test_cursor_raw.py::test_execute", "concrete-cursor"),
-        ("tests/test_cursor_server.py::test_scroll", "concrete-cursor"),
         (
             "tests/test_transaction.py::test_context_active_rollback_no_clobber",
             "pgconn",
