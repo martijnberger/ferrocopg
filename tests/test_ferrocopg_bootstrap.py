@@ -5001,6 +5001,13 @@ def test_backend_connect_ferrocopg_routes_tls_required(
         return StubSession()
 
     monkeypatch.setattr(module, "backend_session", stub_backend_session)
+    monkeypatch.setattr(
+        module,
+        "make_conninfo",
+        lambda *_args, **_kwargs: pytest.fail(
+            "Rust connection attempts must not be validated through libpq"
+        ),
+    )
 
     conn = cast(
         Any,

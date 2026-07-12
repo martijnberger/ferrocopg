@@ -567,6 +567,19 @@ package imports silently while still asserting the public `connect()` overloads;
 the repository's dedicated mypy and pre-commit checks remain authoritative for
 source validation.
 
+The first follow-up run confirms the standalone wheel job is green. Its
+PostgreSQL 14 source-tree job still routed the rendered `channel_binding`
+attempt through the deliberately oldest libpq before reaching Rust, and several
+upstream C jobs exposed an older optimized bytea dumper not recognized by the
+backend adapter copy. The next checkpoint renders Rust attempts with the
+existing libpq-free merger and recognizes built-in C/binary bytea dumpers by
+module as well as the newer optimization map. Focused Rust-attempt routing,
+explicit C literal adaptation, the full C bootstrap suite (`193` passes and 16
+environment/accelerator skips), and pre-commit are green locally. The remaining
+seven compatibility jobs from the superseded run were intentionally cancelled
+after they spent more than 15 minutes in the full harness; the next complete
+run remains the authoritative matrix evidence.
+
 Continue in measured order, using the supported-server matrix before reopening
 the next broad failure cluster:
 

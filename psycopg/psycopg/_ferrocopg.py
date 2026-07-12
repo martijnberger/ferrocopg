@@ -435,7 +435,13 @@ def _install_wire_bytea_dumper(adapters: AdaptersMap) -> None:
         for cls in (bytes, bytearray, memoryview, Binary)
         if (
             (dumper := adapters.get_dumper(cls, PyFormat.TEXT)) is default_dumper
-            or dumper.__module__ == "psycopg.dbapi20"
+            or dumper.__module__
+            in {
+                "psycopg.dbapi20",
+                "psycopg.types.string",
+                "psycopg_c._psycopg",
+                "psycopg_binary._psycopg",
+            }
         )
     ]
     if not classes:
@@ -691,7 +697,7 @@ class FerrocopgConnection:
                 )
                 try:
                     return cls._connect_gen(
-                        make_conninfo("", **attempt),
+                        merge_conninfo("", attempt),
                         _connect_timeout=timeout,
                         **connect_options,
                     )
