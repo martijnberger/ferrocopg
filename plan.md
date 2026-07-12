@@ -402,10 +402,10 @@ Current local full-harness evidence is `3855/4417` sync (`0.873`) on CPython
 cases not present in the CI key, so its denominator is reported independently;
 the committed CI matrix remains the release gate.
 
-Work in measured order, starting with the largest current failure clusters:
+Continue in measured order, starting with the largest current failure clusters:
 
-1. transactions and savepoints
-2. type adaptation and metadata
+1. string adaptation, client encodings, and SQL_ASCII behavior
+2. remaining type adaptation behavior beyond the completed column metadata slice
 3. connection and connection-info behavior
 4. prepared statement behavior
 5. concrete default, raw, client, and server cursors
@@ -532,9 +532,13 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Start Phase 4.3 with the measured transaction/savepoint failures, then type
-   adaptation and metadata.
-2. Re-run the complete sync compatibility matrix after each closure slice and
+1. Close the measured string and client-encoding gaps, including LATIN1,
+   LATIN9, SQL_ASCII, enum text loading, and COPY error timing. The focused
+   PostgreSQL 14 suite currently reports `104` passing, `30` failing, and one
+   expected failure.
+2. Continue through the remaining measured Phase 4.3 clusters after string
+   adaptation, beginning with connection behavior and prepared statements.
+3. Re-run the complete sync compatibility matrix after each closure slice and
    remove obsolete manifest entries while ratcheting the floor upward.
-3. Preserve the standalone package, explicit delegation, and source-tree
+4. Preserve the standalone package, explicit delegation, and source-tree
    comparison proofs while each compatibility slice changes shared Python code.
