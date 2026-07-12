@@ -82,12 +82,12 @@ Validation evidence:
   `0.85` sync-only floor.
 - CI reports sync and async independently and uploads family-level JSON and
   JUnit evidence for every PostgreSQL 14-18 matrix job.
-- The validated CPython 3.11 server-axis sync denominator is `4205` tests on
-  PostgreSQL 14 and `4243` on PostgreSQL 15-18, with `875` manifested tests in
-  every lane. The expected per-matrix denominator is committed and enforced;
-  the PostgreSQL-specific difference is deterministic collection, not drift.
+- The validated CPython 3.11 server-axis denominator is `4205` sync and `546`
+  async tests on PostgreSQL 14-18, with `875` sync and `764` async manifested
+  tests in every lane. Duplicate JUnit call/teardown records are collapsed by
+  node ID, so fixing an execution error cannot masquerade as collection drift.
 - The initial sync-only ratchet is `0.85`; observed complete runs currently
-  range from `0.851` locally to `0.862`-`0.865` on the fixed-interpreter
+  range from `0.851` locally to `0.865`-`0.870` on the fixed-interpreter
   PostgreSQL 14-18 CI axis.
 - The corrected complete workflow is green with all 53 jobs passing, including
   pure-Python, C/Cython, and all five Rust backend lanes.

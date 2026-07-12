@@ -1,8 +1,8 @@
+import inspect
 import sys
 
 import pytest
 
-import psycopg
 from psycopg import pq
 
 # TODOCRDB: is this the expected behaviour?
@@ -23,32 +23,32 @@ def create_test_table(svcconn):
 
 def insert_row(conn, value):
     sql = "INSERT INTO test_table VALUES (%s)"
-    if isinstance(conn, psycopg.Connection):
-        conn.cursor().execute(sql, (value,))
-    else:
+    cur = conn.cursor()
+    if inspect.iscoroutinefunction(cur.execute):
 
         async def f():
-            cur = conn.cursor()
             await cur.execute(sql, (value,))
 
         return f()
+    else:
+        cur.execute(sql, (value,))
 
 
 def inserted(conn):
     """Return the values inserted in the test table."""
     sql = "SELECT * FROM test_table"
-    if isinstance(conn, psycopg.Connection):
-        rows = conn.cursor().execute(sql).fetchall()
-        return {v for (v,) in rows}
-    else:
+    cur = conn.cursor()
+    if inspect.iscoroutinefunction(cur.execute):
 
         async def f():
-            cur = conn.cursor()
             await cur.execute(sql)
             rows = await cur.fetchall()
             return {v for (v,) in rows}
 
         return f()
+    else:
+        rows = cur.execute(sql).fetchall()
+        return {v for (v,) in rows}
 
 
 def in_transaction(conn):

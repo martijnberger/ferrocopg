@@ -211,11 +211,11 @@ artifacts containing denominators and counts for connection, transaction,
 type/metadata, prepared, cursor, COPY, pipeline, notification, and concurrency
 families. `tests/ferrocopg_compat_baselines.json` pins the expected sync and
 async collection counts for every CI matrix key, so missing or newly collected
-tests cannot silently distort the rate. On the fixed CPython 3.11 server axis,
-the sync denominator is `4205` on PostgreSQL 14 and `4243` on PostgreSQL 15-18,
-with `875` manifested tests in every lane. The initial sync ratchet is `0.85`,
-below the validated server-axis range of `0.862`-`0.865`; the release target is
-at least `0.95`.
+tests cannot silently distort the rate. Duplicate JUnit call/teardown records
+are collapsed by node ID before counting. On the fixed CPython 3.11 server
+axis, every PostgreSQL 14-18 lane contains `4205` sync tests with `875`
+manifested tests. The initial sync ratchet is `0.85`, below the validated
+server-axis range of `0.865`-`0.870`; the release target is at least `0.95`.
 
 Generate the same report locally after the harness with:
 

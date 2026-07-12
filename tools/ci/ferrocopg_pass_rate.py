@@ -5,6 +5,7 @@ import argparse
 import json
 import sys
 import xml.etree.ElementTree as ET
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable
@@ -58,10 +59,12 @@ def main() -> int:
 
     try:
         testcases = ET.parse(args.junit).getroot().iter("testcase")
-        for testcase in testcases:
-            nodeid = _nodeid_from_testcase(testcase)
+        for nodeid, records in _group_testcases(testcases):
+            testcase = max(records, key=_outcome_rank)
             scope = _test_scope(nodeid)
-            is_manifested = manifested(nodeid) or _has_manifested_skip(testcase)
+            is_manifested = manifested(nodeid) or any(
+                _has_manifested_skip(record) for record in records
+            )
             scopes["overall"].record(testcase, manifested=is_manifested)
             scopes[scope].record(testcase, manifested=is_manifested)
             family = _test_family(nodeid)
@@ -137,6 +140,26 @@ def _nodeid_from_testcase(testcase: ET.Element) -> str:
 
     # Keep producing a useful report for JUnit emitted outside this checkout.
     return f"{classname.replace('.', '/')}.py::{name}"
+
+
+def _group_testcases(
+    testcases: Iterable[ET.Element],
+) -> Iterable[tuple[str, list[ET.Element]]]:
+    grouped: dict[str, list[ET.Element]] = {}
+    for testcase in testcases:
+        nodeid = _nodeid_from_testcase(testcase)
+        grouped.setdefault(nodeid, []).append(testcase)
+    return grouped.items()
+
+
+def _outcome_rank(testcase: ET.Element) -> int:
+    if testcase.find("error") is not None:
+        return 3
+    if testcase.find("failure") is not None:
+        return 2
+    if testcase.find("skipped") is not None:
+        return 1
+    return 0
 
 
 def _has_manifested_skip(testcase: ET.Element) -> bool:

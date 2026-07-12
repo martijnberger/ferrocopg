@@ -177,6 +177,53 @@ def test_pass_rate_report_checks_committed_denominator(tmp_path: Path) -> None:
     assert "denominator drift for sample" in result.stderr
 
 
+def test_pass_rate_report_collapses_duplicate_teardown_record(tmp_path: Path) -> None:
+    junit = tmp_path / "compat.xml"
+    junit.write_text(
+        """\
+<testsuites><testsuite>
+  <testcase classname="tests.test_transaction" name="test_tx">
+    <failure message="call failed" />
+  </testcase>
+  <testcase classname="tests.test_transaction" name="test_tx">
+    <error message="teardown failed" />
+  </testcase>
+</testsuite></testsuites>
+"""
+    )
+    manifest = tmp_path / "manifest.toml"
+    manifest.write_text("")
+    floor = tmp_path / "floor.txt"
+    floor.write_text("0.0\n")
+    report = tmp_path / "report.json"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(PASS_RATE_SCRIPT),
+            str(junit),
+            "--manifest",
+            str(manifest),
+            "--floor",
+            str(floor),
+            "--report",
+            str(report),
+            "--pytest-status",
+            "1",
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    sync = json.loads(report.read_text())["scopes"]["sync"]
+    assert sync["total"] == 1
+    assert sync["errors"] == 1
+    assert sync["failed"] == 0
+
+
 def _write_sample_junit(tmp_path: Path) -> Path:
     junit = tmp_path / "compat.xml"
     junit.write_text(
