@@ -23,8 +23,12 @@ class Counts:
     manifested: int = 0
 
     @property
+    def executed(self) -> int:
+        return self.total - self.skipped
+
+    @property
     def rate(self) -> float:
-        return 1.0 if self.total == 0 else self.passed / self.total
+        return 1.0 if self.executed == 0 else self.passed / self.executed
 
     def record(self, testcase: ET.Element, *, manifested: bool) -> None:
         if manifested:
@@ -43,6 +47,7 @@ class Counts:
 
     def json(self) -> dict[str, int | float]:
         data: dict[str, int | float] = asdict(self)
+        data["executed"] = self.executed
         data["rate"] = self.rate
         return data
 
@@ -171,8 +176,14 @@ def _has_manifested_skip(testcase: ET.Element) -> bool:
 
 
 def _test_scope(nodeid: str) -> str:
-    path = nodeid.partition("::")[0]
-    return "async" if path.endswith("_async.py") else "sync"
+    parts = nodeid.split("::")
+    path = parts[0]
+    test_name = parts[-1].partition("[")[0]
+    return (
+        "async"
+        if path.endswith("_async.py") or test_name.endswith("_async")
+        else "sync"
+    )
 
 
 def _test_family(nodeid: str) -> str:
@@ -210,7 +221,8 @@ def _print_report(
         counts = scopes[scope]
         print(
             f"ferrocopg {scope} pass rate: "
-            f"{counts.passed}/{counts.total} ({counts.rate:.3f}); "
+            f"{counts.passed}/{counts.executed} executed ({counts.rate:.3f}); "
+            f"total={counts.total}; "
             f"failed={counts.failed}; errors={counts.errors}; "
             f"skipped={counts.skipped}; manifested={counts.manifested}"
         )
@@ -219,8 +231,8 @@ def _print_report(
         print(f"ferrocopg {scope} feature families:")
         for family, counts in sorted(families[scope].items()):
             print(
-                f"  {family}: {counts.passed}/{counts.total} "
-                f"({counts.rate:.3f}); failed={counts.failed}; "
+                f"  {family}: {counts.passed}/{counts.executed} executed "
+                f"({counts.rate:.3f}); total={counts.total}; failed={counts.failed}; "
                 f"errors={counts.errors}; skipped={counts.skipped}; "
                 f"manifested={counts.manifested}"
             )

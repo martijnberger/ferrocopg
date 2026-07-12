@@ -89,17 +89,20 @@ def test_pass_rate_report_splits_sync_and_async(tmp_path: Path) -> None:
     data = json.loads(report.read_text())
     assert data["scopes"]["overall"] == {
         "errors": 0,
+        "executed": 4,
         "failed": 1,
         "manifested": 1,
-        "passed": 2,
-        "rate": 0.5,
+        "passed": 3,
+        "rate": 0.75,
         "skipped": 1,
-        "total": 4,
+        "total": 5,
     }
     assert data["scopes"]["sync"]["passed"] == 1
     assert data["scopes"]["sync"]["total"] == 2
-    assert data["scopes"]["async"]["passed"] == 1
-    assert data["scopes"]["async"]["total"] == 2
+    assert data["scopes"]["async"]["passed"] == 2
+    assert data["scopes"]["async"]["executed"] == 2
+    assert data["scopes"]["async"]["total"] == 3
+    assert data["scopes"]["async"]["rate"] == 1.0
     assert data["families"]["sync"]["connections"]["failed"] == 1
     assert data["families"]["async"]["transactions"]["passed"] == 1
     assert data["families"]["async"]["copy"]["skipped"] == 1
@@ -148,7 +151,7 @@ def test_pass_rate_report_checks_committed_denominator(tmp_path: Path) -> None:
     expected = {
         "sample": {
             "sync": {"total": 2, "manifested": 1},
-            "async": {"total": 2, "manifested": 0},
+            "async": {"total": 3, "manifested": 0},
         }
     }
     baseline.write_text(json.dumps(expected))
@@ -240,6 +243,7 @@ def _write_sample_junit(tmp_path: Path) -> Path:
   <testcase classname="tests.test_connection" name="test_ok" />
   <testcase classname="tests.test_connection" name="test_fail[127.0.0.1]"><failure /></testcase>
   <testcase classname="tests.test_tpc_async.TestTPC" name="test_async_ok" />
+  <testcase classname="tests.test_typeinfo" name="test_fetch_async[asyncio-int4]" />
   <testcase classname="tests.test_copy_async" name="test_async_skip"><skipped /></testcase>
   <testcase classname="tests.test_cursor" name="test_manifested">
     <skipped message="ferrocopg concrete-cursor: boundary" />

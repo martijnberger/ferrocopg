@@ -472,7 +472,8 @@ def stage_package(
 
     for path in package.rglob("*"):
         if path.suffix in {".py", ".pyi"}:
-            path.write_text(_transform_source(path, path.read_text()))
+            source_text = path.read_text(encoding="utf-8")
+            path.write_text(_transform_source(path, source_text), encoding="utf-8")
     (package / "_official.py").write_text(OFFICIAL_MODULE)
     (package / "_pq_compat.py").write_text(PQ_COMPAT_MODULE)
     (package / "_vendored.py").write_text(

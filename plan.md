@@ -590,17 +590,34 @@ wheel parser; the complete local Python bootstrap suite is `201` passes with
 nine environment skips and pre-commit is green. PostgreSQL 14 CI must still
 confirm that no old-libpq parse remains before the harness evidence is accepted.
 
+Compatibility accounting now defines the release rate over executed,
+non-manifested cases while retaining `total` and `manifested` as deterministic
+baseline fields and reporting environment/version skips separately. Async test
+functions in mixed modules are classified by their `_async` name instead of
+inflating the synchronous scope. The complete local PostgreSQL 14 / CPython
+3.14 report is `4669/4680` executed sync cases (`0.998`), with 310 skips, 11
+timing failures, zero errors, and 242 manifested boundaries. The failures are
+four macOS waiting assertions already shared with libpq, five pool scheduler
+timing assertions, and two transaction/pipeline timing assertions; every other
+synchronous feature family executes at `1.000`. The committed sync floor is
+therefore ratcheted from `0.85` to the release contract of `0.95`, pending
+confirmation from every PostgreSQL 14-18 matrix artifact.
+
+The same release checkpoint makes namespace staging explicitly UTF-8 for both
+reads and writes. This closes the Windows locale failure on non-ASCII upstream
+source comments without changing generated package contents; the combined
+reporter and package regression suite passes `22/22` locally.
+
 Continue in measured order, using the supported-server matrix before reopening
 the next broad failure cluster:
 
 1. Publish the matrix/package fixes and require bootstrap, standalone-wheel, and
    complete compatibility jobs to finish on PostgreSQL 14-18 and CPython
    3.11-3.14.
-2. Correct mixed-module scope accounting so parameterized async cases are not
-   counted as synchronous, then regenerate and review every matrix baseline.
-3. Define the release rate over executed, non-manifested synchronous cases,
-   report environment/version skips separately, and ratchet the sync floor to a
-   conservative value below the observed PostgreSQL 14-18 minimum.
+2. Confirm the executed-rate scope and regenerated baselines on every matrix
+   artifact; adjust only if an interpreter has a different collected set.
+3. Require every server/interpreter key to satisfy the ratcheted `0.95` sync
+   floor before marking Phase 4.3 complete.
 
 For every slice:
 
