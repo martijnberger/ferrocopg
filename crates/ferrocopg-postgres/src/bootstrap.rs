@@ -1,4 +1,4 @@
-use crate::conninfo::{LibpqSslMode, TlsOptions, normalize_conninfo};
+use crate::conninfo::{LibpqChannelBinding, LibpqSslMode, TlsOptions, normalize_conninfo};
 use crate::error::{ProbeError, postgres_diagnostic};
 use crate::model::{
     ConnectEndpoint, ConnectPlan, ConnectTarget, ConninfoSummary, ExecuteResult, ResultSet,
@@ -19,6 +19,7 @@ pub struct BootstrapConfig {
     raw_conninfo: String,
     tokio_conninfo: String,
     tls: TlsOptions,
+    channel_binding: Option<LibpqChannelBinding>,
     config: tokio_postgres::Config,
 }
 
@@ -36,11 +37,15 @@ pub fn backend_core() -> &'static str {
 impl BootstrapConfig {
     pub fn parse(conninfo: &str) -> Result<Self, tokio_postgres::Error> {
         let normalized = normalize_conninfo(conninfo);
-        let config = tokio_postgres::Config::from_str(&normalized.tokio_conninfo)?;
+        let mut config = tokio_postgres::Config::from_str(&normalized.tokio_conninfo)?;
+        if let Some(channel_binding) = normalized.channel_binding {
+            config.channel_binding(channel_binding.tokio());
+        }
         Ok(Self {
             raw_conninfo: conninfo.to_owned(),
             tokio_conninfo: normalized.tokio_conninfo,
             tls: normalized.tls,
+            channel_binding: normalized.channel_binding,
             config,
         })
     }
@@ -129,8 +134,8 @@ impl BootstrapConfig {
             return Err(ProbeError::NoTlsNotSupported);
         }
 
-        let mut client = postgres::Config::from_str(self.tokio_conninfo())
-            .map_err(ProbeError::Parse)?
+        let mut client = self
+            .sync_config()?
             .connect(postgres::NoTls)
             .map_err(ProbeError::Connect)?;
 
@@ -266,8 +271,7 @@ impl BootstrapConfig {
     }
 
     fn sync_config_with_notices(&self) -> Result<(postgres::Config, NoticeQueue), ProbeError> {
-        let mut config =
-            postgres::Config::from_str(self.tokio_conninfo()).map_err(ProbeError::Parse)?;
+        let mut config = self.sync_config()?;
         let notices = Arc::new(Mutex::new(VecDeque::new()));
         let callback_notices = Arc::clone(&notices);
         config.notice_callback(move |notice| {
@@ -277,6 +281,15 @@ impl BootstrapConfig {
                 .push_back(postgres_diagnostic(&notice));
         });
         Ok((config, notices))
+    }
+
+    fn sync_config(&self) -> Result<postgres::Config, ProbeError> {
+        let mut config =
+            postgres::Config::from_str(self.tokio_conninfo()).map_err(ProbeError::Parse)?;
+        if let Some(channel_binding) = self.channel_binding {
+            config.channel_binding(channel_binding.postgres());
+        }
+        Ok(config)
     }
 }
 

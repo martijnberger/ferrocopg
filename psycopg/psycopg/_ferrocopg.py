@@ -2154,6 +2154,13 @@ class NoTlsCursorAdapter:
         self._statusmessage_override = None
         self._rownumber = 0
 
+    def _adopt_result(self, result: BackendResultCursor) -> None:
+        """Load a result produced directly by the backend session."""
+        self._reset_result()
+        self._result = result
+        if self._row_factory not in _LEGACY_ROW_FACTORIES:
+            self._make_row_for_result(result)
+
     def _loaders_changed(self, oid: int, loader: type[Loader]) -> None:
         del oid, loader
         self._result_transformer = None
@@ -3581,10 +3588,16 @@ class NoTlsConnectionAdapter:
 
     def tpc_recover(self) -> list[Xid]:
         self._check_closed()
+        status = self.info.transaction_status
         result = self._session.execute_params(Xid._get_recover_query(), [])
-        cursor = self.cursor(row_factory=tuple_row)
-        cursor._result = result
-        rows = cursor.fetchall()
+        with NoTlsCursorAdapter(self, row_factory=tuple_row) as cursor:
+            cursor._adopt_result(result)
+            rows = cursor.fetchall()
+        if (
+            status == pq.TransactionStatus.IDLE
+            and self.info.transaction_status == pq.TransactionStatus.INTRANS
+        ):
+            self.rollback()
         return [
             Xid._from_record(
                 cast(str, row[0]),

@@ -158,12 +158,58 @@ PQ_COMPAT_MODULE = '''\
 
 from __future__ import annotations
 
+import re
 from typing import Any, NoReturn
+from urllib.parse import unquote
 
 from .pq.misc import ConninfoOption
 
 __impl__ = "ferrocopg"
 __build_version__ = 0
+
+_DEFAULTS = (
+    ("service", "PGSERVICE", None),
+    ("user", "PGUSER", None),
+    ("password", "PGPASSWORD", None),
+    ("passfile", "PGPASSFILE", None),
+    ("channel_binding", "PGCHANNELBINDING", "prefer"),
+    ("connect_timeout", "PGCONNECT_TIMEOUT", None),
+    ("dbname", "PGDATABASE", None),
+    ("host", "PGHOST", None),
+    ("hostaddr", "PGHOSTADDR", None),
+    ("port", "PGPORT", "5432"),
+    ("client_encoding", "PGCLIENTENCODING", None),
+    ("options", "PGOPTIONS", None),
+    ("application_name", "PGAPPNAME", None),
+    ("fallback_application_name", "", None),
+    ("keepalives", "", None),
+    ("keepalives_idle", "", None),
+    ("keepalives_interval", "", None),
+    ("keepalives_count", "", None),
+    ("keepalives_retries", "", None),
+    ("tcp_user_timeout", "", None),
+    ("sslmode", "PGSSLMODE", "prefer"),
+    ("sslnegotiation", "PGSSLNEGOTIATION", "postgres"),
+    ("sslcompression", "PGSSLCOMPRESSION", "0"),
+    ("sslcert", "PGSSLCERT", None),
+    ("sslkey", "PGSSLKEY", None),
+    ("sslpassword", "", None),
+    ("sslrootcert", "PGSSLROOTCERT", None),
+    ("sslcrl", "PGSSLCRL", None),
+    ("sslcrldir", "PGSSLCRLDIR", None),
+    ("sslsni", "PGSSLSNI", "1"),
+    ("ssl_min_protocol_version", "PGSSLMINPROTOCOLVERSION", "TLSv1.2"),
+    ("ssl_max_protocol_version", "PGSSLMAXPROTOCOLVERSION", None),
+    ("requirepeer", "PGREQUIREPEER", None),
+    ("gssencmode", "PGGSSENCMODE", "prefer"),
+    ("krbsrvname", "PGKRBSRVNAME", "postgres"),
+    ("gsslib", "PGGSSLIB", None),
+    ("replication", "", None),
+    ("target_session_attrs", "PGTARGETSESSIONATTRS", "any"),
+    ("load_balance_hosts", "PGLOADBALANCEHOSTS", "disable"),
+)
+_KNOWN_OPTIONS = frozenset(item[0] for item in _DEFAULTS)
+_BAD_PERCENT_ESCAPE = re.compile(r"%(?![0-9A-Fa-f]{2})")
 
 
 def version() -> int:
@@ -188,11 +234,166 @@ class _Unavailable:
 class Conninfo:
     @classmethod
     def get_defaults(cls) -> list[ConninfoOption]:
-        _unsupported()
+        return [
+            _conninfo_option(keyword, None, envvar, compiled)
+            for keyword, envvar, compiled in _DEFAULTS
+        ]
 
     @classmethod
-    def parse(cls, _conninfo: bytes) -> list[ConninfoOption]:
-        _unsupported()
+    def parse(cls, conninfo: bytes) -> list[ConninfoOption]:
+        from .errors import OperationalError
+
+        try:
+            value = conninfo.decode("utf-8")
+        except UnicodeDecodeError as ex:
+            raise OperationalError("connection string is not valid UTF-8") from ex
+
+        try:
+            params = (
+                _parse_uri_conninfo(value)
+                if value.startswith(("postgres://", "postgresql://"))
+                else _parse_keyword_conninfo(value)
+            )
+            unknown = next(
+                (key for key, _value in params if key not in _KNOWN_OPTIONS), None
+            )
+            if unknown is not None:
+                raise ValueError(f'invalid connection option "{unknown}"')
+        except ValueError as ex:
+            raise OperationalError(str(ex)) from None
+
+        return [_conninfo_option(key, item) for key, item in params]
+
+
+def _conninfo_option(
+    keyword: str,
+    value: str | None,
+    envvar: str = "",
+    compiled: str | None = None,
+) -> ConninfoOption:
+    return ConninfoOption(
+        keyword.encode(),
+        envvar.encode() or None,
+        compiled.encode() if compiled is not None else None,
+        value.encode() if value is not None else None,
+        b"",
+        b"",
+        0,
+    )
+
+
+def _parse_keyword_conninfo(conninfo: str) -> list[tuple[str, str]]:
+    params: list[tuple[str, str]] = []
+    index = 0
+    size = len(conninfo)
+
+    while True:
+        while index < size and conninfo[index].isspace():
+            index += 1
+        if index == size:
+            return params
+
+        key_start = index
+        while index < size and not conninfo[index].isspace() and conninfo[index] != "=":
+            index += 1
+        key = conninfo[key_start:index]
+        while index < size and conninfo[index].isspace():
+            index += 1
+        if not key or index == size or conninfo[index] != "=":
+            raise ValueError(f'missing "=" after "{key or conninfo[key_start:]}"')
+        index += 1
+        while index < size and conninfo[index].isspace():
+            index += 1
+
+        quoted = index < size and conninfo[index] == "'"
+        if quoted:
+            index += 1
+        chars: list[str] = []
+        while index < size:
+            char = conninfo[index]
+            if quoted and char == "'":
+                index += 1
+                break
+            if not quoted and char.isspace():
+                break
+            if char == "\\\\":
+                index += 1
+                if index == size:
+                    raise ValueError("unterminated escape in connection string")
+                char = conninfo[index]
+            chars.append(char)
+            index += 1
+        else:
+            if quoted:
+                raise ValueError("unterminated quoted string in connection string")
+
+        if quoted and index < size and not conninfo[index].isspace():
+            raise ValueError("unexpected character after quoted connection value")
+        params.append((key, "".join(chars)))
+
+
+def _parse_uri_conninfo(conninfo: str) -> list[tuple[str, str]]:
+    _scheme, rest = conninfo.split("://", 1)
+    location, separator, query = rest.partition("?")
+    authority, path_separator, path = location.partition("/")
+    params: list[tuple[str, str]] = []
+
+    if "@" in authority:
+        userinfo, authority = authority.rsplit("@", 1)
+        user, password_separator, password = userinfo.partition(":")
+        if user:
+            params.append(("user", _uri_unquote(user)))
+        if password_separator:
+            params.append(("password", _uri_unquote(password)))
+
+    hosts: list[str] = []
+    ports: list[str] = []
+    has_port = False
+    for endpoint in authority.split(",") if authority else ():
+        host, port = _split_uri_endpoint(endpoint)
+        hosts.append(_uri_unquote(host))
+        ports.append(port)
+        has_port = has_port or bool(port)
+    if hosts:
+        params.append(("host", ",".join(hosts)))
+    if has_port:
+        params.append(("port", ",".join(ports)))
+    if path_separator and path:
+        params.append(("dbname", _uri_unquote(path)))
+    if separator:
+        for item in query.split("&"):
+            key, value_separator, item_value = item.partition("=")
+            if not key or not value_separator:
+                raise ValueError("invalid query parameter in connection URI")
+            params.append((_uri_unquote(key), _uri_unquote(item_value)))
+    return params
+
+
+def _split_uri_endpoint(endpoint: str) -> tuple[str, str]:
+    if endpoint.startswith("["):
+        end = endpoint.find("]")
+        if end < 0:
+            raise ValueError("unterminated IPv6 address in connection URI")
+        suffix = endpoint[end + 1 :]
+        if suffix and not suffix.startswith(":"):
+            raise ValueError("invalid host in connection URI")
+        return endpoint[1:end], suffix[1:]
+
+    if endpoint.count(":") > 1:
+        raise ValueError("IPv6 addresses in connection URIs must use brackets")
+    host, separator, port = endpoint.rpartition(":")
+    if separator and port and not port.isdigit():
+        raise ValueError("invalid port in connection URI")
+    return (host, port) if separator else (endpoint, "")
+
+
+def _uri_unquote(value: str) -> str:
+    if _BAD_PERCENT_ESCAPE.search(value):
+        raise ValueError("invalid percent escape in connection URI")
+    try:
+        return unquote(value, errors="strict")
+    except UnicodeDecodeError as ex:
+        raise ValueError("connection URI is not valid UTF-8") from ex
 
 
 class Escaping:

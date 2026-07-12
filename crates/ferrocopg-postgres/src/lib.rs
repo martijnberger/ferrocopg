@@ -137,6 +137,20 @@ mod tests {
     }
 
     #[test]
+    fn bootstrap_config_applies_channel_binding_after_normalization() {
+        let config = BootstrapConfig::parse(
+            "host=localhost sslmode=verify-full channel_binding=require dbname=postgres",
+        )
+        .expect("channel binding should parse");
+
+        assert_eq!(
+            config.config().get_channel_binding(),
+            tokio_postgres::config::ChannelBinding::Require
+        );
+        assert!(!config.tokio_conninfo().contains("channel_binding"));
+    }
+
+    #[test]
     fn connect_session_reports_tls_config_errors_before_connecting() {
         let result = connect_session(
             "host=localhost sslmode=verify-ca sslrootcert=/definitely/not/a/root.pem dbname=postgres",

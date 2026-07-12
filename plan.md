@@ -534,25 +534,50 @@ prepared statements are `32/32`, COPY is `111/111`, and pipeline is `40/40`.
 
 The completed type tail still reports `2590` passing tests, seven environment
 skips, 37 expected failures, and only the 25 experimental async-facade failures
-from mixed modules. The focused bootstrap suite now passes `200` cases with nine
-expected TLS or prepared-transaction skips, all 23 Rust backend tests pass, and
+from mixed modules. The focused bootstrap suite passes `200` cases with nine
+expected TLS or prepared-transaction skips, all 25 Rust backend tests pass, and
 the focused cursor family remains `571` passing with 11 version or intentional
 skips. The complete sync harness satisfies the `0.85` floor at `0.931`. This
-development environment collects optional dependency cases not
-present in the CI key, so its denominator is reported independently. The
-PostgreSQL 14-18 workflow for the current published main revision is queued; its
-completed matrix must establish the supported-server minimum before the floor
-is raised. The waiting module's four macOS timeout-duration failures
-reproduce under explicit libpq and are not Rust backend gaps; four remote-close
-cases are now exact raw `PGconn`/socket boundaries.
+development environment collects optional dependency cases not present in the
+CI key, so its denominator is reported independently. The waiting module's four
+macOS timeout-duration failures reproduce under explicit libpq and are not Rust
+backend gaps; four remote-close cases are exact raw `PGconn`/socket boundaries.
+
+The first post-closure PostgreSQL 14-18 workflow for published revision
+`36e2f249` did not reach the compatibility harness. All eight Rust matrix jobs
+exposed a TPC recovery dependency on Psycopg's version-specific private cursor
+state; the PostgreSQL 14 job additionally exposed parser-dependent forwarding
+of `channel_binding`. The package job independently proved that the standalone
+wheel still called `pq.Conninfo.parse()` even though its libpq compatibility
+surface intentionally rejected that operation. The follow-up now loads TPC
+results through the backend-owned cursor adapter, extracts and applies channel
+binding programmatically in Rust, and gives the staged package a libpq-free
+keyword/URI conninfo parser with environment metadata and invalid-option
+diagnostics. Local evidence is `25/25` Rust tests, `200` bootstrap passes with
+nine environment skips, `6/6` staging tests including mypy, a clean pre-commit
+run, and a live Rust query from an isolated CPython 3.11 wheel. A fresh matrix
+run is still required before any floor or phase status changes.
+
+The same workflow also marked many otherwise unrelated upstream jobs failed
+after their behavioral suites completed because the packaging type probe made
+mypy re-check the entire staged vendored tree. A representative Linux job
+reached `5987` passes before two Python-version-sensitive annotations in
+`types/numeric.py` failed that incidental second check. The probe now follows
+package imports silently while still asserting the public `connect()` overloads;
+the repository's dedicated mypy and pre-commit checks remain authoritative for
+source validation.
 
 Continue in measured order, using the supported-server matrix before reopening
 the next broad failure cluster:
 
-1. Re-run the complete PostgreSQL 14-18 CI matrix and ratchet the sync floor to
-   a conservative value below the new observed matrix minimum.
-2. Re-run the complete sync harness and close the measured residual low-volume
-   synchronous failures.
+1. Publish the matrix/package fixes and require bootstrap, standalone-wheel, and
+   complete compatibility jobs to finish on PostgreSQL 14-18 and CPython
+   3.11-3.14.
+2. Correct mixed-module scope accounting so parameterized async cases are not
+   counted as synchronous, then regenerate and review every matrix baseline.
+3. Define the release rate over executed, non-manifested synchronous cases,
+   report environment/version skips separately, and ratchet the sync floor to a
+   conservative value below the observed PostgreSQL 14-18 minimum.
 
 For every slice:
 

@@ -94,6 +94,18 @@ def test_staged_package_imports_with_ferrocopg_identities(tmp_path: Path) -> Non
             "print(ferrocopg.Error.__module__); "
             "print(ferrocopg.pq.__impl__); "
             'assert ferrocopg.sql.Identifier(\'a\\"b\').as_string() == \'"a\\"\\"b"\'; '
+            "from ferrocopg.conninfo import conninfo_to_dict, make_conninfo; "
+            "from ferrocopg import ProgrammingError; "
+            "assert conninfo_to_dict(\"host=localhost dbname='ferro db' application_name=wheel\\\\ smoke\") == "
+            "{'host': 'localhost', 'dbname': 'ferro db', 'application_name': 'wheel smoke'}; "
+            "assert conninfo_to_dict('postgresql://ferro:secret@localhost:5544/sample?sslmode=require') == "
+            "{'user': 'ferro', 'password': 'secret', 'host': 'localhost', 'port': '5544', "
+            "'dbname': 'sample', 'sslmode': 'require'}; "
+            "assert make_conninfo('', host='localhost', application_name='wheel smoke') == "
+            "\"host=localhost application_name='wheel smoke'\"; "
+            "exec(\"try:\\n    conninfo_to_dict('not_a_real_option=value')\\n"
+            "except ProgrammingError:\\n    pass\\n"
+            "else:\\n    raise AssertionError('invalid conninfo option accepted')\"); "
             "print(ferrocopg.__vendored_psycopg_revision__)",
         ],
         cwd=tmp_path,
@@ -181,6 +193,7 @@ def test_staged_package_exposes_honest_connect_types(tmp_path: Path) -> None:
             "-m",
             "mypy",
             "--no-incremental",
+            "--follow-imports=silent",
             "--ignore-missing-imports",
             str(probe),
         ],

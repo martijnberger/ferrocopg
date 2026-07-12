@@ -55,6 +55,32 @@ pub(crate) struct TlsOptions {
 pub(crate) struct NormalizedConninfo {
     pub(crate) tokio_conninfo: String,
     pub(crate) tls: TlsOptions,
+    pub(crate) channel_binding: Option<LibpqChannelBinding>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LibpqChannelBinding {
+    Disable,
+    Prefer,
+    Require,
+}
+
+impl LibpqChannelBinding {
+    pub(crate) fn tokio(self) -> tokio_postgres::config::ChannelBinding {
+        match self {
+            Self::Disable => tokio_postgres::config::ChannelBinding::Disable,
+            Self::Prefer => tokio_postgres::config::ChannelBinding::Prefer,
+            Self::Require => tokio_postgres::config::ChannelBinding::Require,
+        }
+    }
+
+    pub(crate) fn postgres(self) -> postgres::config::ChannelBinding {
+        match self {
+            Self::Disable => postgres::config::ChannelBinding::Disable,
+            Self::Prefer => postgres::config::ChannelBinding::Prefer,
+            Self::Require => postgres::config::ChannelBinding::Require,
+        }
+    }
 }
 
 pub(crate) fn normalize_conninfo(conninfo: &str) -> NormalizedConninfo {
@@ -62,6 +88,7 @@ pub(crate) fn normalize_conninfo(conninfo: &str) -> NormalizedConninfo {
         return NormalizedConninfo {
             tokio_conninfo: conninfo.to_owned(),
             tls: TlsOptions::default(),
+            channel_binding: None,
         };
     }
 
@@ -69,10 +96,12 @@ pub(crate) fn normalize_conninfo(conninfo: &str) -> NormalizedConninfo {
         return NormalizedConninfo {
             tokio_conninfo: conninfo.to_owned(),
             tls: TlsOptions::default(),
+            channel_binding: None,
         };
     };
 
     let mut tls = TlsOptions::default();
+    let mut channel_binding = None;
     let mut normalized = Vec::new();
 
     for (key, value) in params {
@@ -95,6 +124,17 @@ pub(crate) fn normalize_conninfo(conninfo: &str) -> NormalizedConninfo {
             "sslrootcert" => tls.sslrootcert = Some(value),
             "sslcert" => tls.sslcert = Some(value),
             "sslkey" => tls.sslkey = Some(value),
+            "channel_binding" => {
+                channel_binding = match value.as_str() {
+                    "disable" => Some(LibpqChannelBinding::Disable),
+                    "prefer" => Some(LibpqChannelBinding::Prefer),
+                    "require" => Some(LibpqChannelBinding::Require),
+                    _ => {
+                        normalized.push((key, value));
+                        continue;
+                    }
+                };
+            }
             _ => normalized.push((key, value)),
         }
     }
@@ -102,6 +142,7 @@ pub(crate) fn normalize_conninfo(conninfo: &str) -> NormalizedConninfo {
     NormalizedConninfo {
         tokio_conninfo: render_keyword_conninfo(&normalized),
         tls,
+        channel_binding,
     }
 }
 
@@ -219,6 +260,7 @@ mod tests {
         assert_eq!(normalized.tls.sslcert.as_deref(), Some("client cert.pem"));
         assert_eq!(normalized.tls.sslkey.as_deref(), Some("client.key"));
         assert_eq!(normalized.tokio_conninfo, "host=localhost sslmode=require");
+        assert_eq!(normalized.channel_binding, None);
     }
 
     #[test]
@@ -229,6 +271,22 @@ mod tests {
         assert_eq!(
             normalized.tokio_conninfo,
             "application_name='ferro copg' sslmode=prefer"
+        );
+    }
+
+    #[test]
+    fn extracts_channel_binding_for_programmatic_configuration() {
+        let normalized = normalize_conninfo(
+            "host=localhost sslmode=verify-full channel_binding=require dbname=postgres",
+        );
+
+        assert_eq!(
+            normalized.tokio_conninfo,
+            "host=localhost sslmode=require dbname=postgres"
+        );
+        assert_eq!(
+            normalized.channel_binding,
+            Some(LibpqChannelBinding::Require)
         );
     }
 }
