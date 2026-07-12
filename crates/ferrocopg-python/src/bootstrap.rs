@@ -218,6 +218,10 @@ struct BackendStatementColumn {
     oid: u32,
     #[pyo3(get)]
     type_name: String,
+    #[pyo3(get)]
+    type_modifier: i32,
+    #[pyo3(get)]
+    type_size: i16,
 }
 
 #[derive(Clone)]
@@ -914,6 +918,8 @@ impl From<ferrocopg_postgres::StatementColumn> for BackendStatementColumn {
             name: column.name,
             oid: column.oid,
             type_name: column.type_name,
+            type_modifier: column.type_modifier,
+            type_size: column.type_size,
         }
     }
 }

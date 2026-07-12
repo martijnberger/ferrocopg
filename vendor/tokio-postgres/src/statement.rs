@@ -90,6 +90,7 @@ pub struct Column {
     pub(crate) name: String,
     pub(crate) table_oid: Option<u32>,
     pub(crate) column_id: Option<i16>,
+    pub(crate) type_size: i16,
     pub(crate) type_modifier: i32,
     pub(crate) r#type: Type,
 }
@@ -113,6 +114,11 @@ impl Column {
     /// Return the type modifier
     pub fn type_modifier(&self) -> i32 {
         self.type_modifier
+    }
+
+    /// Return the internal type size, or -1 for variable-length types.
+    pub fn type_size(&self) -> i16 {
+        self.type_size
     }
 
     /// Returns the type of the column.

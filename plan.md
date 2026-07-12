@@ -392,6 +392,10 @@ Completed slices:
   `PGconn.exec_`.
 - [x] Stable compatibility accounting by node ID, so duplicate JUnit teardown
   records cannot change the release denominator when an error is fixed.
+- [x] Column metadata propagation, including type modifiers, internal sizes,
+  display names, precision, scale, sequence behavior, repr, and pickling. The
+  focused PostgreSQL 14 run reports `49` passing cases and four expected
+  PostgreSQL-version skips.
 
 Current local full-harness evidence is `3855/4417` sync (`0.873`) on CPython
 3.14/PostgreSQL 17. This development environment collects optional-dependency

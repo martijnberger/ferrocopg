@@ -56,6 +56,8 @@ class _StatementColumnLike(Protocol):
     name: str
     oid: int
     type_name: str
+    type_modifier: int
+    type_size: int
 
 
 class _ResultSetLike(Protocol):
@@ -361,14 +363,80 @@ def _pure_python_adapters(
     return adapters
 
 
-class BackendColumn(NamedTuple):
-    name: str
-    type_code: int | None = None
-    display_size: None = None
-    internal_size: None = None
-    precision: None = None
-    scale: None = None
-    null_ok: None = None
+class BackendColumn(Sequence[Any]):
+    _attrs = (
+        "name",
+        "type_code",
+        "display_size",
+        "internal_size",
+        "precision",
+        "scale",
+        "null_ok",
+    )
+
+    def __init__(
+        self,
+        name: str,
+        type_code: int | None = None,
+        type_modifier: int = -1,
+        type_size: int = -1,
+        adapters: AdaptersMap | None = None,
+    ):
+        self.name = name
+        self.type_code = type_code
+        self._type_modifier = type_modifier
+        self._type_size = type_size
+        self._type = (adapters or postgres.adapters).types.get(type_code or 0)
+
+    def __len__(self) -> int:
+        return len(self._attrs)
+
+    def __getitem__(self, index: int | slice) -> Any:
+        if isinstance(index, slice):
+            return tuple(getattr(self, name) for name in self._attrs[index])
+        return getattr(self, self._attrs[index])
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, BackendColumn):
+            return NotImplemented
+        return tuple(self) == tuple(other)
+
+    def __repr__(self) -> str:
+        return (
+            f"<Column {self.name!r}, type: {self.type_display} (oid: {self.type_code})>"
+        )
+
+    @property
+    def type_display(self) -> str:
+        if self._type is None:
+            return str(self.type_code)
+        return self._type.get_type_display(oid=self.type_code, fmod=self._type_modifier)
+
+    @property
+    def display_size(self) -> int | None:
+        if self._type is None:
+            return None
+        return self._type.get_display_size(self._type_modifier)
+
+    @property
+    def internal_size(self) -> int | None:
+        return self._type_size if self._type_size >= 0 else None
+
+    @property
+    def precision(self) -> int | None:
+        if self._type is None:
+            return None
+        return self._type.get_precision(self._type_modifier)
+
+    @property
+    def scale(self) -> int | None:
+        if self._type is None:
+            return None
+        return self._type.get_scale(self._type_modifier)
+
+    @property
+    def null_ok(self) -> None:
+        return None
 
 
 LegacyRowFactory = Callable[[list[str], list[str | None]], object]
@@ -1317,7 +1385,13 @@ class NoTlsCursorAdapter:
         descriptions = getattr(current, "column_descriptions", None)
         if descriptions:
             return [
-                BackendColumn(column.name, column.oid)
+                BackendColumn(
+                    column.name,
+                    column.oid,
+                    getattr(column, "type_modifier", -1),
+                    getattr(column, "type_size", -1),
+                    self.adapters,
+                )
                 for column in cast(list[_StatementColumnLike], descriptions)
             ]
         return [BackendColumn(name) for name in current.columns]

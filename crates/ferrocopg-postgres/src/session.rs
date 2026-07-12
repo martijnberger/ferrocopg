@@ -636,6 +636,8 @@ pub(crate) fn statement_description(statement: &postgres::Statement) -> Statemen
                 name: column.name().to_owned(),
                 oid: column.type_().oid(),
                 type_name: column.type_().name().to_owned(),
+                type_modifier: column.type_modifier(),
+                type_size: column.type_size(),
             })
             .collect(),
     }

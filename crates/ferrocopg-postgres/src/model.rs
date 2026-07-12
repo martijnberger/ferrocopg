@@ -116,6 +116,8 @@ pub struct StatementColumn {
     pub name: String,
     pub oid: u32,
     pub type_name: String,
+    pub type_modifier: i32,
+    pub type_size: i16,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
