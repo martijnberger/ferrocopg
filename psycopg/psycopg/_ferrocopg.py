@@ -23,7 +23,14 @@ from . import postgres, pq
 from ._adapters_map import AdaptersMap
 from ._compat import Template
 from ._connection_base import NoticeHandler, Notify
-from ._copy_base import BinaryFormatter, TextFormatter
+from ._copy_base import (
+    BinaryFormatter,
+    TextFormatter,
+    _format_row_binary,
+    _format_row_text,
+    _parse_row_binary,
+    _parse_row_text,
+)
 from ._encodings import conninfo_encoding, pg2pyenc
 from ._enums import IsolationLevel, PyFormat
 from ._oids import BYTEA_OID
@@ -295,22 +302,53 @@ def _install_wire_bytea_dumper(adapters: AdaptersMap) -> None:
         adapters.register_dumper(None, _WireByteaDumper)
 
 
+def _backend_copy_impl() -> tuple[Callable[..., Any], ...]:
+    if _ferrocopg and hasattr(_ferrocopg, "format_row_text"):
+        return (
+            _ferrocopg.format_row_text,
+            _ferrocopg.format_row_binary,
+            _ferrocopg.parse_row_text,
+            _ferrocopg.parse_row_binary,
+        )
+    return (
+        _format_row_text,
+        _format_row_binary,
+        _parse_row_text,
+        _parse_row_binary,
+    )
+
+
 def _pure_python_adapters(
     template: AdaptersMap, *, text_loader_oids: frozenset[int] = frozenset()
 ) -> AdaptersMap:
-    """Copy an adapter map without the libpq/C-only loader replacements."""
+    """Copy an adapter map without the libpq/C-only replacements."""
     adapters = AdaptersMap(template)
-    original_loaders = {
+    originals = {
         optimized: original
         for original, optimized in AdaptersMap._optimised.items()
         if original is not optimized
     }
-    for format in (pq.Format.TEXT, pq.Format.BINARY):
-        adapters._loaders[format] = {
-            oid: original_loaders.get(loader, loader)
-            for oid, loader in adapters._loaders[format].items()
+
+    for py_format in PyFormat:
+        adapters._dumpers[py_format] = {
+            key: originals.get(dumper, dumper)
+            for key, dumper in adapters._dumpers[py_format].items()
         }
-        adapters._own_loaders[format] = True
+        adapters._own_dumpers[py_format] = True
+
+    for pg_format in (pq.Format.TEXT, pq.Format.BINARY):
+        adapters._dumpers_by_oid[pg_format] = {
+            oid: originals.get(dumper, dumper)
+            for oid, dumper in adapters._dumpers_by_oid[pg_format].items()
+        }
+        adapters._own_dumpers_by_oid[pg_format] = True
+
+    for pg_format in (pq.Format.TEXT, pq.Format.BINARY):
+        adapters._loaders[pg_format] = {
+            oid: originals.get(loader, loader)
+            for oid, loader in adapters._loaders[pg_format].items()
+        }
+        adapters._own_loaders[pg_format] = True
 
     if text_loader_oids:
         adapters._loaders[pq.Format.BINARY] = adapters._loaders[pq.Format.BINARY].copy()
@@ -1853,10 +1891,20 @@ class NoTlsCopyAdapter:
         self._read_blocks: list[bytes] = []
         self._read_pos = 0
         self._tx = tx
+        format_text, format_binary, parse_text, parse_binary = _backend_copy_impl()
         self.formatter = (
-            BinaryFormatter(tx)
+            BinaryFormatter(
+                tx,
+                format_row=format_binary,
+                parse_row=parse_binary,
+            )
             if self._binary
-            else TextFormatter(tx, encoding=tx.encoding)
+            else TextFormatter(
+                tx,
+                encoding=tx.encoding,
+                format_row=format_text,
+                parse_row=parse_text,
+            )
         )
         self.writer = writer
         writer_type = type(writer)

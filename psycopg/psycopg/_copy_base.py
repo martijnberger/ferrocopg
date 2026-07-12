@@ -10,7 +10,7 @@ import re
 import struct
 import sys
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, Generic
 
 from . import adapt, pq
@@ -206,14 +206,24 @@ class Formatter(ABC):
 class TextFormatter(Formatter):
     format = TEXT
 
-    def __init__(self, transformer: Transformer, encoding: str = "utf-8"):
+    def __init__(
+        self,
+        transformer: Transformer,
+        encoding: str = "utf-8",
+        *,
+        format_row: Callable[[Sequence[Any], Transformer, bytearray], None]
+        | None = None,
+        parse_row: Callable[[Buffer, Transformer], tuple[Any, ...]] | None = None,
+    ):
         super().__init__(transformer)
         self._encoding = encoding
+        self._format_row = format_row or format_row_text
+        self._parse_row = parse_row or parse_row_text
 
     def parse_row(self, data: Buffer) -> tuple[Any, ...] | None:
         rv: tuple[Any, ...] | None = None
         if data:
-            rv = parse_row_text(data, self.transformer)
+            rv = self._parse_row(data, self.transformer)
 
         return rv
 
@@ -227,7 +237,7 @@ class TextFormatter(Formatter):
         # to take care of the end-of-copy marker too
         self._row_mode = True
 
-        format_row_text(row, self.transformer, self._write_buffer)
+        self._format_row(row, self.transformer, self._write_buffer)
         if len(self._write_buffer) > BUFFER_SIZE:
             buffer, self._write_buffer = self._write_buffer, bytearray()
             return buffer
@@ -251,9 +261,18 @@ class TextFormatter(Formatter):
 class BinaryFormatter(Formatter):
     format = BINARY
 
-    def __init__(self, transformer: Transformer):
+    def __init__(
+        self,
+        transformer: Transformer,
+        *,
+        format_row: Callable[[Sequence[Any], Transformer, bytearray], None]
+        | None = None,
+        parse_row: Callable[[Buffer, Transformer], tuple[Any, ...]] | None = None,
+    ):
         super().__init__(transformer)
         self._signature_sent = False
+        self._format_row = format_row or format_row_binary
+        self._parse_row = parse_row or parse_row_binary
 
     def parse_row(self, data: Buffer) -> tuple[Any, ...] | None:
         rv: tuple[Any, ...] | None = None
@@ -267,7 +286,7 @@ class BinaryFormatter(Formatter):
             data = data[len(_binary_signature) :]
 
         if data != _binary_trailer:
-            rv = parse_row_binary(data, self.transformer)
+            rv = self._parse_row(data, self.transformer)
 
         return rv
 
@@ -285,7 +304,7 @@ class BinaryFormatter(Formatter):
             self._write_buffer += _binary_signature
             self._signature_sent = True
 
-        format_row_binary(row, self.transformer, self._write_buffer)
+        self._format_row(row, self.transformer, self._write_buffer)
         if len(self._write_buffer) > BUFFER_SIZE:
             buffer, self._write_buffer = self._write_buffer, bytearray()
             return buffer
