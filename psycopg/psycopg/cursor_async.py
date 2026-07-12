@@ -447,6 +447,7 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
                 with self._ferrocopg_cursor.copy(
                     statement, params, writer=writer
                 ) as copy:
+                    self._sync_ferrocopg_cursor()
                     yield cast(AsyncCopy, copy)
                 self._sync_ferrocopg_cursor()
                 return

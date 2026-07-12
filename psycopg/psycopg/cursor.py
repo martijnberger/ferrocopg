@@ -418,6 +418,7 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
         """
         if self._ferrocopg_cursor is not None:
             with self._ferrocopg_cursor.copy(statement, params, writer=writer) as copy:
+                self._sync_ferrocopg_cursor()
                 yield cast(Copy, copy)
             self._sync_ferrocopg_cursor()
             return

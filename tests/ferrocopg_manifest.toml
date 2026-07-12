@@ -53,21 +53,34 @@ reason = "AsyncRawCursor requires libpq connection internals"
 action = "skip"
 
 [[rules]]
-glob = "tests/test_copy.py::test_worker*"
+glob = "tests/test_copy.py::test_worker_error_propagated"
 tag = "libpq-writer"
-reason = "LibpqWriter and QueuedLibpqWriter require a real PGconn"
+reason = "the test monkeypatches the libpq copy_to generator to assert its worker error path"
 action = "skip"
 
 [[rules]]
-glob = "tests/test_copy.py::test_connection_writer*"
-tag = "libpq-writer"
-reason = "LibpqWriter requires libpq generator and PGconn internals"
+glob = "tests/test_pipeline.py::test_pipeline_exit_sync_trace"
+tag = "pgconn-trace"
+reason = "wire-level Sync assertions require raw libpq PGconn.trace()"
 action = "skip"
 
 [[rules]]
-glob = "tests/test_pipeline.py::*"
-tag = "pipeline"
-reason = "exact public pipeline state and error recovery remain beta compatibility work"
+glob = "tests/test_pipeline.py::test_pipeline_nested_sync_trace"
+tag = "pgconn-trace"
+reason = "wire-level Sync assertions require raw libpq PGconn.trace()"
+action = "skip"
+
+[[rules]]
+glob = "tests/test_pipeline.py::test_executemany_trace*"
+tag = "pgconn-trace"
+reason = "wire-level roundtrip assertions require raw libpq PGconn.trace()"
+action = "skip"
+
+[[rules]]
+glob = "tests/test_pipeline.py::test_transaction_state_implicit_begin"
+tag = "pgconn-trace"
+reason = "wire-level Parse assertions require raw libpq PGconn.trace()"
+action = "skip"
 
 [[rules]]
 glob = "tests/test_pipeline_async.py::*"

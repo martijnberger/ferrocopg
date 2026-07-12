@@ -13,6 +13,7 @@ import os
 import sys
 import threading
 import warnings
+from collections import deque
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import timedelta, tzinfo
 from enum import Enum
@@ -105,6 +106,13 @@ class _BoundParams(NamedTuple):
 class _BackendPreparedQuery(NamedTuple):
     query: bytes
     types: tuple[int, ...]
+
+
+class _PipelinePreparePlan(NamedTuple):
+    query: PostgresQuery
+    prep: Prepare
+    name: bytes
+    key: tuple[bytes, tuple[int, ...]] | None
 
 
 class _PreparedStatementLike(Protocol):
@@ -806,6 +814,8 @@ class BackendConnectionInfo:
         if self._conn.closed:
             return pq.TransactionStatus.UNKNOWN
         if self._conn._copy_active:
+            return pq.TransactionStatus.ACTIVE
+        if self._conn._pipeline is not None and self._conn._pipeline.result_queue:
             return pq.TransactionStatus.ACTIVE
         if self._conn._transaction_failed:
             return pq.TransactionStatus.INERROR
@@ -1664,6 +1674,8 @@ class NoTlsCursorAdapter:
         self._make_row: RowMaker | None = None
         self._result_transformer: AdaptTransformer | None = None
         self._stream_result: _ResultSetLike | None = None
+        self._pipeline_error: e.Error | None = None
+        self._pipeline_autosync = False
         self._rowcount_override: int | None = None
         self._statusmessage_override: str | None = None
         self._rownumber: int | None = 0
@@ -1796,6 +1808,8 @@ class NoTlsCursorAdapter:
     ) -> NoTlsCopyAdapter:
         self._check_closed()
         self._conn._check_closed()
+        if self._conn._pipeline is not None:
+            raise e.NotSupportedError("COPY cannot be used in pipeline mode")
         return NoTlsCopyAdapter(self, statement, params=params, writer=writer)
 
     def mogrify(self, query: Query, params: Params | None = None) -> str:
@@ -1824,6 +1838,9 @@ class NoTlsCursorAdapter:
                 "client-side cursors don't support binary results"
             )
         self._reset_result()
+        if self._conn._pipeline is not None:
+            self._conn._pipeline.enqueue(self, query, params, prepare)
+            return self
         with self._conn.lock:
             try:
                 self._result = self._conn._execute(
@@ -2048,12 +2065,26 @@ class NoTlsCursorAdapter:
     def _require_result(self) -> BackendResultCursor:
         self._check_closed()
         self._conn._check_closed()
+        if self._pipeline_error is not None:
+            raise self._pipeline_error
+        pipeline = self._conn._pipeline
+        if (
+            self._result is None
+            and self._pipeline_autosync
+            and pipeline is not None
+            and pipeline.is_queued(self)
+        ):
+            pipeline.sync()
+        if self._pipeline_error is not None:
+            raise self._pipeline_error
         if self._result is None:
             if (
                 self._rowcount_override is not None
                 and self._statusmessage_override is not None
             ):
-                raise e.ProgrammingError("the last operation didn't produce a result")
+                raise e.ProgrammingError(
+                    "no result available: the last operation didn't produce a result"
+                )
             raise e.ProgrammingError("no result available")
         return self._result
 
@@ -2235,6 +2266,10 @@ class NoTlsServerCursorAdapter(NoTlsCursorAdapter):
         del prepare
         self._check_closed()
         self._conn._check_closed()
+        if self._conn._pipeline is not None:
+            raise e.NotSupportedError(
+                "server cursors are not supported in pipeline mode"
+            )
         if self._declared:
             self._close_server_cursor()
         if binary is not None:
@@ -2495,10 +2530,10 @@ class NoTlsCopyAdapter:
         )
         self.writer = writer
         writer_type = type(writer)
-        self._database_writer = writer is None or (
-            writer_type.__module__ == "psycopg._copy"
-            and writer_type.__name__ in {"LibpqWriter", "QueuedLibpqWriter"}
-        )
+        self._database_writer = writer is None or writer_type.__name__ in {
+            "LibpqWriter",
+            "QueuedLibpqWriter",
+        }
         self._queued_writer = bool(
             writer is not None and writer_type.__name__ == "QueuedLibpqWriter"
         )
@@ -2842,17 +2877,74 @@ def _backend_cursor_adapter(cursor: object) -> NoTlsCursorAdapter:
 
 
 class NoTlsPipelineAdapter:
-    """Experimental pipeline context over the ferrocopg connection adapter."""
+    """Synchronous pipeline context over the ferrocopg connection adapter."""
+
+    __module__ = "psycopg"
 
     def __init__(self, conn: NoTlsConnectionAdapter):
         self._conn = conn
-        self._queued: list[tuple[Query, object, Params | None, bool]] = []
-        self._entered = False
-        self._closed = False
+        self.result_queue: deque[
+            tuple[
+                Query,
+                NoTlsCursorAdapter,
+                Params | None,
+                bool | None,
+                _PipelinePreparePlan | None,
+            ]
+        ] = deque()
+        self.level = 0
+        self._syncing = False
+        self._aborted = False
 
     @property
     def closed(self) -> bool:
-        return self._closed
+        return self.level == 0
+
+    @property
+    def status(self) -> pq.PipelineStatus:
+        return pq.PipelineStatus.ON if self.level else pq.PipelineStatus.OFF
+
+    def __repr__(self) -> str:
+        if self._conn.closed:
+            status = "BAD"
+        elif self._conn._transaction_failed:
+            status = "INERROR"
+        elif self._conn._in_transaction:
+            status = "INTRANS"
+        else:
+            status = "IDLE"
+        pipeline = ", pipeline=ON" if self.level else ""
+        return f"<psycopg.Pipeline [{status}{pipeline}] at 0x{id(self):x}>"
+
+    def enqueue(
+        self,
+        cursor: NoTlsCursorAdapter,
+        query: Query,
+        params: Params | None,
+        prepare: bool | None,
+        *,
+        autosync: bool = True,
+    ) -> None:
+        self._check_open()
+        if params is None and isinstance(query, (str, bytes)):
+            text = query.decode(cursor._encoding) if isinstance(query, bytes) else query
+            if len(_split_extended_statements(text)) != 1:
+                raise e.SyntaxError(
+                    "cannot insert multiple commands into a prepared statement"
+                )
+        cursor._pipeline_error = None
+        cursor._pipeline_autosync = autosync
+        if self._aborted:
+            cursor._pipeline_error = e.PipelineAborted("pipeline aborted")
+            return
+        plan = self._conn._make_pipeline_prepare_plan(query, params, prepare, cursor)
+        self.result_queue.append((query, cursor, params, prepare, plan))
+
+    def is_queued(self, cursor: NoTlsCursorAdapter) -> bool:
+        return any(
+            queued is cursor
+            for _query, queued, _params, _prepare, _plan in self.result_queue
+        )
 
     def execute(
         self,
@@ -2864,65 +2956,91 @@ class NoTlsPipelineAdapter:
     ) -> object:
         self._check_open()
         cur = self._conn.cursor(row_factory=row_factory)
-        self._queued.append((query, _backend_cursor_adapter(cur), params, prepare))
+        self.enqueue(
+            _backend_cursor_adapter(cur),
+            query,
+            params,
+            prepare,
+            autosync=False,
+        )
         return cur
 
     def sync(self) -> None:
         self._check_open()
         self._conn._pipeline_sync_count += 1
-        if not self._queued:
+        if not self.result_queue:
+            self._aborted = False
             return
-
+        queued = list(self.result_queue)
+        self.result_queue.clear()
         if all(
             params is None and not prepare
-            for _query, _cur, params, prepare in self._queued
-        ):
+            for _query, _cur, params, prepare, _plan in queued
+        ) and not hasattr(self._conn._session._session, "run_params"):
             queries = [
                 self._conn._convert_query_params(query, None)[0]
-                for query, _cur, _params, _prepare in self._queued
+                for query, _cursor, _params, _prepare, _plan in queued
             ]
             results = self._conn.execute_pipeline_simple(queries)
-            for (_query, queued_cur, _params, _prepare), result_cur in zip(
-                self._queued, results, strict=True
+            for (_query, cursor, _params, _prepare, _plan), result in zip(
+                queued, results, strict=True
             ):
-                queued = _backend_cursor_adapter(queued_cur)
-                result = _backend_cursor_adapter(result_cur)
-                queued._result = result._result
-                queued._rownumber = 0
-        else:
-            for query, queued_cur, params, prepare in self._queued:
-                queued = _backend_cursor_adapter(queued_cur)
-                queued._result = self._conn._execute(
-                    query,
-                    params,
-                    prepare=prepare,
-                    adapters=queued.adapters,
-                    result_format=queued.format,
-                    cursor_state=queued,
-                )
-                queued._rownumber = 0
-        self._queued.clear()
+                cursor._result = _backend_cursor_adapter(result)._result
+                cursor._rownumber = 0
+            return
+        first_error: e.Error | None = None
+        self._syncing = True
+        try:
+            for query, cursor, params, prepare, plan in queued:
+                if first_error is not None:
+                    cursor._pipeline_error = e.PipelineAborted("pipeline aborted")
+                    continue
+                try:
+                    cursor._result = self._conn._execute(
+                        query,
+                        params,
+                        prepare=prepare,
+                        adapters=cursor.adapters,
+                        result_format=cursor.format,
+                        cursor_state=cursor,
+                        prepared_plan=plan,
+                    )
+                    cursor._rownumber = 0
+                except e.Error as ex:
+                    cursor._pipeline_error = ex
+                    first_error = ex
+                    self._aborted = True
+        finally:
+            self._syncing = False
+        if first_error is not None:
+            raise first_error
 
     def __enter__(self) -> NoTlsPipelineAdapter:
         self._conn._check_closed()
-        if self._entered:
-            raise TypeError("pipeline blocks can be used only once")
-        self._entered = True
+        if self.level and self.result_queue:
+            self.sync()
+        self.level += 1
         self._conn._pipeline_depth += 1
         return self
 
     def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
         try:
-            if exc_type is None:
-                self.sync()
+            self.sync()
+        except Exception as sync_error:
+            if exc is not None:
+                logger.warning("error ignored terminating %r: %s", self, sync_error)
+            else:
+                raise
         finally:
             self._conn._pipeline_depth -= 1
-            self._closed = True
-            self._queued.clear()
+            self.level -= 1
+            if self.level == 0:
+                self._conn._pipeline = None
+                self.result_queue.clear()
 
     def _check_open(self) -> None:
         self._conn._check_closed()
-        if self._closed or not self._entered:
+        if not self.level:
             raise e.OperationalError("pipeline is not active")
 
 
@@ -2968,6 +3086,7 @@ class NoTlsConnectionAdapter:
         self._prepared_statusmessages: dict[int, str | None] = {}
         self._in_transaction = False
         self._transaction_failed = False
+        self._pipeline: NoTlsPipelineAdapter | None = None
         self._pipeline_depth = 0
         self._pipeline_sync_count = 0
         self._tx_depth = 0
@@ -3220,6 +3339,7 @@ class NoTlsConnectionAdapter:
             raise e.ProgrammingError(
                 "commit() cannot be used during a two-phase transaction"
             )
+        self._sync_pending_pipeline()
         if not self._in_transaction:
             return
         try:
@@ -3239,6 +3359,7 @@ class NoTlsConnectionAdapter:
             raise e.ProgrammingError(
                 "rollback() cannot be used during a two-phase transaction"
             )
+        self._sync_pending_pipeline()
         if not self._in_transaction:
             return
         self._exec_command("ROLLBACK")
@@ -3251,6 +3372,7 @@ class NoTlsConnectionAdapter:
     ) -> _BackendPgResultShim | None:
         """Execute an internal command through the backend-native session API."""
         self._check_closed()
+        self._sync_pending_pipeline()
         query, params = self._convert_query_params(command, None)
         if params is not None:
             raise e.ProgrammingError("internal commands cannot have parameters")
@@ -3283,6 +3405,15 @@ class NoTlsConnectionAdapter:
             result_format,
             result_cursor.statusmessage,
         )
+
+    def _sync_pending_pipeline(self) -> None:
+        pipeline = self._pipeline
+        if (
+            pipeline is not None
+            and not pipeline._syncing
+            and (pipeline.result_queue or pipeline._aborted)
+        ):
+            pipeline.sync()
 
     def cancel(self) -> None:
         if self._closed:
@@ -3506,7 +3637,9 @@ class NoTlsConnectionAdapter:
 
     def pipeline(self) -> NoTlsPipelineAdapter:
         self._check_closed()
-        return NoTlsPipelineAdapter(self)
+        if self._pipeline is None:
+            self._pipeline = NoTlsPipelineAdapter(self)
+        return self._pipeline
 
     def _dispatch_notifications(self, notifications: Sequence[Notify]) -> None:
         for notification in notifications:
@@ -3563,6 +3696,7 @@ class NoTlsConnectionAdapter:
         adapters: AdaptersMap | None = None,
         result_format: pq.Format = pq.Format.TEXT,
         cursor_state: NoTlsCursorAdapter | None = None,
+        prepared_plan: _PipelinePreparePlan | None = None,
     ) -> BackendResultCursor:
         self._ensure_cancel_handle()
         query, params = self._convert_query_params(
@@ -3636,9 +3770,12 @@ class NoTlsConnectionAdapter:
                         _BoundParams([], (), ()),
                         prepare,
                         result_format,
+                        prepared_plan,
                     )
             elif isinstance(params, _BoundParams):
-                result = self._execute_bound(query, params, prepare, result_format)
+                result = self._execute_bound(
+                    query, params, prepare, result_format, prepared_plan
+                )
             else:
                 result = self._session.execute_params(query, params, result_format)
         except BaseException as ex:
@@ -3722,24 +3859,31 @@ class NoTlsConnectionAdapter:
         params: _BoundParams,
         prepare: bool | None,
         result_format: pq.Format,
+        plan: _PipelinePreparePlan | None = None,
     ) -> BackendResultCursor:
-        pgq = cast(
-            PostgresQuery,
-            _BackendPreparedQuery(query.encode(self._pgconn._encoding), params.types),
-        )
-        prep, name = self._prepared.get(pgq, prepare)
-        statement_id: int | None = None
-        if prep is Prepare.SHOULD:
-            prepared = self._session.prepare_bound(query, params)
-            statement_id = prepared.statement_id
-            self._prepared_ids[name] = statement_id
-            self._prepared_statusmessages[statement_id] = _statusmessage_for_query(
-                query
+        if plan is None:
+            pgq = cast(
+                PostgresQuery,
+                _BackendPreparedQuery(
+                    query.encode(self._pgconn._encoding), params.types
+                ),
             )
-        elif prep is Prepare.YES:
-            statement_id = self._prepared_ids[name]
-
+            prep, name = self._prepared.get(pgq, prepare)
+            key = None
+        else:
+            pgq, prep, name, key = plan
+        statement_id: int | None = None
         try:
+            if prep is Prepare.SHOULD:
+                prepared = self._session.prepare_bound(query, params)
+                statement_id = prepared.statement_id
+                self._prepared_ids[name] = statement_id
+                self._prepared_statusmessages[statement_id] = _statusmessage_for_query(
+                    query
+                )
+            elif prep is Prepare.YES:
+                statement_id = self._prepared_ids[name]
+
             if statement_id is None:
                 result = self._session.execute_bound(query, params, result_format)
             else:
@@ -3757,9 +3901,14 @@ class NoTlsConnectionAdapter:
                     self._session.close_prepared(statement_id)
                 except e.Error:
                     pass
+            if plan is not None and prep is Prepare.SHOULD:
+                cache_key = self._prepared.key(pgq)
+                self._prepared._names.pop(cache_key, None)
+                self._prepared._counts.pop(cache_key, None)
             raise
 
-        key = self._prepared.maybe_add_to_cache(pgq, prep, name)
+        if plan is None:
+            key = self._prepared.maybe_add_to_cache(pgq, prep, name)
         if key is not None:
             pgresults = [
                 _BackendPgResultShim(
@@ -3773,6 +3922,37 @@ class NoTlsConnectionAdapter:
             self._prepared.validate(key, prep, name, cast(Any, pgresults))
         self._maintain_prepared()
         return result
+
+    def _make_pipeline_prepare_plan(
+        self,
+        query: Query,
+        params: Params | None,
+        prepare: bool | None,
+        cursor: NoTlsCursorAdapter,
+    ) -> _PipelinePreparePlan | None:
+        if not hasattr(self._session._session, "run_params"):
+            return None
+        query_text, converted = self._convert_query_params(
+            query,
+            params,
+            adapters=cursor.adapters,
+            cursor_state=cursor,
+        )
+        if converted is None:
+            bound = _BoundParams([], (), ())
+        elif isinstance(converted, _BoundParams):
+            bound = converted
+        else:
+            return None
+        pgq = cast(
+            PostgresQuery,
+            _BackendPreparedQuery(
+                query_text.encode(self._pgconn._encoding), bound.types
+            ),
+        )
+        prep, name = self._prepared.get(pgq, prepare)
+        key = self._prepared.maybe_add_to_cache(pgq, prep, name)
+        return _PipelinePreparePlan(pgq, prep, name, key)
 
     def _clear_prepared(self) -> None:
         self._prepared.clear()
@@ -4080,13 +4260,32 @@ class NoTlsTransactionAdapter:
                     "error ignored in rollback of %s: %s", self, rollback_error
                 )
         else:
-            self.status = self.Status.COMMITTED
-            if self._outer:
-                self._conn.commit()
+            try:
+                if self._outer:
+                    self._conn.commit()
+                else:
+                    self._conn._exec_command(
+                        _savepoint_sql("RELEASE", self._savepoint_name)
+                    )
+            except BaseException:
+                self.status = self.Status.ROLLED_BACK_WITH_ERROR
+                try:
+                    if self._outer:
+                        self._conn.rollback()
+                    else:
+                        self._conn._exec_command(
+                            _savepoint_sql("ROLLBACK TO", self._savepoint_name)
+                        )
+                        self._conn._exec_command(
+                            _savepoint_sql("RELEASE", self._savepoint_name)
+                        )
+                except Exception as rollback_error:
+                    logger.warning(
+                        "error ignored in rollback of %s: %s", self, rollback_error
+                    )
+                raise
             else:
-                self._conn._exec_command(
-                    _savepoint_sql("RELEASE", self._savepoint_name)
-                )
+                self.status = self.Status.COMMITTED
 
         if isinstance(exc, Rollback):
             target = cast(object | None, exc.transaction)
