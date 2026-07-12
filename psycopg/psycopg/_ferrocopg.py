@@ -9,6 +9,7 @@ extension to be present in every environment.
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import warnings
 from collections.abc import Callable, Iterator, Mapping, Sequence
@@ -1033,13 +1034,19 @@ def connect_target(conninfo: str) -> object | None:
     return cast(object, _ferrocopg.parse_connect_target(conninfo))
 
 
-def merge_conninfo(conninfo: str, params: Mapping[str, str | int | None]) -> str:
+def merge_conninfo(
+    conninfo: str,
+    params: Mapping[str, str | int | None],
+    *,
+    use_environment: bool = False,
+) -> str:
     """Merge connection parameters without validating them through libpq."""
     overrides: dict[str, str | int] = {}
     for key, value in params.items():
         if value is not None:
             overrides[key] = value
-    if not overrides:
+    application_name = os.environ.get("PGAPPNAME") if use_environment else None
+    if not overrides and not application_name:
         return str(conninfo)
 
     merged: dict[str, str | int] = {}
@@ -1048,6 +1055,8 @@ def merge_conninfo(conninfo: str, params: Mapping[str, str | int | None]) -> str
             if value is not None:
                 merged[key] = value
     merged.update(overrides)
+    if application_name and "application_name" not in merged:
+        merged["application_name"] = application_name
     return " ".join(
         f"{key}={_param_escape(str(value))}" for key, value in merged.items()
     )
@@ -2642,6 +2651,7 @@ class NoTlsConnectionAdapter:
         row_factory: RowFactory = list_row,
         cursor_factory: type[NoTlsCursorAdapter] = NoTlsCursorAdapter,
         server_cursor_factory: type[object] | None = None,
+        adapters: AdaptersMap | None = None,
         prepare_threshold: int | None = 5,
         autocommit: bool = True,
     ):
@@ -2668,7 +2678,11 @@ class NoTlsConnectionAdapter:
         self._closed = False
         self._broken = False
         self._warn_on_del = False
-        self._adapters: AdaptersMap | None = None
+        if adapters is None:
+            self._adapters = None
+        else:
+            self._adapters = AdaptersMap(adapters)
+            _install_wire_bytea_dumper(self._adapters)
         self._pgconn = _PgconnEncodingShim("utf-8", self)
         self._session.encoding = self._pgconn._encoding
         self._isolation_level: IsolationLevel | None = None
@@ -3252,6 +3266,10 @@ class NoTlsConnectionAdapter:
         self._update_transaction_state(query)
         return result
 
+    def _set_client_encoding(self, encoding: str) -> None:
+        escaped = encoding.replace("'", "''")
+        self._exec_command(f"SET client_encoding TO '{escaped}'")
+
     def _refresh_client_encoding(self, query: str) -> None:
         normalized = query.lstrip().lower()
         changes_encoding = _changes_client_encoding(query)
@@ -3658,6 +3676,7 @@ def no_tls_connection_adapter(
     row_factory: RowFactory = list_row,
     cursor_factory: type[NoTlsCursorAdapter] = NoTlsCursorAdapter,
     server_cursor_factory: type[object] | None = None,
+    adapters: AdaptersMap | None = None,
     prepare_threshold: int | None = 5,
     autocommit: bool = True,
     isolation_level: IsolationLevel | int | None = None,
@@ -3676,6 +3695,7 @@ def no_tls_connection_adapter(
         row_factory=row_factory,
         cursor_factory=cursor_factory,
         server_cursor_factory=server_cursor_factory,
+        adapters=adapters,
         prepare_threshold=prepare_threshold,
         autocommit=autocommit,
     )
@@ -3696,6 +3716,7 @@ def backend_connection_adapter(
     row_factory: RowFactory = list_row,
     cursor_factory: type[NoTlsCursorAdapter] = NoTlsCursorAdapter,
     server_cursor_factory: type[object] | None = None,
+    adapters: AdaptersMap | None = None,
     prepare_threshold: int | None = 5,
     autocommit: bool = True,
     isolation_level: IsolationLevel | int | None = None,
@@ -3714,6 +3735,7 @@ def backend_connection_adapter(
         row_factory=row_factory,
         cursor_factory=cursor_factory,
         server_cursor_factory=server_cursor_factory,
+        adapters=adapters,
         prepare_threshold=prepare_threshold,
         autocommit=autocommit,
     )

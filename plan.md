@@ -413,13 +413,18 @@ Completed slices:
   normalization, and unsupported client-encoding timing. The focused connection
   modules improved from `74` passing and `48` failing to `103` passing and `19`
   failing, with `22` boundary or environment skips.
+- [x] Connection environment and adaptation-context parity. `PGAPPNAME` and
+  `PGCLIENTENCODING` follow explicit-parameter precedence, negotiated encodings
+  are reflected in connection state, and caller adapter maps are copied without
+  losing ferrocopg wire handling. The focused connection modules now report
+  `109` passing, `13` failing, and `22` boundary or environment skips.
 
 Current local full-harness evidence is `3969/4420` sync (`0.898`) on CPython
 3.14/PostgreSQL 14, with zero synchronous errors. Type adaptation improved from
 `123` to `48` failures and now passes at `0.966`; connections also had `48`
 failures in that full run but passed at only `0.728`, followed by other behavior
 (`26`) and prepared statements (`20`). The active focused connection slice has
-already improved from `74` passing and `48` failing to `103` passing and `19`
+already improved from `74` passing and `48` failing to `109` passing and `13`
 failing, with `22` boundary or environment skips. This development environment
 collects optional-dependency cases not present in the CI key, so its denominator
 is reported independently; the committed CI matrix remains the release gate.
@@ -555,13 +560,11 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Close connection environment and startup-parameter handling plus adaptation
-   context inheritance.
-2. Support the concrete default, custom, and server cursor factories without
+1. Support the concrete default, custom, and server cursor factories without
    exposing or requiring libpq.
-3. Complete timeout, multi-host, target-session selection, cancellation, and
+2. Complete timeout, multi-host, target-session selection, cancellation, and
    exact connection error reporting.
-4. Re-run the complete sync compatibility matrix after each closure slice and
+3. Re-run the complete sync compatibility matrix after each closure slice and
    remove obsolete manifest entries while ratcheting the floor upward.
-5. Preserve the standalone package, explicit delegation, and source-tree
+4. Preserve the standalone package, explicit delegation, and source-tree
    comparison proofs while each compatibility slice changes shared Python code.

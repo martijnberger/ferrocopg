@@ -2596,16 +2596,16 @@ def test_package_ferrocopg_import_does_not_replace_pq_impl() -> None:
     assert psycopg.connect is not psycopg.connect_ferrocopg
 
 
-def test_package_connect_ferrocopg_unsupported_connect_options(
+def test_package_connect_ferrocopg_connect_options(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import psycopg
 
     ferrocopg_module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
-    calls: list[str] = []
+    calls: list[tuple[str, dict[str, object]]] = []
 
     def stub_backend_connection_adapter(conninfo: str, **kwargs: object) -> object:
-        calls.append(conninfo)
+        calls.append((conninfo, kwargs))
         return object()
 
     monkeypatch.setattr(
@@ -2620,11 +2620,9 @@ def test_package_connect_ferrocopg_unsupported_connect_options(
     class StubServerCursor:
         pass
 
-    with pytest.raises(
-        psycopg.NotSupportedError,
-        match="custom adaptation contexts",
-    ):
-        psycopg.connect_ferrocopg("dbname=postgres", context=StubContext())
+    context = StubContext()
+    psycopg.connect_ferrocopg("dbname=postgres", context=context)
+    assert calls[-1][1]["adapters"] is context.adapters
 
     psycopg.connect(
         "dbname=postgres", impl="ferrocopg", server_cursor_factory=StubServerCursor
@@ -2638,7 +2636,10 @@ def test_package_connect_ferrocopg_unsupported_connect_options(
             "dbname=postgres", impl="ferrocopg", cursor_factory=psycopg.Cursor
         )
 
-    assert calls == ["dbname=postgres"]
+    assert [conninfo for conninfo, _ in calls] == [
+        "dbname=postgres",
+        "dbname=postgres",
+    ]
 
 
 def test_backend_result_cursor_navigation() -> None:

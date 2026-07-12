@@ -30,6 +30,7 @@ from .abc import AdaptContext, ConnParam
 from .client_cursor import AsyncClientCursor, ClientCursor
 from .connection import Connection
 from .connection_async import AsyncConnection
+from .conninfo import conninfo_to_dict
 from .copy import AsyncCopy, Copy
 from .cursor import Cursor
 from .cursor_async import AsyncCursor
@@ -87,10 +88,6 @@ def connect_ferrocopg(
     """
     from . import _ferrocopg as _ferrocopg_module
 
-    if context is not None:
-        raise NotSupportedError(
-            "ferrocopg doesn't support custom adaptation contexts yet"
-        )
     if cursor_factory is not None and (
         not isinstance(cursor_factory, type)
         or not issubclass(cursor_factory, _ferrocopg_module.NoTlsCursorAdapter)
@@ -103,21 +100,44 @@ def connect_ferrocopg(
     if row_factory is None:
         row_factory = tuple_row
 
+    effective_conninfo = _ferrocopg_module.merge_conninfo(
+        conninfo, kwargs, use_environment=True
+    )
+    adapter_options: dict[str, Any] = {
+        "row_factory": cast(
+            Callable[[list[str], list[str | None]], object], row_factory
+        ),
+        "cursor_factory": cursor_factory or _ferrocopg_module.NoTlsCursorAdapter,
+        "server_cursor_factory": server_cursor_factory,
+        "prepare_threshold": prepare_threshold,
+        "autocommit": autocommit,
+        "isolation_level": isolation_level,
+        "read_only": read_only,
+        "deferrable": deferrable,
+    }
+    if context is not None:
+        adapter_options["adapters"] = cast(Any, context).adapters
+
     conn = _ferrocopg_module.backend_connection_adapter(
-        _ferrocopg_module.merge_conninfo(conninfo, kwargs),
-        row_factory=cast(Callable[[list[str], list[str | None]], object], row_factory),
-        cursor_factory=cursor_factory or _ferrocopg_module.NoTlsCursorAdapter,
-        server_cursor_factory=server_cursor_factory,
-        prepare_threshold=prepare_threshold,
-        autocommit=autocommit,
-        isolation_level=isolation_level,
-        read_only=read_only,
-        deferrable=deferrable,
+        effective_conninfo,
+        **adapter_options,
     )
     if conn is None:
         _ferrocopg_module.require_available()
         raise OperationalError("the ferrocopg Rust backend failed to initialize")
     if isinstance(conn, _ferrocopg_module.NoTlsConnectionAdapter):
+        client_encoding = os.environ.get("PGCLIENTENCODING")
+        if client_encoding and "client_encoding" not in (
+            conninfo_to_dict(effective_conninfo)
+        ):
+            try:
+                conn._set_client_encoding(client_encoding)
+            except BaseException:
+                conn.close()
+                raise
+            conn._conninfo = _ferrocopg_module.merge_conninfo(
+                effective_conninfo, {"client_encoding": client_encoding}
+            )
         conn._warn_on_del = True
     return conn
 
