@@ -93,6 +93,7 @@ def test_pass_rate_report_splits_sync_and_async(tmp_path: Path) -> None:
     assert data["scopes"]["async"]["passed"] == 1
     assert data["scopes"]["async"]["total"] == 2
     assert data["families"]["sync"]["connections"]["failed"] == 1
+    assert data["families"]["async"]["transactions"]["passed"] == 1
     assert data["families"]["async"]["copy"]["skipped"] == 1
 
 
@@ -135,8 +136,8 @@ def _write_sample_junit(tmp_path: Path) -> Path:
         """\
 <testsuites><testsuite>
   <testcase classname="tests.test_connection" name="test_ok" />
-  <testcase classname="tests.test_connection" name="test_fail"><failure /></testcase>
-  <testcase classname="tests.test_connection_async" name="test_async_ok" />
+  <testcase classname="tests.test_connection" name="test_fail[127.0.0.1]"><failure /></testcase>
+  <testcase classname="tests.test_tpc_async.TestTPC" name="test_async_ok" />
   <testcase classname="tests.test_copy_async" name="test_async_skip"><skipped /></testcase>
   <testcase classname="tests.test_cursor" name="test_manifested">
     <skipped message="ferrocopg concrete-cursor: boundary" />

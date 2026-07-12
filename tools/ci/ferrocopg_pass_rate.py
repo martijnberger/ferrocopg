@@ -9,6 +9,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable
 
+ROOT = Path(__file__).resolve().parents[2]
+
 
 @dataclass
 class Counts:
@@ -100,7 +102,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def _load_manifest_matcher(manifest: Path) -> Callable[[str], bool]:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    sys.path.insert(0, str(ROOT))
     from tests.fix_ferrocopg import is_manifested_nodeid
 
     def manifested(nodeid: str) -> bool:
@@ -112,12 +114,16 @@ def _load_manifest_matcher(manifest: Path) -> Callable[[str], bool]:
 def _nodeid_from_testcase(testcase: ET.Element) -> str:
     classname = testcase.attrib.get("classname", "")
     name = testcase.attrib.get("name", "")
-    path = classname.replace(".", "/") + ".py"
+    parts = classname.split(".")
 
-    if "." in name:
-        cls, test = name.split(".", 1)
-        return f"{path}::{cls}::{test}"
-    return f"{path}::{name}"
+    for index in range(len(parts), 0, -1):
+        candidate = ROOT.joinpath(*parts[:index]).with_suffix(".py")
+        if candidate.is_file():
+            path = candidate.relative_to(ROOT).as_posix()
+            return "::".join((path, *parts[index:], name))
+
+    # Keep producing a useful report for JUnit emitted outside this checkout.
+    return f"{classname.replace('.', '/')}.py::{name}"
 
 
 def _has_manifested_skip(testcase: ET.Element) -> bool:
