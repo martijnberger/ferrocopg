@@ -76,9 +76,9 @@ Validation evidence:
   CPython 3.11-3.14 range.
 - The latest complete local PostgreSQL 14 / CPython 3.14 compatibility run
   reports:
-  - sync: `4640/5009` (`0.926`)
-  - async: `439/581` (`0.756`)
-  - mixed: `5079/5590` (`0.909`)
+  - sync: `4686/5053` (`0.927`)
+  - async: `438/581` (`0.754`)
+  - mixed: `5124/5634` (`0.909`)
 - CI enforces the current `0.80` mixed sync/async compatibility floor and the
   `0.85` sync-only floor.
 - CI reports sync and async independently and uploads family-level JSON and
@@ -89,7 +89,7 @@ Validation evidence:
   node ID, so fixing an execution error cannot masquerade as collection drift.
 - The initial sync-only ratchet is `0.85`; observed complete runs currently
   range from `0.865` on the fixed-interpreter PostgreSQL 14-18 CI axis to
-  `0.926` in the latest local run.
+  `0.927` in the latest local run.
 - The corrected complete workflow is green with all 53 jobs passing, including
   pure-Python, C/Cython, and all five Rust backend lanes.
 - Lint, formatting, typing, documentation, and Rust checks pass.
@@ -464,6 +464,15 @@ Completed slices:
   is explicitly manifested, while explicit libpq remains `33/33`. Catalog type
   discovery and simple-query result metadata no longer leak named statements or
   lose OIDs across multi-result queries.
+- [x] Synchronous COPY writer and pipeline parity. Public `LibpqWriter` and
+  `QueuedLibpqWriter` objects now route through the Rust COPY buffer for both
+  text and binary input, while query metadata is visible throughout the COPY
+  context. Pipeline execution now defers hosted cursors, supports nested
+  contexts and fetch-triggered synchronization, preserves queue and status
+  state, plans prepared statements before consumption, reports aborted commands,
+  and rolls back failed outer and nested transactions. The complete local COPY
+  and pipeline run reports `151` passing cases with six exact raw-libpq skips;
+  explicit libpq reports `152` passing cases with five platform trace skips.
 
 Active cursor closure evidence:
 
@@ -477,23 +486,24 @@ Active cursor closure evidence:
 - No synchronous default, raw, client, common, or server cursor module remains
   manifested. Async cursor manifests remain outside the first release contract.
 
-Current local full-harness evidence is `4640/5009` sync (`0.926`) on CPython
-3.14, with zero synchronous errors, `60` reported failures, `309` skips, and
-`289` manifested cases. Twenty-five reported sync failures are experimental
-async type-info tests in mixed modules; the actual remaining synchronous
-failure count is 35. Cursor coverage is `571/582` (`0.981`) with zero failures
-and zero manifested cases. Types and metadata report `2702/2775` (`0.974`)
-with no actual synchronous failure. Prepared statements report `32/32`
-(`1.000`) with the raw-libpq deallocation assertion manifested.
+Current local full-harness evidence is `4686/5053` sync (`0.927`) on CPython
+3.14, with zero synchronous errors, `58` reported failures, `309` skips, and
+`245` manifested cases. Twenty-five reported sync failures are experimental
+async type-info tests and two are async transaction parameters in mixed
+modules; the actual remaining synchronous failure count is 31. Cursor coverage
+is `571/582` (`0.981`) with zero failures and zero manifested cases. Types and
+metadata report `2702/2775` (`0.974`) with no actual synchronous failure.
+Prepared statements report `32/32`, COPY reports `111/111`, and pipeline reports
+`40/40`; all three families have zero behavioral failures.
 
 The completed type tail still reports `2590` passing tests, seven environment
 skips, 37 expected failures, and only the 25 experimental async-facade failures
 from mixed modules. The database-independent bootstrap suite passes `179`
 cases with 30 expected live skips, all 22 Rust backend tests pass, and the
 focused cursor family remains `571` passing with 11 version or intentional
-skips. The complete sync harness satisfies the `0.85` floor at `0.926`. This
+skips. The complete sync harness satisfies the `0.85` floor at `0.927`. This
 development environment collects optional dependency cases not present in the
-CI key, so its denominator is reported independently; the post-prepared
+CI key, so its denominator is reported independently; the post-COPY/pipeline
 PostgreSQL 14-18 matrix must establish the supported-server minimum before the
 floor is raised.
 
@@ -502,10 +512,9 @@ the next broad failure cluster:
 
 1. Re-run the complete PostgreSQL 14-18 CI matrix and ratchet the sync floor to
    a conservative value below the new observed matrix minimum.
-2. Close COPY writers, COPY edge cases, pipeline state, and error recovery.
-3. Return to handshake-stall timeouts, bounded cancellation, and concurrent
+2. Close handshake-stall timeouts, bounded cancellation, and concurrent
    synchronous use before claiming the release-critical connection gate.
-4. Close notification delivery, pool integration, and the remaining low-volume
+3. Close notification delivery, pool integration, and the remaining low-volume
    synchronous failures.
 
 For every slice:
@@ -626,13 +635,11 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Use the post-prepared PostgreSQL 14-18 CI result to ratchet the sync floor
+1. Use the post-COPY/pipeline PostgreSQL 14-18 CI result to ratchet the sync floor
    without exceeding the slowest supported lane.
-2. Close COPY writer and edge-case behavior, then unmask pipeline state and
-   error recovery as the next measured compatibility cluster.
-3. Return to handshake-stall, bounded cancellation, and concurrent synchronous
-   use before the release-critical connection gate.
-4. Address the measured notification and official `psycopg_pool` integration
+2. Close handshake-stall, bounded cancellation, and concurrent synchronous use
+   before the release-critical connection gate.
+3. Address the measured notification and official `psycopg_pool` integration
    failures before Phase 5 soak and performance work.
-5. Preserve the standalone package, explicit delegation, and source-tree
+4. Preserve the standalone package, explicit delegation, and source-tree
    comparison proofs while each compatibility slice changes shared Python code.
