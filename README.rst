@@ -3,31 +3,40 @@ ferrocopg -- a Rust backend for Psycopg 3
 
 This repository is a development fork of `Psycopg 3`_, the trusted and
 production-proven PostgreSQL adapter for Python. Its purpose is to build a
-Rust-native PostgreSQL backend *inside the existing Psycopg library*, keeping
-Psycopg's Python API, adaptation system, row factories, and test suite as the
+Rust-native PostgreSQL backend for that established library, keeping Psycopg's
+Python API, adaptation system, row factories, and test suite as the
 compatibility contract instead of creating a new adapter API from scratch.
 
 .. _Psycopg 3: https://github.com/psycopg/psycopg
 
 The Rust backend is built on the
-`rust-postgres <https://github.com/rust-postgres/rust-postgres>`_ ecosystem
-and is exposed as an explicit opt-in path. The normal libpq-backed Psycopg path
-remains unchanged and continues to be the stable default.
+`rust-postgres <https://github.com/rust-postgres/rust-postgres>`_ ecosystem.
+The planned product is a separate ``ferrocopg`` distribution and import
+namespace, with Rust as its synchronous default::
 
-This work is not currently an upstream Psycopg feature or release. Whether the
-backend should eventually be proposed upstream, remain a separate fork, or be
-packaged another way is deliberately undecided. The immediate job is to make
-the backend useful, measure compatibility, and keep the evidence honest. See
-the `Rust backend plan <plan.md>`_ for the current milestones and conditional
-cutover gates.
+    import ferrocopg as psycopg
+
+    with psycopg.connect(dsn) as conn:
+        print(conn.execute("select 1").fetchone())
+
+The source tree is still in transition and currently exposes Rust as an
+explicit backend of its vendored ``psycopg`` package. The default will switch
+before publication so ordinary development finds Rust compatibility gaps.
+
+This work is not currently an upstream Psycopg feature or release. Whether it
+should eventually be proposed upstream is deliberately undecided and does not
+block development or release of the fork. The first release target is a
+synchronous ``0.1.0`` beta for CPython 3.11-3.14 and PostgreSQL 14-18. See the
+`Rust backend plan <plan.md>`_ for the compatibility, performance, packaging,
+and release gates.
 
 
 Trying the Rust backend
 -----------------------
 
-The ferrocopg backend is experimental and currently built from this source
-tree; there is no stable ferrocopg wheel release yet. Set up the workspace and
-install the Rust extension with::
+The ferrocopg backend is currently built from this source tree; no ferrocopg
+wheel has been published yet. Set up the workspace and install the Rust
+extension with::
 
     uv venv
     source .venv/bin/activate
@@ -61,7 +70,8 @@ environment variable is *not* the ferrocopg selector; it selects Psycopg's
 libpq wrapper implementation. Choose ``impl="ferrocopg"`` or
 ``impl="libpq"`` at connection time instead.
 
-The opt-in backend covers common synchronous workflows: Psycopg-style
+The current source-tree backend covers broad synchronous workflows:
+Psycopg-style
 ``%s``/``%t``/``%b`` parameters, typed results, row factories, prepared
 statements, transactions and savepoints, two-phase commit, cancellation,
 text and binary COPY, named server cursors, LISTEN/NOTIFY, and a pipelined
@@ -97,8 +107,10 @@ on one connection-affine worker thread and run outside the event-loop thread::
         )).fetchone()
         print(row)
 
-It is not a drop-in replacement yet. Keep ``impl="libpq"`` for applications
-that require:
+It is not a drop-in replacement yet. The concrete cursor, COPY writer,
+pipeline, timeout, and multi-host gaps below are active compatibility work for
+the beta rather than accepted long-term boundaries. Keep ``impl="libpq"`` for
+applications that currently require:
 
 - Psycopg's concrete ``Cursor``, ``ClientCursor``, or ``RawCursor`` classes;
   these remain libpq-only, while backend-specific custom cursors may subclass
@@ -113,9 +125,8 @@ that require:
 
 The dedicated CI matrix exercises all six SSL modes against SSL-enabled
 PostgreSQL 14-18, including custom roots, required channel binding, and client
-certificate authentication. The backend remains experimental; unsupported
-features raise an error and ferrocopg never silently swaps an active
-connection to libpq.
+certificate authentication. Unsupported features raise an error and
+ferrocopg never silently swaps an active connection to libpq.
 
 
 Installing upstream Psycopg

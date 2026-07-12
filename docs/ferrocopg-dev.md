@@ -13,8 +13,11 @@ The Rust work has two main packages:
 - `crates/ferrocopg-python` exposes the PyO3 extension as `ferrocopg_rust` and
   connects the Rust backend and helper fast paths to the `psycopg` package.
 
-The public backend remains explicit and experimental. Whether it is eventually
-proposed upstream, kept as a fork, or packaged separately is not decided.
+The product target is a separate `ferrocopg` distribution and import namespace
+with the Rust backend as its synchronous default. The source tree remains
+upstream-shaped and currently exposes Rust explicitly through its vendored
+`psycopg` package while namespace staging is built. Whether the work is
+eventually proposed upstream remains undecided.
 
 ## Python environment
 
@@ -62,7 +65,8 @@ uv run python -c "import ferrocopg_rust; print(ferrocopg_rust.milestone())"
 
 ## Using the backend
 
-Prefer the per-connection selector in user-facing code:
+Until the staged `ferrocopg` package exists, select Rust per connection in the
+development source tree:
 
 ```python
 import psycopg
@@ -76,10 +80,27 @@ with psycopg.connect(
     print(conn.execute("select %s::int4 as answer", (42,)).fetchone())
 ```
 
-Use `impl="libpq"` to select the stable backend explicitly. There is no
-automatic per-feature fallback: unsupported ferrocopg behavior raises an
-error because switching transport in the middle of a connection would be
+Use `impl="libpq"` to select the internal comparison backend explicitly. There
+is no automatic per-feature fallback: unsupported ferrocopg behavior raises
+an error because switching transport in the middle of a connection would be
 incorrect.
+
+The published package will instead use:
+
+```python
+import ferrocopg as psycopg
+
+# Rust is the synchronous default.
+conn = psycopg.connect(dsn)
+
+# This delegates to an installed official Psycopg package.
+libpq_conn = psycopg.connect(dsn, impl="libpq")
+```
+
+The delegated object will be an official `psycopg.Connection`, not a wrapper.
+The first release supports the Rust synchronous backend; async entry points
+delegate to official Psycopg. Missing Rust or fallback dependencies produce
+actionable installation errors rather than silent fallback.
 
 `psycopg.connect_ferrocopg()` is a transitional direct helper. Pass
 `autocommit` explicitly when using it because its bootstrap default currently
@@ -89,22 +110,25 @@ connection backend.
 
 ## Current scope
 
-The default ferrocopg connection and cursor currently cover common synchronous
-Psycopg workflows:
+The ferrocopg connection and cursor currently cover broad synchronous Psycopg
+workflows:
 
 - plaintext and rustls-backed connections
 - simple, parameterized, prepared, text, and binary execution
 - Psycopg dumpers/loaders, typed results, cursor descriptions, and row factories
-- transactions, savepoints, transaction characteristics, and cancellation
-- text COPY in/out
+- transactions, savepoints, transaction characteristics, TPC, and cancellation
+- text and binary COPY, type pinning, and generic writers
 - LISTEN/NOTIFY, notification handlers, and queued notice handlers
-- an explicit pipeline adapter
+- named, scrollable, and withhold server cursors
+- pipelined simple-query batches
+- an experimental connection-affine thread-offload async facade
 
 Known gaps are kept in `plan.md` and `tests/ferrocopg_manifest.toml`. The main
-ones are async connections, server-cursor parity, binary/custom COPY, two-phase
-transactions, and exact libpq pipeline semantics. Raw libpq
-socket access and Psycopg's concrete cursor classes are documented backend
-boundaries. A ferrocopg-specific custom cursor must subclass
+release work is concrete cursor parity, concrete libpq COPY writer behavior,
+exact public pipeline state behavior, complete handshake timeout and multi-host
+coverage, and cancellation/concurrency edges. Only raw `PGconn`, socket, and
+libpq tracing access are intended release boundaries. A source-tree
+ferrocopg-specific custom cursor must currently subclass
 `psycopg._ferrocopg.NoTlsCursorAdapter`.
 
 ## Side-by-side validation
@@ -144,18 +168,30 @@ uv run pytest \
 ```
 
 `tests/fix_ferrocopg.py` applies the declarative gap manifest and
-`tools/ci/ferrocopg_pass_rate.py` calculates the non-manifested pass rate. The
-CI ratchet enforces a conservative `0.65` floor, calibrated from a complete
-local run measuring `3113/4326` (`0.720`) non-manifested cases. Known unsafe or
-inapplicable families are hard-skipped; ordinary compatibility gaps remain
-visible as non-strict xfails or failures.
+`tools/ci/ferrocopg_pass_rate.py` calculates non-manifested pass rates. CI
+currently preserves the mixed sync/async `0.80` ratchet and reports sync and
+async results separately. Each PostgreSQL matrix job uploads JSON and JUnit
+artifacts containing denominators and counts for connection, transaction,
+type/metadata, prepared, cursor, COPY, pipeline, notification, and concurrency
+families. The sync-only release floor is raised only from complete PostgreSQL
+14-18 measurements; its release target is at least `0.95`.
+
+Generate the same report locally after the harness with:
+
+```bash
+uv run python tools/ci/ferrocopg_pass_rate.py \
+  ferrocopg-compat.xml \
+  --manifest tests/ferrocopg_manifest.toml \
+  --floor tests/ferrocopg_pass_rate.txt \
+  --sync-floor tests/ferrocopg_sync_pass_rate.txt \
+  --report ferrocopg-compat-report.json
+```
 
 The sync rust-postgres driver applies `connect_timeout` to socket establishment,
 not to the entire PostgreSQL handshake. Tests that deliberately accept TCP and
 then stall the handshake are therefore excluded under the `handshake-timeout`
 tag instead of being allowed to block the report indefinitely.
 
-The next work should be selected from the current roadmap rather than the old
-bootstrap sequence: use the measured harness to prioritize diagnostics/notices
-and server-cursor/COPY parity. `_exec_command` and the SSL-enabled PostgreSQL
-matrix are implemented. Async support remains a separate major milestone.
+The next work is selected from the measured synchronous failure families in
+`plan.md`. Rust-native async remains experimental and is not part of the
+`0.1.0` support contract.

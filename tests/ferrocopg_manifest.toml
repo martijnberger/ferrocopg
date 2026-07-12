@@ -13,7 +13,7 @@ action = "skip"
 [[rules]]
 glob = "tests/crdb/*_async.py::*"
 tag = "async"
-reason = "AsyncConnection parity is tracked in Milestone 3.7"
+reason = "CRDB async fixture injection is outside the initial sync release contract"
 action = "skip"
 
 [[rules]]
@@ -91,12 +91,12 @@ action = "skip"
 [[rules]]
 glob = "tests/test_pipeline.py::*"
 tag = "pipeline"
-reason = "full pipeline semantics are tracked in Milestone 3.6"
+reason = "exact public pipeline state and error recovery remain beta compatibility work"
 
 [[rules]]
 glob = "tests/test_pipeline_async.py::*"
 tag = "pipeline"
-reason = "exact libpq pipeline sync and PIPELINE_ABORTED semantics are a boundary"
+reason = "Rust-native async pipeline parity is outside the initial sync release contract"
 
 [[rules]]
 glob = "tests/test_connection.py::*fileno*"
