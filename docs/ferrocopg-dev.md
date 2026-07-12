@@ -179,7 +179,9 @@ async results separately. Each PostgreSQL matrix job uploads JSON and JUnit
 artifacts containing denominators and counts for connection, transaction,
 type/metadata, prepared, cursor, COPY, pipeline, notification, and concurrency
 families. The sync-only release floor is raised only from complete PostgreSQL
-14-18 measurements; its release target is at least `0.95`.
+14-18 measurements. Its initial ratchet is `0.85`, based on a local `0.851`
+result and initial CI results of `0.861`-`0.868`; the release target is at least
+`0.95`.
 
 Generate the same report locally after the harness with:
 

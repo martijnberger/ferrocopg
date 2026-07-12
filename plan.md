@@ -80,6 +80,10 @@ Validation evidence:
 - CI enforces the current `0.80` mixed sync/async compatibility floor.
 - CI reports sync and async independently and uploads family-level JSON and
   JUnit evidence for every PostgreSQL 14-18 matrix job.
+- The initial sync-only ratchet is `0.85`; observed complete runs currently
+  range from `0.851` locally to `0.861`-`0.868` in CI.
+- The corrected complete workflow is green with all 53 jobs passing, including
+  pure-Python, C/Cython, and all five Rust backend lanes.
 - Lint, formatting, typing, documentation, and Rust checks pass.
 
 The C/Cython coexistence failure in `test_no_tls_cursor_adapter_copy` is fixed.
@@ -87,9 +91,10 @@ The focused C and pure-Python bootstrap/harness slices are green, and the user
 and contributor documentation now reflects the Phase 3 implementation and
 the separate `ferrocopg` product direction.
 
-Phase 4.0 remains open until the corrected full workflow is green and the
-sync denominator is confirmed stable across PostgreSQL 14-18. The committed
-sync floor remains measurement-only until those five reports are available.
+Phase 4.0 remains open only until the sync denominator is confirmed stable
+across PostgreSQL 14-18. The CI matrix now fixes CPython 3.11 across that
+server axis so interpreter-specific test collection cannot masquerade as
+PostgreSQL denominator drift.
 
 ## Architecture
 
@@ -300,11 +305,11 @@ Tasks:
 
 - [x] Fix `test_no_tls_cursor_adapter_copy` so backend COPY tests do not select a
   C formatter for a Rust-only transformer.
-- [ ] Restore a green complete upstream Python/C/Cython workflow.
+- [x] Restore a green complete upstream Python/C/Cython workflow.
 - [x] Update the README and development guide to match Phase 3 reality.
 - [x] Split compatibility reporting into sync and async result sets.
 - [ ] Confirm the sync-only denominator across PostgreSQL 14-18 and replace the
-  measurement-only floor with the observed minimum.
+  provisional `0.85` floor with the validated observed minimum if needed.
 - [x] Record failure counts by feature family in CI artifacts.
 
 Definition of done:
@@ -316,16 +321,18 @@ Definition of done:
 
 ### Phase 4.1: Make Rust the synchronous development default
 
+Status: implemented locally; expanded CI validation pending.
+
 Tasks:
 
-- Change omitted synchronous `impl` from libpq to Rust.
-- Preserve `impl="ferrocopg"` as an explicit spelling.
-- Add a clear error when the Rust extension is missing.
-- Keep the internal source-tree libpq path as a temporary, explicit comparison
+- [x] Change omitted synchronous `impl` from libpq to Rust.
+- [x] Preserve `impl="ferrocopg"` as an explicit spelling.
+- [x] Add a clear error when the Rust extension is missing.
+- [x] Keep the internal source-tree libpq path as a temporary, explicit comparison
   implementation until namespace staging is available.
-- Keep upstream baseline jobs explicit about their selected implementation and
+- [x] Keep upstream baseline jobs explicit about their selected implementation and
   document that this is transition-only behavior.
-- Add a Rust-default CI lane that never passes an implementation selector.
+- [x] Add a Rust-default CI lane that never passes an implementation selector.
 
 Definition of done:
 
