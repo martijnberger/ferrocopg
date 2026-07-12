@@ -15,8 +15,8 @@ The Rust work has two main packages:
 
 The product target is a separate `ferrocopg` distribution and import namespace
 with the Rust backend as its synchronous default. The source tree remains
-upstream-shaped and currently exposes Rust explicitly through its vendored
-`psycopg` package while namespace staging is built. Whether the work is
+upstream-shaped; omitted synchronous `psycopg.connect()` calls now select Rust,
+while upstream comparison jobs select libpq explicitly. Whether the work is
 eventually proposed upstream remains undecided.
 
 ## Python environment
@@ -102,7 +102,6 @@ from psycopg.rows import dict_row
 
 with psycopg.connect(
     "postgresql://postgres:password@localhost/postgres",
-    impl="ferrocopg",
     row_factory=dict_row,
 ) as conn:
     print(conn.execute("select %s::int4 as answer", (42,)).fetchone())
@@ -205,10 +204,13 @@ currently preserves the mixed sync/async `0.80` ratchet and reports sync and
 async results separately. Each PostgreSQL matrix job uploads JSON and JUnit
 artifacts containing denominators and counts for connection, transaction,
 type/metadata, prepared, cursor, COPY, pipeline, notification, and concurrency
-families. The sync-only release floor is raised only from complete PostgreSQL
-14-18 measurements. Its initial ratchet is `0.85`, based on a local `0.851`
-result and initial CI results of `0.861`-`0.868`; the release target is at least
-`0.95`.
+families. `tests/ferrocopg_compat_baselines.json` pins the expected sync and
+async collection counts for every CI matrix key, so missing or newly collected
+tests cannot silently distort the rate. On the fixed CPython 3.11 server axis,
+the sync denominator is `4205` on PostgreSQL 14 and `4243` on PostgreSQL 15-18,
+with `875` manifested tests in every lane. The initial sync ratchet is `0.85`,
+below the validated server-axis range of `0.862`-`0.865`; the release target is
+at least `0.95`.
 
 Generate the same report locally after the harness with:
 

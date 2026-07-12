@@ -130,6 +130,53 @@ def test_pass_rate_report_preserved_on_abnormal_pytest_exit(tmp_path: Path) -> N
     assert json.loads(report.read_text())["pytest_status"] == 2
 
 
+def test_pass_rate_report_checks_committed_denominator(tmp_path: Path) -> None:
+    junit = _write_sample_junit(tmp_path)
+    manifest = tmp_path / "manifest.toml"
+    manifest.write_text("")
+    floor = tmp_path / "floor.txt"
+    floor.write_text("0.0\n")
+    baseline = tmp_path / "baseline.json"
+    expected = {
+        "sample": {
+            "sync": {"total": 2, "manifested": 1},
+            "async": {"total": 2, "manifested": 0},
+        }
+    }
+    baseline.write_text(json.dumps(expected))
+
+    command = [
+        sys.executable,
+        str(PASS_RATE_SCRIPT),
+        str(junit),
+        "--manifest",
+        str(manifest),
+        "--floor",
+        str(floor),
+        "--baseline",
+        str(baseline),
+        "--baseline-key",
+        "sample",
+        "--pytest-status",
+        "1",
+    ]
+    result = subprocess.run(
+        command, cwd=ROOT, text=True, capture_output=True, check=False
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "denominator satisfied: sample" in result.stdout
+
+    expected["sample"]["sync"]["total"] = 3
+    baseline.write_text(json.dumps(expected))
+    result = subprocess.run(
+        command, cwd=ROOT, text=True, capture_output=True, check=False
+    )
+
+    assert result.returncode == 1
+    assert "denominator drift for sample" in result.stderr
+
+
 def _write_sample_junit(tmp_path: Path) -> Path:
     junit = tmp_path / "compat.xml"
     junit.write_text(

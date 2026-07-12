@@ -263,6 +263,8 @@ jobs:
             --manifest tests/ferrocopg_manifest.toml \
             --floor tests/ferrocopg_pass_rate.txt \
             --sync-floor tests/ferrocopg_sync_pass_rate.txt \
+            --baseline tests/ferrocopg_compat_baselines.json \
+            --baseline-key py${{ matrix.python }}-pg${{ matrix.pg }} \
             --report ferrocopg-compat-report.json \
             --pytest-status "$pytest_status"
 

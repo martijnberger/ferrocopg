@@ -72,16 +72,23 @@ Validation evidence:
 - 22 Rust backend tests pass.
 - The focused live bootstrap suite reports 196 passing tests with 8 expected
   accelerator-dependent skips in the PostgreSQL matrix.
-- All five ferrocopg jobs pass on Python 3.10-3.14 and PostgreSQL 14-18.
+- The Rust compatibility matrix passes across PostgreSQL 14-18 and the target
+  CPython 3.11-3.14 range.
 - A complete local PostgreSQL 17 / CPython 3.14 compatibility run reports:
   - sync: `3790/4453` (`0.851`)
   - async: `365/586` (`0.623`)
   - mixed: `4155/5039` (`0.825`)
-- CI enforces the current `0.80` mixed sync/async compatibility floor.
+- CI enforces the current `0.80` mixed sync/async compatibility floor and the
+  `0.85` sync-only floor.
 - CI reports sync and async independently and uploads family-level JSON and
   JUnit evidence for every PostgreSQL 14-18 matrix job.
+- The validated CPython 3.11 server-axis sync denominator is `4205` tests on
+  PostgreSQL 14 and `4243` on PostgreSQL 15-18, with `875` manifested tests in
+  every lane. The expected per-matrix denominator is committed and enforced;
+  the PostgreSQL-specific difference is deterministic collection, not drift.
 - The initial sync-only ratchet is `0.85`; observed complete runs currently
-  range from `0.851` locally to `0.861`-`0.868` in CI.
+  range from `0.851` locally to `0.862`-`0.865` on the fixed-interpreter
+  PostgreSQL 14-18 CI axis.
 - The corrected complete workflow is green with all 53 jobs passing, including
   pure-Python, C/Cython, and all five Rust backend lanes.
 - Lint, formatting, typing, documentation, and Rust checks pass.
@@ -91,10 +98,11 @@ The focused C and pure-Python bootstrap/harness slices are green, and the user
 and contributor documentation now reflects the Phase 3 implementation and
 the separate `ferrocopg` product direction.
 
-Phase 4.0 remains open only until the sync denominator is confirmed stable
-across PostgreSQL 14-18. The CI matrix now fixes CPython 3.11 across that
-server axis so interpreter-specific test collection cannot masquerade as
-PostgreSQL denominator drift.
+Phase 4.0 and Phase 4.1 are complete. Omitted synchronous `connect()` now uses
+Rust, missing Rust is a hard actionable error, and comparison jobs select
+libpq explicitly. Phase 4.2 is in progress: the staging tool builds a separate
+`ferrocopg` wheel, records its vendored upstream revision, and has proved
+side-by-side installation and lazy official-Psycopg delegation locally.
 
 ## Architecture
 
@@ -299,7 +307,7 @@ checkout and pass:
 
 ### Phase 4.0: Restore a trustworthy baseline
 
-Status: in progress.
+Status: complete.
 
 Tasks:
 
@@ -308,8 +316,9 @@ Tasks:
 - [x] Restore a green complete upstream Python/C/Cython workflow.
 - [x] Update the README and development guide to match Phase 3 reality.
 - [x] Split compatibility reporting into sync and async result sets.
-- [ ] Confirm the sync-only denominator across PostgreSQL 14-18 and replace the
-  provisional `0.85` floor with the validated observed minimum if needed.
+- [x] Confirm the sync-only denominator across PostgreSQL 14-18, commit the
+  expected per-matrix denominator, and retain `0.85` as a conservative initial
+  ratchet below the validated server-axis minimum.
 - [x] Record failure counts by feature family in CI artifacts.
 
 Definition of done:
@@ -321,7 +330,7 @@ Definition of done:
 
 ### Phase 4.1: Make Rust the synchronous development default
 
-Status: implemented locally; expanded CI validation pending.
+Status: complete.
 
 Tasks:
 
@@ -343,23 +352,30 @@ Definition of done:
 
 ### Phase 4.2: Prove the ferrocopg package boundary
 
+Status: in progress.
+
 Tasks:
 
-- Build a non-committed namespace staging tool.
-- Package the vendored Python API as `ferrocopg`.
-- Package the Rust extension inside the ferrocopg wheel.
-- Add lazy official-Psycopg delegation for libpq and async entry points.
-- Make delegated return types and type overloads honest.
-- Define the fallback extra and installation errors.
-- Define and test the supported official-Psycopg version range for delegation.
-- Test side-by-side imports and distribution uninstall behavior.
-- Establish version metadata independent from upstream Psycopg while recording
+- [x] Build a non-committed namespace staging tool.
+- [x] Package the vendored Python API as `ferrocopg`.
+- [x] Package the Rust extension inside the ferrocopg wheel.
+- [x] Add lazy official-Psycopg delegation for libpq and async entry points.
+- [ ] Make delegated return types and type overloads honest.
+- [x] Define the fallback extra and installation errors.
+- [ ] Define and test the supported official-Psycopg version range for delegation.
+- [x] Test side-by-side imports and distribution uninstall behavior.
+- [x] Establish version metadata independent from upstream Psycopg while recording
   the vendored upstream revision.
+- [ ] Make the Rust-default package import and connect without system libpq;
+  libpq may only be required when the optional official-Psycopg fallback is used.
+- [ ] Pass the clean installed-wheel CI smoke with a live Rust query, explicit
+  delegation, coexistence, and uninstall-isolation checks.
 
 Definition of done:
 
 - A local `ferrocopg` wheel installs without writing into `psycopg`.
 - `import ferrocopg as psycopg` supports the documented synchronous API.
+- Rust-default import and use do not require system libpq.
 - Official Psycopg can coexist and power explicit libpq and async calls.
 - Upstream source synchronization remains practical.
 
@@ -495,11 +511,11 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Confirm the corrected complete CI workflow and PostgreSQL 14-18 sync
-   denominators.
-2. Commit a conservative nonzero sync-only floor from the observed minimum.
-3. Switch the synchronous source default to Rust with hard missing-extension
-   errors.
-4. Build the ferrocopg namespace staging proof of concept.
-5. Prove explicit official-Psycopg delegation inside the staged namespace.
-6. Start compatibility closure with transactions, then types and metadata.
+1. Finish Phase 4.2 by removing the Rust path's import-time libpq requirement,
+   correcting delegated typing, and validating the supported fallback versions.
+2. Pass the staged wheel's clean-environment package CI, including live Rust,
+   delegation, coexistence, and uninstall-isolation checks.
+3. Start Phase 4.3 with the measured transaction/savepoint failures, then type
+   adaptation and metadata.
+4. Re-run the complete sync compatibility matrix after each closure slice and
+   remove obsolete manifest entries while ratcheting the floor upward.

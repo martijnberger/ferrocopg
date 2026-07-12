@@ -74,7 +74,13 @@ def main() -> int:
 
     _print_report(scopes, families)
     if args.report:
-        _write_report(args.report, scopes, families, args.pytest_status)
+        _write_report(
+            args.report,
+            scopes,
+            families,
+            args.pytest_status,
+            baseline_key=args.baseline_key,
+        )
 
     if args.pytest_status not in (0, 1):
         print(
@@ -87,6 +93,8 @@ def main() -> int:
     regressions += _check_floor("overall", scopes["overall"], args.floor)
     if args.sync_floor:
         regressions += _check_floor("sync", scopes["sync"], args.sync_floor)
+    if args.baseline:
+        regressions += _check_baseline(scopes, args.baseline, args.baseline_key)
     return 1 if regressions else 0
 
 
@@ -96,9 +104,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--floor", type=Path, required=True)
     parser.add_argument("--sync-floor", type=Path)
+    parser.add_argument("--baseline", type=Path)
+    parser.add_argument("--baseline-key")
     parser.add_argument("--report", type=Path)
     parser.add_argument("--pytest-status", type=int, default=0)
-    return parser.parse_args()
+    args = parser.parse_args()
+    if bool(args.baseline) != bool(args.baseline_key):
+        parser.error("--baseline and --baseline-key must be used together")
+    return args
 
 
 def _load_manifest_matcher(manifest: Path) -> Callable[[str], bool]:
@@ -195,8 +208,11 @@ def _write_report(
     scopes: dict[str, Counts],
     families: dict[str, dict[str, Counts]],
     pytest_status: int,
+    *,
+    baseline_key: str | None,
 ) -> None:
     data = {
+        "baseline_key": baseline_key,
         "pytest_status": pytest_status,
         "scopes": {name: counts.json() for name, counts in scopes.items()},
         "families": {
@@ -205,6 +221,38 @@ def _write_report(
         },
     }
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+
+
+def _check_baseline(
+    scopes: dict[str, Counts], baseline_path: Path, baseline_key: str
+) -> int:
+    baselines = json.loads(baseline_path.read_text())
+    try:
+        expected = baselines[baseline_key]
+    except KeyError:
+        print(
+            f"ferrocopg compatibility baseline not found: {baseline_key}",
+            file=sys.stderr,
+        )
+        return 1
+
+    drift: list[str] = []
+    for scope in ("sync", "async"):
+        for field in ("total", "manifested"):
+            actual = getattr(scopes[scope], field)
+            wanted = expected[scope][field]
+            if actual != wanted:
+                drift.append(f"{scope}.{field}={actual} (expected {wanted})")
+
+    if drift:
+        print(
+            f"ferrocopg compatibility denominator drift for {baseline_key}: "
+            + "; ".join(drift),
+            file=sys.stderr,
+        )
+        return 1
+    print(f"ferrocopg compatibility denominator satisfied: {baseline_key}")
+    return 0
 
 
 def _check_floor(name: str, counts: Counts, floor_path: Path) -> int:
