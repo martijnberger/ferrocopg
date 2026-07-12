@@ -35,7 +35,7 @@ from ._copy_base import (
 )
 from ._encodings import conninfo_encoding, pg2pyenc, py2pgenc
 from ._enums import IsolationLevel, PyFormat
-from ._oids import BYTEA_OID, INVALID_OID
+from ._oids import BYTEA_OID, INVALID_OID, TEXT_OID
 from ._py_transformer import Transformer as AdaptTransformer
 from ._queries import PostgresClientQuery, PostgresQuery
 from ._rmodule import __version__ as __version__
@@ -335,6 +335,35 @@ class _BackendTransformer(AdaptTransformer):
         if hasattr(loader, "_encoding"):
             loader._encoding = self._loader_encoding
         return loader
+
+    def as_literal(self, obj: Any) -> bytes:
+        dumper = self.get_dumper(obj, PyFormat.TEXT)
+        if type(dumper).quote is Dumper.quote:
+            value = dumper.dump(obj)
+            rv = b"NULL" if value is None else _quote_backend_literal(bytes(value))
+        else:
+            rv = bytes(dumper.quote(obj))
+
+        oid = dumper.oid
+        if oid and rv.endswith(b"'") and oid != TEXT_OID:
+            try:
+                type_sql = self._oid_types[oid]
+            except KeyError:
+                if ti := self.adapters.types.get(oid):
+                    type_sql = (
+                        ti.name.encode(self.encoding)
+                        if oid < 8192
+                        else ti.regtype.encode(self.encoding)
+                    )
+                    if oid == ti.array_oid:
+                        type_sql += b"[]"
+                else:
+                    type_sql = b""
+                self._oid_types[oid] = type_sql
+            if type_sql:
+                rv = b"%s::%s" % (rv, type_sql)
+
+        return rv
 
     @property
     def _dumper_encoding(self) -> str:
@@ -1728,6 +1757,15 @@ class NoTlsCursorAdapter:
         self._conn._check_closed()
         return NoTlsCopyAdapter(self, statement, params=params, writer=writer)
 
+    def mogrify(self, query: Query, params: Params | None = None) -> str:
+        converted, _ = self._conn._convert_query_params(
+            query,
+            params,
+            adapters=self.adapters,
+            query_cls=self._query_cls,
+        )
+        return converted
+
     def execute(
         self,
         query: Query,
@@ -1740,6 +1778,10 @@ class NoTlsCursorAdapter:
         self._conn._check_closed()
         if binary is not None:
             self.format = pq.Format.BINARY if binary else pq.Format.TEXT
+        if self._query_cls is PostgresClientQuery and self.format == pq.Format.BINARY:
+            raise e.NotSupportedError(
+                "client-side cursors don't support binary results"
+            )
         self._reset_result()
         with self._conn.lock:
             try:
@@ -1783,6 +1825,7 @@ class NoTlsCursorAdapter:
                         query,
                         params,
                         prepare=prepare,
+                        prefer_extended=self._row_factory not in _LEGACY_ROW_FACTORIES,
                         adapters=self.adapters,
                         result_format=self.format,
                         cursor_state=self,
@@ -3681,6 +3724,8 @@ class NoTlsConnectionAdapter:
         if cursor_state is not None:
             cursor_state._query = pgq
         pgq.convert(query, params)
+        if query_cls is PostgresClientQuery:
+            return pgq.query.decode(tx.encoding), None
         if pgq.params is None:
             return pgq.query.decode(tx.encoding), None
 
@@ -3957,6 +4002,15 @@ def _result_rowcount(result: _ResultSetLike, statusmessage: str | None) -> int:
         if command in {"INSERT", "UPDATE", "DELETE", "MERGE", "MOVE", "FETCH", "COPY"}:
             return result.rows_affected
     return -1
+
+
+def _quote_backend_literal(value: bytes) -> bytes:
+    if b"\x00" in value:
+        raise e.DataError("PostgreSQL text values cannot contain NUL (0x00) bytes")
+    value = value.replace(b"'", b"''")
+    if b"\\" in value:
+        return b"E'" + value.replace(b"\\", b"\\\\") + b"'"
+    return b"'" + value + b"'"
 
 
 def _changes_client_encoding(query: str) -> bool:

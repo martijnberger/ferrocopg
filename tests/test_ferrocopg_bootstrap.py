@@ -2169,6 +2169,25 @@ def test_ferrocopg_param_text_coerces_timedelta() -> None:
     assert tx.dump_sequence([value], [object()]) == [b"3 days 1:01:01.000042"]
 
 
+def test_backend_literals_do_not_use_libpq(monkeypatch: pytest.MonkeyPatch) -> None:
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+    adapters = module._pure_python_adapters(psycopg.postgres.adapters)
+    module._install_wire_bytea_dumper(adapters)
+    context = SimpleNamespace(adapters=adapters, connection=None)
+    tx = module._BackendTransformer(context)
+
+    def fail_escaping(*args: object, **kwargs: object) -> None:
+        raise AssertionError("literal adaptation reached libpq escaping")
+
+    monkeypatch.setattr(module.pq, "Escaping", fail_escaping)
+
+    assert tx.as_literal("O'Reilly\\docs") == b"E'O''Reilly\\\\docs'"
+    assert tx.as_literal(date(2020, 1, 1)) == b"'2020-01-01'::date"
+    assert tx.as_literal(b"\x00\xff") == b"E'\\\\x00ff'::bytea"
+
+
 def test_split_extended_statements() -> None:
     module = importlib.import_module("psycopg._ferrocopg")
 

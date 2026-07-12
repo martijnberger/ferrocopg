@@ -15,11 +15,6 @@ PASS_RATE_SCRIPT = ROOT / "tools" / "ci" / "ferrocopg_pass_rate.py"
 @pytest.mark.parametrize(
     ("nodeid", "tag"),
     [
-        ("tests/test_cursor_client.py::test_str", "concrete-cursor"),
-        (
-            "tests/test_cursor_common.py::test_execute[asyncio-ClientCursor]",
-            "concrete-cursor",
-        ),
         (
             "tests/test_connection.py::test_context_active_rollback_no_clobber",
             "pgconn",
@@ -43,10 +38,19 @@ def test_unsafe_harness_rules_skip(nodeid: str, tag: str) -> None:
     assert any(rule.tag == tag and rule.action == "skip" for rule in rules)
 
 
-def test_sync_adapter_tests_remain_unmanifested() -> None:
-    rules = matching_rules(
-        "tests/test_connection.py::test_connect", load_manifest(MANIFEST)
-    )
+@pytest.mark.parametrize(
+    "nodeid",
+    [
+        "tests/test_connection.py::test_connect",
+        "tests/test_cursor.py::test_execute",
+        "tests/test_cursor_raw.py::test_execute",
+        "tests/test_cursor_client.py::test_execute",
+        "tests/test_cursor_common.py::test_execute[asyncio-ClientCursor]",
+        "tests/test_cursor_server.py::test_execute",
+    ],
+)
+def test_sync_adapter_tests_remain_unmanifested(nodeid: str) -> None:
+    rules = matching_rules(nodeid, load_manifest(MANIFEST))
 
     assert not rules
 

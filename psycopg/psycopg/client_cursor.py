@@ -7,7 +7,7 @@ psycopg client-side binding cursors
 from __future__ import annotations
 
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from . import adapt, pq
 from . import errors as e
@@ -40,6 +40,9 @@ class ClientCursorMixin(BaseCursor[ConnectionType, Row]):
         `!execute()` would do.
 
         """
+        if self._ferrocopg_cursor is not None:
+            return cast(str, self._ferrocopg_cursor.mogrify(query, params))
+
         self._tx = adapt.Transformer(self)
         pgq = self._convert_query(query, params)
         return pgq.query.decode(self._tx.encoding)

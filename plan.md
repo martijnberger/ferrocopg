@@ -70,7 +70,7 @@ Implemented Rust-backed capabilities include:
 Validation evidence:
 
 - 22 Rust backend tests pass.
-- The focused live bootstrap suite reports 199 passing tests with 9 expected
+- The focused live bootstrap suite reports 200 passing tests with 9 expected
   environment or accelerator-dependent skips.
 - The Rust compatibility matrix passes across PostgreSQL 14-18 and the target
   CPython 3.11-3.14 range.
@@ -442,6 +442,12 @@ Completed slices:
   subset passes `94` tests with two libpq-version skips; the combined common and
   raw-cursor run passes `261` tests with only ClientCursor, intentional raw
   mapping, and version-gated skips.
+- [x] Libpq-free `ClientCursor` literal adaptation and `mogrify()`, including
+  pure-Python string and bytea quoting, typed literal casts, negotiated
+  encodings, multi-statement execution, returning `executemany()` metadata, and
+  leak checks. The dedicated module passes `28/28`, and the complete synchronous
+  default, server, raw, client, and common cursor surface passes `571` tests
+  with 11 intentional or version-gated skips on both ferrocopg and libpq.
 
 Active cursor closure evidence:
 
@@ -450,12 +456,10 @@ Active cursor closure evidence:
 - The fully unmasked raw-cursor module passes `78/78` on ferrocopg.
 - The default-cursor subset of the common cursor module passes `94` tests and
   skips two libpq-version cases; no default-cursor failures remain.
-- The client-cursor module currently passes `6` tests and fails `22`. Its main
-  missing capability is libpq-free client-side literal adaptation and
-  `mogrify()` behavior.
-- Cursor manifests now cover only the dedicated client module and parametrized
-  common-module node IDs containing `ClientCursor`. The broad common and raw
-  cursor entries have been removed.
+- The client-cursor module passes `28/28`, including a regression proving
+  representative literal adaptation does not call `pq.Escaping`.
+- No synchronous default, raw, client, common, or server cursor module remains
+  manifested. Async cursor manifests remain outside the first release contract.
 
 Current local full-harness evidence is `3969/4420` sync (`0.898`) on CPython
 3.14/PostgreSQL 14, with zero synchronous errors. Type adaptation improved from
@@ -470,18 +474,15 @@ is reported independently; the committed CI matrix remains the release gate.
 Continue in measured order, closing the current cursor work before reopening
 the next broad failure cluster:
 
-1. Implement libpq-free `ClientCursor` literal adaptation and `mogrify()` while
-   preserving Psycopg's public query and adaptation behavior.
-2. Remove the remaining synchronous common/client cursor manifest
-   entries, then run the complete sync harness and commit the new measured
-   compatibility floor.
-3. Close remaining type adaptation beyond the completed metadata, string, and
+1. Run the complete sync harness and commit the new measured compatibility
+   floor now that synchronous cursor manifests are removed.
+2. Close remaining type adaptation beyond the completed metadata, string, and
    composite slices.
-4. Close prepared statement behavior.
-5. Close COPY writers, COPY edge cases, pipeline state, and error recovery.
-6. Return to handshake-stall timeouts, bounded cancellation, and concurrent
+3. Close prepared statement behavior.
+4. Close COPY writers, COPY edge cases, pipeline state, and error recovery.
+5. Return to handshake-stall timeouts, bounded cancellation, and concurrent
    synchronous use before claiming the release-critical connection gate.
-7. Close remaining low-volume synchronous failures.
+6. Close remaining low-volume synchronous failures.
 
 For every slice:
 
@@ -601,13 +602,10 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Make `test_cursor_client.py` and the remaining parametrized client cases in
-   `test_cursor_common.py` green with a libpq-free literal adaptation and
-   `mogrify()` path.
-2. Remove the remaining common/client cursor manifest entries and
-   re-run the complete sync compatibility matrix before moving to the next
-   failure family.
-3. Return to handshake-stall and bounded cancellation timeout boundaries before
+1. Re-run the complete sync compatibility matrix, commit the new measured
+   floor, and inspect the resulting feature-family report before selecting the
+   next closure slice.
+2. Return to handshake-stall and bounded cancellation timeout boundaries before
    the release-critical gate.
-4. Preserve the standalone package, explicit delegation, and source-tree
+3. Preserve the standalone package, explicit delegation, and source-tree
    comparison proofs while each compatibility slice changes shared Python code.

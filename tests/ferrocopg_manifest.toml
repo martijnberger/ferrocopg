@@ -23,18 +23,6 @@ reason = "CRDB async fixture injection is outside the initial sync release contr
 action = "skip"
 
 [[rules]]
-glob = "tests/test_cursor_client.py::*"
-tag = "concrete-cursor"
-reason = "ClientCursor literal adaptation still requires a libpq-free escaping path"
-action = "skip"
-
-[[rules]]
-glob = "tests/test_cursor_common.py::*ClientCursor*"
-tag = "concrete-cursor"
-reason = "ClientCursor literal adaptation still requires a libpq-free escaping path"
-action = "skip"
-
-[[rules]]
 glob = "tests/test_cursor_async.py::*"
 tag = "concrete-cursor"
 reason = "Psycopg concrete async cursors require libpq connection internals"
