@@ -69,29 +69,26 @@ Implemented Rust-backed capabilities include:
 
 Validation evidence:
 
-- 23 Rust backend tests pass.
-- The focused live bootstrap suite reports 200 passing tests with 9 expected
+- 25 Rust backend tests pass.
+- The focused live bootstrap suite reports 201 passing tests with 9 expected
   environment or accelerator-dependent skips.
 - The Rust compatibility matrix passes across PostgreSQL 14-18 and the target
   CPython 3.11-3.14 range.
 - The latest complete local PostgreSQL 14 / CPython 3.14 compatibility run
-  reports:
-  - sync: `4686/5053` (`0.927`)
-  - async: `438/581` (`0.754`)
-  - mixed: `5124/5634` (`0.909`)
+  reports `4669/4680` executed synchronous cases (`0.998`); skips and async
+  coverage are reported separately.
 - CI enforces the current `0.80` mixed sync/async compatibility floor and the
-  `0.85` sync-only floor.
+  `0.95` sync-only release floor.
 - CI reports sync and async independently and uploads family-level JSON and
   JUnit evidence for every PostgreSQL 14-18 matrix job.
-- The validated CPython 3.11 server-axis denominator is `4204` sync and `546`
-  async tests on PostgreSQL 14-18, with `876` sync and `764` async manifested
+- The validated CPython 3.11 server-axis denominator is `4778` sync and `611`
+  async tests on PostgreSQL 14-18, with `248` sync and `766` async manifested
   tests in every lane. Duplicate JUnit call/teardown records are collapsed by
   node ID, so fixing an execution error cannot masquerade as collection drift.
-- The initial sync-only ratchet is `0.85`; observed complete runs currently
-  range from `0.865` on the fixed-interpreter PostgreSQL 14-18 CI axis to
-  `0.927` in the latest local run.
-- The corrected complete workflow is green with all 53 jobs passing, including
-  pure-Python, C/Cython, and all five Rust backend lanes.
+- The sync-only ratchet is `0.95`; the complete supported matrix reports
+  `0.995-0.996`, and the latest local run reports `0.998`.
+- The final denominator-corrected workflow rerun is the remaining Phase 4.3
+  gate; all eight Rust lanes already satisfy the behavioral floor.
 - Lint, formatting, typing, documentation, and Rust checks pass.
 
 The C/Cython coexistence failure in `test_no_tls_cursor_adapter_copy` is fixed.
@@ -600,8 +597,9 @@ timing failures, zero errors, and 242 manifested boundaries. The failures are
 four macOS waiting assertions already shared with libpq, five pool scheduler
 timing assertions, and two transaction/pipeline timing assertions; every other
 synchronous feature family executes at `1.000`. The committed sync floor is
-therefore ratcheted from `0.85` to the release contract of `0.95`, pending
-confirmation from every PostgreSQL 14-18 matrix artifact.
+therefore ratcheted from `0.85` to the release contract of `0.95`. All eight
+PostgreSQL 14-18 / CPython 3.11-3.14 matrix artifacts satisfy it at
+`0.995-0.996`; one denominator-corrected rerun remains before phase closure.
 
 The same release checkpoint makes namespace staging explicitly UTF-8 for both
 reads and writes. This closes the Windows locale failure on non-ASCII upstream
