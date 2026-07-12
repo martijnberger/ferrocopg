@@ -5,6 +5,12 @@ reason = "pq tests assert raw libpq wrapper behavior"
 action = "skip"
 
 [[rules]]
+glob = "tests/test_transaction.py::test_context_active_rollback_no_clobber"
+tag = "pgconn"
+reason = "the test enters COPY through raw PGconn.exec_ protocol state"
+action = "skip"
+
+[[rules]]
 glob = "tests/pool/*_async.py::*"
 tag = "async"
 reason = "pool backend injection is outside the AsyncConnection fixture switch"

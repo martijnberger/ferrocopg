@@ -213,7 +213,7 @@ families. `tests/ferrocopg_compat_baselines.json` pins the expected sync and
 async collection counts for every CI matrix key, so missing or newly collected
 tests cannot silently distort the rate. Duplicate JUnit call/teardown records
 are collapsed by node ID before counting. On the fixed CPython 3.11 server
-axis, every PostgreSQL 14-18 lane contains `4205` sync tests with `875`
+axis, every PostgreSQL 14-18 lane contains `4204` sync tests with `876`
 manifested tests. The initial sync ratchet is `0.85`, below the validated
 server-axis range of `0.865`-`0.870`; the release target is at least `0.95`.
 

@@ -13,6 +13,7 @@ import threading
 import warnings
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import timedelta, timezone, tzinfo
+from enum import Enum
 from time import monotonic
 from types import SimpleNamespace
 from typing import Any, NamedTuple, ParamSpec, Protocol, TypeVar, cast
@@ -2280,6 +2281,7 @@ class NoTlsPipelineAdapter:
 
     def sync(self) -> None:
         self._check_open()
+        self._conn._pipeline_sync_count += 1
         if not self._queued:
             return
 
@@ -2370,6 +2372,7 @@ class NoTlsConnectionAdapter:
         self._in_transaction = False
         self._transaction_failed = False
         self._pipeline_depth = 0
+        self._pipeline_sync_count = 0
         self._tx_depth = 0
         self._tpc: tuple[Xid, bool] | None = None
         self._closed = False
@@ -2428,6 +2431,7 @@ class NoTlsConnectionAdapter:
     @autocommit.setter
     def autocommit(self, value: bool) -> None:
         self._check_closed()
+        self._check_transaction_context("set autocommit")
         if self._in_transaction:
             raise e.ProgrammingError(
                 "can't change autocommit now: connection in transaction status INTRANS"
@@ -2555,6 +2559,7 @@ class NoTlsConnectionAdapter:
 
     def commit(self) -> None:
         self._check_closed()
+        self._check_transaction_context("commit")
         if self._tpc:
             raise e.ProgrammingError(
                 "commit() cannot be used during a two-phase transaction"
@@ -2567,6 +2572,7 @@ class NoTlsConnectionAdapter:
 
     def rollback(self) -> None:
         self._check_closed()
+        self._check_transaction_context("rollback")
         if self._tpc:
             raise e.ProgrammingError(
                 "rollback() cannot be used during a two-phase transaction"
@@ -3036,6 +3042,13 @@ class NoTlsConnectionAdapter:
                 "connection in transaction status INTRANS"
             )
 
+    def _check_transaction_context(self, operation: str) -> None:
+        if self._tx_depth:
+            raise e.ProgrammingError(
+                f"{operation} is forbidden: "
+                "connection.transaction() context in progress"
+            )
+
     def _tx_start_query(self) -> str:
         parts = ["BEGIN"]
 
@@ -3070,7 +3083,15 @@ class NoTlsConnectionAdapter:
 
 
 class NoTlsTransactionAdapter:
-    """Experimental transaction context over the ferrocopg connection adapter."""
+    """Synchronous transaction context over the ferrocopg connection adapter."""
+
+    class Status(str, Enum):
+        NOT_STARTED = "not_started"
+        ACTIVE = "active"
+        COMMITTED = "committed"
+        FAILED = "failed"
+        ROLLED_BACK_EXPLICITLY = "rolled_back_explicitly"
+        ROLLED_BACK_WITH_ERROR = "rolled_back_with_error"
 
     def __init__(
         self,
@@ -3079,62 +3100,94 @@ class NoTlsTransactionAdapter:
         force_rollback: bool = False,
     ):
         self._conn = conn
-        self._savepoint_name = savepoint_name
+        self._savepoint_name = savepoint_name or ""
         self.force_rollback = force_rollback
         self._outer = False
-        self._entered = False
+        self._stack_index = -1
+        self._pipeline_sync_count = conn._pipeline_sync_count
+        self.status = self.Status.NOT_STARTED
+
+    @property
+    def connection(self) -> NoTlsConnectionAdapter:
+        return self._conn
 
     @property
     def savepoint_name(self) -> str | None:
-        return self._savepoint_name
+        return self._savepoint_name or None
+
+    def __repr__(self) -> str:
+        savepoint = f"{self.savepoint_name!r} " if self.savepoint_name else ""
+        transaction_status = self._conn.info.transaction_status.name
+        pipeline = ""
+        if self._conn._pipeline_depth:
+            pipeline = ", pipeline=ON"
+            if (
+                self._outer
+                and self.status == self.Status.ACTIVE
+                and self._conn._pipeline_sync_count == self._pipeline_sync_count
+            ):
+                transaction_status = "ACTIVE"
+        return (
+            f"<psycopg.Transaction {savepoint}({self.status.value}) "
+            f"[{transaction_status}{pipeline}] at 0x{id(self):x}>"
+        )
 
     def __enter__(self) -> NoTlsTransactionAdapter:
-        if self._entered:
+        if self.status != self.Status.NOT_STARTED:
             raise TypeError("transaction blocks can be used only once")
-        self._entered = True
+        self.status = self.Status.ACTIVE
 
-        if self._conn._tx_depth == 0:
-            if self._conn._in_transaction:
-                if self._savepoint_name is None:
-                    self._savepoint_name = "_pg3_1"
-                self._conn._exec_command(
-                    _savepoint_sql("SAVEPOINT", self._savepoint_name)
-                )
-            else:
-                self._outer = True
-                self._conn.begin()
-                if self._savepoint_name is not None:
-                    self._conn._exec_command(
-                        _savepoint_sql("SAVEPOINT", self._savepoint_name)
-                    )
-        else:
-            if self._savepoint_name is None:
-                self._savepoint_name = f"_pg3_{self._conn._tx_depth + 1}"
-            self._conn._exec_command(_savepoint_sql("SAVEPOINT", self._savepoint_name))
+        self._outer = not self._conn._in_transaction
+        if not self._outer and not self._savepoint_name:
+            self._savepoint_name = f"_pg3_{self._conn._tx_depth + 1}"
 
+        self._stack_index = self._conn._tx_depth
         self._conn._tx_depth += 1
+
+        if self._outer:
+            self._conn.begin()
+        if self._savepoint_name:
+            self._conn._exec_command(_savepoint_sql("SAVEPOINT", self._savepoint_name))
         return self
 
     def __exit__(self, exc_type: object, exc: BaseException | None, tb: object) -> bool:
-        self._conn._tx_depth -= 1
+        if self._conn.closed:
+            self.status = self.Status.FAILED
+            if exc is not None:
+                logger.warning(
+                    "error ignored in rollback of %s: connection closed", self
+                )
+            return False
+
         should_rollback = exc is not None or self.force_rollback
+        action = "rollback" if should_rollback else "commit"
+        self._pop_savepoint(action)
 
         if should_rollback:
-            if self._outer:
-                self._conn.rollback()
-            else:
-                assert self._savepoint_name is not None
-                self._conn._exec_command(
-                    _savepoint_sql("ROLLBACK TO", self._savepoint_name)
-                )
-                self._conn._exec_command(
-                    _savepoint_sql("RELEASE", self._savepoint_name)
+            self.status = (
+                self.Status.ROLLED_BACK_EXPLICITLY
+                if isinstance(exc, Rollback) or self.force_rollback
+                else self.Status.ROLLED_BACK_WITH_ERROR
+            )
+            try:
+                if self._outer:
+                    self._conn.rollback()
+                else:
+                    self._conn._exec_command(
+                        _savepoint_sql("ROLLBACK TO", self._savepoint_name)
+                    )
+                    self._conn._exec_command(
+                        _savepoint_sql("RELEASE", self._savepoint_name)
+                    )
+            except Exception as rollback_error:
+                logger.warning(
+                    "error ignored in rollback of %s: %s", self, rollback_error
                 )
         else:
+            self.status = self.Status.COMMITTED
             if self._outer:
                 self._conn.commit()
             else:
-                assert self._savepoint_name is not None
                 self._conn._exec_command(
                     _savepoint_sql("RELEASE", self._savepoint_name)
                 )
@@ -3145,6 +3198,13 @@ class NoTlsTransactionAdapter:
                 return True
 
         return False
+
+    def _pop_savepoint(self, action: str) -> None:
+        self._conn._tx_depth -= 1
+        if self._conn._tx_depth != self._stack_index:
+            raise e.ProgrammingError(
+                f"transaction {action} at the wrong nesting level: {self}"
+            )
 
 
 def _savepoint_sql(command: str, name: str) -> str:

@@ -82,8 +82,8 @@ Validation evidence:
   `0.85` sync-only floor.
 - CI reports sync and async independently and uploads family-level JSON and
   JUnit evidence for every PostgreSQL 14-18 matrix job.
-- The validated CPython 3.11 server-axis denominator is `4205` sync and `546`
-  async tests on PostgreSQL 14-18, with `875` sync and `764` async manifested
+- The validated CPython 3.11 server-axis denominator is `4204` sync and `546`
+  async tests on PostgreSQL 14-18, with `876` sync and `764` async manifested
   tests in every lane. Duplicate JUnit call/teardown records are collapsed by
   node ID, so fixing an execution error cannot masquerade as collection drift.
 - The initial sync-only ratchet is `0.85`; observed complete runs currently
@@ -380,6 +380,23 @@ Definition of done:
 - Upstream source synchronization remains practical.
 
 ### Phase 4.3: Close synchronous compatibility gaps
+
+Status: in progress.
+
+Completed slices:
+
+- [x] Transactions, nested savepoints, transaction status, explicit rollback,
+  TPC, context ownership guards, and out-of-order nesting. The focused local
+  PostgreSQL 17 run reports `102/105` non-manifested cases (`0.971`) with three
+  environment-level skips; the only manifested case enters COPY through raw
+  `PGconn.exec_`.
+- [x] Stable compatibility accounting by node ID, so duplicate JUnit teardown
+  records cannot change the release denominator when an error is fixed.
+
+Current local full-harness evidence is `3855/4417` sync (`0.873`) on CPython
+3.14/PostgreSQL 17. This development environment collects optional-dependency
+cases not present in the CI key, so its denominator is reported independently;
+the committed CI matrix remains the release gate.
 
 Work in measured order, starting with the largest current failure clusters:
 
