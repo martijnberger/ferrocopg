@@ -802,6 +802,8 @@ class BackendConnectionInfo:
 
     def parameter_status(self, param_name: str) -> str | None:
         self._ensure_open()
+        if param_name == "crdb_version":
+            return None
         row = self._conn._session.execute_params(
             "select current_setting($1::text, true)::text as value",
             [param_name],
@@ -1420,6 +1422,7 @@ class NoTlsSessionAdapter:
         self.notice_handler: (
             Callable[[Sequence[dict[int, bytes | None]]], None] | None
         ) = None
+        self.notification_handler: Callable[[Sequence[Notify]], None] | None = None
 
     @property
     def closed(self) -> bool:
@@ -1621,10 +1624,12 @@ class NoTlsSessionAdapter:
                     self.error_handler(ex)
             try:
                 self._drain_notices()
+                self._drain_notifications()
             except Exception:
-                logger.exception("error draining notices after backend failure")
+                logger.exception("error draining backend messages after failure")
             raise
         self._drain_notices()
+        self._drain_notifications()
         return result
 
     def _normalize_error(
@@ -1676,6 +1681,16 @@ class NoTlsSessionAdapter:
         notices = drain()
         if notices and self.notice_handler is not None:
             self.notice_handler(notices)
+
+    def _drain_notifications(self) -> None:
+        if self.notification_handler is None or self.closed:
+            return
+        notifications = [
+            Notify(item.channel, item.payload, item.process_id)
+            for item in self._session.drain_notifications()
+        ]
+        if notifications:
+            self.notification_handler(notifications)
 
     def __getattr__(self, name: str) -> object:
         return getattr(self._session, name)
@@ -3651,9 +3666,12 @@ class NoTlsConnectionAdapter:
 
     def add_notify_handler(self, callback: NotifyHandler) -> None:
         self._notify_handlers.append(callback)
+        self._session.notification_handler = self._dispatch_notifications
 
     def remove_notify_handler(self, callback: NotifyHandler) -> None:
         self._notify_handlers.remove(callback)
+        if not self._notify_handlers:
+            self._session.notification_handler = None
 
     def add_notice_handler(self, callback: NoticeHandler) -> None:
         self._notice_handlers.append(callback)
@@ -3701,8 +3719,10 @@ class NoTlsConnectionAdapter:
                     break
                 continue
 
-            yield next_notification
-            nreceived += 1
+            batch = [next_notification, *self.drain_notifications()]
+            for notification in batch:
+                yield notification
+                nreceived += 1
             if stop_after is not None and nreceived >= stop_after:
                 break
 

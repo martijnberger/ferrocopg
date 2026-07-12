@@ -177,7 +177,9 @@ def set_autocommit(conn, value):
     """
     import psycopg
 
-    if isinstance(conn, psycopg.Connection):
+    if getattr(conn, "_is_ferrocopg", False):
+        conn.autocommit = value
+    elif isinstance(conn, psycopg.Connection):
         conn.autocommit = value
     elif isinstance(conn, psycopg.AsyncConnection):
         return conn.set_autocommit(value)

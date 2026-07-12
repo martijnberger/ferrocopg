@@ -228,10 +228,10 @@ uv run python tools/ci/ferrocopg_pass_rate.py \
   --report ferrocopg-compat-report.json
 ```
 
-The sync rust-postgres driver applies `connect_timeout` to socket establishment,
-not to the entire PostgreSQL handshake. Tests that deliberately accept TCP and
-then stall the handshake are therefore excluded under the `handshake-timeout`
-tag instead of being allowed to block the report indefinitely.
+The vendored sync rust-postgres driver applies `connect_timeout` to the entire
+PostgreSQL handshake. Synchronous stalled-handshake, multi-host failover,
+interrupt, and bounded cancellation tests run unmanifested. Only tests requiring
+raw `PGconn`, socket, or libpq tracing access remain release boundaries.
 
 The next work is selected from the measured synchronous failure families in
 `plan.md`. Rust-native async remains experimental and is not part of the

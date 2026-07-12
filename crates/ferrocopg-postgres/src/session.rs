@@ -548,7 +548,7 @@ impl SyncNoTlsSession {
 
     pub fn drain_notifications(&mut self) -> Result<Vec<BackendNotification>, ProbeError> {
         let mut notifications = self.client_mut()?.notifications();
-        let mut iter = notifications.iter();
+        let mut iter = notifications.timeout_iter(Duration::ZERO);
         let mut drained = Vec::new();
 
         while let Some(notification) = iter.next().map_err(ProbeError::Query)? {

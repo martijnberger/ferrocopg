@@ -40,7 +40,6 @@ STAGED_VERSION_IMPORT = """\
 from .version import __version__ as __version__  # noqa: F401
 from ._vendored import PSYCOPG_REVISION as __vendored_psycopg_revision__
 """.rstrip()
-SOURCE_OS_IMPORT = "import os\n"
 SOURCE_PQ_IMPL = '    impl = os.environ.get("PSYCOPG_IMPL", "").lower()\n'
 STAGED_PQ_IMPL = '    impl = "ferrocopg"\n'
 PQ_ATTEMPTS = "    attempts: list[str] = []\n"
@@ -340,7 +339,6 @@ def _transform_source(path: Path, source: str) -> str:
             (SOURCE_CONNECTION_IMPORT, STAGED_CONNECTION_IMPORT),
             (SOURCE_CONNECTION_EXPORT, STAGED_CONNECTION_EXPORT),
             (SOURCE_VERSION_IMPORT, STAGED_VERSION_IMPORT),
-            (SOURCE_OS_IMPORT, ""),
             (SOURCE_SELECTOR_DOC, STAGED_SELECTOR_DOC),
             (SOURCE_SELECTOR, STAGED_SELECTOR),
             (SOURCE_CONNECT_OVERLOADS, STAGED_CONNECT_OVERLOADS),

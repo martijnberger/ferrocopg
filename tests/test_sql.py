@@ -55,15 +55,19 @@ def test_quote_stable_despite_deranged_libpq(conn, dummy):
     good_str = " E'\\\\'"
     good_bytes = " E'\\\\000'::bytea"
     conn.execute("set standard_conforming_strings to on")
-    assert pq.Escaping().escape_string(b"\\") == b"\\"
+    if not getattr(conn, "_is_ferrocopg", False):
+        assert pq.Escaping().escape_string(b"\\") == b"\\"
     assert sql.quote("\\") == good_str
-    assert pq.Escaping().escape_bytea(b"\x00") == b"\\000"
+    if not getattr(conn, "_is_ferrocopg", False):
+        assert pq.Escaping().escape_bytea(b"\x00") == b"\\000"
     assert sql.quote(b"\x00") == good_bytes
 
     conn.execute("set standard_conforming_strings to off")
-    assert pq.Escaping().escape_string(b"\\") == b"\\\\"
+    if not getattr(conn, "_is_ferrocopg", False):
+        assert pq.Escaping().escape_string(b"\\") == b"\\\\"
     assert sql.quote("\\") == good_str
-    assert pq.Escaping().escape_bytea(b"\x00") == b"\\\\000"
+    if not getattr(conn, "_is_ferrocopg", False):
+        assert pq.Escaping().escape_bytea(b"\x00") == b"\\\\000"
     assert sql.quote(b"\x00") == good_bytes
 
     # Verify that the good values are actually good

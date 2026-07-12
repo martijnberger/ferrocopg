@@ -493,6 +493,16 @@ Completed slices:
   libpq, version, authentication, or environment skips. The unmasked libpq-17
   cancel-timeout case passes in about `1.2s`, and all seven synchronous handshake
   manifest rules have been removed.
+- [x] Synchronous notification and official `psycopg_pool` interoperability.
+  Zero-time notification drains now poll the Rust connection, query completion
+  dispatches callbacks only when handlers are registered, and generator
+  `stop_after` preserves the remainder of a notification batch. The complete
+  notification module passes `15/15`. The shared test harness recognizes the
+  existing synchronous ferrocopg connection marker, allowing the official pool
+  check, lifecycle, and destructor contracts to run; the five synchronous pool
+  modules pass `164` cases with two expected async/version skips. The one
+  observed backoff timing miss reproduced under explicit libpq and passed on
+  the complete rerun.
 
 Active cursor closure evidence:
 
@@ -507,25 +517,28 @@ Active cursor closure evidence:
   manifested. Async cursor manifests remain outside the first release contract.
 
 The latest complete local full-harness evidence, measured before the concurrency
-and handshake slices above, is `4686/5053` sync (`0.927`) on CPython
-3.14, with zero synchronous errors, `58` reported failures, `309` skips, and
-`245` manifested cases. Twenty-five reported sync failures are experimental
-async type-info tests and two are async transaction parameters in mixed
-modules; the actual remaining synchronous failure count is 31. Cursor coverage
-is `571/582` (`0.981`) with zero failures and zero manifested cases. Types and
-metadata report `2702/2775` (`0.974`) with no actual synchronous failure.
-Prepared statements report `32/32`, COPY reports `111/111`, and pipeline reports
-`40/40`; all three families have zero behavioral failures.
+and handshake slices above, has been superseded. The post-notification/pool
+complete local run on PostgreSQL 14 and CPython 3.14 reports `4706/5056` sync
+(`0.931`), with zero synchronous errors, `40` reporter-classified failures,
+`310` skips, and `242` manifested cases. Twenty-five failures are experimental
+async type-info cases and two are async transaction parameters collected from
+mixed modules. Of the 13 true synchronous failures, four macOS waiting-duration
+assertions reproduce under explicit libpq, three were stale manifest-safety
+expectations, two were exact raw-libpq boundaries, and four were low-volume
+connection/error/SQL/packaging gaps. The nine actionable or stale cases now pass
+or skip exactly in a targeted `10` pass / `2` raw-boundary run, leaving no known
+Rust-specific synchronous behavioral failure from the complete report. Cursor
+coverage is `571/582` (`0.981`) with zero failures and zero manifested cases;
+notifications are `15/15`, pool is `167/169` with only two expected skips,
+prepared statements are `32/32`, COPY is `111/111`, and pipeline is `40/40`.
 
 The completed type tail still reports `2590` passing tests, seven environment
 skips, 37 expected failures, and only the 25 experimental async-facade failures
 from mixed modules. The focused bootstrap suite now passes `200` cases with nine
 expected TLS or prepared-transaction skips, all 23 Rust backend tests pass, and
 the focused cursor family remains `571` passing with 11 version or intentional
-skips. The focused concurrency slice closes three of the 31 actual synchronous
-failures from the last complete run; the next full run must provide the updated
-authoritative count. The complete sync harness satisfies the `0.85` floor at
-`0.927`. This development environment collects optional dependency cases not
+skips. The complete sync harness satisfies the `0.85` floor at `0.931`. This
+development environment collects optional dependency cases not
 present in the CI key, so its denominator is reported independently. The
 PostgreSQL 14-18 workflow for the current published main revision is queued; its
 completed matrix must establish the supported-server minimum before the floor
@@ -538,7 +551,7 @@ the next broad failure cluster:
 
 1. Re-run the complete PostgreSQL 14-18 CI matrix and ratchet the sync floor to
    a conservative value below the new observed matrix minimum.
-2. Close notification delivery, pool integration, and the remaining low-volume
+2. Re-run the complete sync harness and close the measured residual low-volume
    synchronous failures.
 
 For every slice:
@@ -661,7 +674,7 @@ the synchronous beta is established.
 
 1. Use the post-COPY/pipeline PostgreSQL 14-18 CI result to ratchet the sync floor
    without exceeding the slowest supported lane.
-2. Address the measured notification and official `psycopg_pool` integration
+2. Re-run the complete sync harness and close the measured residual low-volume
    failures before Phase 5 soak and performance work.
 3. Preserve the standalone package, explicit delegation, and source-tree
    comparison proofs while each compatibility slice changes shared Python code.

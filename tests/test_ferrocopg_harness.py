@@ -22,14 +22,14 @@ PASS_RATE_SCRIPT = ROOT / "tools" / "ci" / "ferrocopg_pass_rate.py"
         ("tests/pool/test_pool_async.py::test_open", "async"),
         ("tests/crdb/test_cursor_async.py::test_execute", "async"),
         (
-            "tests/test_connection.py::test_connect_timeout",
-            "handshake-timeout",
+            "tests/test_transaction.py::test_context_active_rollback_no_clobber",
+            "pgconn",
         ),
         (
-            "tests/test_connection.py::test_multi_hosts_timeout",
-            "handshake-timeout",
+            "tests/test_connection_info.py::test_blank_port",
+            "pgconn",
         ),
-        ("tests/test_concurrency.py::test_break_attempts", "handshake-timeout"),
+        ("tests/test_waiting.py::test_wait_remote_closed", "pgconn-socket"),
     ],
 )
 def test_unsafe_harness_rules_skip(nodeid: str, tag: str) -> None:
