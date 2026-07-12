@@ -66,7 +66,8 @@ uv run python -c "import ferrocopg_rust; print(ferrocopg_rust.milestone())"
 ## Using the backend
 
 Until the staged `ferrocopg` package exists, select Rust per connection in the
-development source tree:
+development source tree. Omitted `impl` now selects the same Rust path; the
+explicit spelling remains useful in compatibility tests:
 
 ```python
 import psycopg
@@ -79,6 +80,10 @@ with psycopg.connect(
 ) as conn:
     print(conn.execute("select %s::int4 as answer", (42,)).fetchone())
 ```
+
+`PSYCOPG_SOURCE_IMPL=libpq` is a temporary source-tree escape hatch used by
+upstream comparison automation. It is not part of the planned `ferrocopg`
+package contract and should not be used by applications.
 
 Use `impl="libpq"` to select the internal comparison backend explicitly. There
 is no automatic per-feature fallback: unsupported ferrocopg behavior raises

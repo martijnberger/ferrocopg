@@ -2467,6 +2467,7 @@ def test_package_connect_ferrocopg(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_package_connect_impl_selector(monkeypatch: pytest.MonkeyPatch) -> None:
     psycopg_module = importlib.import_module("psycopg")
+    monkeypatch.delenv("PSYCOPG_SOURCE_IMPL", raising=False)
 
     calls: list[tuple[str, str, object]] = []
 
@@ -2485,9 +2486,9 @@ def test_package_connect_impl_selector(monkeypatch: pytest.MonkeyPatch) -> None:
 
     got_default = psycopg_module.connect("dbname=postgres", prepare_threshold=7)
     assert got_default == (
-        "libpq",
+        "ferrocopg",
         "dbname=postgres",
-        {"prepare_threshold": 7},
+        {"prepare_threshold": 7, "autocommit": False},
     )
 
     got_libpq = psycopg_module.connect("dbname=postgres", impl="libpq", autocommit=True)
@@ -2516,11 +2517,18 @@ def test_package_connect_impl_selector(monkeypatch: pytest.MonkeyPatch) -> None:
         {"autocommit": True, "prepare_threshold": 0},
     )
 
-    with pytest.raises(ValueError, match="unsupported connect\\(\\) implementation"):
-        psycopg_module.connect("dbname=postgres", impl="wat")
+    for invalid_impl in ("wat", ""):
+        with pytest.raises(
+            ValueError, match="unsupported connect\\(\\) implementation"
+        ):
+            psycopg_module.connect("dbname=postgres", impl=invalid_impl)
 
     assert calls == [
-        ("libpq", "dbname=postgres", {"prepare_threshold": 7}),
+        (
+            "ferrocopg",
+            "dbname=postgres",
+            {"prepare_threshold": 7, "autocommit": False},
+        ),
         ("libpq", "dbname=postgres", {"autocommit": True}),
         ("ferrocopg", "dbname=postgres", {"autocommit": False}),
         (
@@ -2529,6 +2537,39 @@ def test_package_connect_impl_selector(monkeypatch: pytest.MonkeyPatch) -> None:
             {"autocommit": True, "prepare_threshold": 0},
         ),
     ]
+
+    monkeypatch.setenv("PSYCOPG_SOURCE_IMPL", "libpq")
+    assert psycopg_module.connect("dbname=source-comparison") == (
+        "libpq",
+        "dbname=source-comparison",
+        {},
+    )
+
+
+def test_package_connect_missing_rust_is_hard_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    psycopg_module = importlib.import_module("psycopg")
+    ferrocopg_module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
+    rmodule = cast(Any, importlib.import_module("psycopg._rmodule"))
+    import_error = ModuleNotFoundError("No module named 'ferrocopg_rust'")
+
+    monkeypatch.delenv("PSYCOPG_SOURCE_IMPL", raising=False)
+    monkeypatch.setattr(ferrocopg_module, "_ferrocopg", None)
+    monkeypatch.setattr(rmodule, "_import_error", import_error)
+
+    with pytest.raises(ImportError, match="maturin develop") as excinfo:
+        psycopg_module.connect("dbname=postgres")
+
+    assert excinfo.value.__cause__ is import_error
+
+    sentinel = object()
+    monkeypatch.setattr(
+        psycopg_module.Connection,
+        "connect",
+        lambda *_args, **_kwargs: sentinel,
+    )
+    assert psycopg_module.connect("dbname=postgres", impl="libpq") is sentinel
 
 
 def test_package_ferrocopg_import_does_not_replace_pq_impl() -> None:
@@ -6520,6 +6561,23 @@ def test_backend_package_connect_impl_ferrocopg_live(dsn: str) -> None:
         "'ferrocopg_connect_impl_test'"
     )
     assert check.fetchall() == ["0"]
+    conn.close()
+
+
+def test_backend_package_connect_default_live(
+    dsn: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import psycopg
+
+    module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
+    if not module.is_available():
+        pytest.skip("ferrocopg extension not installed")
+
+    monkeypatch.delenv("PSYCOPG_SOURCE_IMPL", raising=False)
+    conn = cast(Any, psycopg.connect(dsn, row_factory=module.scalar_row))
+    assert isinstance(conn, module.NoTlsConnectionAdapter)
+    assert conn.autocommit is False
+    assert conn.execute("select %s::int4", (42,)).fetchone() == 42
     conn.close()
 
 

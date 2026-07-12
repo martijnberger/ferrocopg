@@ -67,6 +67,7 @@ jobs:
 
     env:
       PSYCOPG_IMPL: ${{ matrix.impl }}
+      PSYCOPG_SOURCE_IMPL: libpq
       DEPS: ./psycopg[test] ./psycopg_pool
       PSYCOPG_TEST_DSN: "host=127.0.0.1 user=postgres password=password"
       MARKERS: ""
@@ -174,14 +175,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {python: "3.10", postgres: "postgres:14", pg: "14", libpq: oldest}
+          # Keep Python fixed for the PostgreSQL denominator baseline.
+          - {python: "3.11", postgres: "postgres:14", pg: "14", libpq: oldest}
           - {python: "3.11", postgres: "postgres:15", pg: "15", libpq: newest}
+          - {python: "3.11", postgres: "postgres:16", pg: "16", libpq: newest}
+          - {python: "3.11", postgres: "postgres:17", pg: "17", libpq: newest}
+          - {python: "3.11", postgres: "postgres:18", pg: "18", libpq: newest}
+
+          # Exercise the remaining release interpreters on representative servers.
           - {python: "3.12", postgres: "postgres:16", pg: "16", libpq: newest}
           - {python: "3.13", postgres: "postgres:17", pg: "17", libpq: newest}
           - {python: "3.14", postgres: "postgres:18", pg: "18", libpq: newest}
 
     env:
       PSYCOPG_IMPL: python
+      PSYCOPG_SOURCE_IMPL: ferrocopg
       PSYCOPG_TEST_DSN: "host=127.0.0.1 user=postgres password=password"
       FERROCOPG_TEST_TLS_ROOTCERT: ".ci-tls/ca.crt"
       FERROCOPG_TEST_TLS_CERT: ".ci-tls/client.crt"
@@ -229,6 +237,12 @@ jobs:
 
       - name: Install ferrocopg Rust extension
         run: uv run --no-sync maturin develop --manifest-path crates/ferrocopg-python/Cargo.toml
+
+      - name: Run Rust-default connection smoke test
+        run: >-
+          uv run --no-sync pytest --test-dsn "$PSYCOPG_TEST_DSN"
+          tests/test_ferrocopg_bootstrap.py::test_backend_package_connect_default_live
+          -q
 
       - name: Run ferrocopg bootstrap tests
         run: uv run --no-sync pytest --test-dsn "$PSYCOPG_TEST_DSN" tests/test_ferrocopg_bootstrap.py -q

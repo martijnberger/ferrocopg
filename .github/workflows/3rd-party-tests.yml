@@ -47,6 +47,7 @@ jobs:
 
     env:
       PSYCOPG_IMPL: ${{ matrix.impl }}
+      PSYCOPG_SOURCE_IMPL: libpq
       DEPS: ./psycopg pytest pytest-xdist greenlet
 
     services:

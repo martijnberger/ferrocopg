@@ -5,6 +5,7 @@ psycopg -- PostgreSQL database adapter for Python
 # Copyright (C) 2020 The Psycopg Team
 
 import logging
+import os
 from collections.abc import Callable
 from typing import Any, Literal, cast, overload
 
@@ -77,12 +78,12 @@ def connect_ferrocopg(
     read_only: bool | None = None,
     deferrable: bool | None = None,
     **kwargs: str | int | None,
-) -> object | None:
+) -> object:
     """
-    Return the experimental Rust-backed ferrocopg connection adapter.
+    Return the Rust-backed ferrocopg connection adapter.
 
-    This is an explicit opt-in path and does not affect the normal `connect()`
-    selector or the `PSYCOPG_IMPL` libpq-wrapper selection.
+    This direct helper remains available during the source-tree transition.
+    Normal synchronous code should use `connect()`.
     """
     from . import _ferrocopg as _ferrocopg_module
 
@@ -102,7 +103,7 @@ def connect_ferrocopg(
     if row_factory is None:
         row_factory = tuple_row
 
-    return _ferrocopg_module.backend_connection_adapter(
+    conn = _ferrocopg_module.backend_connection_adapter(
         _ferrocopg_module.merge_conninfo(conninfo, kwargs),
         row_factory=cast(Callable[[list[str], list[str | None]], object], row_factory),
         cursor_factory=cursor_factory or _ferrocopg_module.NoTlsCursorAdapter,
@@ -113,6 +114,10 @@ def connect_ferrocopg(
         read_only=read_only,
         deferrable=deferrable,
     )
+    if conn is None:
+        _ferrocopg_module.require_available()
+        raise OperationalError("the ferrocopg Rust backend failed to initialize")
+    return conn
 
 
 @overload
@@ -137,7 +142,7 @@ def connect(
     *,
     impl: Literal["ferrocopg"],
     **kwargs: Any,
-) -> object | None: ...
+) -> object: ...
 
 
 def connect(
@@ -148,20 +153,24 @@ def connect(
     **kwargs: Any,
 ) -> Any:
     """
-    Connect to a database and return a Psycopg or ferrocopg connection.
+    Connect to a database using the Rust backend by default.
 
-    The normal path remains `Connection.connect()`. Passing `impl="ferrocopg"`
-    provides an explicit opt-in bridge into the experimental Rust-backed
-    adapter without changing the default implementation selector.
+    `impl="libpq"` selects the temporary source-tree comparison path. The
+    `PSYCOPG_SOURCE_IMPL` environment variable exists only for upstream
+    comparison automation and will not be part of the staged package contract.
     """
-    if impl is None or impl == "libpq":
+    selected_impl = (
+        impl if impl is not None else os.environ.get("PSYCOPG_SOURCE_IMPL", "ferrocopg")
+    )
+    if selected_impl == "libpq":
         return Connection.connect(conninfo, **kwargs)
-    if impl == "ferrocopg":
+    if selected_impl == "ferrocopg":
         kwargs.setdefault("autocommit", False)
         return connect_ferrocopg(conninfo, **kwargs)
 
     raise ValueError(
-        f"unsupported connect() implementation {impl!r}: expected 'libpq' or 'ferrocopg'"
+        f"unsupported connect() implementation {selected_impl!r}: "
+        "expected 'libpq' or 'ferrocopg'"
     )
 
 

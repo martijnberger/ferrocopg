@@ -42,6 +42,10 @@ def _bootstrap_repo_packages() -> None:
 
 _bootstrap_repo_packages()
 
+# Upstream compatibility tests exercise libpq explicitly. Product/source use
+# outside pytest defaults to Rust, and the ferrocopg matrix overrides this.
+os.environ.setdefault("PSYCOPG_SOURCE_IMPL", "libpq")
+
 
 pytest_plugins = (
     "tests.fix_db",

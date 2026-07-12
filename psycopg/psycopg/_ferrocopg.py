@@ -18,8 +18,8 @@ from types import SimpleNamespace
 from typing import Any, NamedTuple, ParamSpec, Protocol, TypeVar, cast
 from zoneinfo import ZoneInfo
 
+from . import _rmodule, postgres, pq
 from . import errors as e
-from . import postgres, pq
 from ._adapters_map import AdaptersMap
 from ._compat import Template
 from ._connection_base import NoticeHandler, Notify
@@ -764,6 +764,20 @@ class _NoTlsSessionLike(Protocol):
 def is_available() -> bool:
     """Return `True` if the bootstrap ferrocopg Rust extension is importable."""
     return _ferrocopg is not None
+
+
+def require_available() -> None:
+    """Raise an actionable error if the Rust extension cannot be imported."""
+    if is_available():
+        return
+
+    message = (
+        "the ferrocopg Rust backend is unavailable; install a ferrocopg wheel "
+        "for this platform, or build the source extension with "
+        "`uv run maturin develop --manifest-path "
+        "crates/ferrocopg-python/Cargo.toml`"
+    )
+    raise ImportError(message) from _rmodule._import_error
 
 
 def conninfo_summary(conninfo: str) -> object | None:

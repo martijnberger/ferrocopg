@@ -19,9 +19,10 @@ namespace, with Rust as its synchronous default::
     with psycopg.connect(dsn) as conn:
         print(conn.execute("select 1").fetchone())
 
-The source tree is still in transition and currently exposes Rust as an
-explicit backend of its vendored ``psycopg`` package. The default will switch
-before publication so ordinary development finds Rust compatibility gaps.
+The source tree is still in transition and exposes Rust through its vendored
+``psycopg`` package, but omitted synchronous ``impl`` already selects Rust so
+ordinary development finds backend compatibility gaps. Upstream comparison
+automation selects the temporary internal libpq path explicitly.
 
 This work is not currently an upstream Psycopg feature or release. Whether it
 should eventually be proposed upstream is deliberately undecided and does not
@@ -47,16 +48,16 @@ extension with::
 The `ferrocopg development workflow <docs/ferrocopg-dev.md>`_ documents the
 crate layout, focused test suites, and full compatibility harness.
 
-Then select the backend per connection. ``psycopg.connect(...,
-impl="ferrocopg")`` is the recommended entry point because it keeps the normal
-Psycopg call style and transaction default explicit::
+Then connect normally; Rust is the synchronous source-tree default.
+``impl="ferrocopg"`` remains an equivalent explicit spelling for compatibility
+tests::
 
     import psycopg
     from psycopg.rows import dict_row
 
     dsn = "postgresql://postgres:password@localhost/postgres"
 
-    with psycopg.connect(dsn, impl="ferrocopg", row_factory=dict_row) as conn:
+    with psycopg.connect(dsn, row_factory=dict_row) as conn:
         row = conn.execute(
             "select %s::int4 as answer, current_database() as database",
             (42,),
@@ -67,8 +68,8 @@ The transitional ``psycopg.connect_ferrocopg()`` helper reaches the same
 backend directly. If you use it, pass ``autocommit`` explicitly: its current
 bootstrap default differs from ``psycopg.connect()``. The ``PSYCOPG_IMPL``
 environment variable is *not* the ferrocopg selector; it selects Psycopg's
-libpq wrapper implementation. Choose ``impl="ferrocopg"`` or
-``impl="libpq"`` at connection time instead.
+libpq wrapper implementation. Use ``impl="libpq"`` for the temporary
+source-tree comparison path when needed.
 
 The current source-tree backend covers broad synchronous workflows:
 Psycopg-style
