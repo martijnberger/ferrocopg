@@ -40,6 +40,20 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
+    query_with_result_format(client, statement, params, true).await
+}
+
+pub async fn query_with_result_format<P, I>(
+    client: &InnerClient,
+    statement: Statement,
+    params: I,
+    binary: bool,
+) -> Result<RowStream, Error>
+where
+    P: BorrowToSql,
+    I: IntoIterator<Item = P>,
+    I::IntoIter: ExactSizeIterator,
+{
     let buf = if log_enabled!(Level::Debug) {
         let params = params.into_iter().collect::<Vec<_>>();
         debug!(
@@ -47,9 +61,9 @@ where
             statement.name(),
             BorrowToSqlParamsDebug(params.as_slice()),
         );
-        encode(client, &statement, params)?
+        encode_with_result_format(client, &statement, params, binary)?
     } else {
-        encode(client, &statement, params)?
+        encode_with_result_format(client, &statement, params, binary)?
     };
     let responses = start(client, buf).await?;
     Ok(RowStream {
@@ -74,7 +88,7 @@ where
 
         client.with_buf(|buf| {
             frontend::parse("", query, param_oids, buf).map_err(Error::parse)?;
-            encode_bind_raw("", params, "", buf)?;
+            encode_bind_raw("", params, "", true, buf)?;
             frontend::describe(b'S', "", buf).map_err(Error::encode)?;
             frontend::execute("", 0, buf).map_err(Error::encode)?;
             frontend::sync(buf);
@@ -136,7 +150,7 @@ where
 
         client.with_buf(|buf| {
             frontend::parse("", query, param_oids, buf).map_err(Error::parse)?;
-            encode_bind_raw("", params, "", buf)?;
+            encode_bind_raw("", params, "", true, buf)?;
             frontend::describe(b'S', "", buf).map_err(Error::encode)?;
             frontend::execute("", 0, buf).map_err(Error::encode)?;
             frontend::sync(buf);
@@ -260,8 +274,22 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
+    encode_with_result_format(client, statement, params, true)
+}
+
+pub fn encode_with_result_format<P, I>(
+    client: &InnerClient,
+    statement: &Statement,
+    params: I,
+    binary: bool,
+) -> Result<Bytes, Error>
+where
+    P: BorrowToSql,
+    I: IntoIterator<Item = P>,
+    I::IntoIter: ExactSizeIterator,
+{
     client.with_buf(|buf| {
-        encode_bind(statement, params, "", buf)?;
+        encode_bind_with_result_format(statement, params, "", binary, buf)?;
         frontend::execute("", 0, buf).map_err(Error::encode)?;
         frontend::sync(buf);
         Ok(buf.split().freeze())
@@ -279,6 +307,21 @@ where
     I: IntoIterator<Item = P>,
     I::IntoIter: ExactSizeIterator,
 {
+    encode_bind_with_result_format(statement, params, portal, true, buf)
+}
+
+pub fn encode_bind_with_result_format<P, I>(
+    statement: &Statement,
+    params: I,
+    portal: &str,
+    binary: bool,
+    buf: &mut BytesMut,
+) -> Result<(), Error>
+where
+    P: BorrowToSql,
+    I: IntoIterator<Item = P>,
+    I::IntoIter: ExactSizeIterator,
+{
     let params = params.into_iter();
     if params.len() != statement.params().len() {
         return Err(Error::parameters(params.len(), statement.params().len()));
@@ -288,6 +331,7 @@ where
         statement.name(),
         params.zip(statement.params().iter().cloned()),
         portal,
+        binary,
         buf,
     )
 }
@@ -296,6 +340,7 @@ fn encode_bind_raw<P, I>(
     statement_name: &str,
     params: I,
     portal: &str,
+    binary: bool,
     buf: &mut BytesMut,
 ) -> Result<(), Error>
 where
@@ -322,7 +367,7 @@ where
                 Err(e)
             }
         },
-        Some(1),
+        Some(i16::from(binary)),
         buf,
     );
     match r {

@@ -160,6 +160,8 @@ struct BackendResultSet {
     rows_affected: u64,
     #[pyo3(get)]
     is_tuples: bool,
+    #[pyo3(get)]
+    wire_format: u8,
 }
 
 #[derive(Clone)]
@@ -269,6 +271,14 @@ fn bound_params(params: Vec<(u32, bool, Option<Vec<u8>>)>) -> Vec<ferrocopg_post
             },
         })
         .collect()
+}
+
+fn wire_format(binary: bool) -> ferrocopg_postgres::WireFormat {
+    if binary {
+        ferrocopg_postgres::WireFormat::Binary
+    } else {
+        ferrocopg_postgres::WireFormat::Text
+    }
 }
 
 enum BackendThreadError {
@@ -864,6 +874,10 @@ impl From<ferrocopg_postgres::ResultSet> for BackendResultSet {
             rows: result.rows,
             rows_affected: result.rows_affected,
             is_tuples: result.is_tuples,
+            wire_format: match result.wire_format {
+                ferrocopg_postgres::WireFormat::Text => 0,
+                ferrocopg_postgres::WireFormat::Binary => 1,
+            },
         }
     }
 }
@@ -1080,6 +1094,20 @@ impl BackendSyncNoTlsSession {
         .map(BackendResultSet::from)
     }
 
+    fn run_text_params_format(
+        &self,
+        py: Python<'_>,
+        query: &str,
+        params: Vec<Option<String>>,
+        binary: bool,
+    ) -> PyResult<BackendResultSet> {
+        let query = query.to_owned();
+        with_session(py, self, move |session| {
+            session.run_text_params_format(&query, &params, wire_format(binary))
+        })
+        .map(BackendResultSet::from)
+    }
+
     fn run_params(
         &self,
         py: Python<'_>,
@@ -1090,6 +1118,21 @@ impl BackendSyncNoTlsSession {
         let params = bound_params(params);
         with_session(py, self, move |session| session.run_params(&query, &params))
             .map(BackendResultSet::from)
+    }
+
+    fn run_params_format(
+        &self,
+        py: Python<'_>,
+        query: &str,
+        params: Vec<(u32, bool, Option<Vec<u8>>)>,
+        binary: bool,
+    ) -> PyResult<BackendResultSet> {
+        let query = query.to_owned();
+        let params = bound_params(params);
+        with_session(py, self, move |session| {
+            session.run_params_format(&query, &params, wire_format(binary))
+        })
+        .map(BackendResultSet::from)
     }
 
     fn execute_text_params(
@@ -1234,6 +1277,19 @@ impl BackendSyncNoTlsSession {
         .map(BackendResultSet::from)
     }
 
+    fn run_prepared_text_params_format(
+        &self,
+        py: Python<'_>,
+        statement_id: u64,
+        params: Vec<Option<String>>,
+        binary: bool,
+    ) -> PyResult<BackendResultSet> {
+        with_session(py, self, move |session| {
+            session.run_prepared_text_params_format(statement_id, &params, wire_format(binary))
+        })
+        .map(BackendResultSet::from)
+    }
+
     fn run_prepared_params(
         &self,
         py: Python<'_>,
@@ -1243,6 +1299,20 @@ impl BackendSyncNoTlsSession {
         let params = bound_params(params);
         with_session(py, self, move |session| {
             session.run_prepared_params(statement_id, &params)
+        })
+        .map(BackendResultSet::from)
+    }
+
+    fn run_prepared_params_format(
+        &self,
+        py: Python<'_>,
+        statement_id: u64,
+        params: Vec<(u32, bool, Option<Vec<u8>>)>,
+        binary: bool,
+    ) -> PyResult<BackendResultSet> {
+        let params = bound_params(params);
+        with_session(py, self, move |session| {
+            session.run_prepared_params_format(statement_id, &params, wire_format(binary))
         })
         .map(BackendResultSet::from)
     }

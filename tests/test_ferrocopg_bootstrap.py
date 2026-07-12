@@ -1503,6 +1503,7 @@ def test_array_binary_loader_prefers_ferrocopg(monkeypatch: pytest.MonkeyPatch) 
     [
         (b"{}", b",", []),
         (b"{1,NULL,7}", b",", [1, None, 7]),
+        (b'{NULL,"NULL"}', b",", [None, "NULL"]),
         (b"{{1,2},{3,4}}", b",", [[1, 2], [3, 4]]),
         (b"[1:2]={1;2}", b";", [1, 2]),
         (b'{"a,b","c\\\\d"}', b",", ["a,b", "c\\d"]),
@@ -1979,6 +1980,16 @@ def test_datetime_timestamp_helpers_equivalent() -> None:
         assert impl.timestamptz_load_binary(
             aware_payload, target_tz
         ) == aware.astimezone(target_tz), name
+
+
+def test_datetime_timestamptz_overflow_is_data_error() -> None:
+    import psycopg
+
+    payload = (2**63 - 1).to_bytes(8, "big", signed=True)
+    target_tz = timezone(timedelta(hours=1))
+    for _name, impl in _datetime_impls():
+        with pytest.raises(psycopg.DataError):
+            impl.timestamptz_load_binary(payload, target_tz)
 
 
 def test_datetime_interval_helpers_equivalent() -> None:

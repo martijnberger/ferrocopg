@@ -401,6 +401,12 @@ Completed slices:
   LATIN9, SQL_ASCII scalar and recursive values, unknown enum text loading, and
   COPY conversion-error timing. The focused PostgreSQL 14 run reports `134`
   passing cases and one expected failure.
+- [x] Explicit text and binary extended-query results plus composite and record
+  adaptation, including recursive composites, pure generated array loaders,
+  quoted array `NULL`, and panic-free timestamp overflow handling. All `75`
+  synchronous composite cases pass on PostgreSQL 14; the complete module is
+  `77/79` on Rust with only two deferred async-facade failures, while libpq is
+  `79/79`.
 
 Current local full-harness evidence is `3895/4418` sync (`0.882`) on CPython
 3.14/PostgreSQL 14. The remaining measured failures are concentrated in type
@@ -411,7 +417,8 @@ committed CI matrix remains the release gate.
 
 Continue in measured order, starting with the largest current failure clusters:
 
-1. remaining type adaptation beyond the completed metadata and string slices
+1. remaining type adaptation beyond the completed metadata, string, and
+   composite slices
 2. connection and connection-info behavior
 3. prepared statement behavior
 4. concrete default, raw, client, and server cursors
@@ -538,9 +545,8 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Close composite and recursive type adaptation, the largest concentrated
-   slice within the `123` remaining type-family failures. Its focused module
-   currently reports `36` passing and `43` failing cases.
+1. Re-run the complete compatibility harness to measure the result-format and
+   composite closure against the fixed sync denominator.
 2. Re-measure the remaining type-family failures, then continue with connection
    behavior before prepared statements and cursors.
 3. Re-run the complete sync compatibility matrix after each closure slice and

@@ -376,14 +376,16 @@ fn timestamptz_load_binary(
                             * utcoff.call_method0("total_seconds")?.extract::<f64>()? as i64;
                         let naive_epoch =
                             dt.getattr("datetime")?.call1((2000, 1, 1, 0, 0, 0, 0))?;
-                        let delta = dt.getattr("timedelta")?.call1((0, 0, micros + usoff))?;
-                        if let Ok(value) = naive_epoch.call_method1("__add__", (delta,)) {
-                            let kwargs = PyDict::new(py);
-                            kwargs.set_item("tzinfo", timezone_obj)?;
-                            return Ok(value
-                                .call_method("replace", (), Some(&kwargs))?
-                                .unbind()
-                                .into_any());
+                        if let Some(shifted) = micros.checked_add(usoff) {
+                            let delta = dt.getattr("timedelta")?.call1((0, 0, shifted))?;
+                            if let Ok(value) = naive_epoch.call_method1("__add__", (delta,)) {
+                                let kwargs = PyDict::new(py);
+                                kwargs.set_item("tzinfo", timezone_obj)?;
+                                return Ok(value
+                                    .call_method("replace", (), Some(&kwargs))?
+                                    .unbind()
+                                    .into_any());
+                            }
                         }
                     }
                 }
@@ -905,7 +907,7 @@ fn parse_text_array<'py>(
                 cursor += 1;
             }
             _ => {
-                let (token, next_cursor) = parse_text_array_token(data, cursor, delim)?;
+                let (token, quoted, next_cursor) = parse_text_array_token(data, cursor, delim)?;
                 cursor = next_cursor;
                 if stack.is_empty() {
                     let wat = if token.len() > 10 {
@@ -917,7 +919,7 @@ fn parse_text_array<'py>(
                         "malformed array: unexpected '{wat}'"
                     )));
                 }
-                if token == b"NULL" {
+                if !quoted && token == b"NULL" {
                     stack.last().expect("stack not empty").append(py.None())?;
                 } else {
                     let item = loader.call_method1("load", (PyBytes::new(py, &token),))?;
@@ -1358,9 +1360,14 @@ fn parse_composite_text_record(data: &[u8]) -> Vec<Option<Vec<u8>>> {
     fields
 }
 
-fn parse_text_array_token(data: &[u8], start: usize, delim: u8) -> PyResult<(Vec<u8>, usize)> {
+fn parse_text_array_token(
+    data: &[u8],
+    start: usize,
+    delim: u8,
+) -> PyResult<(Vec<u8>, bool, usize)> {
     let mut cursor = start;
     let mut quoted = data[cursor] == b'"';
+    let was_quoted = quoted;
     let mut token = Vec::new();
     if quoted {
         cursor += 1;
@@ -1403,7 +1410,7 @@ fn parse_text_array_token(data: &[u8], start: usize, delim: u8) -> PyResult<(Vec
         ));
     }
 
-    Ok((token, cursor))
+    Ok((token, was_quoted, cursor))
 }
 
 fn parse_binary_array_level<'py>(

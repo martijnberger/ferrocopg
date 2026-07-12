@@ -47,6 +47,12 @@ ObjectMaker: TypeAlias = Callable[[Sequence[Any], "CompositeInfo"], T]
 SequenceMaker: TypeAlias = Callable[[T, "CompositeInfo"], Sequence[Any]]
 
 
+def _make_transformer(context: abc.AdaptContext | None) -> abc.Transformer:
+    if context is not None and (fork := getattr(context, "_fork", None)):
+        return cast(abc.Transformer, fork())
+    return Transformer(context)
+
+
 class CompositeInfo(TypeInfo):
     """Manage information about a composite type."""
 
@@ -147,7 +153,7 @@ class _SequenceBinaryDumper(Dumper, Generic[T], ABC):
         # same Transformer of the context, which would confuse dump_sequence()
         # in case the composite contains another composite. Make sure to use
         # a separate Transformer instance instead.
-        self._tx = Transformer(context)
+        self._tx = _make_transformer(context)
         self._tx.set_dumper_types(self.info.field_types, self.format)
 
         nfields = len(self.info.field_types)
@@ -219,7 +225,7 @@ class RecordBinaryLoader(Loader):
         except KeyError:
             pass
 
-        tx = Transformer(self._ctx)
+        tx = _make_transformer(self._ctx)
         tx.set_loader_types([*key], self.format)
         self._txs[key] = tx
         return tx
@@ -242,7 +248,7 @@ class _CompositeLoader(Loader, Generic[T], ABC):
         # Note: we cannot use the RecursiveLoader base class here because we
         # always want a different Transformer instance, otherwise the types
         # loaded will conflict with the types loaded by the record.
-        self._tx = Transformer(context)
+        self._tx = _make_transformer(context)
         self._tx.set_loader_types(self.info.field_types, self.format)
 
     def load(self, data: abc.Buffer) -> T:
@@ -272,7 +278,7 @@ class _CompositeBinaryLoader(Loader, Generic[T], ABC):
 
     def __init__(self, oid: int, context: abc.AdaptContext | None = None):
         super().__init__(oid, context)
-        self._tx = Transformer(context)
+        self._tx = _make_transformer(context)
         self._tx.set_loader_types(self.info.field_types, self.format)
 
     def load(self, data: abc.Buffer) -> T:

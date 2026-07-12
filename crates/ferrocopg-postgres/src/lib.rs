@@ -23,7 +23,7 @@ pub use model::{
     BackendNotification, BoundParam, ConnectEndpoint, ConnectPlan, ConnectTarget, ConninfoSummary,
     CopyOutResult, ExecuteResult, ParamFormat, PreparedStatementInfo, ResultSet,
     SimpleQueryMessage, SimpleQueryResult, StatementColumn, StatementDescription,
-    StatementParameter, SyncNoTlsProbe, TextQueryResult,
+    StatementParameter, SyncNoTlsProbe, TextQueryResult, WireFormat,
 };
 pub use session::{SyncNoTlsCancelHandle, SyncNoTlsSession};
 

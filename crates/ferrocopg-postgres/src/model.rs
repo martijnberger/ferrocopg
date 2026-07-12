@@ -79,17 +79,24 @@ pub struct TextQueryResult {
     pub rows: Vec<Vec<Option<String>>>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WireFormat {
+    Text,
+    Binary,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResultSet {
     pub columns: Vec<String>,
     pub column_descriptions: Vec<StatementColumn>,
-    /// Values in PostgreSQL's binary wire format.
+    /// Values in PostgreSQL's selected wire format.
     ///
     /// The Python adapter feeds these through Psycopg's loaders using the
     /// column OIDs above, rather than trying to decode each database type here.
     pub rows: Vec<Vec<Option<Vec<u8>>>>,
     pub rows_affected: u64,
     pub is_tuples: bool,
+    pub wire_format: WireFormat,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

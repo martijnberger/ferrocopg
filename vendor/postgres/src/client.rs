@@ -158,6 +158,20 @@ impl Client {
         self.connection.block_on(self.client.query(query, params))
     }
 
+    /// Executes a statement using the requested result format.
+    pub fn query_with_result_format<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSql + Sync)],
+        binary: bool,
+    ) -> Result<Vec<Row>, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        self.connection
+            .block_on(self.client.query_with_result_format(query, params, binary))
+    }
+
     /// Executes a statement which returns a single row, returning it.
     ///
     /// Returns an error if the query does not return exactly one row.

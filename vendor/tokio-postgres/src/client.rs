@@ -262,6 +262,22 @@ impl Client {
             .await
     }
 
+    /// Executes a statement using the requested result format.
+    pub async fn query_with_result_format<T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+        binary: bool,
+    ) -> Result<Vec<Row>, Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        self.query_raw_with_result_format(statement, slice_iter(params), binary)
+            .await?
+            .try_collect()
+            .await
+    }
+
     /// Returns a vector of scalars.
     pub async fn query_scalar<R: FromSqlOwned, T>(
         &self,
@@ -428,6 +444,23 @@ impl Client {
     {
         let statement = statement.__convert().into_statement(&self.inner).await?;
         query::query(&self.inner, statement, params).await
+    }
+
+    /// The maximally flexible query API with explicit result format selection.
+    pub async fn query_raw_with_result_format<T, P, I>(
+        &self,
+        statement: &T,
+        params: I,
+        binary: bool,
+    ) -> Result<RowStream, Error>
+    where
+        T: ?Sized + ToStatement,
+        P: BorrowToSql,
+        I: IntoIterator<Item = P>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let statement = statement.__convert().into_statement(&self.inner).await?;
+        query::query_with_result_format(&self.inner, statement, params, binary).await
     }
 
     /// Like `query`, but requires the types of query parameters to be explicitly specified.

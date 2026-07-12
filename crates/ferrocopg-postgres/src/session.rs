@@ -3,7 +3,7 @@ use crate::error::{PostgresDiagnostic, ProbeError};
 use crate::model::{
     BackendNotification, BoundParam, CopyOutResult, ExecuteResult, PreparedStatementInfo,
     ResultSet, SimpleQueryMessage, SimpleQueryResult, StatementColumn, StatementDescription,
-    StatementParameter, SyncNoTlsProbe, TextQueryResult,
+    StatementParameter, SyncNoTlsProbe, TextQueryResult, WireFormat,
 };
 use crate::params::{
     bound_param_types, bound_query_params, param_types_from_oids, parsed_query_params,
@@ -235,6 +235,15 @@ impl SyncNoTlsSession {
         query: &str,
         params: &[Option<String>],
     ) -> Result<ResultSet, ProbeError> {
+        self.run_text_params_format(query, params, WireFormat::Binary)
+    }
+
+    pub fn run_text_params_format(
+        &mut self,
+        query: &str,
+        params: &[Option<String>],
+        wire_format: WireFormat,
+    ) -> Result<ResultSet, ProbeError> {
         let statement = self
             .client_mut()?
             .prepare(query)
@@ -244,10 +253,10 @@ impl SyncNoTlsSession {
         // represents it with an empty statement column list, indistinguishable
         // from a command unless we inspect simple-query messages.
         if statement.columns().is_empty() && params.is_empty() {
-            return self.run_no_column_statement(query);
+            return self.run_no_column_statement(query, wire_format);
         }
 
-        self.run_statement_params(&statement, params)
+        self.run_statement_params(&statement, params, wire_format)
     }
 
     pub fn run_params(
@@ -255,12 +264,21 @@ impl SyncNoTlsSession {
         query: &str,
         params: &[BoundParam],
     ) -> Result<ResultSet, ProbeError> {
+        self.run_params_format(query, params, WireFormat::Binary)
+    }
+
+    pub fn run_params_format(
+        &mut self,
+        query: &str,
+        params: &[BoundParam],
+        wire_format: WireFormat,
+    ) -> Result<ResultSet, ProbeError> {
         let types = bound_param_types(params);
         let statement = self
             .client_mut()?
             .prepare_typed(query, &types)
             .map_err(ProbeError::Query)?;
-        self.run_bound_statement_params(&statement, params)
+        self.run_bound_statement_params(&statement, params, wire_format)
     }
 
     pub fn describe_text(&mut self, query: &str) -> Result<StatementDescription, ProbeError> {
@@ -354,12 +372,21 @@ impl SyncNoTlsSession {
         statement_id: u64,
         params: &[Option<String>],
     ) -> Result<ResultSet, ProbeError> {
+        self.run_prepared_text_params_format(statement_id, params, WireFormat::Binary)
+    }
+
+    pub fn run_prepared_text_params_format(
+        &mut self,
+        statement_id: u64,
+        params: &[Option<String>],
+        wire_format: WireFormat,
+    ) -> Result<ResultSet, ProbeError> {
         let statement = self.prepared_statement(statement_id)?.clone();
         if statement.columns().is_empty() && params.is_empty() {
             let query = self.prepared_query(statement_id)?.to_owned();
-            return self.run_no_column_statement(&query);
+            return self.run_no_column_statement(&query, wire_format);
         }
-        self.run_statement_params(&statement, params)
+        self.run_statement_params(&statement, params, wire_format)
     }
 
     pub fn run_prepared_params(
@@ -367,8 +394,17 @@ impl SyncNoTlsSession {
         statement_id: u64,
         params: &[BoundParam],
     ) -> Result<ResultSet, ProbeError> {
+        self.run_prepared_params_format(statement_id, params, WireFormat::Binary)
+    }
+
+    pub fn run_prepared_params_format(
+        &mut self,
+        statement_id: u64,
+        params: &[BoundParam],
+        wire_format: WireFormat,
+    ) -> Result<ResultSet, ProbeError> {
         let statement = self.prepared_statement(statement_id)?.clone();
-        self.run_bound_statement_params(&statement, params)
+        self.run_bound_statement_params(&statement, params, wire_format)
     }
 
     pub fn execute_prepared_text_params(
@@ -521,7 +557,11 @@ impl SyncNoTlsSession {
             .ok_or_else(|| missing_statement(statement_id))
     }
 
-    fn run_no_column_statement(&mut self, query: &str) -> Result<ResultSet, ProbeError> {
+    fn run_no_column_statement(
+        &mut self,
+        query: &str,
+        wire_format: WireFormat,
+    ) -> Result<ResultSet, ProbeError> {
         let messages = self
             .client_mut()?
             .simple_query(query)
@@ -555,6 +595,7 @@ impl SyncNoTlsSession {
                         rows,
                         rows_affected,
                         is_tuples,
+                        wire_format,
                     });
                 }
                 _ => {
@@ -574,28 +615,31 @@ impl SyncNoTlsSession {
         &mut self,
         statement: &postgres::Statement,
         params: &[Option<String>],
+        wire_format: WireFormat,
     ) -> Result<ResultSet, ProbeError> {
         let params = parsed_query_params(statement, params)?;
         let refs = query_param_refs(&params);
 
-        self.run_statement_refs(statement, &refs)
+        self.run_statement_refs(statement, &refs, wire_format)
     }
 
     fn run_bound_statement_params(
         &mut self,
         statement: &postgres::Statement,
         params: &[BoundParam],
+        wire_format: WireFormat,
     ) -> Result<ResultSet, ProbeError> {
         let params = bound_query_params(statement, params)?;
         let refs = query_param_refs(&params);
 
-        self.run_statement_refs(statement, &refs)
+        self.run_statement_refs(statement, &refs, wire_format)
     }
 
     fn run_statement_refs(
         &mut self,
         statement: &postgres::Statement,
         refs: &[&(dyn postgres::types::ToSql + Sync)],
+        wire_format: WireFormat,
     ) -> Result<ResultSet, ProbeError> {
         if statement.columns().is_empty() {
             let rows_affected = self
@@ -608,13 +652,14 @@ impl SyncNoTlsSession {
                 rows: Vec::new(),
                 rows_affected,
                 is_tuples: false,
+                wire_format,
             })
         } else {
             let rows = self
                 .client_mut()?
-                .query(statement, &refs)
+                .query_with_result_format(statement, &refs, wire_format == WireFormat::Binary)
                 .map_err(ProbeError::Query)?;
-            result_set_from_statement_rows(statement, rows)
+            result_set_from_statement_rows(statement, rows, wire_format)
         }
     }
 }
@@ -661,6 +706,7 @@ fn text_query_result(rows: Vec<postgres::Row>) -> Result<TextQueryResult, ProbeE
 fn result_set_from_statement_rows(
     statement: &postgres::Statement,
     rows: Vec<postgres::Row>,
+    wire_format: WireFormat,
 ) -> Result<ResultSet, ProbeError> {
     let column_descriptions = statement_description(statement).columns;
     let columns = column_descriptions
@@ -675,6 +721,7 @@ fn result_set_from_statement_rows(
         rows,
         rows_affected,
         is_tuples: true,
+        wire_format,
     })
 }
 

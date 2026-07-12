@@ -41,7 +41,7 @@ from ._rmodule import __version__ as __version__
 from ._rmodule import _ferrocopg
 from ._tpc import Xid
 from .abc import Buffer, Params, Query
-from .adapt import Dumper
+from .adapt import Dumper, RecursiveDumper, RecursiveLoader
 from .conninfo import _param_escape, conninfo_to_dict, make_conninfo
 from .pq import ExecStatus
 from .transaction import Rollback
@@ -66,6 +66,7 @@ class _ResultSetLike(Protocol):
     rows: list[list[bytes | str | None]]
     rows_affected: int
     is_tuples: bool
+    wire_format: pq.Format | int | None
 
 
 class _SyntheticResult:
@@ -85,7 +86,7 @@ class _SyntheticResult:
         self.rows_affected = rows_affected
         self.statusmessage = statusmessage
         self.is_tuples = is_tuples
-        self.wire_format = wire_format
+        self.wire_format: pq.Format | int | None = wire_format
 
 
 class _BoundParams(NamedTuple):
@@ -250,7 +251,7 @@ class _BackendTransformer(AdaptTransformer):
 
     def get_dumper(self, obj: Any, format: PyFormat) -> Any:
         dumper = super().get_dumper(obj, format)
-        if hasattr(dumper, "_tx"):
+        if isinstance(dumper, RecursiveDumper):
             dumper._tx = self
         if hasattr(dumper, "_encoding"):
             dumper._encoding = self._dumper_encoding
@@ -258,7 +259,7 @@ class _BackendTransformer(AdaptTransformer):
 
     def get_dumper_by_oid(self, oid: int, format: pq.Format) -> Any:
         dumper = super().get_dumper_by_oid(oid, format)
-        if hasattr(dumper, "_tx"):
+        if isinstance(dumper, RecursiveDumper):
             dumper._tx = self
         if hasattr(dumper, "_encoding"):
             dumper._encoding = self._dumper_encoding
@@ -266,7 +267,7 @@ class _BackendTransformer(AdaptTransformer):
 
     def get_loader(self, oid: int, format: pq.Format) -> Any:
         loader = super().get_loader(oid, format)
-        if hasattr(loader, "_tx"):
+        if isinstance(loader, RecursiveLoader):
             loader._tx = self
         if hasattr(loader, "_encoding"):
             loader._encoding = self._loader_encoding
@@ -280,6 +281,11 @@ class _BackendTransformer(AdaptTransformer):
     @property
     def _loader_encoding(self) -> str:
         return "" if self.encoding == "ascii" else self.encoding
+
+    def _fork(self) -> _BackendTransformer:
+        tx = type(self)(self)
+        tx._encoding = self.encoding
+        return tx
 
 
 class _WireByteaDumper(Dumper):
@@ -365,12 +371,7 @@ def _pure_python_adapters(
 
     for pg_format in (pq.Format.TEXT, pq.Format.BINARY):
         adapters._loaders[pg_format] = {
-            oid: (
-                ArrayBinaryLoader
-                if loader.__module__ == "psycopg_c._psycopg"
-                and loader.__name__ == "ArrayBinaryLoader"
-                else originals.get(loader, loader)
-            )
+            oid: _pure_loader_class(loader, originals, ArrayBinaryLoader)
             for oid, loader in adapters._loaders[pg_format].items()
         }
         adapters._own_loaders[pg_format] = True
@@ -383,6 +384,41 @@ def _pure_python_adapters(
         adapters._own_loaders[pq.Format.BINARY] = True
 
     return adapters
+
+
+_pure_array_loader_classes: dict[type[Any], type[Any]] = {}
+
+
+def _pure_array_loader_class(loader: type[Any]) -> type[Any]:
+    from .types.array import ArrayLoader
+
+    if pure := _pure_array_loader_classes.get(loader):
+        return pure
+    attrs = {
+        "__module__": loader.__module__,
+        "base_oid": loader.base_oid,
+        "delimiter": loader.delimiter,
+    }
+    pure = type(loader.__name__, (ArrayLoader,), attrs)
+    _pure_array_loader_classes[loader] = pure
+    return pure
+
+
+def _pure_loader_class(
+    loader: type[Any],
+    originals: dict[type[Any], type[Any]],
+    array_binary_loader: type[Any],
+) -> type[Any]:
+    if loader.__module__ == "psycopg_c._psycopg":
+        if loader.__name__ == "ArrayBinaryLoader":
+            return array_binary_loader
+        return originals.get(loader, loader)
+    if any(
+        base.__module__ == "psycopg_c._psycopg" and base.__name__ == "ArrayLoader"
+        for base in loader.__mro__
+    ):
+        return _pure_array_loader_class(loader)
+    return originals.get(loader, loader)
 
 
 class BackendColumn(Sequence[Any]):
@@ -839,16 +875,38 @@ class _NoTlsSessionLike(Protocol):
         self, query: str, params: list[str | None]
     ) -> _ResultSetLike: ...
 
+    def run_text_params_format(
+        self, query: str, params: list[str | None], binary: bool
+    ) -> _ResultSetLike: ...
+
     def run_params(
         self, query: str, params: list[tuple[int, bool, bytes | None]]
+    ) -> _ResultSetLike: ...
+
+    def run_params_format(
+        self,
+        query: str,
+        params: list[tuple[int, bool, bytes | None]],
+        binary: bool,
     ) -> _ResultSetLike: ...
 
     def run_prepared_text_params(
         self, statement_id: int, params: list[str | None]
     ) -> _ResultSetLike: ...
 
+    def run_prepared_text_params_format(
+        self, statement_id: int, params: list[str | None], binary: bool
+    ) -> _ResultSetLike: ...
+
     def run_prepared_params(
         self, statement_id: int, params: list[tuple[int, bool, bytes | None]]
+    ) -> _ResultSetLike: ...
+
+    def run_prepared_params_format(
+        self,
+        statement_id: int,
+        params: list[tuple[int, bool, bytes | None]],
+        binary: bool,
     ) -> _ResultSetLike: ...
 
 
@@ -1164,13 +1222,33 @@ class NoTlsSessionAdapter:
         ]
 
     def execute_params(
-        self, query: str, params: list[str | None]
+        self,
+        query: str,
+        params: list[str | None],
+        result_format: pq.Format = pq.Format.BINARY,
     ) -> BackendResultCursor:
-        result = self._call(self._session.run_text_params, query, params)
+        method = getattr(self._session, "run_text_params_format", None)
+        result = self._call(
+            method or self._session.run_text_params,
+            query,
+            params,
+            *(() if method is None else (result_format == pq.Format.BINARY,)),
+        )
         return BackendResultCursor([result], [_statusmessage_for_query(query, result)])
 
-    def execute_bound(self, query: str, params: _BoundParams) -> BackendResultCursor:
-        result = self._call(self._session.run_params, query, params.values)
+    def execute_bound(
+        self,
+        query: str,
+        params: _BoundParams,
+        result_format: pq.Format = pq.Format.BINARY,
+    ) -> BackendResultCursor:
+        method = getattr(self._session, "run_params_format", None)
+        result = self._call(
+            method or self._session.run_params,
+            query,
+            params.values,
+            *(() if method is None else (result_format == pq.Format.BINARY,)),
+        )
         return BackendResultCursor([result], [_statusmessage_for_query(query, result)])
 
     def execute_prepared(
@@ -1179,9 +1257,14 @@ class NoTlsSessionAdapter:
         params: list[str | None],
         *,
         statusmessage: str | None = None,
+        result_format: pq.Format = pq.Format.BINARY,
     ) -> BackendResultCursor:
+        method = getattr(self._session, "run_prepared_text_params_format", None)
         result = self._call(
-            self._session.run_prepared_text_params, statement_id, params
+            method or self._session.run_prepared_text_params,
+            statement_id,
+            params,
+            *(() if method is None else (result_format == pq.Format.BINARY,)),
         )
         return BackendResultCursor([result], [statusmessage])
 
@@ -1194,9 +1277,14 @@ class NoTlsSessionAdapter:
         params: _BoundParams,
         *,
         statusmessage: str | None = None,
+        result_format: pq.Format = pq.Format.BINARY,
     ) -> BackendResultCursor:
+        method = getattr(self._session, "run_prepared_params_format", None)
         result = self._call(
-            self._session.run_prepared_params, statement_id, params.values
+            method or self._session.run_prepared_params,
+            statement_id,
+            params.values,
+            *(() if method is None else (result_format == pq.Format.BINARY,)),
         )
         return BackendResultCursor([result], [statusmessage])
 
@@ -1291,7 +1379,9 @@ class NoTlsSessionAdapter:
                 "simple_query_results",
                 "pipeline_simple_query_results",
                 "run_text_params",
+                "run_text_params_format",
                 "run_params",
+                "run_params_format",
                 "prepare_text",
                 "prepare_params",
             }
@@ -1459,6 +1549,7 @@ class NoTlsCursorAdapter:
                 prepare=prepare,
                 prefer_extended=self._row_factory not in _LEGACY_ROW_FACTORIES,
                 adapters=self.adapters,
+                result_format=self.format,
             )
         self._make_row = None
         self._result_transformer = None
@@ -1480,7 +1571,11 @@ class NoTlsCursorAdapter:
         if returning:
             results = [
                 self._conn._execute(
-                    query, params, prepare=prepare, adapters=self.adapters
+                    query,
+                    params,
+                    prepare=prepare,
+                    adapters=self.adapters,
+                    result_format=self.format,
                 ).current_result
                 for params in params_seq
             ]
@@ -1491,7 +1586,11 @@ class NoTlsCursorAdapter:
             total = 0
             for params in params_seq:
                 result = self._conn._execute(
-                    query, params, prepare=prepare, adapters=self.adapters
+                    query,
+                    params,
+                    prepare=prepare,
+                    adapters=self.adapters,
+                    result_format=self.format,
                 ).current_result
                 if result is not None:
                     total += result.rows_affected
@@ -1666,10 +1765,13 @@ class NoTlsCursorAdapter:
         if not descriptions:
             return tuple(row)
 
-        wire_format = getattr(result, "wire_format", None)
+        wire_format_value = getattr(result, "wire_format", None)
+        wire_format = (
+            None if wire_format_value is None else pq.Format(wire_format_value)
+        )
 
-        # Test doubles and simple-query results may already carry text. Live
-        # extended-query results always arrive here as binary wire values.
+        # Test doubles and simple-query results may already carry Python text;
+        # live extended-query results report their wire format explicitly.
         if wire_format is None and any(
             value is not None and not isinstance(value, (bytes, bytearray, memoryview))
             for value in row
@@ -1688,7 +1790,7 @@ class NoTlsCursorAdapter:
                             else frozenset()
                         ),
                     ),
-                    expose_connection=False,
+                    expose_connection=True,
                 )
             )
             tx._encoding = self._encoding
@@ -2409,7 +2511,11 @@ class NoTlsPipelineAdapter:
         else:
             for query, queued_cur, params, prepare in self._queued:
                 queued_cur._result = self._conn._execute(
-                    query, params, prepare=prepare, adapters=queued_cur.adapters
+                    query,
+                    params,
+                    prepare=prepare,
+                    adapters=queued_cur.adapters,
+                    result_format=queued_cur.format,
                 )
                 queued_cur._rownumber = 0
         self._queued.clear()
@@ -2702,7 +2808,7 @@ class NoTlsConnectionAdapter:
         if result_format == pq.Format.TEXT:
             result_cursor = self._session.execute_simple(query)
         elif result_format == pq.Format.BINARY:
-            result_cursor = self._execute_extended_no_params(query)
+            result_cursor = self._execute_extended_no_params(query, result_format)
         else:
             raise ValueError(f"bad result format: {result_format!r}")
 
@@ -2981,17 +3087,18 @@ class NoTlsConnectionAdapter:
         prepare: bool,
         prefer_extended: bool = False,
         adapters: AdaptersMap | None = None,
+        result_format: pq.Format = pq.Format.TEXT,
     ) -> BackendResultCursor:
         self._ensure_cancel_handle()
         self._ensure_transaction()
         query, params = self._convert_query_params(query, params, adapters=adapters)
         if params is None:
             if prefer_extended:
-                result = self._execute_extended_no_params(query)
+                result = self._execute_extended_no_params(query, result_format)
             else:
                 result = self._session.execute_simple(query)
         elif isinstance(params, _BoundParams):
-            result = self._execute_bound(query, params, prepare)
+            result = self._execute_bound(query, params, prepare, result_format)
         else:
             if not prepare and self.prepare_threshold is not None:
                 count = self._prepare_counts.get(query, 0)
@@ -3011,9 +3118,10 @@ class NoTlsConnectionAdapter:
                     statement_id,
                     params,
                     statusmessage=self._prepared_statusmessages.get(statement_id),
+                    result_format=result_format,
                 )
             else:
-                result = self._session.execute_params(query, params)
+                result = self._session.execute_params(query, params, result_format)
 
         self._refresh_client_encoding(query)
         return result
@@ -3048,7 +3156,11 @@ class NoTlsConnectionAdapter:
             self._encoding_changed_in_transaction = False
 
     def _execute_bound(
-        self, query: str, params: _BoundParams, prepare: bool
+        self,
+        query: str,
+        params: _BoundParams,
+        prepare: bool,
+        result_format: pq.Format,
     ) -> BackendResultCursor:
         key = (query, params.types)
         if not prepare and self.prepare_threshold is not None:
@@ -3069,15 +3181,18 @@ class NoTlsConnectionAdapter:
                 statement_id,
                 params,
                 statusmessage=self._prepared_statusmessages.get(statement_id),
+                result_format=result_format,
             )
 
-        return self._session.execute_bound(query, params)
+        return self._session.execute_bound(query, params, result_format)
 
-    def _execute_extended_no_params(self, query: str) -> BackendResultCursor:
+    def _execute_extended_no_params(
+        self, query: str, result_format: pq.Format
+    ) -> BackendResultCursor:
         results: list[_ResultSetLike] = []
         statuses: list[str | None] = []
         for statement in _split_extended_statements(query):
-            result_cursor = self._session.execute_params(statement, [])
+            result_cursor = self._session.execute_params(statement, [], result_format)
             result = result_cursor.current_result
             if result is not None:
                 results.append(result)
