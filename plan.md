@@ -435,21 +435,27 @@ Completed slices:
 - [x] Concrete `RawCursor` execution and adaptation. Removing its broad manifest
   exposes a focused module that passes `78/78` on ferrocopg; common cursor and
   client-literal behavior remain separately manifested for the next slice.
+- [x] Shared default and raw cursor bookkeeping, including public result-set
+  mirrors, status and row-count semantics, `executemany()` aggregation,
+  empty-query results, loader invalidation, COPY rejection, per-row stream
+  metadata, closed-stream handling, and non-UTF query text. The focused default
+  subset passes `94` tests with two libpq-version skips; the combined common and
+  raw-cursor run passes `261` tests with only ClientCursor, intentional raw
+  mapping, and version-gated skips.
 
 Active cursor closure evidence:
 
 - The concrete cursor and server-cursor modules pass `188/188` on both
   ferrocopg and explicit libpq.
 - The fully unmasked raw-cursor module passes `78/78` on ferrocopg.
-- The default-cursor subset of the common cursor module currently passes `69`
-  tests, fails `25`, and skips `2`; `192` client/raw variants are excluded from
-  that focused measurement.
+- The default-cursor subset of the common cursor module passes `94` tests and
+  skips two libpq-version cases; no default-cursor failures remain.
 - The client-cursor module currently passes `6` tests and fails `22`. Its main
   missing capability is libpq-free client-side literal adaptation and
   `mogrify()` behavior.
-- Broad manifest entries remain only for common cursor bookkeeping and client
-  literal behavior. They must be narrowed or removed as their focused slices
-  close; the raw-cursor broad entry has already been removed.
+- Cursor manifests now cover only the dedicated client module and parametrized
+  common-module node IDs containing `ClientCursor`. The broad common and raw
+  cursor entries have been removed.
 
 Current local full-harness evidence is `3969/4420` sync (`0.898`) on CPython
 3.14/PostgreSQL 14, with zero synchronous errors. Type adaptation improved from
@@ -464,21 +470,18 @@ is reported independently; the committed CI matrix remains the release gate.
 Continue in measured order, closing the current cursor work before reopening
 the next broad failure cluster:
 
-1. Close shared default/common cursor bookkeeping: stale result and status
-   reset, `executemany()` result navigation, empty-query semantics, loader
-   invalidation, stream and COPY error classes, query encoding, and row counts.
-2. Implement libpq-free `ClientCursor` literal adaptation and `mogrify()` while
+1. Implement libpq-free `ClientCursor` literal adaptation and `mogrify()` while
    preserving Psycopg's public query and adaptation behavior.
-3. Remove or narrow the remaining synchronous common/client cursor manifest
+2. Remove the remaining synchronous common/client cursor manifest
    entries, then run the complete sync harness and commit the new measured
    compatibility floor.
-4. Close remaining type adaptation beyond the completed metadata, string, and
+3. Close remaining type adaptation beyond the completed metadata, string, and
    composite slices.
-5. Close prepared statement behavior.
-6. Close COPY writers, COPY edge cases, pipeline state, and error recovery.
-7. Return to handshake-stall timeouts, bounded cancellation, and concurrent
+4. Close prepared statement behavior.
+5. Close COPY writers, COPY edge cases, pipeline state, and error recovery.
+6. Return to handshake-stall timeouts, bounded cancellation, and concurrent
    synchronous use before claiming the release-critical connection gate.
-8. Close remaining low-volume synchronous failures.
+7. Close remaining low-volume synchronous failures.
 
 For every slice:
 
@@ -598,15 +601,13 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Make the default-cursor subset of `test_cursor_common.py` green by fixing
-   shared result, status, `executemany()`, loader, stream, COPY, encoding, and
-   row-count behavior.
-2. Make `test_cursor_client.py` green with a libpq-free literal adaptation and
+1. Make `test_cursor_client.py` and the remaining parametrized client cases in
+   `test_cursor_common.py` green with a libpq-free literal adaptation and
    `mogrify()` path.
-3. Remove or narrow the remaining common/client cursor manifest entries and
+2. Remove the remaining common/client cursor manifest entries and
    re-run the complete sync compatibility matrix before moving to the next
    failure family.
-4. Return to handshake-stall and bounded cancellation timeout boundaries before
+3. Return to handshake-stall and bounded cancellation timeout boundaries before
    the release-critical gate.
-5. Preserve the standalone package, explicit delegation, and source-tree
+4. Preserve the standalone package, explicit delegation, and source-tree
    comparison proofs while each compatibility slice changes shared Python code.

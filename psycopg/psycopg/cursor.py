@@ -59,6 +59,9 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
         if self._ferrocopg_cursor is not None:
             if not hasattr(self, "_format"):
                 self.format = self._ferrocopg_cursor.format
+            self._results = cast(Any, self._ferrocopg_cursor.pgresults)
+            result = self._ferrocopg_cursor._result
+            self._iresult = result._index if result is not None else 0
             self.pgresult = self._ferrocopg_cursor.pgresult
             self._closed = self._ferrocopg_cursor.closed
             self._query = self._ferrocopg_cursor._query
@@ -205,11 +208,16 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
         """
         if self._ferrocopg_cursor is not None:
             self._ferrocopg_cursor.format = self.format
-            yield from cast(
+            stream = cast(
                 Iterator[Row],
                 self._ferrocopg_cursor.stream(query, params, binary=binary, size=size),
             )
-            self._sync_ferrocopg_cursor()
+            try:
+                for row in stream:
+                    self._sync_ferrocopg_cursor()
+                    yield row
+            finally:
+                self._sync_ferrocopg_cursor()
             return
 
         if self._pgconn.pipeline_status:

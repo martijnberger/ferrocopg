@@ -33,7 +33,7 @@ from ._copy_base import (
     _parse_row_binary,
     _parse_row_text,
 )
-from ._encodings import conninfo_encoding, pg2pyenc
+from ._encodings import conninfo_encoding, pg2pyenc, py2pgenc
 from ._enums import IsolationLevel, PyFormat
 from ._oids import BYTEA_OID, INVALID_OID
 from ._py_transformer import Transformer as AdaptTransformer
@@ -42,7 +42,7 @@ from ._rmodule import __version__ as __version__
 from ._rmodule import _ferrocopg
 from ._tpc import Xid
 from ._tz import get_tzinfo
-from .abc import Buffer, Params, Query
+from .abc import Buffer, Loader, Params, Query
 from .adapt import Dumper, RecursiveDumper, RecursiveLoader
 from .conninfo import _param_escape, conninfo_attempts, conninfo_to_dict, make_conninfo
 from .pq import ExecStatus
@@ -81,6 +81,7 @@ class _SyntheticResult:
         statusmessage: str | None = None,
         is_tuples: bool = False,
         wire_format: pq.Format | None = None,
+        status: ExecStatus | None = None,
     ):
         self.columns = columns or []
         self.column_descriptions = column_descriptions or []
@@ -89,6 +90,7 @@ class _SyntheticResult:
         self.statusmessage = statusmessage
         self.is_tuples = is_tuples
         self.wire_format: pq.Format | int | None = wire_format
+        self.status = status
 
 
 class _BoundParams(NamedTuple):
@@ -818,10 +820,15 @@ class _BackendPgResultShim:
         self._result = result
         self._encoding = encoding
         self._format = format
+        status = getattr(result, "status", None)
         self.status = (
-            ExecStatus.TUPLES_OK
-            if getattr(result, "is_tuples", bool(result.columns or result.rows))
-            else ExecStatus.COMMAND_OK
+            status
+            if status is not None
+            else (
+                ExecStatus.TUPLES_OK
+                if getattr(result, "is_tuples", bool(result.columns or result.rows))
+                else ExecStatus.COMMAND_OK
+            )
         )
         self.nfields = len(result.columns)
         self.ntuples = len(result.rows)
@@ -898,7 +905,7 @@ def _split_extended_statements(query: str) -> list[str]:
     statement = query[start:].strip()
     if statement:
         statements.append(statement)
-    return statements or [query]
+    return statements
 
 
 def _skip_sql_quote(query: str, position: int, quote: str) -> int:
@@ -1229,6 +1236,7 @@ class BackendResultCursor:
         self,
         results: Sequence[_ResultSetLike],
         statusmessages: Sequence[str | None] | None = None,
+        encodings: Sequence[str | None] | None = None,
     ):
         self._results = list(results)
         if statusmessages is None:
@@ -1237,6 +1245,9 @@ class BackendResultCursor:
             ]
         else:
             self._statusmessages = list(statusmessages)
+        self._encodings: list[str | None] = (
+            list(encodings) if encodings is not None else [None] * len(self._results)
+        )
         self._index = 0 if self._results else -1
         self._pos = 0
 
@@ -1265,6 +1276,15 @@ class BackendResultCursor:
         if self._index < 0 or self._index >= len(self._statusmessages):
             return None
         return self._statusmessages[self._index]
+
+    @property
+    def encoding(self) -> str | None:
+        if self._index < 0 or self._index >= len(self._encodings):
+            return None
+        return self._encodings[self._index]
+
+    def set_encoding(self, encoding: str | None) -> None:
+        self._encodings = [encoding for _ in self._results]
 
     def fetchone(self) -> list[bytes | str | None] | None:
         result = self.current_result
@@ -1340,7 +1360,17 @@ class NoTlsSessionAdapter:
 
     def execute_simple(self, query: str) -> BackendResultCursor:
         results = self._call(self._session.simple_query_results, query)
-        statuses = [_statusmessage_for_query(query, result) for result in results]
+        statements = _split_extended_statements(query)
+        if not results and not statements:
+            return BackendResultCursor(
+                [_SyntheticResult(status=ExecStatus.EMPTY_QUERY)], [None]
+            )
+        statuses = [
+            _statusmessage_for_query(
+                statements[index] if index < len(statements) else query, result
+            )
+            for index, result in enumerate(results)
+        ]
         return BackendResultCursor(results, statuses)
 
     def execute_pipeline_simple(self, queries: list[str]) -> list[BackendResultCursor]:
@@ -1560,8 +1590,12 @@ class NoTlsCursorAdapter:
         self._closed = False
         self._row_factory = row_factory
         self._adapters = AdaptersMap(conn.adapters)
+        self._adapters._register_loader_callback = self._loaders_changed
         self._make_row: RowMaker | None = None
         self._result_transformer: AdaptTransformer | None = None
+        self._stream_result: _ResultSetLike | None = None
+        self._rowcount_override: int | None = None
+        self._statusmessage_override: str | None = None
         self._rownumber: int | None = 0
         self._query: PostgresQuery | PostgresClientQuery | None = None
         self._query_cls = query_cls
@@ -1595,19 +1629,48 @@ class NoTlsCursorAdapter:
 
     @property
     def pgresult(self) -> _BackendPgResultShim | None:
+        if self._stream_result is not None:
+            return _BackendPgResultShim(
+                self._stream_result, self._encoding, self.format
+            )
         result = self._result
         if result is None:
             return None
         current = result.current_result
         if current is None:
             return None
-        return _BackendPgResultShim(current, self._encoding, self.format)
+        return _BackendPgResultShim(
+            current,
+            result.encoding or self._encoding,
+            self.format,
+            result.statusmessage,
+        )
+
+    @property
+    def pgresults(self) -> list[_BackendPgResultShim]:
+        result = self._result
+        if result is None:
+            return []
+        return [
+            _BackendPgResultShim(
+                item,
+                result._encodings[index] or self._encoding,
+                self.format,
+                result._statusmessages[index],
+            )
+            for index, item in enumerate(result._results)
+        ]
 
     @property
     def rowcount(self) -> int:
+        if self._rowcount_override is not None:
+            return self._rowcount_override
         if self._result is None:
             return -1
-        return self._result.rows_affected
+        current = self._result.current_result
+        if current is None:
+            return -1
+        return _result_rowcount(current, self._result.statusmessage)
 
     @property
     def rownumber(self) -> int | None:
@@ -1645,13 +1708,14 @@ class NoTlsCursorAdapter:
     @property
     def statusmessage(self) -> str | None:
         if self._result is None:
-            return None
+            return self._statusmessage_override
         return self._result.statusmessage
 
     def close(self) -> None:
         self._closed = True
         self._result = None
         self._result_transformer = None
+        self._stream_result = None
 
     def copy(
         self,
@@ -1676,6 +1740,7 @@ class NoTlsCursorAdapter:
         self._conn._check_closed()
         if binary is not None:
             self.format = pq.Format.BINARY if binary else pq.Format.TEXT
+        self._reset_result()
         with self._conn.lock:
             try:
                 self._result = self._conn._execute(
@@ -1692,57 +1757,63 @@ class NoTlsCursorAdapter:
                 if translated is not ex:
                     raise translated from None
                 raise
-        self._make_row = None
-        self._result_transformer = None
-        self._rownumber = 0
         if self._row_factory not in _LEGACY_ROW_FACTORIES:
             self._make_row_for_result(self._result)
         return self
 
     def executemany(
         self,
-        query: str,
-        params_seq: Sequence[list[str | None]],
+        query: Query,
+        params_seq: Sequence[Params],
         *,
         returning: bool = False,
         prepare: bool = False,
     ) -> None:
         self._check_closed()
         self._conn._check_closed()
+        self._reset_result()
+        results: list[_ResultSetLike] = []
+        statuses: list[str | None] = []
+        encodings: list[str | None] = []
+        total = 0
+        try:
+            with self._conn.lock:
+                for params in params_seq:
+                    cursor = self._conn._execute(
+                        query,
+                        params,
+                        prepare=prepare,
+                        adapters=self.adapters,
+                        result_format=self.format,
+                        cursor_state=self,
+                    )
+                    result = cursor.current_result
+                    if result is None:
+                        continue
+                    if returning:
+                        results.append(result)
+                        statuses.append(cursor.statusmessage)
+                        encodings.append(cursor.encoding)
+                    else:
+                        total += max(_result_rowcount(result, cursor.statusmessage), 0)
+                        statuses.append(cursor.statusmessage)
+        except e.Error as ex:
+            translated = self._conn._translate_session_error(ex)
+            if translated is not ex:
+                raise translated from None
+            raise
+
         if returning:
-            results = [
-                self._conn._execute(
-                    query,
-                    params,
-                    prepare=prepare,
-                    adapters=self.adapters,
-                    result_format=self.format,
-                    cursor_state=self,
-                ).current_result
-                for params in params_seq
-            ]
-            self._result = BackendResultCursor(
-                [result for result in results if result is not None]
-            )
+            self._result = BackendResultCursor(results, statuses, encodings)
+            if not results:
+                self._rowcount_override = 0
         else:
-            total = 0
-            for params in params_seq:
-                result = self._conn._execute(
-                    query,
-                    params,
-                    prepare=prepare,
-                    adapters=self.adapters,
-                    result_format=self.format,
-                    cursor_state=self,
-                ).current_result
-                if result is not None:
-                    total += result.rows_affected
-            synthetic = _SyntheticResult(rows_affected=total)
-            synthetic.statusmessage = _statusmessage_for_query(query, synthetic)
-            self._result = BackendResultCursor([synthetic])
-        self._make_row = None
-        self._result_transformer = None
-        self._rownumber = 0
+            self._rowcount_override = total
+            if statuses:
+                aggregate = _SyntheticResult(rows_affected=total)
+                self._statusmessage_override = _statusmessage_for_query(
+                    query, aggregate
+                )
 
     def stream(
         self,
@@ -1756,12 +1827,32 @@ class NoTlsCursorAdapter:
             raise e.ProgrammingError("stream() cannot be used in pipeline mode")
         if size < 1:
             raise ValueError("size must be >= 1")
+        if size > 1:
+            from ._capabilities import capabilities
+
+            capabilities.has_stream_chunked(check=True)
         self.execute(query, params, binary=binary)
-        while True:
-            row = self._fetchone_row()
-            if row is _NO_ROW:
-                break
-            yield row
+        result = self._require_result()
+        self._check_result_for_fetch(result)
+        current = result.current_result
+        assert current is not None
+        try:
+            while True:
+                self._conn._check_closed()
+                if (row := result.fetchone()) is None:
+                    break
+                self._rownumber = (self._rownumber or 0) + 1
+                self._stream_result = _SyntheticResult(
+                    columns=current.columns,
+                    column_descriptions=getattr(current, "column_descriptions", None),
+                    rows=[list(row)],
+                    rows_affected=1,
+                    is_tuples=True,
+                    wire_format=getattr(current, "wire_format", None),
+                )
+                yield self._make_row_for_result(result)(row)
+        finally:
+            self._stream_result = None
 
     def fetchone(self) -> object | None:
         row = self._fetchone_row()
@@ -1814,7 +1905,9 @@ class NoTlsCursorAdapter:
         self._rownumber = newpos
 
     def nextset(self) -> bool | None:
-        result = self._require_result()
+        if self._result is None:
+            return None
+        result = self._result
         rv = result.nextset()
         if rv:
             self._make_row = None
@@ -1823,7 +1916,11 @@ class NoTlsCursorAdapter:
         return rv
 
     def set_result(self, index: int) -> NoTlsCursorAdapter:
-        result = self._require_result()
+        if self._result is None:
+            self._check_closed()
+            self._conn._check_closed()
+            raise IndexError(f"index {index} out of range: 0 result(s) available")
+        result = self._result
         result.set_result(index)
         self._make_row = None
         self._result_transformer = None
@@ -1837,7 +1934,7 @@ class NoTlsCursorAdapter:
         return None
 
     def results(self) -> Iterator[NoTlsCursorAdapter]:
-        if self._result is None:
+        if self._result is None or self._result.current_result is None:
             return
         while True:
             yield self
@@ -1868,6 +1965,11 @@ class NoTlsCursorAdapter:
         self._check_closed()
         self._conn._check_closed()
         if self._result is None:
+            if (
+                self._rowcount_override is not None
+                and self._statusmessage_override is not None
+            ):
+                raise e.ProgrammingError("the last operation didn't produce a result")
             raise e.ProgrammingError("no result available")
         return self._result
 
@@ -1876,7 +1978,29 @@ class NoTlsCursorAdapter:
         if current is None or not getattr(
             current, "is_tuples", bool(current.columns or current.rows)
         ):
-            raise e.ProgrammingError("the last operation didn't produce a result")
+            pgresult = self.pgresult
+            if pgresult is not None and pgresult.command_status:
+                detail = f" (command status: {pgresult.command_status.decode()})"
+            elif pgresult is not None:
+                detail = f" (result status: {ExecStatus(pgresult.status).name})"
+            else:
+                detail = ""
+            raise e.ProgrammingError(
+                f"the last operation didn't produce records{detail}"
+            )
+
+    def _reset_result(self) -> None:
+        self._result = None
+        self._make_row = None
+        self._result_transformer = None
+        self._stream_result = None
+        self._rowcount_override = None
+        self._statusmessage_override = None
+        self._rownumber = 0
+
+    def _loaders_changed(self, oid: int, loader: type[Loader]) -> None:
+        del oid, loader
+        self._result_transformer = None
 
     def _make_row_for_result(self, result: BackendResultCursor) -> RowMaker:
         current = result.current_result
@@ -1904,6 +2028,8 @@ class NoTlsCursorAdapter:
     def _load_result_values(
         self, result: _ResultSetLike, row: Sequence[object]
     ) -> tuple[object, ...]:
+        cursor_result = self._result
+        assert cursor_result is not None
         descriptions = getattr(result, "column_descriptions", None)
         if not descriptions:
             return tuple(row)
@@ -1922,6 +2048,7 @@ class NoTlsCursorAdapter:
             return tuple(row)
 
         if self._result_transformer is None:
+            encoding = cursor_result.encoding or self._encoding
             tx = _BackendTransformer(
                 _AdaptContext(
                     self._conn,
@@ -1936,7 +2063,7 @@ class NoTlsCursorAdapter:
                     expose_connection=True,
                 )
             )
-            tx._encoding = self._encoding
+            tx._encoding = encoding
             tx._row_loaders = [
                 tx.get_loader(
                     column.oid,
@@ -1954,8 +2081,9 @@ class NoTlsCursorAdapter:
             self._result_transformer = tx
 
         if wire_format == pq.Format.TEXT:
+            encoding = cursor_result.encoding or self._encoding
             row = tuple(
-                value.encode(self._encoding) if isinstance(value, str) else value
+                value.encode(encoding) if isinstance(value, str) else value
                 for value in row
             )
         return self._result_transformer.load_sequence(
@@ -3316,39 +3444,85 @@ class NoTlsConnectionAdapter:
         query, params = self._convert_query_params(
             query, params, adapters=adapters, cursor_state=cursor_state
         )
+        statusmessage = _statusmessage_for_query(query)
+        if statusmessage and statusmessage.split(maxsplit=1)[0] == "COPY":
+            raise e.ProgrammingError(
+                "COPY cannot be used with this method; use copy() instead"
+            )
         if self._unsupported_client_encoding and not _changes_client_encoding(query):
             raise e.NotSupportedError(str(self._unsupported_client_encoding))
         self._ensure_transaction()
-        if params is None:
-            if prefer_extended:
-                result = self._execute_extended_no_params(query, result_format)
-            else:
-                result = self._session.execute_simple(query)
-        elif isinstance(params, _BoundParams):
-            result = self._execute_bound(query, params, prepare, result_format)
-        else:
-            if not prepare and self.prepare_threshold is not None:
-                count = self._prepare_counts.get(query, 0)
-                prepare = count >= self.prepare_threshold
-                self._prepare_counts[query] = count + 1
-
-            if prepare:
-                statement_id = self._prepared.get(query)
-                if statement_id is None:
-                    prepared = self._session.prepare_text(query)
-                    statement_id = prepared.statement_id
-                    self._prepared[query] = statement_id
-                    self._prepared_statusmessages[statement_id] = (
-                        _statusmessage_for_query(query)
-                    )
-                result = self._session.execute_prepared(
-                    statement_id,
-                    params,
-                    statusmessage=self._prepared_statusmessages.get(statement_id),
-                    result_format=result_format,
+        client_encoding = self._pgconn._encoding
+        bridge_encoding = (
+            client_encoding not in {"utf-8", "ascii"}
+            and not _changes_client_encoding(query)
+            and not query.isascii()
+        )
+        if bridge_encoding:
+            self._session.execute_params("SET client_encoding TO 'UTF8'", [])
+            if isinstance(params, _BoundParams):
+                params = _BoundParams(
+                    values=[
+                        (
+                            oid,
+                            binary,
+                            value
+                            if binary or value is None
+                            else value.decode(client_encoding).encode("utf-8"),
+                        )
+                        for oid, binary, value in params.values
+                    ],
+                    types=params.types,
                 )
+
+        execution_error: BaseException | None = None
+        try:
+            if params is None:
+                if prefer_extended:
+                    result = self._execute_extended_no_params(query, result_format)
+                else:
+                    result = self._session.execute_simple(query)
+            elif isinstance(params, _BoundParams):
+                result = self._execute_bound(query, params, prepare, result_format)
             else:
-                result = self._session.execute_params(query, params, result_format)
+                if not prepare and self.prepare_threshold is not None:
+                    count = self._prepare_counts.get(query, 0)
+                    prepare = count >= self.prepare_threshold
+                    self._prepare_counts[query] = count + 1
+
+                if prepare:
+                    statement_id = self._prepared.get(query)
+                    if statement_id is None:
+                        prepared = self._session.prepare_text(query)
+                        statement_id = prepared.statement_id
+                        self._prepared[query] = statement_id
+                        self._prepared_statusmessages[statement_id] = (
+                            _statusmessage_for_query(query)
+                        )
+                    result = self._session.execute_prepared(
+                        statement_id,
+                        params,
+                        statusmessage=self._prepared_statusmessages.get(statement_id),
+                        result_format=result_format,
+                    )
+                else:
+                    result = self._session.execute_params(query, params, result_format)
+        except BaseException as ex:
+            execution_error = ex
+            raise
+        finally:
+            if bridge_encoding:
+                pg_encoding = py2pgenc(client_encoding).decode("ascii")
+                try:
+                    self._session.execute_params(
+                        f"SET client_encoding TO '{pg_encoding}'", []
+                    )
+                except e.Error:
+                    if execution_error is None:
+                        raise
+
+        if bridge_encoding:
+            result.set_encoding("utf-8")
 
         self._refresh_client_encoding(query)
         self._refresh_session_timeout(query)
@@ -3444,7 +3618,12 @@ class NoTlsConnectionAdapter:
     ) -> BackendResultCursor:
         results: list[_ResultSetLike] = []
         statuses: list[str | None] = []
-        for statement in _split_extended_statements(query):
+        statements = _split_extended_statements(query)
+        if not statements:
+            return BackendResultCursor(
+                [_SyntheticResult(status=ExecStatus.EMPTY_QUERY)], [None]
+            )
+        for statement in statements:
             result_cursor = self._session.execute_params(statement, [], result_format)
             result = result_cursor.current_result
             if result is not None:
@@ -3768,6 +3947,16 @@ def _statusmessage_for_query(
     if has_tuples:
         return f"{first} {rows_affected}"
     return first
+
+
+def _result_rowcount(result: _ResultSetLike, statusmessage: str | None) -> int:
+    if getattr(result, "is_tuples", bool(result.columns or result.rows)):
+        return len(result.rows)
+    if statusmessage:
+        command = statusmessage.split(maxsplit=1)[0]
+        if command in {"INSERT", "UPDATE", "DELETE", "MERGE", "MOVE", "FETCH", "COPY"}:
+            return result.rows_affected
+    return -1
 
 
 def _changes_client_encoding(query: str) -> bool:

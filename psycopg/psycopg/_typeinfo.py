@@ -97,8 +97,10 @@ class TypeInfo:
 
     @classmethod
     def _fetch_ferrocopg(cls: type[T], conn: Any, name: str) -> T | None:
+        from .cursor import Cursor
+
         try:
-            with conn.transaction(), conn.cursor(row_factory=dict_row) as cur:
+            with conn.transaction(), Cursor(conn, row_factory=dict_row) as cur:
                 if conn_encoding(conn) == "ascii":
                     cur.execute("set local client_encoding to utf8")
                 cur.execute(cls._get_info_query(conn), {"name": name})
