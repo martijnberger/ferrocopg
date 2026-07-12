@@ -461,23 +461,26 @@ Active cursor closure evidence:
 - No synchronous default, raw, client, common, or server cursor module remains
   manifested. Async cursor manifests remain outside the first release contract.
 
-Current local full-harness evidence is `3969/4420` sync (`0.898`) on CPython
-3.14/PostgreSQL 14, with zero synchronous errors. Type adaptation improved from
-`123` to `48` failures and now passes at `0.966`; connections also had `48`
-failures in that full run but passed at only `0.728`, followed by other behavior
-(`26`) and prepared statements (`20`). The active focused connection slice has
-already improved from `74` passing and `48` failing to `121` passing with zero
-failures and `23` boundary or environment skips. This development environment
-collects optional-dependency cases not present in the CI key, so its denominator
-is reported independently; the committed CI matrix remains the release gate.
+Current local full-harness evidence is `4597/5010` sync (`0.918`) on CPython
+3.14, with zero synchronous errors, `104` failures, `309` skips, and `288`
+manifested cases. Cursor coverage is `571/582` (`0.981`) with zero failures and
+zero manifested cases. Types and metadata report `2681/2775` (`0.966`) with 46
+failures, but 25 are async tests in mixed modules that the path-based reporter
+classifies as sync. The actual synchronous type tail is 21 cases: 18 non-ASCII
+enum loader/dumper variants under LATIN1, two SQL-standard negative-interval
+cases, and one tuple-row integration case. Prepared statements are the next
+separate 21-failure cluster. This development environment collects optional
+dependency cases not present in the CI key, so its denominator is reported
+independently; the committed PostgreSQL 14-18 CI matrix remains the release gate
+and must establish the new minimum before the sync floor is raised.
 
 Continue in measured order, closing the current cursor work before reopening
 the next broad failure cluster:
 
-1. Run the complete sync harness and commit the new measured compatibility
-   floor now that synchronous cursor manifests are removed.
-2. Close remaining type adaptation beyond the completed metadata, string, and
-   composite slices.
+1. Close the 21 actual synchronous type failures: LATIN1 enum adaptation,
+   SQL-standard negative intervals, and tuple-row integration.
+2. Re-run the complete PostgreSQL 14-18 CI matrix and ratchet the sync floor to
+   a conservative value below the new observed matrix minimum.
 3. Close prepared statement behavior.
 4. Close COPY writers, COPY edge cases, pipeline state, and error recovery.
 5. Return to handshake-stall timeouts, bounded cancellation, and concurrent
@@ -602,10 +605,11 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Re-run the complete sync compatibility matrix, commit the new measured
-   floor, and inspect the resulting feature-family report before selecting the
-   next closure slice.
-2. Return to handshake-stall and bounded cancellation timeout boundaries before
+1. Make the focused LATIN1 enum, SQL-standard interval, and tuple-row cases
+   green, then re-run the type family and complete sync harness.
+2. Use the PostgreSQL 14-18 CI result to ratchet the sync floor without exceeding
+   the slowest supported lane.
+3. Return to handshake-stall and bounded cancellation timeout boundaries before
    the release-critical gate.
-3. Preserve the standalone package, explicit delegation, and source-tree
+4. Preserve the standalone package, explicit delegation, and source-tree
    comparison proofs while each compatibility slice changes shared Python code.
