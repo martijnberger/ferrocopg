@@ -74,10 +74,11 @@ Validation evidence:
   accelerator-dependent skips in the PostgreSQL matrix.
 - The Rust compatibility matrix passes across PostgreSQL 14-18 and the target
   CPython 3.11-3.14 range.
-- A complete local PostgreSQL 17 / CPython 3.14 compatibility run reports:
-  - sync: `3790/4453` (`0.851`)
-  - async: `365/586` (`0.623`)
-  - mixed: `4155/5039` (`0.825`)
+- The latest complete local PostgreSQL 14 / CPython 3.14 compatibility run
+  reports:
+  - sync: `3895/4418` (`0.882`)
+  - async: `391/581` (`0.673`)
+  - mixed: `4286/4999` (`0.857`)
 - CI enforces the current `0.80` mixed sync/async compatibility floor and the
   `0.85` sync-only floor.
 - CI reports sync and async independently and uploads family-level JSON and
@@ -87,8 +88,8 @@ Validation evidence:
   tests in every lane. Duplicate JUnit call/teardown records are collapsed by
   node ID, so fixing an execution error cannot masquerade as collection drift.
 - The initial sync-only ratchet is `0.85`; observed complete runs currently
-  range from `0.851` locally to `0.865`-`0.870` on the fixed-interpreter
-  PostgreSQL 14-18 CI axis.
+  range from `0.865` on the fixed-interpreter PostgreSQL 14-18 CI axis to
+  `0.882` in the latest local run.
 - The corrected complete workflow is green with all 53 jobs passing, including
   pure-Python, C/Cython, and all five Rust backend lanes.
 - Lint, formatting, typing, documentation, and Rust checks pass.
@@ -401,10 +402,12 @@ Completed slices:
   COPY conversion-error timing. The focused PostgreSQL 14 run reports `134`
   passing cases and one expected failure.
 
-Current local full-harness evidence is `3855/4417` sync (`0.873`) on CPython
-3.14/PostgreSQL 17. This development environment collects optional-dependency
-cases not present in the CI key, so its denominator is reported independently;
-the committed CI matrix remains the release gate.
+Current local full-harness evidence is `3895/4418` sync (`0.882`) on CPython
+3.14/PostgreSQL 14. The remaining measured failures are concentrated in type
+adaptation (`123`), connections (`48`), prepared statements (`20`), and smaller
+families. This development environment collects optional-dependency cases not
+present in the CI key, so its denominator is reported independently; the
+committed CI matrix remains the release gate.
 
 Continue in measured order, starting with the largest current failure clusters:
 
@@ -535,10 +538,11 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Re-run the complete sync compatibility matrix to refresh the failure-cluster
-   measurements after the transaction, metadata, and string closures.
-2. Take the largest remaining Phase 4.3 cluster, expected to be remaining type
-   adaptation or connection behavior, before prepared statements and cursors.
+1. Close composite and recursive type adaptation, the largest concentrated
+   slice within the `123` remaining type-family failures. Its focused module
+   currently reports `36` passing and `43` failing cases.
+2. Re-measure the remaining type-family failures, then continue with connection
+   behavior before prepared statements and cursors.
 3. Re-run the complete sync compatibility matrix after each closure slice and
    remove obsolete manifest entries while ratcheting the floor upward.
 4. Preserve the standalone package, explicit delegation, and source-tree
