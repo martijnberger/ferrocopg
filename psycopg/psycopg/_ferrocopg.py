@@ -38,6 +38,7 @@ from ._copy_base import (
 )
 from ._encodings import conninfo_encoding, pg2pyenc, py2pgenc
 from ._enums import IsolationLevel, PyFormat
+from ._ferrocopg_conninfo import conninfo_to_dict as _rust_conninfo_to_dict
 from ._oids import BYTEA_OID, INVALID_OID, TEXT_OID
 from ._preparing import Prepare, PrepareManager
 from ._py_transformer import Transformer as AdaptTransformer
@@ -51,8 +52,6 @@ from .adapt import Dumper, RecursiveDumper, RecursiveLoader
 from .conninfo import (
     _param_escape,
     conninfo_attempts,
-    conninfo_to_dict,
-    make_conninfo,
     timeout_from_conninfo,
 )
 from .pq import ExecStatus
@@ -727,7 +726,10 @@ class FerrocopgConnection:
         cls, conninfo: str, **kwargs: str | int | None
     ) -> dict[str, str | int | None]:
         """Manipulate connection parameters before connecting."""
-        return conninfo_to_dict(conninfo, **kwargs)
+        return cast(
+            dict[str, str | int | None],
+            rust_conninfo_to_dict(conninfo, **kwargs),
+        )
 
 
 class BackendConnectionInfo:
@@ -753,12 +755,12 @@ class BackendConnectionInfo:
     @property
     def password(self) -> str:
         self._ensure_open()
-        return str(conninfo_to_dict(self._conn._conninfo).get("password") or "")
+        return str(rust_conninfo_to_dict(self._conn._conninfo).get("password") or "")
 
     @property
     def options(self) -> str:
         self._ensure_open()
-        return str(conninfo_to_dict(self._conn._conninfo).get("options") or "")
+        return str(rust_conninfo_to_dict(self._conn._conninfo).get("options") or "")
 
     @property
     def application_name(self) -> str:
@@ -778,7 +780,7 @@ class BackendConnectionInfo:
     @property
     def host(self) -> str:
         self._ensure_open()
-        params = conninfo_to_dict(self._conn._conninfo)
+        params = rust_conninfo_to_dict(self._conn._conninfo)
         return str(params.get("host") or self.hostaddr)
 
     @property
@@ -795,12 +797,12 @@ class BackendConnectionInfo:
         return port
 
     def get_parameters(self) -> dict[str, str]:
-        params = conninfo_to_dict(self._conn._conninfo)
+        params = rust_conninfo_to_dict(self._conn._conninfo)
         return {k: str(v) for k, v in params.items() if k != "password"}
 
     @property
     def dsn(self) -> str:
-        return make_conninfo(**self.get_parameters())
+        return merge_conninfo("", self.get_parameters())
 
     @property
     def status(self) -> pq.ConnStatus:
@@ -1168,6 +1170,16 @@ def connect_target(conninfo: str) -> object | None:
     return cast(object, _ferrocopg.parse_connect_target(conninfo))
 
 
+def rust_conninfo_to_dict(
+    conninfo: str = "", **kwargs: str | int | None
+) -> dict[str, str | int]:
+    """Parse Rust backend connection parameters without consulting libpq."""
+    try:
+        return _rust_conninfo_to_dict(conninfo, **kwargs)
+    except ValueError as ex:
+        raise e.ProgrammingError(str(ex)) from None
+
+
 def merge_conninfo(
     conninfo: str,
     params: Mapping[str, str | int | None],
@@ -1185,7 +1197,7 @@ def merge_conninfo(
 
     merged: dict[str, str | int] = {}
     if conninfo:
-        for key, value in conninfo_to_dict(conninfo).items():
+        for key, value in rust_conninfo_to_dict(conninfo).items():
             if value is not None:
                 merged[key] = value
     merged.update(overrides)
@@ -3517,9 +3529,9 @@ class NoTlsConnectionAdapter:
             return
         try:
             cancel_timeout(timeout)
-            params = conninfo_to_dict(self._conninfo)
+            params = rust_conninfo_to_dict(self._conninfo)
             params["connect_timeout"] = max(1, ceil(timeout))
-            probe = backend_session(make_conninfo("", **params))
+            probe = backend_session(merge_conninfo("", params))
             if probe is not None:
                 probe.close()
         except e.OperationalError as ex:

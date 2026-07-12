@@ -5001,13 +5001,6 @@ def test_backend_connect_ferrocopg_routes_tls_required(
         return StubSession()
 
     monkeypatch.setattr(module, "backend_session", stub_backend_session)
-    monkeypatch.setattr(
-        module,
-        "make_conninfo",
-        lambda *_args, **_kwargs: pytest.fail(
-            "Rust connection attempts must not be validated through libpq"
-        ),
-    )
 
     conn = cast(
         Any,
@@ -5064,7 +5057,7 @@ def test_backend_merge_conninfo_only_parses_base(
         calls.append(conninfo)
         return {"host": "localhost", "user": "postgres"}
 
-    monkeypatch.setattr(module, "conninfo_to_dict", parse_base)
+    monkeypatch.setattr(module, "rust_conninfo_to_dict", parse_base)
 
     assert module.merge_conninfo(
         "host=localhost user=postgres",
@@ -5081,6 +5074,32 @@ def test_backend_merge_conninfo_only_parses_base(
     assert module.merge_conninfo("channel_binding=require", {}) == (
         "channel_binding=require"
     )
+
+
+def test_backend_conninfo_parser_is_libpq_free() -> None:
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    assert module.rust_conninfo_to_dict(
+        "host=localhost dbname='ferro db' channel_binding=require"
+    ) == {
+        "host": "localhost",
+        "dbname": "ferro db",
+        "channel_binding": "require",
+    }
+    assert module.rust_conninfo_to_dict(
+        "postgresql://ferro:secret@localhost:5544/sample?sslmode=require"
+    ) == {
+        "user": "ferro",
+        "password": "secret",
+        "host": "localhost",
+        "port": "5544",
+        "dbname": "sample",
+        "sslmode": "require",
+    }
+    with pytest.raises(psycopg.ProgrammingError, match="invalid connection option"):
+        module.rust_conninfo_to_dict("not_a_real_option=value")
 
 
 def test_backend_connect_error_preserves_operational_context(

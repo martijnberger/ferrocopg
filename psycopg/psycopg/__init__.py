@@ -30,7 +30,7 @@ from .abc import AdaptContext, ConnParam
 from .client_cursor import AsyncClientCursor, ClientCursor
 from .connection import Connection
 from .connection_async import AsyncConnection
-from .conninfo import conninfo_to_dict
+from .conninfo import conninfo_to_dict as conninfo_to_dict
 from .copy import AsyncCopy, Copy
 from .cursor import Cursor
 from .cursor_async import AsyncCursor
@@ -96,7 +96,10 @@ def connect_ferrocopg(
         conninfo, kwargs, use_environment=True
     )
     target_session_attrs = str(
-        conninfo_to_dict(effective_conninfo).get("target_session_attrs") or "any"
+        _ferrocopg_module.rust_conninfo_to_dict(effective_conninfo).get(
+            "target_session_attrs"
+        )
+        or "any"
     )
     valid_targets = {
         "any",
@@ -164,7 +167,7 @@ def connect_ferrocopg(
                 )
         client_encoding = os.environ.get("PGCLIENTENCODING")
         if client_encoding and "client_encoding" not in (
-            conninfo_to_dict(effective_conninfo)
+            _ferrocopg_module.rust_conninfo_to_dict(effective_conninfo)
         ):
             try:
                 conn._set_client_encoding(client_encoding)

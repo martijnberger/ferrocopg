@@ -580,6 +580,16 @@ seven compatibility jobs from the superseded run were intentionally cancelled
 after they spent more than 15 minutes in the full harness; the next complete
 run remains the authoritative matrix evidence.
 
+The next PostgreSQL 14 attempt proved that rendering alone was insufficient:
+top-level source connection selection still parsed the fully merged DSN with
+libpq to read `target_session_attrs`. The backend now owns keyword and PostgreSQL
+URI parsing for all Rust connection selection, metadata, merging, DSN, and
+cancellation-probe paths, with early `ProgrammingError` diagnostics for invalid
+options. This source parser is covered alongside the already-green standalone
+wheel parser; the complete local Python bootstrap suite is `201` passes with
+nine environment skips and pre-commit is green. PostgreSQL 14 CI must still
+confirm that no old-libpq parse remains before the harness evidence is accepted.
+
 Continue in measured order, using the supported-server matrix before reopening
 the next broad failure cluster:
 
