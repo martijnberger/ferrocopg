@@ -174,11 +174,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {python: "3.10", postgres: "postgres:14", libpq: oldest}
-          - {python: "3.11", postgres: "postgres:15", libpq: newest}
-          - {python: "3.12", postgres: "postgres:16", libpq: newest}
-          - {python: "3.13", postgres: "postgres:17", libpq: newest}
-          - {python: "3.14", postgres: "postgres:18", libpq: newest}
+          - {python: "3.10", postgres: "postgres:14", pg: "14", libpq: oldest}
+          - {python: "3.11", postgres: "postgres:15", pg: "15", libpq: newest}
+          - {python: "3.12", postgres: "postgres:16", pg: "16", libpq: newest}
+          - {python: "3.13", postgres: "postgres:17", pg: "17", libpq: newest}
+          - {python: "3.14", postgres: "postgres:18", pg: "18", libpq: newest}
 
     env:
       PSYCOPG_IMPL: python
@@ -248,7 +248,19 @@ jobs:
             ferrocopg-compat.xml \
             --manifest tests/ferrocopg_manifest.toml \
             --floor tests/ferrocopg_pass_rate.txt \
+            --sync-floor tests/ferrocopg_sync_pass_rate.txt \
+            --report ferrocopg-compat-report.json \
             --pytest-status "$pytest_status"
+
+      - name: Upload ferrocopg compatibility report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ferrocopg-compat-py${{ matrix.python }}-pg${{ matrix.pg }}
+          path: |
+            ferrocopg-compat.xml
+            ferrocopg-compat-report.json
+          if-no-files-found: error
 
 
   # }}}
