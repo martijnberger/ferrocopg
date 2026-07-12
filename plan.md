@@ -432,6 +432,9 @@ Completed slices:
   focused connection modules report `121` passing, zero failures, and `23`
   explicit boundary or environment skips. Handshake-stall timeout limitations
   remain release-critical work and are not considered closed by this slice.
+- [x] Concrete `RawCursor` execution and adaptation. Removing its broad manifest
+  exposes a focused module that passes `78/78` on ferrocopg; common cursor and
+  client-literal behavior remain separately manifested for the next slice.
 
 Current local full-harness evidence is `3969/4420` sync (`0.898`) on CPython
 3.14/PostgreSQL 14, with zero synchronous errors. Type adaptation improved from

@@ -25,19 +25,13 @@ action = "skip"
 [[rules]]
 glob = "tests/test_cursor_client.py::*"
 tag = "concrete-cursor"
-reason = "ClientCursor currently requires libpq connection internals"
+reason = "ClientCursor literal adaptation still requires a libpq-free escaping path"
 action = "skip"
 
 [[rules]]
 glob = "tests/test_cursor_common.py::*"
 tag = "concrete-cursor"
-reason = "Psycopg concrete cursor factories are a documented libpq-only boundary"
-action = "skip"
-
-[[rules]]
-glob = "tests/test_cursor_raw.py::*"
-tag = "concrete-cursor"
-reason = "RawCursor currently requires libpq connection internals"
+reason = "common cursor result bookkeeping and ClientCursor cases remain in progress"
 action = "skip"
 
 [[rules]]
@@ -62,12 +56,6 @@ action = "skip"
 glob = "tests/test_cursor_raw_async.py::*"
 tag = "concrete-cursor"
 reason = "AsyncRawCursor requires libpq connection internals"
-action = "skip"
-
-[[rules]]
-glob = "tests/test_cursor_common.py::*server*"
-tag = "concrete-cursor"
-reason = "these cases directly construct Psycopg concrete server cursor classes"
 action = "skip"
 
 [[rules]]
