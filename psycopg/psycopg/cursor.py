@@ -400,9 +400,10 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
         if self._ferrocopg_cursor is not None:
             self._ferrocopg_cursor.scroll(value, mode)
             self._sync_ferrocopg_cursor()
-        else:
-            self._fetch_pipeline()
-            self._scroll(value, mode)
+            return
+
+        self._fetch_pipeline()
+        self._scroll(value, mode)
 
     @contextmanager
     def copy(

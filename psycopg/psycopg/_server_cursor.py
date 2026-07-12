@@ -108,6 +108,7 @@ class ServerCursor(ServerCursorMixin["Connection[Any]", Row], Cursor[Row]):
             self._ferrocopg_cursor.execute(query, params, binary=binary)
             self._sync_ferrocopg_cursor()
             return self
+
         if self._pgconn.pipeline_status:
             raise e.NotSupportedError(
                 "server-side cursors not supported in pipeline mode"
