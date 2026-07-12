@@ -45,7 +45,11 @@ pub(crate) fn bound_query_params(
         )));
     }
 
-    Ok(params
+    Ok(bound_raw_query_params(params))
+}
+
+pub(crate) fn bound_raw_query_params(params: &[BoundParam]) -> Vec<Box<dyn ToSql + Sync>> {
+    params
         .iter()
         .map(|param| {
             Box::new(RawParam {
@@ -53,7 +57,7 @@ pub(crate) fn bound_query_params(
                 format: param.format,
             }) as Box<dyn ToSql + Sync>
         })
-        .collect())
+        .collect()
 }
 
 pub(crate) fn param_types_from_oids(oids: &[u32]) -> Vec<Type> {

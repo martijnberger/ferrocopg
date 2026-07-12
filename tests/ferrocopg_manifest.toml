@@ -5,6 +5,12 @@ reason = "pq tests assert raw libpq wrapper behavior"
 action = "skip"
 
 [[rules]]
+glob = "tests/test_prepared.py::test_deallocate_or_close"
+tag = "pgconn"
+reason = "the test asserts raw libpq close/deallocate debug calls; Rust deallocation is covered by server-visible LRU tests"
+action = "skip"
+
+[[rules]]
 glob = "tests/test_connection.py::test_context_active_rollback_no_clobber"
 tag = "pgconn"
 reason = "the test enters COPY through raw PGconn.exec_ protocol state"

@@ -6,8 +6,8 @@ use crate::model::{
     StatementParameter, SyncNoTlsProbe, TextQueryResult, WireFormat,
 };
 use crate::params::{
-    bound_param_types, bound_query_params, param_types_from_oids, parsed_query_params,
-    query_param_refs,
+    bound_param_types, bound_query_params, bound_raw_query_params, param_types_from_oids,
+    parsed_query_params, query_param_refs,
 };
 use fallible_iterator::FallibleIterator;
 use postgres::types::{FromSql, Kind, Type};
@@ -274,11 +274,31 @@ impl SyncNoTlsSession {
         wire_format: WireFormat,
     ) -> Result<ResultSet, ProbeError> {
         let types = bound_param_types(params);
-        let statement = self
+        let values = bound_raw_query_params(params);
+        let typed = values
+            .iter()
+            .zip(types)
+            .map(|(value, ty)| (value.as_ref(), ty));
+        let mut rows = self
             .client_mut()?
-            .prepare_typed(query, &types)
+            .query_typed_raw_with_result_format(query, typed, wire_format == WireFormat::Binary)
             .map_err(ProbeError::Query)?;
-        self.run_bound_statement_params(&statement, params, wire_format)
+        let column_descriptions: Vec<_> = rows.columns().iter().map(statement_column).collect();
+        let has_columns = !column_descriptions.is_empty();
+        let mut records = Vec::new();
+        while let Some(row) = rows.next().map_err(ProbeError::Query)? {
+            records.push(row);
+        }
+        let rows_affected = rows.rows_affected().unwrap_or(records.len() as u64);
+        let is_tuples = has_columns || !records.is_empty();
+        let mut result = result_set_from_descriptions_rows(
+            column_descriptions,
+            records,
+            rows_affected,
+            wire_format,
+        )?;
+        result.is_tuples = is_tuples;
+        Ok(result)
     }
 
     pub fn describe_text(&mut self, query: &str) -> Result<StatementDescription, ProbeError> {
@@ -674,18 +694,18 @@ pub(crate) fn statement_description(statement: &postgres::Statement) -> Statemen
                 type_name: ty.name().to_owned(),
             })
             .collect(),
-        columns: statement
-            .columns()
-            .iter()
-            .map(|column| StatementColumn {
-                name: column.name().to_owned(),
-                oid: column.type_().oid(),
-                type_name: column.type_().name().to_owned(),
-                is_enum: matches!(column.type_().kind(), Kind::Enum(_)),
-                type_modifier: column.type_modifier(),
-                type_size: column.type_size(),
-            })
-            .collect(),
+        columns: statement.columns().iter().map(statement_column).collect(),
+    }
+}
+
+fn statement_column(column: &postgres::Column) -> StatementColumn {
+    StatementColumn {
+        name: column.name().to_owned(),
+        oid: column.type_().oid(),
+        type_name: column.type_().name().to_owned(),
+        is_enum: matches!(column.type_().kind(), Kind::Enum(_)),
+        type_modifier: column.type_modifier(),
+        type_size: column.type_size(),
     }
 }
 
@@ -710,12 +730,21 @@ fn result_set_from_statement_rows(
     wire_format: WireFormat,
 ) -> Result<ResultSet, ProbeError> {
     let column_descriptions = statement_description(statement).columns;
+    let rows_affected = rows.len() as u64;
+    result_set_from_descriptions_rows(column_descriptions, rows, rows_affected, wire_format)
+}
+
+fn result_set_from_descriptions_rows(
+    column_descriptions: Vec<StatementColumn>,
+    rows: Vec<postgres::Row>,
+    rows_affected: u64,
+    wire_format: WireFormat,
+) -> Result<ResultSet, ProbeError> {
     let columns = column_descriptions
         .iter()
         .map(|column| column.name.clone())
         .collect();
     let rows = rows_to_wire_values(rows)?;
-    let rows_affected = rows.len() as u64;
     Ok(ResultSet {
         columns,
         column_descriptions,
@@ -763,17 +792,16 @@ fn simple_query_results(
     messages: Vec<postgres::SimpleQueryMessage>,
 ) -> Result<Vec<SimpleQueryResult>, ProbeError> {
     let mut results = Vec::new();
-    let mut current_columns = Vec::new();
+    let mut current_descriptions = Vec::new();
     let mut current_rows = Vec::new();
+    let mut current_is_tuples = false;
 
     for message in messages {
         match message {
             postgres::SimpleQueryMessage::RowDescription(columns) => {
-                current_columns = columns
-                    .iter()
-                    .map(|column| column.name().to_owned())
-                    .collect();
+                current_descriptions = columns.iter().map(simple_column).collect();
                 current_rows.clear();
+                current_is_tuples = true;
             }
             postgres::SimpleQueryMessage::Row(row) => {
                 let values = (0..row.len())
@@ -786,10 +814,17 @@ fn simple_query_results(
                 current_rows.push(values);
             }
             postgres::SimpleQueryMessage::CommandComplete(rows_affected) => {
+                let column_descriptions = std::mem::take(&mut current_descriptions);
+                let columns = column_descriptions
+                    .iter()
+                    .map(|column| column.name.clone())
+                    .collect();
                 results.push(SimpleQueryResult {
-                    columns: std::mem::take(&mut current_columns),
+                    columns,
+                    column_descriptions,
                     rows: std::mem::take(&mut current_rows),
                     rows_affected,
+                    is_tuples: std::mem::take(&mut current_is_tuples),
                 });
             }
             _ => {
@@ -801,6 +836,17 @@ fn simple_query_results(
     }
 
     Ok(results)
+}
+
+fn simple_column(column: &postgres::SimpleColumn) -> StatementColumn {
+    StatementColumn {
+        name: column.name().to_owned(),
+        oid: column.type_oid(),
+        type_name: String::new(),
+        is_enum: false,
+        type_modifier: column.type_modifier(),
+        type_size: column.type_size(),
+    }
 }
 
 fn simple_query_message(

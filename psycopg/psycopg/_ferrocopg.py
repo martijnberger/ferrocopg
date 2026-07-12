@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 import threading
 import warnings
 from collections.abc import Callable, Iterator, Mapping, Sequence
@@ -36,6 +37,7 @@ from ._copy_base import (
 from ._encodings import conninfo_encoding, pg2pyenc, py2pgenc
 from ._enums import IsolationLevel, PyFormat
 from ._oids import BYTEA_OID, INVALID_OID, TEXT_OID
+from ._preparing import Prepare, PrepareManager
 from ._py_transformer import Transformer as AdaptTransformer
 from ._queries import PostgresClientQuery, PostgresQuery, PostgresRawQuery
 from ._rmodule import __version__ as __version__
@@ -98,6 +100,11 @@ class _BoundParams(NamedTuple):
     values: list[tuple[int, bool, bytes | None]]
     types: tuple[int, ...]
     transcode: tuple[bool, ...]
+
+
+class _BackendPreparedQuery(NamedTuple):
+    query: bytes
+    types: tuple[int, ...]
 
 
 class _PreparedStatementLike(Protocol):
@@ -1071,6 +1078,8 @@ class _NoTlsSessionLike(Protocol):
         binary: bool,
     ) -> _ResultSetLike: ...
 
+    def close_prepared(self, statement_id: int) -> None: ...
+
 
 def is_available() -> bool:
     """Return `True` if the bootstrap ferrocopg Rust extension is importable."""
@@ -1392,7 +1401,7 @@ class NoTlsSessionAdapter:
     def execute_simple(self, query: str) -> BackendResultCursor:
         results = self._call(self._session.simple_query_results, query)
         statements = _split_extended_statements(query)
-        if not results and not statements:
+        if not statements:
             return BackendResultCursor(
                 [_SyntheticResult(status=ExecStatus.EMPTY_QUERY)], [None]
             )
@@ -1436,8 +1445,16 @@ class NoTlsSessionAdapter:
         result_format: pq.Format = pq.Format.BINARY,
     ) -> BackendResultCursor:
         method = getattr(self._session, "run_params_format", None)
+        fallback = getattr(self._session, "run_params", None)
+        if method is None and fallback is None:
+            values = [
+                None if value is None else value.decode(self.encoding)
+                for _oid, _binary, value in params.values
+            ]
+            return self.execute_params(query, values, result_format)
+        bound_method = cast(Callable[..., Any], method or fallback)
         result = self._call(
-            method or self._session.run_params,
+            bound_method,
             query,
             params.values,
             *(() if method is None else (result_format == pq.Format.BINARY,)),
@@ -1462,7 +1479,12 @@ class NoTlsSessionAdapter:
         return BackendResultCursor([result], [statusmessage])
 
     def prepare_bound(self, query: str, params: _BoundParams) -> _PreparedStatementLike:
-        return self._call(self._session.prepare_params, query, list(params.types))
+        if method := getattr(self._session, "prepare_params", None):
+            return cast(
+                _PreparedStatementLike,
+                self._call(method, query, list(params.types)),
+            )
+        return self._call(self._session.prepare_text, query)
 
     def execute_prepared_bound(
         self,
@@ -1473,13 +1495,30 @@ class NoTlsSessionAdapter:
         result_format: pq.Format = pq.Format.BINARY,
     ) -> BackendResultCursor:
         method = getattr(self._session, "run_prepared_params_format", None)
+        fallback = getattr(self._session, "run_prepared_params", None)
+        if method is None and fallback is None:
+            values = [
+                None if value is None else value.decode(self.encoding)
+                for _oid, _binary, value in params.values
+            ]
+            return self.execute_prepared(
+                statement_id,
+                values,
+                statusmessage=statusmessage,
+                result_format=result_format,
+            )
+        prepared_method = cast(Callable[..., Any], method or fallback)
         result = self._call(
-            method or self._session.run_prepared_params,
+            prepared_method,
             statement_id,
             params.values,
             *(() if method is None else (result_format == pq.Format.BINARY,)),
         )
         return BackendResultCursor([result], [statusmessage])
+
+    def close_prepared(self, statement_id: int) -> None:
+        if method := getattr(self._session, "close_prepared", None):
+            self._call(method, statement_id)
 
     def begin(self) -> None:
         self._call(self._session.begin)
@@ -1773,7 +1812,7 @@ class NoTlsCursorAdapter:
         query: Query,
         params: Params | None = None,
         *,
-        prepare: bool = False,
+        prepare: bool | None = None,
         binary: bool | None = None,
     ) -> NoTlsCursorAdapter:
         self._check_closed()
@@ -1811,7 +1850,7 @@ class NoTlsCursorAdapter:
         params_seq: Sequence[Params],
         *,
         returning: bool = False,
-        prepare: bool = False,
+        prepare: bool | None = None,
     ) -> None:
         self._check_closed()
         self._conn._check_closed()
@@ -2190,7 +2229,7 @@ class NoTlsServerCursorAdapter(NoTlsCursorAdapter):
         query: Query,
         params: Params | None = None,
         *,
-        prepare: bool = False,
+        prepare: bool | None = None,
         binary: bool | None = None,
     ) -> NoTlsServerCursorAdapter:
         del prepare
@@ -2920,13 +2959,13 @@ class NoTlsConnectionAdapter:
         self.row_factory = row_factory
         self.cursor_factory = cursor_factory
         self.server_cursor_factory = server_cursor_factory or NoTlsServerCursorAdapter
-        self.prepare_threshold = prepare_threshold
+        self._prepared = PrepareManager()
+        self._prepared.prepare_threshold = prepare_threshold
         self._autocommit = autocommit
         self._info = BackendConnectionInfo(self)
         self._probe_cache: _BackendProbeLike | None = None
-        self._prepared: dict[str | tuple[str, tuple[int, ...]], int] = {}
+        self._prepared_ids: dict[bytes, int] = {}
         self._prepared_statusmessages: dict[int, str | None] = {}
-        self._prepare_counts: dict[str | tuple[str, tuple[int, ...]], int] = {}
         self._in_transaction = False
         self._transaction_failed = False
         self._pipeline_depth = 0
@@ -3005,8 +3044,29 @@ class NoTlsConnectionAdapter:
     def pgconn(self) -> _PgconnEncodingShim:
         return self._pgconn
 
+    @pgconn.setter
+    def pgconn(self, value: Any) -> None:
+        self._pgconn = value
+
     def parameter_status(self, param_name: bytes) -> bytes | None:
         return self._pgconn.parameter_status(param_name)
+
+    @property
+    def prepare_threshold(self) -> int | None:
+        return self._prepared.prepare_threshold
+
+    @prepare_threshold.setter
+    def prepare_threshold(self, value: int | None) -> None:
+        self._prepared.prepare_threshold = value
+
+    @property
+    def prepared_max(self) -> int | None:
+        value = self._prepared.prepared_max
+        return value if value != sys.maxsize else None
+
+    @prepared_max.setter
+    def prepared_max(self, value: int | None) -> None:
+        self._prepared.prepared_max = sys.maxsize if value is None else value
 
     def _quote_sql_identifier(self, value: str) -> bytes:
         return _quoted_identifier(value).encode(self._pgconn._encoding)
@@ -3072,9 +3132,9 @@ class NoTlsConnectionAdapter:
         if self._session.closed:
             self._broken = True
         self._session.close()
-        self._prepared.clear()
+        self._prepared = PrepareManager()
+        self._prepared_ids.clear()
         self._prepared_statusmessages.clear()
-        self._prepare_counts.clear()
         self._cancel_handle = None
         self._closed = True
         self._last_error_message = "NULL"
@@ -3121,7 +3181,7 @@ class NoTlsConnectionAdapter:
         query: Query,
         params: Params | None = None,
         *,
-        prepare: bool = False,
+        prepare: bool | None = None,
         binary: bool = False,
         row_factory: RowFactory | None = None,
     ) -> NoTlsCursorAdapter:
@@ -3182,6 +3242,7 @@ class NoTlsConnectionAdapter:
         if not self._in_transaction:
             return
         self._exec_command("ROLLBACK")
+        self._clear_prepared()
         self._in_transaction = False
         self._transaction_failed = False
 
@@ -3207,6 +3268,8 @@ class NoTlsConnectionAdapter:
 
         while result_cursor.nextset():
             pass
+        if query.lstrip().lower().startswith("rollback"):
+            self._clear_prepared()
         result = result_cursor.current_result
         if result is None:
             self._refresh_client_encoding(query)
@@ -3495,7 +3558,7 @@ class NoTlsConnectionAdapter:
         query: Query,
         params: Params | None,
         *,
-        prepare: bool,
+        prepare: bool | None,
         prefer_extended: bool = False,
         adapters: AdaptersMap | None = None,
         result_format: pq.Format = pq.Format.TEXT,
@@ -3550,35 +3613,34 @@ class NoTlsConnectionAdapter:
         execution_error: BaseException | None = None
         try:
             if params is None:
-                if prefer_extended:
-                    result = self._execute_extended_no_params(query, result_format)
-                else:
+                statements = _split_extended_statements(query)
+                supports_bound = hasattr(self._session._session, "run_params")
+                if len(statements) != 1:
                     result = self._session.execute_simple(query)
+                    if any(
+                        statement.lstrip()
+                        .lower()
+                        .startswith(("drop ", "alter ", "rollback", "discard "))
+                        for statement in statements
+                    ):
+                        self._clear_prepared()
+                elif not supports_bound:
+                    result = (
+                        self._execute_extended_no_params(query, result_format)
+                        if prefer_extended
+                        else self._session.execute_simple(query)
+                    )
+                else:
+                    result = self._execute_bound(
+                        query,
+                        _BoundParams([], (), ()),
+                        prepare,
+                        result_format,
+                    )
             elif isinstance(params, _BoundParams):
                 result = self._execute_bound(query, params, prepare, result_format)
             else:
-                if not prepare and self.prepare_threshold is not None:
-                    count = self._prepare_counts.get(query, 0)
-                    prepare = count >= self.prepare_threshold
-                    self._prepare_counts[query] = count + 1
-
-                if prepare:
-                    statement_id = self._prepared.get(query)
-                    if statement_id is None:
-                        prepared = self._session.prepare_text(query)
-                        statement_id = prepared.statement_id
-                        self._prepared[query] = statement_id
-                        self._prepared_statusmessages[statement_id] = (
-                            _statusmessage_for_query(query)
-                        )
-                    result = self._session.execute_prepared(
-                        statement_id,
-                        params,
-                        statusmessage=self._prepared_statusmessages.get(statement_id),
-                        result_format=result_format,
-                    )
-                else:
-                    result = self._session.execute_params(query, params, result_format)
+                result = self._session.execute_params(query, params, result_format)
         except BaseException as ex:
             execution_error = ex
             raise
@@ -3658,32 +3720,77 @@ class NoTlsConnectionAdapter:
         self,
         query: str,
         params: _BoundParams,
-        prepare: bool,
+        prepare: bool | None,
         result_format: pq.Format,
     ) -> BackendResultCursor:
-        key = (query, params.types)
-        if not prepare and self.prepare_threshold is not None:
-            count = self._prepare_counts.get(key, 0)
-            prepare = count >= self.prepare_threshold
-            self._prepare_counts[key] = count + 1
-
-        if prepare:
-            statement_id = self._prepared.get(key)
-            if statement_id is None:
-                prepared = self._session.prepare_bound(query, params)
-                statement_id = prepared.statement_id
-                self._prepared[key] = statement_id
-                self._prepared_statusmessages[statement_id] = _statusmessage_for_query(
-                    query
-                )
-            return self._session.execute_prepared_bound(
-                statement_id,
-                params,
-                statusmessage=self._prepared_statusmessages.get(statement_id),
-                result_format=result_format,
+        pgq = cast(
+            PostgresQuery,
+            _BackendPreparedQuery(query.encode(self._pgconn._encoding), params.types),
+        )
+        prep, name = self._prepared.get(pgq, prepare)
+        statement_id: int | None = None
+        if prep is Prepare.SHOULD:
+            prepared = self._session.prepare_bound(query, params)
+            statement_id = prepared.statement_id
+            self._prepared_ids[name] = statement_id
+            self._prepared_statusmessages[statement_id] = _statusmessage_for_query(
+                query
             )
+        elif prep is Prepare.YES:
+            statement_id = self._prepared_ids[name]
 
-        return self._session.execute_bound(query, params, result_format)
+        try:
+            if statement_id is None:
+                result = self._session.execute_bound(query, params, result_format)
+            else:
+                result = self._session.execute_prepared_bound(
+                    statement_id,
+                    params,
+                    statusmessage=self._prepared_statusmessages.get(statement_id),
+                    result_format=result_format,
+                )
+        except BaseException:
+            if statement_id is not None and prep is Prepare.SHOULD:
+                self._prepared_ids.pop(name, None)
+                self._prepared_statusmessages.pop(statement_id, None)
+                try:
+                    self._session.close_prepared(statement_id)
+                except e.Error:
+                    pass
+            raise
+
+        key = self._prepared.maybe_add_to_cache(pgq, prep, name)
+        if key is not None:
+            pgresults = [
+                _BackendPgResultShim(
+                    item,
+                    result._encodings[index] or self._pgconn._encoding,
+                    result_format,
+                    result._statusmessages[index],
+                )
+                for index, item in enumerate(result._results)
+            ]
+            self._prepared.validate(key, prep, name, cast(Any, pgresults))
+        self._maintain_prepared()
+        return result
+
+    def _clear_prepared(self) -> None:
+        self._prepared.clear()
+        self._maintain_prepared()
+
+    def _maintain_prepared(self) -> None:
+        while self._prepared._to_flush:
+            name = self._prepared._to_flush.popleft()
+            names = list(self._prepared_ids) if name is None else [name]
+            for current_name in names:
+                statement_id = self._prepared_ids.pop(current_name, None)
+                if statement_id is None:
+                    continue
+                self._prepared_statusmessages.pop(statement_id, None)
+                try:
+                    self._session.close_prepared(statement_id)
+                except e.Error:
+                    pass
 
     def _execute_extended_no_params(
         self, query: str, result_format: pq.Format
@@ -3733,13 +3840,17 @@ class NoTlsConnectionAdapter:
                 return query, None
 
         if query_cls is PostgresQuery and isinstance(query, str) and "%" not in query:
-            return query, _coerce_native_params(params)
+            native = _coerce_native_params(params)
+            return query, self._bound_native_params(native)
         if (
             query_cls is PostgresQuery
             and isinstance(query, bytes)
             and b"%" not in query
         ):
-            return query.decode(self._pgconn._encoding), _coerce_native_params(params)
+            native = _coerce_native_params(params)
+            return query.decode(self._pgconn._encoding), self._bound_native_params(
+                native
+            )
 
         tx = _BackendTransformer(
             _AdaptContext(
@@ -3776,6 +3887,24 @@ class NoTlsConnectionAdapter:
             transcode=transcode,
         )
         return pgq.query.decode(tx.encoding), bound
+
+    def _bound_native_params(
+        self, params: list[str | None] | None
+    ) -> _BoundParams | None:
+        if params is None:
+            return None
+        return _BoundParams(
+            [
+                (
+                    0,
+                    False,
+                    None if value is None else value.encode(self._pgconn._encoding),
+                )
+                for value in params
+            ],
+            (0,) * len(params),
+            (True,) * len(params),
+        )
 
     def _ensure_transaction(self) -> None:
         if not self._autocommit and not self._in_transaction:

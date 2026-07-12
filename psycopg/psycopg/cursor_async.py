@@ -154,7 +154,7 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
                 self._ferrocopg_cursor.format = self.format
                 try:
                     self._ferrocopg_cursor.execute(
-                        query, params, prepare=bool(prepare), binary=binary
+                        query, params, prepare=prepare, binary=binary
                     )
                 finally:
                     self._sync_ferrocopg_cursor()

@@ -422,6 +422,24 @@ impl Client {
         Ok(RowIter::new(self.connection.as_ref(), stream))
     }
 
+    /// Like `query_typed_raw`, with an explicit result format.
+    pub fn query_typed_raw_with_result_format<P, I>(
+        &mut self,
+        query: &str,
+        params: I,
+        binary: bool,
+    ) -> Result<RowIter<'_>, Error>
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = (P, Type)>,
+    {
+        let stream = self.connection.block_on(
+            self.client
+                .query_typed_raw_with_result_format(query, params, binary),
+        )?;
+        Ok(RowIter::new(self.connection.as_ref(), stream))
+    }
+
     /// Creates a new prepared statement.
     ///
     /// Prepared statements can be executed repeatedly, and may contain query parameters (indicated by `$1`, `$2`, etc),

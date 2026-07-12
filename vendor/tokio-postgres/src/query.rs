@@ -1,7 +1,7 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
-use crate::prepare::get_type;
+use crate::prepare::get_type_rec;
 use crate::types::{BorrowToSql, IsNull};
 use crate::{Column, Error, Portal, Row, Statement};
 use bytes::{Bytes, BytesMut};
@@ -82,13 +82,26 @@ where
     P: BorrowToSql,
     I: IntoIterator<Item = (P, Type)>,
 {
+    query_typed_with_result_format(client, query, params, true).await
+}
+
+pub async fn query_typed_with_result_format<P, I>(
+    client: &Arc<InnerClient>,
+    query: &str,
+    params: I,
+    binary: bool,
+) -> Result<RowStream, Error>
+where
+    P: BorrowToSql,
+    I: IntoIterator<Item = (P, Type)>,
+{
     let buf = {
         let params = params.into_iter().collect::<Vec<_>>();
         let param_oids = params.iter().map(|(_, t)| t.oid()).collect::<Vec<_>>();
 
         client.with_buf(|buf| {
             frontend::parse("", query, param_oids, buf).map_err(Error::parse)?;
-            encode_bind_raw("", params, "", true, buf)?;
+            encode_bind_raw("", params, "", binary, buf)?;
             frontend::describe(b'S', "", buf).map_err(Error::encode)?;
             frontend::execute("", 0, buf).map_err(Error::encode)?;
             frontend::sync(buf);
@@ -113,7 +126,7 @@ where
                 let mut columns: Vec<Column> = vec![];
                 let mut it = row_description.fields();
                 while let Some(field) = it.next().map_err(Error::parse)? {
-                    let type_ = get_type(client, field.type_oid()).await?;
+                    let type_ = get_type_rec(client, field.type_oid()).await?;
                     let column = Column {
                         name: field.name().to_string(),
                         table_oid: Some(field.table_oid()).filter(|n| *n != 0),
@@ -409,6 +422,11 @@ impl Stream for RowStream {
 }
 
 impl RowStream {
+    /// Returns information about the columns produced by the query.
+    pub fn columns(&self) -> &[Column] {
+        self.statement.columns()
+    }
+
     /// Returns the number of rows affected by the query.
     ///
     /// This function will return `None` until the stream has been exhausted.

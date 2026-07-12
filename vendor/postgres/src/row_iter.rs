@@ -2,7 +2,7 @@ use crate::connection::ConnectionRef;
 use fallible_iterator::FallibleIterator;
 use futures_util::StreamExt;
 use std::pin::Pin;
-use tokio_postgres::{Error, Row, RowStream};
+use tokio_postgres::{Column, Error, Row, RowStream};
 
 /// The iterator returned by `query_raw`.
 pub struct RowIter<'a> {
@@ -23,6 +23,11 @@ impl<'a> RowIter<'a> {
     /// This function will return `None` until the iterator has been exhausted.
     pub fn rows_affected(&self) -> Option<u64> {
         self.it.rows_affected()
+    }
+
+    /// Returns information about the columns produced by the query.
+    pub fn columns(&self) -> &[Column] {
+        self.it.columns()
     }
 }
 

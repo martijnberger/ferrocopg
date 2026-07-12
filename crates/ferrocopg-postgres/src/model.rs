@@ -155,8 +155,10 @@ pub struct SimpleQueryMessage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimpleQueryResult {
     pub columns: Vec<String>,
+    pub column_descriptions: Vec<StatementColumn>,
     pub rows: Vec<Vec<Option<String>>>,
     pub rows_affected: u64,
+    pub is_tuples: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

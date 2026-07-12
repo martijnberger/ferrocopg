@@ -591,6 +591,20 @@ impl Client {
         query::query_typed(&self.inner, query, params).await
     }
 
+    /// Like `query_typed_raw`, with an explicit result format.
+    pub async fn query_typed_raw_with_result_format<P, I>(
+        &self,
+        query: &str,
+        params: I,
+        binary: bool,
+    ) -> Result<RowStream, Error>
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = (P, Type)>,
+    {
+        query::query_typed_with_result_format(&self.inner, query, params, binary).await
+    }
+
     /// Executes a statement, returning the number of rows modified.
     ///
     /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list

@@ -2906,12 +2906,15 @@ def test_no_tls_connection_adapter_prepare_threshold(
         ("prepared", 21, ["y"]),
         ("prepared", 21, ["z"]),
     ]
-    assert conn._prepared == {"select $1::text": 21}
-    assert conn._prepare_counts == {"select $1::text": 3}
+    key = (b"select $1::text", (0,))
+    assert conn._prepared._names == {key: b"_pg3_0"}
+    assert conn._prepared._counts == {}
+    assert conn._prepared_ids == {b"_pg3_0": 21}
     conn.close()
-    assert conn._prepared == {}
+    assert conn._prepared._names == {}
+    assert conn._prepared._counts == {}
+    assert conn._prepared_ids == {}
     assert conn._prepared_statusmessages == {}
-    assert conn._prepare_counts == {}
 
 
 def test_no_tls_connection_adapter_psycopg_placeholders(
@@ -2970,7 +2973,7 @@ def test_no_tls_connection_adapter_psycopg_placeholders(
     ]
     assert stub.calls[1:] == [
         ("bound", "select $1::text", [(0, False, b"named")]),
-        ("params", "select $1::text", ["native"]),
+        ("bound", "select $1::text", [(0, False, b"native")]),
     ]
 
 
