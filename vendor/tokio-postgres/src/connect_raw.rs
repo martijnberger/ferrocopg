@@ -110,7 +110,7 @@ where
     };
 
     startup(&mut stream, config, &user).await?;
-    authenticate(&mut stream, config, &user).await?;
+    let used_password = authenticate(&mut stream, config, &user).await?;
     let (process_id, secret_key, parameters) = read_info(&mut stream).await?;
 
     let (sender, receiver) = mpsc::unbounded();
@@ -120,6 +120,7 @@ where
         config.ssl_negotiation,
         process_id,
         secret_key,
+        used_password,
     );
     let connection = Connection::new(stream.inner, stream.delayed, parameters, receiver);
 
@@ -160,7 +161,7 @@ async fn authenticate<S, T>(
     stream: &mut StartupStream<S, T>,
     config: &Config,
     user: &str,
-) -> Result<(), Error>
+) -> Result<bool, Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
     T: TlsStream + Unpin,
@@ -168,7 +169,7 @@ where
     match stream.try_next().await.map_err(Error::io)? {
         Some(Message::AuthenticationOk) => {
             can_skip_channel_binding(config)?;
-            return Ok(());
+            return Ok(false);
         }
         Some(Message::AuthenticationCleartextPassword) => {
             can_skip_channel_binding(config)?;
@@ -208,7 +209,7 @@ where
     }
 
     match stream.try_next().await.map_err(Error::io)? {
-        Some(Message::AuthenticationOk) => Ok(()),
+        Some(Message::AuthenticationOk) => Ok(true),
         Some(Message::ErrorResponse(body)) => Err(Error::db(body)),
         Some(_) => Err(Error::unexpected_message()),
         None => Err(Error::closed()),

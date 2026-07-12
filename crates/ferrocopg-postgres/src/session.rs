@@ -51,6 +51,26 @@ impl SyncNoTlsCancelHandle {
             }
         }
     }
+
+    pub fn cancel_timeout(&self, timeout: Duration) -> Result<(), ProbeError> {
+        match self.tls_mode {
+            SessionTlsMode::NoTls => self
+                .inner
+                .cancel_query_timeout(postgres::NoTls, timeout)
+                .map_err(ProbeError::Connect),
+            SessionTlsMode::Tls => {
+                self.inner
+                    .cancel_query_timeout(
+                        crate::tls::make_tls_connector(self.tls.as_ref().ok_or_else(|| {
+                            ProbeError::TlsConfig("missing TLS options".to_owned())
+                        })?)
+                        .map_err(ProbeError::TlsConfig)?,
+                        timeout,
+                    )
+                    .map_err(ProbeError::Connect)
+            }
+        }
+    }
 }
 
 /// Capture a PostgreSQL value without assigning it a Rust type first.
@@ -79,10 +99,12 @@ pub struct SyncNoTlsSession {
     prepared: HashMap<u64, postgres::Statement>,
     prepared_queries: HashMap<u64, String>,
     next_statement_id: u64,
+    used_password: bool,
 }
 
 impl SyncNoTlsSession {
     pub(crate) fn from_client(client: postgres::Client, notices: NoticeQueue) -> Self {
+        let used_password = client.used_password();
         Self {
             client: Some(client),
             notices,
@@ -91,6 +113,7 @@ impl SyncNoTlsSession {
             prepared: HashMap::new(),
             prepared_queries: HashMap::new(),
             next_statement_id: 1,
+            used_password,
         }
     }
 
@@ -99,6 +122,7 @@ impl SyncNoTlsSession {
         tls: TlsOptions,
         notices: NoticeQueue,
     ) -> Self {
+        let used_password = client.used_password();
         Self {
             client: Some(client),
             notices,
@@ -107,6 +131,7 @@ impl SyncNoTlsSession {
             prepared: HashMap::new(),
             prepared_queries: HashMap::new(),
             next_statement_id: 1,
+            used_password,
         }
     }
 
@@ -120,11 +145,16 @@ impl SyncNoTlsSession {
             prepared: HashMap::new(),
             prepared_queries: HashMap::new(),
             next_statement_id: 1,
+            used_password: false,
         }
     }
 
     pub fn closed(&self) -> bool {
         self.client.as_ref().is_none_or(postgres::Client::is_closed)
+    }
+
+    pub fn used_password(&self) -> bool {
+        self.used_password
     }
 
     pub fn close(&mut self) {

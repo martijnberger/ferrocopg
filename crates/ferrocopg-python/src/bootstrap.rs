@@ -3,6 +3,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
 use pyo3::wrap_pyfunction;
 use std::sync::{Mutex, TryLockError};
+use std::time::Duration;
 
 use crate::python_helpers::psycopg_import;
 
@@ -988,10 +989,28 @@ impl BackendSyncNoTlsCancelHandle {
     fn cancel(&self, py: Python<'_>) -> PyResult<()> {
         with_cancel_handle(py, self, |handle| handle.cancel())
     }
+
+    fn cancel_timeout(&self, py: Python<'_>, timeout: f64) -> PyResult<()> {
+        let timeout = Duration::try_from_secs_f64(timeout.max(0.0))
+            .map_err(|_| PyValueError::new_err("timeout must be finite"))?;
+        with_cancel_handle(py, self, |handle| handle.cancel_timeout(timeout))
+    }
 }
 
 #[pymethods]
 impl BackendSyncNoTlsSession {
+    fn used_password(&self) -> PyResult<bool> {
+        Ok(self
+            .inner
+            .lock()
+            .map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    "backend session mutex is poisoned",
+                )
+            })?
+            .used_password())
+    }
+
     #[getter]
     fn closed(&self) -> PyResult<bool> {
         match self.inner.try_lock() {

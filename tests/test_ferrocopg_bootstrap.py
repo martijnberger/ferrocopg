@@ -5027,6 +5027,7 @@ def test_backend_connect_ferrocopg_routes_tls_required(
     assert calls[0] == "host=localhost sslmode=require dbname=postgres"
     selected_params = dict(item.split("=", 1) for item in calls[1].split())
     assert selected_params.pop("hostaddr") in {"127.0.0.1", "::1"}
+    assert selected_params.pop("connect_timeout") == "130"
     assert selected_params == {
         "host": "localhost",
         "dbname": "postgres",
@@ -5034,6 +5035,7 @@ def test_backend_connect_ferrocopg_routes_tls_required(
     }
     channel_params = dict(item.split("=", 1) for item in calls[2].split())
     assert channel_params.pop("hostaddr") in {"127.0.0.1", "::1"}
+    assert channel_params.pop("connect_timeout") == "130"
     assert channel_params == {
         "host": "localhost",
         "dbname": "postgres",

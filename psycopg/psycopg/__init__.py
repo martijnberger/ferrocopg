@@ -78,6 +78,7 @@ def connect_ferrocopg(
     isolation_level: IsolationLevel | int | None = None,
     read_only: bool | None = None,
     deferrable: bool | None = None,
+    _connect_timeout: int | None = None,
     **kwargs: str | int | None,
 ) -> object:
     """
@@ -126,6 +127,8 @@ def connect_ferrocopg(
         "read_only": read_only,
         "deferrable": deferrable,
     }
+    if _connect_timeout is not None:
+        adapter_options["connect_timeout"] = _connect_timeout
     if context is not None:
         adapter_options["adapters"] = cast(Any, context).adapters
 

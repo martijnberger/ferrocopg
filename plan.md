@@ -69,7 +69,7 @@ Implemented Rust-backed capabilities include:
 
 Validation evidence:
 
-- 22 Rust backend tests pass.
+- 23 Rust backend tests pass.
 - The focused live bootstrap suite reports 200 passing tests with 9 expected
   environment or accelerator-dependent skips.
 - The Rust compatibility matrix passes across PostgreSQL 14-18 and the target
@@ -481,6 +481,18 @@ Completed slices:
   `test_identify_closure` regressions pass together against the live Rust
   backend. Handshake-stall timeout coverage remains a separate release-critical
   connection slice.
+- [x] Full synchronous connection-attempt deadlines and bounded cancellation.
+  The vendored synchronous Rust client now applies `connect_timeout` to the
+  entire PostgreSQL handshake, classifies both socket and protocol timeouts,
+  preserves per-host diagnostics, and advances after a stalled host. Safe
+  cancellation has a caller-supplied deadline and verifies endpoint
+  responsiveness with a bounded follow-up handshake. Password-authentication
+  use is carried from the wire protocol to `PGconn.used_password`, and SIGINT
+  interrupts a stalled first attempt before failover. The complete synchronous
+  connection and concurrency modules report `104` passing cases and 16 raw
+  libpq, version, authentication, or environment skips. The unmasked libpq-17
+  cancel-timeout case passes in about `1.2s`, and all seven synchronous handshake
+  manifest rules have been removed.
 
 Active cursor closure evidence:
 
@@ -495,7 +507,7 @@ Active cursor closure evidence:
   manifested. Async cursor manifests remain outside the first release contract.
 
 The latest complete local full-harness evidence, measured before the concurrency
-slice above, is `4686/5053` sync (`0.927`) on CPython
+and handshake slices above, is `4686/5053` sync (`0.927`) on CPython
 3.14, with zero synchronous errors, `58` reported failures, `309` skips, and
 `245` manifested cases. Twenty-five reported sync failures are experimental
 async type-info tests and two are async transaction parameters in mixed
@@ -508,25 +520,25 @@ Prepared statements report `32/32`, COPY reports `111/111`, and pipeline reports
 The completed type tail still reports `2590` passing tests, seven environment
 skips, 37 expected failures, and only the 25 experimental async-facade failures
 from mixed modules. The focused bootstrap suite now passes `200` cases with nine
-expected TLS or prepared-transaction skips, all 22 Rust backend tests pass, and
+expected TLS or prepared-transaction skips, all 23 Rust backend tests pass, and
 the focused cursor family remains `571` passing with 11 version or intentional
 skips. The focused concurrency slice closes three of the 31 actual synchronous
 failures from the last complete run; the next full run must provide the updated
 authoritative count. The complete sync harness satisfies the `0.85` floor at
 `0.927`. This development environment collects optional dependency cases not
 present in the CI key, so its denominator is reported independently. The
-post-COPY/pipeline PostgreSQL 14-18 workflow for revision `22683450` is queued;
-its completed matrix must establish the supported-server minimum before the
-floor is raised.
+PostgreSQL 14-18 workflow for the current published main revision is queued; its
+completed matrix must establish the supported-server minimum before the floor
+is raised. The waiting module's four macOS timeout-duration failures
+reproduce under explicit libpq and are not Rust backend gaps; four remote-close
+cases are now exact raw `PGconn`/socket boundaries.
 
 Continue in measured order, using the supported-server matrix before reopening
 the next broad failure cluster:
 
 1. Re-run the complete PostgreSQL 14-18 CI matrix and ratchet the sync floor to
    a conservative value below the new observed matrix minimum.
-2. Close handshake-stall timeouts, then classify the remaining wait/remote-close
-   cases as supported public behavior or exact raw `PGconn`/socket boundaries.
-3. Close notification delivery, pool integration, and the remaining low-volume
+2. Close notification delivery, pool integration, and the remaining low-volume
    synchronous failures.
 
 For every slice:
@@ -649,9 +661,7 @@ the synchronous beta is established.
 
 1. Use the post-COPY/pipeline PostgreSQL 14-18 CI result to ratchet the sync floor
    without exceeding the slowest supported lane.
-2. Close handshake-stall timeout behavior and exact raw `PGconn`/socket
-   boundaries before claiming the release-critical connection gate.
-3. Address the measured notification and official `psycopg_pool` integration
+2. Address the measured notification and official `psycopg_pool` integration
    failures before Phase 5 soak and performance work.
-4. Preserve the standalone package, explicit delegation, and source-tree
+3. Preserve the standalone package, explicit delegation, and source-tree
    comparison proofs while each compatibility slice changes shared Python code.

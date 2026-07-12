@@ -100,21 +100,9 @@ reason = "raw socket access is a documented ferrocopg boundary"
 action = "skip"
 
 [[rules]]
-glob = "tests/test_connection.py::test_connect_error_single_host_original_message_preserved*"
-tag = "handshake-timeout"
-reason = "rust-postgres connect_timeout covers socket establishment, not a stalled PostgreSQL handshake"
-action = "skip"
-
-[[rules]]
 glob = "tests/test_connection_async.py::test_connect_error_single_host_original_message_preserved*"
 tag = "handshake-timeout"
 reason = "rust-postgres connect_timeout does not cover a stalled PostgreSQL handshake"
-action = "skip"
-
-[[rules]]
-glob = "tests/test_connection.py::test_connect_error_multi_hosts_each_message_preserved*"
-tag = "handshake-timeout"
-reason = "rust-postgres does not aggregate libpq-style per-host connection errors"
 action = "skip"
 
 [[rules]]
@@ -124,21 +112,9 @@ reason = "rust-postgres does not aggregate libpq-style per-host connection error
 action = "skip"
 
 [[rules]]
-glob = "tests/test_connection.py::test_multi_attempt_pgconn*"
-tag = "handshake-timeout"
-reason = "libpq multi-attempt PGconn error aggregation is unavailable"
-action = "skip"
-
-[[rules]]
 glob = "tests/test_connection_async.py::test_multi_attempt_pgconn*"
 tag = "handshake-timeout"
 reason = "libpq multi-attempt PGconn error aggregation is unavailable"
-action = "skip"
-
-[[rules]]
-glob = "tests/test_connection.py::test_connect_timeout*"
-tag = "handshake-timeout"
-reason = "rust-postgres connect_timeout covers socket establishment, not a stalled PostgreSQL handshake"
 action = "skip"
 
 [[rules]]
@@ -148,21 +124,9 @@ reason = "rust-postgres connect_timeout does not cover a stalled PostgreSQL hand
 action = "skip"
 
 [[rules]]
-glob = "tests/test_connection.py::test_multi_hosts*"
-tag = "handshake-timeout"
-reason = "rust-postgres cannot advance to another host while the first PostgreSQL handshake is stalled"
-action = "skip"
-
-[[rules]]
 glob = "tests/test_connection_async.py::test_multi_hosts*"
 tag = "handshake-timeout"
 reason = "rust-postgres cannot advance after a stalled PostgreSQL handshake"
-action = "skip"
-
-[[rules]]
-glob = "tests/test_connection.py::test_cancel_safe_timeout*"
-tag = "handshake-timeout"
-reason = "rust-postgres cancel_query does not expose libpq 17 bounded cancel-safe handshake semantics"
 action = "skip"
 
 [[rules]]
@@ -172,7 +136,7 @@ reason = "rust-postgres cancel_query does not expose libpq 17 bounded cancel-saf
 action = "skip"
 
 [[rules]]
-glob = "tests/test_concurrency.py::test_break_attempts*"
-tag = "handshake-timeout"
-reason = "interrupting a stalled libpq connection attempt is outside the Rust adapter contract"
+glob = "tests/test_waiting.py::test_wait_remote_closed*"
+tag = "pgconn-socket"
+reason = "direct PGconn.send_query(), generator, and socket waiting require raw libpq access"
 action = "skip"

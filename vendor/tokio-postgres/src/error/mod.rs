@@ -444,6 +444,15 @@ impl Error {
         self.0.kind == Kind::Closed
     }
 
+    /// Determines if the operation exceeded its configured timeout.
+    pub fn is_timeout(&self) -> bool {
+        self.0.kind == Kind::Timeout
+            || self
+                .source()
+                .and_then(|source| source.downcast_ref::<io::Error>())
+                .is_some_and(|source| source.kind() == io::ErrorKind::TimedOut)
+    }
+
     /// Returns the SQLSTATE error code associated with the error.
     ///
     /// This is a convenience method that downcasts the cause to a `DbError` and returns its code.

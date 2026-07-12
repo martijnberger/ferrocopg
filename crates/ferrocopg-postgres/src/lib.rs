@@ -29,6 +29,11 @@ pub use session::{SyncNoTlsCancelHandle, SyncNoTlsSession};
 
 #[cfg(test)]
 mod tests {
+    use std::net::TcpListener;
+    use std::sync::mpsc;
+    use std::thread;
+    use std::time::{Duration, Instant};
+
     use super::*;
     use crate::bootstrap::DEFAULT_POSTGRES_PORT;
 
@@ -138,6 +143,35 @@ mod tests {
         );
 
         assert!(matches!(result, Err(ProbeError::TlsConfig(_))));
+    }
+
+    #[test]
+    fn connect_session_times_out_during_stalled_handshake() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let (release_tx, release_rx) = mpsc::channel();
+        let server = thread::spawn(move || {
+            let (_socket, _) = listener.accept().unwrap();
+            release_rx.recv().unwrap();
+        });
+
+        let start = Instant::now();
+        let result = connect_session(&format!(
+            "host=127.0.0.1 port={port} user=postgres sslmode=disable connect_timeout=1"
+        ));
+        let elapsed = start.elapsed();
+
+        release_tx.send(()).unwrap();
+        server.join().unwrap();
+        let Err(error) = result else {
+            panic!("stalled handshake unexpectedly connected");
+        };
+        assert_eq!(error.to_string(), "connection timeout expired");
+        assert!(
+            elapsed >= Duration::from_millis(900),
+            "elapsed: {elapsed:?}"
+        );
+        assert!(elapsed < Duration::from_secs(2), "elapsed: {elapsed:?}");
     }
 
     #[test]

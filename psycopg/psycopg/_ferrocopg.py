@@ -17,6 +17,7 @@ from collections import deque
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import timedelta, tzinfo
 from enum import Enum
+from math import ceil
 from time import monotonic
 from types import SimpleNamespace
 from typing import Any, NamedTuple, ParamSpec, Protocol, TypeVar, cast
@@ -47,7 +48,13 @@ from ._tpc import Xid
 from ._tz import get_tzinfo
 from .abc import AdaptContext, Buffer, Loader, Params, Query
 from .adapt import Dumper, RecursiveDumper, RecursiveLoader
-from .conninfo import _param_escape, conninfo_attempts, conninfo_to_dict, make_conninfo
+from .conninfo import (
+    _param_escape,
+    conninfo_attempts,
+    conninfo_to_dict,
+    make_conninfo,
+    timeout_from_conninfo,
+)
 from .pq import ExecStatus
 from .transaction import Rollback
 from .types.string import BytesDumper
@@ -142,6 +149,8 @@ class _BackendProbeLike(Protocol):
 class _CancelHandleLike(Protocol):
     def cancel(self) -> None: ...
 
+    def cancel_timeout(self, timeout: float) -> None: ...
+
 
 def _coerce_param_text(value: object) -> str:
     if isinstance(value, timedelta):
@@ -184,6 +193,9 @@ class _NoopCancelHandle:
     def cancel(self) -> None:
         pass
 
+    def cancel_timeout(self, timeout: float) -> None:
+        del timeout
+
 
 class _PgconnEncodingShim:
     def __init__(self, encoding: str, conn: NoTlsConnectionAdapter | None = None):
@@ -201,6 +213,12 @@ class _PgconnEncodingShim:
         if self._conn is None:
             return 0
         return self._conn.info.backend_pid
+
+    @property
+    def used_password(self) -> bool:
+        if self._conn is None:
+            return False
+        return self._conn._used_password
 
     @property
     def db(self) -> bytes:
@@ -634,6 +652,7 @@ class FerrocopgConnection:
         **kwargs: str | int | None,
     ) -> object | None:
         params = cls._get_connection_params(conninfo, **kwargs)
+        timeout = timeout_from_conninfo(params)
         attempts = conninfo_attempts(params)
         has_target = "target_session_attrs" in params
         target = str(params.get("target_session_attrs") or "any")
@@ -672,7 +691,9 @@ class FerrocopgConnection:
                 )
                 try:
                     return cls._connect_gen(
-                        make_conninfo("", **attempt), **connect_options
+                        make_conninfo("", **attempt),
+                        _connect_timeout=timeout,
+                        **connect_options,
                     )
                 except e.Error as ex:
                     errors.append((ex, description))
@@ -1008,6 +1029,8 @@ class _NoTlsSessionLike(Protocol):
 
     def close(self) -> None: ...
 
+    def used_password(self) -> bool: ...
+
     def probe(self) -> _BackendProbeLike: ...
 
     def begin(self) -> None: ...
@@ -1265,14 +1288,14 @@ def no_tls_session(conninfo: str) -> object | None:
     return cast(object, _ferrocopg.connect_no_tls_session(conninfo))
 
 
-def backend_session(conninfo: str) -> object | None:
+def backend_session(conninfo: str) -> _NoTlsSessionLike | None:
     """
     Return a live Rust-backed reusable backend session if the extension is loaded.
     """
     if not _ferrocopg:
         return None
     try:
-        return cast(object, _ferrocopg.connect_session(conninfo))
+        return cast(_NoTlsSessionLike, _ferrocopg.connect_session(conninfo))
     except e.Error as ex:
         raise e.OperationalError(
             str(ex), info=ex._info, pgconn=cast(Any, _BackendConnectPgconn(conninfo))
@@ -1401,6 +1424,9 @@ class NoTlsSessionAdapter:
     @property
     def closed(self) -> bool:
         return self._session.closed
+
+    def used_password(self) -> bool:
+        return self._session.used_password()
 
     def close(self) -> None:
         self._session.close()
@@ -3093,6 +3119,7 @@ class NoTlsConnectionAdapter:
         self._tpc: tuple[Xid, bool] | None = None
         self._closed = False
         self._broken = False
+        self._used_password = False
         self._warn_on_del = False
         if adapters is None:
             self._adapters = None
@@ -3116,6 +3143,7 @@ class NoTlsConnectionAdapter:
         self._cancel_handle: _CancelHandleLike | None = None
         self._ensure_cancel_handle()
         try:
+            self._used_password = self._session.used_password()
             self._probe_cache = self._session.probe()
         except AttributeError:
             # Lightweight bootstrap doubles may not expose connection metadata.
@@ -3452,8 +3480,24 @@ class NoTlsConnectionAdapter:
         self._ensure_cancel_handle().cancel()
 
     def cancel_safe(self, *, timeout: float = 30.0) -> None:
-        del timeout
-        self.cancel()
+        if self._closed:
+            return
+        handle = self._ensure_cancel_handle()
+        cancel_timeout = getattr(handle, "cancel_timeout", None)
+        if cancel_timeout is None:
+            self.cancel()
+            return
+        try:
+            cancel_timeout(timeout)
+            params = conninfo_to_dict(self._conninfo)
+            params["connect_timeout"] = max(1, ceil(timeout))
+            probe = backend_session(make_conninfo("", **params))
+            if probe is not None:
+                probe.close()
+        except e.OperationalError as ex:
+            if "timeout" in str(ex).lower():
+                raise e.CancellationTimeout("cancellation timeout expired") from None
+            raise
 
     def _try_cancel(self, *, timeout: float = 5.0) -> None:
         try:
@@ -4477,7 +4521,7 @@ def backend_session_adapter(conninfo: str) -> NoTlsSessionAdapter | None:
     session = backend_session(conninfo)
     if session is None:
         return None
-    return NoTlsSessionAdapter(cast(_NoTlsSessionLike, session))
+    return NoTlsSessionAdapter(session)
 
 
 def no_tls_connection_adapter(
@@ -4532,11 +4576,17 @@ def backend_connection_adapter(
     isolation_level: IsolationLevel | int | None = None,
     read_only: bool | None = None,
     deferrable: bool | None = None,
+    connect_timeout: int | None = None,
 ) -> NoTlsConnectionAdapter | None:
     """
     Return an experimental connection-like adapter over the Rust backend.
     """
-    session = backend_session_adapter(conninfo)
+    session_conninfo = (
+        merge_conninfo(conninfo, {"connect_timeout": connect_timeout})
+        if connect_timeout is not None
+        else conninfo
+    )
+    session = backend_session_adapter(session_conninfo)
     if session is None:
         return None
     conn = NoTlsConnectionAdapter(

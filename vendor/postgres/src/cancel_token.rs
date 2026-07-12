@@ -1,6 +1,7 @@
 use tokio::runtime;
 use tokio_postgres::tls::MakeTlsConnect;
 use tokio_postgres::{Error, Socket};
+use std::time::Duration;
 
 /// The capability to request cancellation of in-progress queries on a
 /// connection.
@@ -31,5 +32,21 @@ impl CancelToken {
             .build()
             .unwrap() // FIXME don't unwrap
             .block_on(self.0.cancel_query(tls))
+    }
+
+    /// Attempts cancellation with a deadline covering connection and protocol setup.
+    pub fn cancel_query_timeout<T>(&self, tls: T, timeout: Duration) -> Result<(), Error>
+    where
+        T: MakeTlsConnect<Socket>,
+    {
+        runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap() // FIXME don't unwrap
+            .block_on(async {
+                tokio::time::timeout(timeout, self.0.cancel_query(tls))
+                    .await
+                    .map_err(|_| Error::__private_api_timeout())?
+            })
     }
 }

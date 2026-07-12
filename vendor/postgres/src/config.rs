@@ -462,7 +462,16 @@ impl Config {
             .build()
             .unwrap(); // FIXME don't unwrap
 
-        let (client, connection) = runtime.block_on(self.config.connect(tls))?;
+        let timeout = self.config.get_connect_timeout().copied();
+        let connect = self.config.connect(tls);
+        let (client, connection) = runtime.block_on(async {
+            match timeout {
+                Some(timeout) => tokio::time::timeout(timeout, connect)
+                    .await
+                    .map_err(|_| Error::__private_api_timeout())?,
+                None => connect.await,
+            }
+        })?;
 
         let connection = Connection::new(runtime, connection, self.notice_callback.clone());
         Ok(Client::new(connection, client))

@@ -742,6 +742,11 @@ impl Client {
         self.client.is_closed()
     }
 
+    /// Reports whether the server requested password authentication.
+    pub fn used_password(&self) -> bool {
+        self.client.used_password()
+    }
+
     /// Closes the client's connection to the server.
     ///
     /// This is equivalent to `Client`'s `Drop` implementation, except that it returns any error encountered to the

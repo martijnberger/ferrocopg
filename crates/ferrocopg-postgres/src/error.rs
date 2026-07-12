@@ -87,6 +87,9 @@ fn postgres_error_message(err: &postgres::Error) -> String {
     if let Some(db_err) = err.as_db_error() {
         return db_err.message().to_owned();
     }
+    if err.is_timeout() {
+        return "connection timeout expired".to_owned();
+    }
 
     let mut messages = vec![err.to_string()];
     let mut source = err.source();
