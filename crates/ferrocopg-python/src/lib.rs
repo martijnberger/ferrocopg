@@ -3,7 +3,7 @@ mod bootstrap;
 mod python_helpers;
 
 use crate::python_helpers::{
-    handle_stop_iteration, hasattr, poll_event_mask, psycopg_exception_with_pgconn,
+    handle_stop_iteration, hasattr, poll_event_mask, psycopg_exception_with_pgconn, psycopg_import,
     psycopg_operational_error,
 };
 use pyo3::PyErr;
@@ -146,8 +146,8 @@ enum ConnectState {
 
 #[pyfunction(signature = (conninfo, timeout=0.0))]
 fn connect(py: Python<'_>, conninfo: &str, timeout: f64) -> PyResult<ConnectGenerator> {
-    let waiting = py.import("psycopg.waiting")?;
-    let pq = py.import("psycopg.pq")?;
+    let waiting = psycopg_import(py, "waiting")?;
+    let pq = psycopg_import(py, "pq")?;
     let conn_status = pq.getattr("ConnStatus")?;
     let polling_status = pq.getattr("PollingStatus")?;
     let conn = pq
@@ -188,8 +188,8 @@ fn cancel(
     cancel_conn: &Bound<'_, PyAny>,
     timeout: f64,
 ) -> PyResult<CancelGenerator> {
-    let waiting = py.import("psycopg.waiting")?;
-    let pq = py.import("psycopg.pq")?;
+    let waiting = psycopg_import(py, "waiting")?;
+    let pq = psycopg_import(py, "pq")?;
     let polling_status = pq.getattr("PollingStatus")?;
     let deadline = if timeout > 0.0 {
         Some(
@@ -217,7 +217,7 @@ fn cancel(
 
 #[pyfunction]
 fn send(py: Python<'_>, pgconn: &Bound<'_, PyAny>) -> PyResult<SendGenerator> {
-    let waiting = py.import("psycopg.waiting")?;
+    let waiting = psycopg_import(py, "waiting")?;
     let wait_rw = waiting.getattr("WAIT_RW")?.unbind();
     let ready_r = waiting.getattr("READY_R")?.extract::<i32>()?;
 
@@ -231,7 +231,7 @@ fn send(py: Python<'_>, pgconn: &Bound<'_, PyAny>) -> PyResult<SendGenerator> {
 
 #[pyfunction]
 fn fetch(py: Python<'_>, pgconn: &Bound<'_, PyAny>) -> PyResult<FetchGenerator> {
-    let waiting = py.import("psycopg.waiting")?;
+    let waiting = psycopg_import(py, "waiting")?;
     let wait_r = waiting.getattr("WAIT_R")?.unbind();
 
     Ok(FetchGenerator {
@@ -243,7 +243,7 @@ fn fetch(py: Python<'_>, pgconn: &Bound<'_, PyAny>) -> PyResult<FetchGenerator> 
 
 #[pyfunction]
 fn fetch_many(py: Python<'_>, pgconn: &Bound<'_, PyAny>) -> PyResult<FetchManyGenerator> {
-    let exec_status = py.import("psycopg.pq")?.getattr("ExecStatus")?;
+    let exec_status = psycopg_import(py, "pq")?.getattr("ExecStatus")?;
 
     Ok(FetchManyGenerator {
         pgconn: pgconn.clone().unbind(),
@@ -274,8 +274,8 @@ fn pipeline_communicate(
     pgconn: &Bound<'_, PyAny>,
     commands: &Bound<'_, PyAny>,
 ) -> PyResult<PipelineCommunicateGenerator> {
-    let waiting = py.import("psycopg.waiting")?;
-    let exec_status = py.import("psycopg.pq")?.getattr("ExecStatus")?;
+    let waiting = psycopg_import(py, "waiting")?;
+    let exec_status = psycopg_import(py, "pq")?.getattr("ExecStatus")?;
 
     Ok(PipelineCommunicateGenerator {
         pgconn: pgconn.clone().unbind(),
@@ -313,9 +313,9 @@ fn wait_c(
         return Err(PyErr::new::<PyValueError, _>("interval cannot be infinite"));
     }
 
-    let waiting = py.import("psycopg.waiting")?;
+    let waiting = psycopg_import(py, "waiting")?;
     let select = py.import("select")?;
-    let errors = py.import("psycopg.errors")?;
+    let errors = psycopg_import(py, "errors")?;
     let operational_error = errors.getattr("OperationalError")?;
 
     let wait_r = waiting.getattr("WAIT_R")?.extract::<i32>()?;
@@ -440,8 +440,7 @@ fn _ferrocopg(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", VERSION)?;
     m.add(
         "Transformer",
-        py.import("psycopg._py_transformer")?
-            .getattr("Transformer")?,
+        psycopg_import(py, "_py_transformer")?.getattr("Transformer")?,
     )?;
     bootstrap::register(m)?;
     m.add_class::<ConnectGenerator>()?;
@@ -578,8 +577,7 @@ impl ConnectGenerator {
                 ConnectState::Poll => {
                     let status_now = self.conn.bind(py).getattr("status")?.extract::<i32>()?;
                     if status_now == self.bad {
-                        let encoding = py
-                            .import("psycopg._encodings")?
+                        let encoding = psycopg_import(py, "_encodings")?
                             .getattr("conninfo_encoding")?
                             .call1((self.conninfo.as_str(),))?;
                         let msg = format!(
@@ -591,7 +589,7 @@ impl ConnectGenerator {
                         );
                         return Err(psycopg_exception_with_pgconn(
                             py,
-                            &py.import("psycopg.errors")?.getattr("OperationalError")?,
+                            &psycopg_import(py, "errors")?.getattr("OperationalError")?,
                             &msg,
                             self.conn.bind(py),
                         ));
@@ -623,12 +621,10 @@ impl ConnectGenerator {
                         return Err(PyStopIteration::new_err((self.conn.clone_ref(py),)));
                     }
                     if poll_status == self.poll_failed {
-                        let encoding = py
-                            .import("psycopg._encodings")?
+                        let encoding = psycopg_import(py, "_encodings")?
                             .getattr("conninfo_encoding")?
                             .call1((self.conninfo.as_str(),))?;
-                        let finished = py
-                            .import("psycopg.errors")?
+                        let finished = psycopg_import(py, "errors")?
                             .getattr("finish_pgconn")?
                             .call1((self.conn.bind(py),))?;
                         let msg = format!(
@@ -640,19 +636,18 @@ impl ConnectGenerator {
                         );
                         return Err(psycopg_exception_with_pgconn(
                             py,
-                            &py.import("psycopg.errors")?.getattr("OperationalError")?,
+                            &psycopg_import(py, "errors")?.getattr("OperationalError")?,
                             &msg,
                             &finished,
                         ));
                     }
 
-                    let finished = py
-                        .import("psycopg.errors")?
+                    let finished = psycopg_import(py, "errors")?
                         .getattr("finish_pgconn")?
                         .call1((self.conn.bind(py),))?;
                     return Err(psycopg_exception_with_pgconn(
                         py,
-                        &py.import("psycopg.errors")?.getattr("InternalError")?,
+                        &psycopg_import(py, "errors")?.getattr("InternalError")?,
                         &format!("unexpected poll status: {poll_status}"),
                         &finished,
                     ));
@@ -666,7 +661,7 @@ impl ConnectGenerator {
                             .extract::<f64>()?;
                         if now > deadline {
                             return Err(psycopg_operational_error(
-                                &py.import("psycopg.errors")?.getattr("ConnectionTimeout")?,
+                                &psycopg_import(py, "errors")?.getattr("ConnectionTimeout")?,
                                 "connection timeout expired",
                             ));
                         }
@@ -782,7 +777,7 @@ impl FetchGenerator {
     }
 
     fn finish(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        py.import("psycopg.generators")?
+        psycopg_import(py, "generators")?
             .getattr("_consume_notifies")?
             .call1((self.pgconn.bind(py),))?;
         self.pgconn
@@ -864,7 +859,7 @@ impl FetchManyGenerator {
             return self.advance(py, None);
         }
 
-        let errors = py.import("psycopg.errors")?;
+        let errors = psycopg_import(py, "errors")?;
         let database_error = errors.getattr("DatabaseError")?;
         if err.is_instance(py, &database_error) && self.has_fatal_result {
             self.state = FetchManyState::Done;
@@ -1002,7 +997,7 @@ impl PipelineCommunicateGenerator {
                 }
                 PipelineState::ProcessRead => {
                     self.pgconn.bind(py).call_method0("consume_input")?;
-                    py.import("psycopg.generators")?
+                    psycopg_import(py, "generators")?
                         .getattr("_consume_notifies")?
                         .call1((self.pgconn.bind(py),))?;
 
@@ -1031,7 +1026,7 @@ impl PipelineCommunicateGenerator {
                                 || status == self.copy_out
                                 || status == self.copy_both
                             {
-                                let errors = py.import("psycopg.errors")?;
+                                let errors = psycopg_import(py, "errors")?;
                                 return Err(psycopg_operational_error(
                                     &errors.getattr("NotSupportedError")?,
                                     "COPY cannot be used in pipeline mode",
@@ -1085,7 +1080,7 @@ impl CancelGenerator {
                 .call0()?
                 .extract::<f64>()?;
             if now > deadline {
-                let errors = py.import("psycopg.errors")?;
+                let errors = psycopg_import(py, "errors")?;
                 return Err(psycopg_operational_error(
                     &errors.getattr("CancellationTimeout")?,
                     "cancellation timeout expired",
@@ -1124,7 +1119,7 @@ impl CancelGenerator {
             .into_any());
         }
         if status == self.poll_failed {
-            let errors = py.import("psycopg.errors")?;
+            let errors = psycopg_import(py, "errors")?;
             let message = format!(
                 "cancellation failed: {}",
                 self.cancel_conn
@@ -1138,7 +1133,7 @@ impl CancelGenerator {
             ));
         }
 
-        let errors = py.import("psycopg.errors")?;
+        let errors = psycopg_import(py, "errors")?;
         Err(psycopg_operational_error(
             &errors.getattr("InternalError")?,
             &format!("unexpected poll status: {status}"),

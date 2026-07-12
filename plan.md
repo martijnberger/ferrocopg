@@ -352,7 +352,7 @@ Definition of done:
 
 ### Phase 4.2: Prove the ferrocopg package boundary
 
-Status: in progress.
+Status: implementation complete; final package CI validation pending.
 
 Tasks:
 
@@ -360,15 +360,15 @@ Tasks:
 - [x] Package the vendored Python API as `ferrocopg`.
 - [x] Package the Rust extension inside the ferrocopg wheel.
 - [x] Add lazy official-Psycopg delegation for libpq and async entry points.
-- [ ] Make delegated return types and type overloads honest.
+- [x] Make delegated return types and type overloads honest.
 - [x] Define the fallback extra and installation errors.
-- [ ] Define and test the supported official-Psycopg version range for delegation.
+- [x] Define and test the supported official-Psycopg version range for delegation.
 - [x] Test side-by-side imports and distribution uninstall behavior.
 - [x] Establish version metadata independent from upstream Psycopg while recording
   the vendored upstream revision.
 - [x] Make the Rust-default package import and connect without system libpq;
   libpq may only be required when the optional official-Psycopg fallback is used.
-- [x] Pass the clean installed-wheel CI smoke with a live Rust query, explicit
+- [ ] Pass the clean installed-wheel CI smoke with a live Rust query, explicit
   delegation, coexistence, and uninstall-isolation checks.
 
 Definition of done:

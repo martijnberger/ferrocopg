@@ -4,6 +4,8 @@ use pyo3::types::{PyBytes, PyDict};
 use pyo3::wrap_pyfunction;
 use std::sync::Mutex;
 
+use crate::python_helpers::psycopg_import;
+
 #[derive(Clone)]
 #[pyclass(module = "ferrocopg_rust._ferrocopg", skip_from_py_object)]
 struct BackendConninfoSummary {
@@ -315,7 +317,7 @@ fn backend_diagnostic_info<'py>(
     py: Python<'py>,
     diagnostic: &ferrocopg_postgres::PostgresDiagnostic,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let fields = py.import("psycopg.pq")?.getattr("DiagnosticField")?;
+    let fields = psycopg_import(py, "pq")?.getattr("DiagnosticField")?;
     let info = PyDict::new(py);
     set_diagnostic_field(
         &info,
@@ -481,7 +483,7 @@ fn psycopg_error_from_type(
 fn backend_py_error(py: Python<'_>, err: ferrocopg_postgres::ProbeError) -> PyErr {
     let message = err.to_string();
     let info = backend_error_info(py, &err).ok().flatten();
-    let Ok(errors) = py.import("psycopg.errors") else {
+    let Ok(errors) = psycopg_import(py, "errors") else {
         return backend_runtime_error(message);
     };
 

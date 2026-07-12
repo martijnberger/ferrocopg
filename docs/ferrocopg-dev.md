@@ -131,6 +131,9 @@ libpq_conn = psycopg.connect(dsn, impl="libpq")
 ```
 
 The delegated object will be an official `psycopg.Connection`, not a wrapper.
+Type checkers infer `ferrocopg.RustConnection` for omitted or explicit Rust
+selection; explicit libpq delegation is typed as `Any` because its concrete
+class comes from the optional official distribution at runtime.
 The first release supports the Rust synchronous backend; async entry points
 delegate to official Psycopg. Missing Rust or fallback dependencies produce
 actionable installation errors rather than silent fallback.

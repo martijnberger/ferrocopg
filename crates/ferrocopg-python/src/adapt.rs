@@ -1,4 +1,6 @@
-use crate::python_helpers::{bytes_like_to_vec, expected_field_count, psycopg_operational_error};
+use crate::python_helpers::{
+    bytes_like_to_vec, expected_field_count, psycopg_import, psycopg_operational_error,
+};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyString};
@@ -103,7 +105,7 @@ fn str_dump_binary(py: Python<'_>, obj: &str, encoding: &str) -> PyResult<Py<PyA
 fn str_dump_text(py: Python<'_>, obj: &str, encoding: &str) -> PyResult<Py<PyAny>> {
     if obj.contains('\0') {
         return Err(psycopg_operational_error(
-            &py.import("psycopg.errors")?.getattr("DataError")?,
+            &psycopg_import(py, "errors")?.getattr("DataError")?,
             "PostgreSQL text fields cannot contain NUL (0x00) bytes",
         ));
     }
@@ -250,7 +252,7 @@ fn time_load_binary(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<Py<PyAn
     let value = i64::from_be_bytes(raw.try_into().expect("validated length"));
     let (hour, minute, second, microsecond) = micros_to_time_parts(value);
     let Some(time) = time_from_micros(value) else {
-        let errors = py.import("psycopg.errors")?;
+        let errors = psycopg_import(py, "errors")?;
         let data_error = errors.getattr("DataError")?;
         return Err(psycopg_operational_error(
             &data_error,
@@ -274,7 +276,7 @@ fn timetz_load_binary(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<Py<Py
     let offset = i32::from_be_bytes(raw[8..12].try_into().expect("validated length"));
     let Some(time) = time_from_micros(micros) else {
         let (hour, _, _, _) = micros_to_time_parts(micros);
-        let errors = py.import("psycopg.errors")?;
+        let errors = psycopg_import(py, "errors")?;
         let data_error = errors.getattr("DataError")?;
         return Err(psycopg_operational_error(
             &data_error,
@@ -432,7 +434,7 @@ fn interval_load_binary(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<Py<
     {
         Ok(value) => value,
         Err(err) => {
-            let errors = py.import("psycopg.errors")?;
+            let errors = psycopg_import(py, "errors")?;
             let data_error = errors.getattr("DataError")?;
             return Err(psycopg_operational_error(
                 &data_error,
@@ -457,8 +459,7 @@ fn composite_dump_text_sequence(
         return Ok(PyBytes::new(py, b"()").unbind().into_any());
     }
 
-    let pyformat_text = py
-        .import("psycopg.adapt")?
+    let pyformat_text = psycopg_import(py, "adapt")?
         .getattr("PyFormat")?
         .getattr("TEXT")?;
     let mut out = Vec::from([b'(']);
@@ -720,8 +721,7 @@ fn dump_sequence(
     tx: &Bound<'_, PyAny>,
     format_name: &str,
 ) -> PyResult<Vec<Option<Vec<u8>>>> {
-    let pyformat = py
-        .import("psycopg.adapt")?
+    let pyformat = psycopg_import(py, "adapt")?
         .getattr("PyFormat")?
         .getattr(format_name)?;
     let formats = PyList::empty(py);
@@ -848,8 +848,7 @@ fn parse_binary_array<'py>(
         pos += 8;
     }
 
-    let pq_binary = py
-        .import("psycopg.pq")?
+    let pq_binary = psycopg_import(py, "pq")?
         .getattr("Format")?
         .getattr("BINARY")?;
     let loader = tx.call_method1("get_loader", (oid, pq_binary))?;
@@ -1093,7 +1092,7 @@ fn numeric_binary_to_decimal<'py>(py: Python<'py>, data: &[u8]) -> PyResult<Boun
         NUMERIC_NINF => return decimal.call1(("-Infinity",)),
         NUMERIC_POS | NUMERIC_NEG => {}
         _ => {
-            let errors = py.import("psycopg.errors")?;
+            let errors = psycopg_import(py, "errors")?;
             let data_error = errors.getattr("DataError")?;
             return Err(psycopg_operational_error(
                 &data_error,
@@ -1206,9 +1205,7 @@ fn time_from_micros(value: i64) -> Option<Time> {
 
 fn offset_from_seconds(py: Python<'_>, seconds: i32) -> PyResult<UtcOffset> {
     UtcOffset::from_whole_seconds(seconds).map_err(|err| {
-        let errors = py
-            .import("psycopg.errors")
-            .expect("psycopg.errors should import");
+        let errors = psycopg_import(py, "errors").expect("Psycopg errors should import");
         let data_error = errors
             .getattr("DataError")
             .expect("psycopg.errors.DataError should exist");
@@ -1224,7 +1221,7 @@ fn duration_to_i64_micros(duration: Duration) -> PyResult<i64> {
 fn timezone_offset_seconds(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<i32> {
     let offset = obj.call_method0("utcoffset")?;
     if offset.is_none() {
-        let errors = py.import("psycopg.errors")?;
+        let errors = psycopg_import(py, "errors")?;
         let data_error = errors.getattr("DataError")?;
         return Err(psycopg_operational_error(
             &data_error,
@@ -1270,9 +1267,7 @@ fn python_time_to_object(
 }
 
 fn date_range_error(py: Python<'_>, too_small: bool) -> PyErr {
-    let errors = py
-        .import("psycopg.errors")
-        .expect("psycopg.errors should import");
+    let errors = psycopg_import(py, "errors").expect("Psycopg errors should import");
     let data_error = errors
         .getattr("DataError")
         .expect("psycopg.errors.DataError should exist");
@@ -1287,9 +1282,7 @@ fn date_range_error(py: Python<'_>, too_small: bool) -> PyErr {
 }
 
 fn timestamp_range_error(py: Python<'_>, too_small: bool) -> PyErr {
-    let errors = py
-        .import("psycopg.errors")
-        .expect("psycopg.errors should import");
+    let errors = psycopg_import(py, "errors").expect("Psycopg errors should import");
     let data_error = errors
         .getattr("DataError")
         .expect("psycopg.errors.DataError should exist");

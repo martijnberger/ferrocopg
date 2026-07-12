@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 import pytest
+from packaging.requirements import Requirement
+from packaging.version import Version
 
 from tools import stage_ferrocopg as staging
 
@@ -58,6 +60,11 @@ def test_stage_package_rewrites_namespace_and_preserves_accelerator_names(
     assert "from ._rust import _ferrocopg as rust_extension" in rmodule
     assert "ferrocopg_rust" not in rmodule
     assert "from ._official import AsyncConnection" in init
+    assert "NoTlsConnectionAdapter as RustConnection" in init
+    assert '"RustConnection",' in init
+    assert ") -> RustConnection: ..." in init
+    assert 'impl: Literal["libpq"]' in init
+    assert ") -> Any: ..." in init
     assert "connect as connect_official" in init
     assert "PSYCOPG_SOURCE_IMPL" not in init
     assert 'import_module("psycopg")' in official
@@ -65,6 +72,12 @@ def test_stage_package_rewrites_namespace_and_preserves_accelerator_names(
     revision = staging.DEFAULT_UPSTREAM_REVISION.read_text().strip()
     assert f'PSYCOPG_REVISION = "{revision}"' in vendored
     assert "__vendored_psycopg_revision__" in init
+
+    fallback = Requirement("psycopg >= 3.3, < 3.4")
+    assert Version("3.3") in fallback.specifier
+    assert Version("3.3.99") in fallback.specifier
+    assert Version("3.2.99") not in fallback.specifier
+    assert Version("3.4") not in fallback.specifier
 
 
 def test_staged_package_imports_with_ferrocopg_identities(tmp_path: Path) -> None:
@@ -150,6 +163,38 @@ else:
     )
 
     assert result.returncode == 0, result.stderr
+
+
+def test_staged_package_exposes_honest_connect_types(tmp_path: Path) -> None:
+    output = tmp_path / "stage"
+    staging.stage_package(output)
+    probe = tmp_path / "typing_probe.py"
+    probe.write_text(
+        "import ferrocopg\n"
+        "reveal_type(ferrocopg.connect())\n"
+        'reveal_type(ferrocopg.connect(impl="ferrocopg"))\n'
+        'reveal_type(ferrocopg.connect(impl="libpq"))\n'
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mypy",
+            "--no-incremental",
+            "--ignore-missing-imports",
+            str(probe),
+        ],
+        cwd=tmp_path,
+        env={**os.environ, "MYPYPATH": str(output)},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    rust_type = "ferrocopg._ferrocopg.NoTlsConnectionAdapter"
+    assert result.stdout.count(f'Revealed type is "{rust_type}"') == 2
+    assert 'Revealed type is "Any"' in result.stdout
 
 
 def test_stage_package_refuses_existing_output(tmp_path: Path) -> None:

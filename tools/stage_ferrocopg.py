@@ -28,6 +28,13 @@ STAGED_RUST_IMPORT = """\
 """
 SOURCE_ASYNC_IMPORT = "from .connection_async import AsyncConnection"
 STAGED_ASYNC_IMPORT = "from ._official import AsyncConnection"
+SOURCE_CONNECTION_IMPORT = "from .connection import Connection"
+STAGED_CONNECTION_IMPORT = """\
+from .connection import Connection
+from ._ferrocopg import NoTlsConnectionAdapter as RustConnection
+""".rstrip()
+SOURCE_CONNECTION_EXPORT = '    "Connection",\n'
+STAGED_CONNECTION_EXPORT = '    "Connection",\n    "RustConnection",\n'
 SOURCE_VERSION_IMPORT = "from .version import __version__ as __version__  # noqa: F401"
 STAGED_VERSION_IMPORT = """\
 from .version import __version__ as __version__  # noqa: F401
@@ -41,7 +48,7 @@ STAGED_PQ_ATTEMPTS = """\
     attempts: list[str] = []
 
     if impl == "ferrocopg":
-        from .. import _pq_compat as module
+        from .. import _pq_compat as module  # type: ignore[assignment]
 """
 SOURCE_CMODULE_PYTHON = 'elif pq.__impl__ == "python":\n'
 STAGED_CMODULE_PYTHON = 'elif pq.__impl__ in ("python", "ferrocopg"):\n'
@@ -59,6 +66,51 @@ SOURCE_SELECTOR = """\
     )
 """
 STAGED_SELECTOR = '    selected_impl = impl if impl is not None else "ferrocopg"\n'
+SOURCE_CONNECT_OVERLOADS = """\
+@overload
+def connect(
+    conninfo: str = "",
+    /,
+    *,
+    autocommit: bool = False,
+    prepare_threshold: int | None = 5,
+    context: AdaptContext | None = None,
+    row_factory: RowFactory[Row] | None = None,
+    cursor_factory: type[Cursor[Row]] | None = None,
+    impl: Literal["libpq"] | None = None,
+    **kwargs: ConnParam,
+) -> Connection[Row]: ...
+
+
+@overload
+def connect(
+    conninfo: str = "",
+    /,
+    *,
+    impl: Literal["ferrocopg"],
+    **kwargs: Any,
+) -> object: ...
+"""
+STAGED_CONNECT_OVERLOADS = """\
+@overload
+def connect(
+    conninfo: str = "",
+    /,
+    *,
+    impl: Literal["libpq"],
+    **kwargs: Any,
+) -> Any: ...
+
+
+@overload
+def connect(
+    conninfo: str = "",
+    /,
+    *,
+    impl: Literal["ferrocopg"] | None = None,
+    **kwargs: Any,
+) -> RustConnection: ...
+"""
 SOURCE_LIBPQ_CONNECT = """\
     if selected_impl == "libpq":
         return Connection.connect(conninfo, **kwargs)
@@ -107,7 +159,7 @@ PQ_COMPAT_MODULE = '''\
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, NoReturn
 
 from .pq.misc import ConninfoOption
 
@@ -120,7 +172,7 @@ def version() -> int:
     return 0
 
 
-def _unsupported() -> None:
+def _unsupported() -> NoReturn:
     from .errors import NotSupportedError
 
     raise NotSupportedError(
@@ -285,10 +337,13 @@ def _transform_source(path: Path, source: str) -> str:
     elif path.name == "__init__.py" and path.parent.name == "ferrocopg":
         replacements = (
             (SOURCE_ASYNC_IMPORT, STAGED_ASYNC_IMPORT),
+            (SOURCE_CONNECTION_IMPORT, STAGED_CONNECTION_IMPORT),
+            (SOURCE_CONNECTION_EXPORT, STAGED_CONNECTION_EXPORT),
             (SOURCE_VERSION_IMPORT, STAGED_VERSION_IMPORT),
             (SOURCE_OS_IMPORT, ""),
             (SOURCE_SELECTOR_DOC, STAGED_SELECTOR_DOC),
             (SOURCE_SELECTOR, STAGED_SELECTOR),
+            (SOURCE_CONNECT_OVERLOADS, STAGED_CONNECT_OVERLOADS),
             (SOURCE_LIBPQ_CONNECT, STAGED_LIBPQ_CONNECT),
         )
         for original, replacement in replacements:

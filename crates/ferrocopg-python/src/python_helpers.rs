@@ -1,6 +1,16 @@
 use pyo3::exceptions::PyStopIteration;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::{PyDict, PyModule};
+
+pub(crate) fn psycopg_import<'py>(py: Python<'py>, module: &str) -> PyResult<Bound<'py, PyModule>> {
+    let modules = py.import("sys")?.getattr("modules")?;
+    let package = if modules.contains("ferrocopg")? {
+        "ferrocopg"
+    } else {
+        "psycopg"
+    };
+    py.import(&format!("{package}.{module}"))
+}
 
 pub(crate) fn bytes_like_to_vec(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
     py.import("builtins")?
