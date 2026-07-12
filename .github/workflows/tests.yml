@@ -279,6 +279,78 @@ jobs:
 
   # }}}
 
+  ferrocopg-package:  # {{{
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      PSYCOPG_IMPL: python
+      PSYCOPG_TEST_DSN: "host=127.0.0.1 user=postgres password=password"
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install libpq and the build environment
+        run: |
+          sudo ./tools/ci/ci_install_libpq.sh newest
+          uv sync --no-default-groups --group test --group rust --locked
+
+      - name: Stage and build the ferrocopg wheel
+        run: |
+          uv run --no-sync python tools/stage_ferrocopg.py /tmp/ferrocopg-stage
+          cd /tmp/ferrocopg-stage
+          "$GITHUB_WORKSPACE/.venv/bin/maturin" build \
+            --release \
+            --out /tmp/ferrocopg-wheelhouse
+
+      - name: Verify installed-wheel coexistence and Rust query
+        run: |
+          uv venv /tmp/ferrocopg-smoke --python 3.11
+          uv pip install \
+            --python /tmp/ferrocopg-smoke/bin/python \
+            /tmp/ferrocopg-wheelhouse/*.whl \
+            "psycopg >= 3.3, < 3.4"
+          /tmp/ferrocopg-smoke/bin/python \
+            tools/ci/ferrocopg_wheel_smoke.py \
+            --dsn "$PSYCOPG_TEST_DSN"
+          uv pip uninstall \
+            --python /tmp/ferrocopg-smoke/bin/python \
+            ferrocopg
+          /tmp/ferrocopg-smoke/bin/python \
+            tools/ci/ferrocopg_wheel_smoke.py \
+            --after-uninstall
+
+      - name: Upload the staged ferrocopg wheel
+        uses: actions/upload-artifact@v7
+        with:
+          name: ferrocopg-staged-wheel
+          path: /tmp/ferrocopg-wheelhouse/*.whl
+          if-no-files-found: error
+
+
+  # }}}
+
   pool-integration:  # {{{
     # Test the current pool version with older psycopg versions
     runs-on: ubuntu-latest

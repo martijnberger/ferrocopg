@@ -63,11 +63,38 @@ The extension import can be smoke-tested directly:
 uv run python -c "import ferrocopg_rust; print(ferrocopg_rust.milestone())"
 ```
 
+## Building the staged package
+
+The release package is generated without renaming the upstream-shaped source
+tree. Build a local wheel for the current platform with:
+
+```bash
+repo="$PWD"
+uv run python tools/stage_ferrocopg.py /tmp/ferrocopg-stage
+cd /tmp/ferrocopg-stage
+"$repo/.venv/bin/maturin" build --release --out /tmp/ferrocopg-wheelhouse
+```
+
+The staging tool refuses to overwrite an existing directory. It copies the
+vendored Python package to `ferrocopg`, rewrites public module identities,
+nests the extension at `ferrocopg._rust._ferrocopg`, records
+`UPSTREAM_REVISION`, includes the LGPL license, and emits independent `0.1.0`
+metadata. Generated staging output is never committed.
+
+The wheel can coexist with official Psycopg. Rust is the synchronous default;
+install the fallback extra when using `impl="libpq"` or delegated async
+connections:
+
+```bash
+pip install /tmp/ferrocopg-wheelhouse/ferrocopg-*.whl
+pip install "ferrocopg[libpq]"  # once consuming from an index
+```
+
 ## Using the backend
 
-Until the staged `ferrocopg` package exists, select Rust per connection in the
-development source tree. Omitted `impl` now selects the same Rust path; the
-explicit spelling remains useful in compatibility tests:
+Until `ferrocopg` is published, use the development source tree or build the
+staged wheel above. Omitted `impl` selects Rust; the explicit spelling remains
+useful in compatibility tests:
 
 ```python
 import psycopg
