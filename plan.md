@@ -396,6 +396,10 @@ Completed slices:
   display names, precision, scale, sequence behavior, repr, and pickling. The
   focused PostgreSQL 14 run reports `49` passing cases and four expected
   PostgreSQL-version skips.
+- [x] String adaptation and negotiated client encodings, including LATIN1,
+  LATIN9, SQL_ASCII scalar and recursive values, unknown enum text loading, and
+  COPY conversion-error timing. The focused PostgreSQL 14 run reports `134`
+  passing cases and one expected failure.
 
 Current local full-harness evidence is `3855/4417` sync (`0.873`) on CPython
 3.14/PostgreSQL 17. This development environment collects optional-dependency
@@ -404,15 +408,14 @@ the committed CI matrix remains the release gate.
 
 Continue in measured order, starting with the largest current failure clusters:
 
-1. string adaptation, client encodings, and SQL_ASCII behavior
-2. remaining type adaptation behavior beyond the completed column metadata slice
-3. connection and connection-info behavior
-4. prepared statement behavior
-5. concrete default, raw, client, and server cursors
-6. COPY writers and COPY edge cases
-7. pipeline state and error recovery
-8. timeout, multi-host, cancellation, and concurrency behavior
-9. remaining low-volume sync failures
+1. remaining type adaptation beyond the completed metadata and string slices
+2. connection and connection-info behavior
+3. prepared statement behavior
+4. concrete default, raw, client, and server cursors
+5. COPY writers and COPY edge cases
+6. pipeline state and error recovery
+7. timeout, multi-host, cancellation, and concurrency behavior
+8. remaining low-volume sync failures
 
 For every slice:
 
@@ -532,12 +535,10 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Close the measured string and client-encoding gaps, including LATIN1,
-   LATIN9, SQL_ASCII, enum text loading, and COPY error timing. The focused
-   PostgreSQL 14 suite currently reports `104` passing, `30` failing, and one
-   expected failure.
-2. Continue through the remaining measured Phase 4.3 clusters after string
-   adaptation, beginning with connection behavior and prepared statements.
+1. Re-run the complete sync compatibility matrix to refresh the failure-cluster
+   measurements after the transaction, metadata, and string closures.
+2. Take the largest remaining Phase 4.3 cluster, expected to be remaining type
+   adaptation or connection behavior, before prepared statements and cursors.
 3. Re-run the complete sync compatibility matrix after each closure slice and
    remove obsolete manifest entries while ratcheting the floor upward.
 4. Preserve the standalone package, explicit delegation, and source-tree

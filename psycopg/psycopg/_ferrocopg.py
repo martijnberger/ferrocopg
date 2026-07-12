@@ -34,7 +34,7 @@ from ._copy_base import (
 )
 from ._encodings import conninfo_encoding, pg2pyenc
 from ._enums import IsolationLevel, PyFormat
-from ._oids import BYTEA_OID
+from ._oids import BYTEA_OID, INVALID_OID
 from ._py_transformer import Transformer as AdaptTransformer
 from ._queries import PostgresClientQuery, PostgresQuery
 from ._rmodule import __version__ as __version__
@@ -250,21 +250,36 @@ class _BackendTransformer(AdaptTransformer):
 
     def get_dumper(self, obj: Any, format: PyFormat) -> Any:
         dumper = super().get_dumper(obj, format)
+        if hasattr(dumper, "_tx"):
+            dumper._tx = self
         if hasattr(dumper, "_encoding"):
-            dumper._encoding = self.encoding
+            dumper._encoding = self._dumper_encoding
         return dumper
 
     def get_dumper_by_oid(self, oid: int, format: pq.Format) -> Any:
         dumper = super().get_dumper_by_oid(oid, format)
+        if hasattr(dumper, "_tx"):
+            dumper._tx = self
         if hasattr(dumper, "_encoding"):
-            dumper._encoding = self.encoding
+            dumper._encoding = self._dumper_encoding
         return dumper
 
     def get_loader(self, oid: int, format: pq.Format) -> Any:
         loader = super().get_loader(oid, format)
+        if hasattr(loader, "_tx"):
+            loader._tx = self
         if hasattr(loader, "_encoding"):
-            loader._encoding = self.encoding
+            loader._encoding = self._loader_encoding
         return loader
+
+    @property
+    def _dumper_encoding(self) -> str:
+        # SQL_ASCII accepts arbitrary UTF-8 input but returns undecoded bytes.
+        return "utf-8" if self.encoding == "ascii" else self.encoding
+
+    @property
+    def _loader_encoding(self) -> str:
+        return "" if self.encoding == "ascii" else self.encoding
 
 
 class _WireByteaDumper(Dumper):
@@ -325,6 +340,8 @@ def _pure_python_adapters(
     template: AdaptersMap, *, text_loader_oids: frozenset[int] = frozenset()
 ) -> AdaptersMap:
     """Copy an adapter map without the libpq/C-only replacements."""
+    from .types.array import ArrayBinaryLoader
+
     adapters = AdaptersMap(template)
     originals = {
         optimized: original
@@ -348,7 +365,12 @@ def _pure_python_adapters(
 
     for pg_format in (pq.Format.TEXT, pq.Format.BINARY):
         adapters._loaders[pg_format] = {
-            oid: originals.get(loader, loader)
+            oid: (
+                ArrayBinaryLoader
+                if loader.__module__ == "psycopg_c._psycopg"
+                and loader.__name__ == "ArrayBinaryLoader"
+                else originals.get(loader, loader)
+            )
             for oid, loader in adapters._loaders[pg_format].items()
         }
         adapters._own_loaders[pg_format] = True
@@ -445,7 +467,7 @@ RowMaker = Callable[[Sequence[object]], object]
 NotifyHandler = Callable[[Notify], None]
 _timezones: dict[str | None, tzinfo] = {None: timezone.utc, "UTC": timezone.utc}
 _NO_ROW = object()
-_TEXT_WIRE_OIDS = frozenset({18, 19, 25, 1042, 1043, 114, 142})
+_TEXT_WIRE_OIDS = frozenset({INVALID_OID, 18, 19, 25, 1042, 1043, 114, 142})
 
 
 class FerrocopgConnection:
@@ -2009,6 +2031,7 @@ class NoTlsCopyAdapter:
         self._finished = False
         self._rowcount = 0
         self._out_fully_buffered = False
+        self._read_error: e.DataError | None = None
         self._lock_acquired = False
 
     def __repr__(self) -> str:
@@ -2040,7 +2063,13 @@ class NoTlsCopyAdapter:
                     "copy() requires a COPY FROM STDIN or COPY TO STDOUT statement"
                 )
             if self._direction == "out":
-                data = self._cursor._conn._session.copy_to_stdout(self._statement)
+                try:
+                    data = self._cursor._conn._session.copy_to_stdout(self._statement)
+                except e.DataError as ex:
+                    # libpq exposes server-side COPY conversion errors while
+                    # consuming output rather than while entering the block.
+                    self._read_error = ex
+                    return self
                 self._out_fully_buffered = len(data) <= 8192
                 self._read_blocks = (
                     _split_binary_copy_blocks(data)
@@ -2146,6 +2175,10 @@ class NoTlsCopyAdapter:
     def read(self, size: int = -1) -> bytes:
         if self._direction != "out":
             raise e.ProgrammingError("read() is only available during COPY TO STDOUT")
+        if self._read_error is not None:
+            self.connection._transaction_failed = self.connection._in_transaction
+            self._cursor._result = None
+            raise self._read_error
         if self._read_pos >= len(self._read_blocks):
             return b""
         block = self._read_blocks[self._read_pos]
@@ -3070,7 +3103,11 @@ class NoTlsConnectionAdapter:
             return query.decode(self._pgconn._encoding), _coerce_native_params(params)
 
         tx = _BackendTransformer(
-            _AdaptContext(self, adapters or self.adapters, expose_connection=False)
+            _AdaptContext(
+                self,
+                _pure_python_adapters(adapters or self.adapters),
+                expose_connection=False,
+            )
         )
         tx._encoding = self._pgconn._encoding
         pgq = PostgresQuery(tx)

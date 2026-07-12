@@ -4041,6 +4041,8 @@ def test_no_tls_cursor_adapter_copy(monkeypatch: pytest.MonkeyPatch) -> None:
 
         def copy_to_stdout(self, query: str) -> object:
             self.copy_out_calls.append(query)
+            if "bad encoding" in query.lower():
+                raise psycopg.DataError("cannot transcode COPY output")
             if "binary" in query.lower():
                 return SimpleNamespace(data=sample_binary)
             return SimpleNamespace(data=b"10\talpha\n11\tbeta\n13\tcaf\xe9\n")
@@ -4082,6 +4084,11 @@ def test_no_tls_cursor_adapter_copy(monkeypatch: pytest.MonkeyPatch) -> None:
             assert copy.read_row() == ("11", "beta")
             assert copy.read_row() == ("13", "café")
             assert copy.read_row() is None
+
+    with conn.cursor() as cur:
+        with cur.copy("copy bad encoding to stdout") as copy:
+            with pytest.raises(psycopg.DataError, match="cannot transcode"):
+                copy.read()
 
     with conn.cursor() as cur:
         with cur.copy("copy (select %s::text) to stdout", params=["x"]) as copy:
