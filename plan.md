@@ -1,904 +1,490 @@
-# ferrocopg Rust Backend Plan
+# ferrocopg Roadmap
 
 ## Goal
 
-Build and prove a Rust-native PostgreSQL backend inside this Psycopg fork.
-The project starts from Psycopg's trusted Python API, adaptation system, row
-factories, and mature test suite instead of inventing a new database-adapter
-surface.
-
-The near-term objective is an explicit, useful `ferrocopg` backend that can
-coexist with Psycopg's existing pure-Python and Cython/libpq paths. The main
-test suite now runs against that backend through the Milestone 3.1
-compatibility harness and is the compatibility contract alongside focused Rust
-and bootstrap tests.
-
-Whether this work should eventually be proposed upstream, remain a separate
-fork, become an additional packaged backend, or replace an existing
-accelerated path is deliberately undecided. Those are evidence-based product
-and maintenance decisions, not prerequisites for continuing the port.
-
-## Summary
-
-This repository is no longer in the bootstrap stage described by the original
-plan.
-
-The following foundation work is already in place:
-
-- `uv` is the documented Python workflow.
-- `maturin` is wired for the Rust extension package.
-- A pinned Rust toolchain is present.
-- A Cargo workspace exists.
-- The optional Rust path is already integrated into several Python seams.
-- A reusable Rust-native backend session is exposed through
-  `psycopg.connect(..., impl="ferrocopg")`.
-- The backend has a rustls transport, Psycopg parameter adaptation, typed
-  results, row factories, and normal transaction handling.
-- The main test suite is executable under `--impl=ferrocopg` with a declarative
-  gap manifest and CI pass-rate check.
-
-Phase 3 is complete: the optional backend now has sync and async facades,
-explicit libpq-only boundaries, and a passing PostgreSQL 14-18 compatibility
-matrix. The next phase is a product and release-readiness decision, not more
-unbounded backend-surface work. No default-path or upstreaming decision is
-implied by completing Phase 3.
-
-## Phase 3 Closure (2026-07-11)
-
-The upstream rebase, compatibility audit, and final matrix run close the Phase
-3 implementation and validation loop.
-
-Closure evidence:
-
-- The normal lint workflow is green after the upstream sync and the universal
-  lock resolves on every supported Python version.
-- Every PostgreSQL 14-18 ferrocopg job passes on Python 3.10-3.14. Each job
-  runs 22 Rust backend tests, the PyO3 crate tests, 196 focused live bootstrap
-  tests, and the complete compatibility harness.
-- The final non-manifested pass rates are `0.837`, `0.840`, `0.840`, `0.841`,
-  and `0.834` for PostgreSQL 14 through 18 respectively. The committed floor
-  is ratcheted to `0.80`, below the observed minimum but materially above the
-  old pre-async baseline.
-- The main async connection suite is in the compatibility denominator through
-  `FerrocopgAsyncConnection`; only pool injection, CockroachDB async support,
-  concrete Psycopg cursor classes, and protocol-specific libpq behavior remain
-  manifested boundaries.
-- Diagnostics/notices, server cursors, COPY, TPC, pipelined batching, and the
-  async facade all have focused live coverage in the matrix.
-
-The resulting next-focus order is:
-
-### Priority 0: Preserve the Phase 3 contract
-
-- Keep the PostgreSQL 14-18 jobs, focused bootstrap suite, and `0.80` ratchet
-  green after every upstream sync.
-- Treat a Rust-path regression or a newly unclassified hang as a release
-  blocker for the optional backend.
-- Keep unsupported behavior explicit instead of growing a fake `PGconn` shim.
-
-### Priority 1: Decide supported-backend scope
-
-- Decide whether the documented concrete cursor, concrete COPY writer,
-  `fileno()`, and exact libpq pipeline boundaries are acceptable for a
-  supported optional backend.
-- Keep upstreaming and default-selection decisions separate from that support
-  decision.
-- Continue to ratchet compatibility as ordinary gaps close, without requiring
-  permanent libpq boundaries to be emulated.
-
-### Priority 2: Prove packaging and installation
-
-- Build and smoke-test wheels on the intended Linux, macOS, and Windows
-  targets without a source checkout.
-- Document the package naming and installation story for users selecting
-  `impl="ferrocopg"`.
-- Preserve side-by-side Python, Cython/C, and Rust installations until a
-  separate cutover decision is made.
-
-### Priority 3: Measure operational behavior
-
-- Add performance, cancellation, and soak measurements for the serialized
-  thread-offload async facade and wire-pipelined batch path.
-- Use those measurements to decide whether a native asyncio/Tokio bridge is
-  worth its packaging and maintenance cost.
-- Collect user feedback before deciding whether to propose the backend
-  upstream or keep it as a fork-specific capability.
-
-## Coexistence Policy
-
-During backend development, `ferrocopg` must support three coexisting
-implementation modes:
-
-- the existing Cython/C accelerated path in `psycopg_c/`
-- the pure Python path in `psycopg/`
-- the Rust-backed path exposed through `ferrocopg_rust`,
-  `psycopg._ferrocopg`, and the public opt-in connection selector
-
-This coexistence is not a temporary accident. It is part of the development
-strategy.
-
-The plan assumes that:
-
-- the Cython/C path remains available as the stable baseline until Rust cutover
-  gates are met
-- the pure Python path remains available as the portability and fallback path
-- the Rust path grows behind explicit selectors, helper seams, and backend
-  adapters until it is a credible supported alternative
-
-No implementation should be removed merely because another one exists. Removal
-only happens after the replacement has explicit parity evidence and the
-fallback story is clear.
-
-## Non-goals For The Next Phase
-
-- Redesigning the public Python connection or cursor APIs.
-- Replacing `_cmodule.py` as the default implementation selector yet.
-- Deleting Cython before Rust parity gates are met.
-- Treating the current `ferrocopg_rust` module as a final public API.
-- Deciding now whether ferrocopg will be proposed upstream.
-- Assuming that proving an opt-in backend necessarily requires replacing
-  Psycopg's existing implementations.
-
-## Current Architecture Summary
-
-The repository now has four main implementation areas:
-
-- `psycopg/`
-  The main Python package, compatibility surface, and pure Python fallback.
-- `psycopg_c/`
-  The existing Cython/C accelerated implementation, still the primary optional
-  optimized path.
-- `crates/ferrocopg-python/`
-  The PyO3 Rust extension package exposed as `ferrocopg_rust`.
-- `crates/ferrocopg-postgres/`
-  The Rust-native backend/session crate based on the `rust-postgres`
-  ecosystem.
-
-The current Python integration points for the optional Rust path include:
-
-- `psycopg/psycopg/_rmodule.py`
-  Optional import boundary for `ferrocopg_rust`.
-- `psycopg/psycopg/_ferrocopg.py`
-  Transitional helper access to the Rust path.
-- `psycopg/psycopg/_copy_base.py`
-  Rust-backed COPY formatting/parsing helpers when available.
-- `psycopg/psycopg/waiting.py`
-  Rust-backed `wait_c` when available.
-- `psycopg/psycopg/generators.py`
-  Rust-backed generator helpers when available.
-- `psycopg/psycopg/_transformer.py`
-  Rust-backed transformer selection when C is absent.
-- `psycopg/psycopg/types/*`
-  Rust-backed helpers for selected adaptation paths.
-
-This means the Rust backend is already functional and the plan should focus on
-parity, CI enforcement, and useful opt-in operation.
-
-Operationally, this means the repository should continue to support:
-
-- Python-only execution without Rust or Cython acceleration
-- Cython/C acceleration where `psycopg_c` is installed and selected
-- Rust-backed helpers and backend flows where `ferrocopg_rust` is installed
-  and selected
-
-## Guiding Principles
-
-1. Preserve the current Python API until the Rust port is stable.
-2. Use the existing test suite as the compatibility contract.
-3. Keep the Python, Cython/C, and Rust implementations simultaneously usable
-   during backend development.
-4. Finish parity behind the optional Rust path before changing defaults.
-5. Keep cutover gates explicit and evidence-based.
-6. Keep upstreaming, packaging, default selection, and implementation removal
-   as separate decisions.
-
-## Desired End State
-
-The required end state for the current program is:
-
-- Rust is a supported, explicitly selectable backend built on
-  `rust-postgres`, not a libpq wrapper.
-- Common synchronous Psycopg workflows behave compatibly on that backend.
-- Compatibility is measured by the existing Psycopg test suite and enforced
-  in CI.
-- Unsupported behavior has an explicit error and a documented
-  `impl="libpq"` alternative.
-- The contributor workflow uses `uv` as the standard Python workflow.
-- The repository uses a pinned Rust toolchain.
-- The Python-facing Psycopg behavior remains compatible.
-
-A later cutover may make Rust the primary accelerated path and remove Cython,
-but only after a separate packaging and maintenance decision. Milestones 5 and
-6 describe that conditional route; they are not assumptions about the purpose
-of this fork.
-
-## Migration Tracks
-
-Backend development should proceed on two explicit tracks.
-
-### Track A: Optional Rust helper parity
-
-This track finishes the optional Rust seams already wired into Python.
-
-Scope includes:
-
-- COPY row formatting and parsing
-- `wait_c`
-- generator helpers such as `connect`, `cancel`, `send`, `fetch`,
-  `fetch_many`, `execute`, and `pipeline_communicate`
-- `Transformer`
-- accelerated adaptation helpers currently exposed through selected
-  `psycopg.types.*` modules
-
-Expected result:
-
-- The optional Rust path is behaviorally interchangeable with the current
-  Python/Cython helper seams for covered scenarios.
-- The test suite can validate the Rust helpers side by side with Python and
-  Cython implementations instead of replacing either one prematurely.
-
-### Track B: Rust-native backend session parity
-
-This track continues the internal backend work currently exposed through
-`psycopg._ferrocopg` and `ferrocopg_rust`.
-
-Scope includes:
-
-- connection planning and target parsing
-- connect/query/describe/execute flows
-- prepared statements
-- transaction control
-- cancellation
-- COPY in/out
-- LISTEN/NOTIFY
-
-Expected result:
-
-- The backend session API is sufficiently complete and tested to support a
-  future integration into the main execution path.
-
-## Backend Equivalency Matrix
-
-This table tracks the intended coexistence and parity story across the three
-implementation modes.
-
-| Capability | Pure Python | Cython/C | ferrocopg | Notes |
-| --- | --- | --- | --- | --- |
-| Conninfo parsing and connect planning | Available | Available | Available | `ferrocopg-postgres` now exposes explicit connect target planning. |
-| Session bootstrap and connect | Available | Available | Available | The opt-in backend supports plaintext and rustls-backed sessions. |
-| TLS transport | Available | Available | Available | rustls connections and all libpq-style sslmodes are implemented; the PostgreSQL 14-18 CI matrix covers custom roots, required channel binding, and client-certificate authentication. |
-| Simple query execution | Available | Available | Available | Covered through backend simple-query facades and adapter tests. |
-| Parameterized query execution | Available | Available | Available | The public adapter uses Psycopg's `%s`/`%t`/`%b` query conversion and dumper maps, including positional and mapping parameters, typed OIDs, text/binary formats, and prepared statements. |
-| Statement describe and metadata | Available | Available | Available | Parameter and column metadata are exposed on the Rust path. |
-| Prepared statements | Available | Available | Available | Rust backend has prepared statement caching and reuse. |
-| Transactions and savepoints | Available | Available | Available | The opt-in adapter covers autocommit, context-manager commit/rollback, nested savepoints, rollback controls, and transaction characteristics. Two-phase commit is tracked separately. |
-| Cancellation | Available | Available | Available | Explicit backend cancel handle exists with live coverage. |
-| COPY in/out | Available | Available | Available | Text and binary COPY, parameters, row helpers, type pinning, generic custom writers, rowcount, descriptions, error state, and connection locking are implemented. Concrete `LibpqWriter` classes remain a libpq-only boundary. |
-| LISTEN/NOTIFY | Available | Available | Available | Live backend notification coverage exists. |
-| Result-set shaping | Available | Available | Available | Rust backend exposes unified result-set and simple-query result blocks; parameterized/prepared result sets now carry column OID/type metadata through to adapter cursor descriptions. |
-| Python-facing error mapping | Available | Available | Available | SQLSTATE classes, all `DbError` diagnostic fields, raw non-UTF8 fields, synthetic `pgresult`/connect metadata, query context, and queued notice handlers are implemented. |
-| Explicit opt-in selector | Available | Available | Available | `psycopg.connect(..., impl="ferrocopg")` and the transitional `connect_ferrocopg()` helper select the Rust backend without changing the default libpq path. |
-| Cursor-like adapter bridge | Available | Available | Available | The default cursor supports text/binary execution, typed rows, row factories, streaming, cursor-local adapters, and named scrollable/withhold server cursors. Psycopg's concrete cursor classes remain a libpq-only boundary. |
-| Pipeline mode | Available | Available | Available with boundary | The Rust batch API polls tokio-postgres request futures concurrently on the session runtime and preserves submission order. Exact libpq sync/aborted state-machine behavior remains a documented boundary. |
-| Default-path integration | Available | Available | Opt-in | `impl="ferrocopg"` is intentionally explicit. Whether it should ever become a default is undecided and separate from backend compatibility. |
-| Result typing and rows protocol | Available | Available | Available | Raw Rust result bytes and OIDs flow through Psycopg loaders, cursor descriptions, adapters, and the standard `psycopg.rows` factory protocol for text and binary execution. |
-| Async connection API (`AsyncConnection`) | Available | Available | Available | `FerrocopgAsyncConnection` provides connection-affine single-worker thread offload for connection, cursor, transaction, pipeline, COPY, TPC, server-cursor, and notification surfaces; the main async fixture suite is included in the compatibility denominator. |
-
-## Known ferrocopg Backend Gaps
-
-These are intentionally explicit while the Python, Cython/C, and Rust-backed
-paths coexist. They should either gain parity coverage before supported-backend
-or conditional-cutover claims, or remain documented fallback boundaries.
-
-Each gap is assigned to a gap-closure milestone or explicitly declared a
-permanent boundary with a documented fallback story.
-
-| Gap | Current behavior | Compatibility impact | Milestone |
-| --- | --- | --- | --- |
-| Full libpq socket access | `fileno()` raises `NotSupportedError`; ferrocopg does not expose a libpq socket. | Permanent boundary: the socket is owned by the sync wrapper's internal runtime, and exposing the raw fd would invite reads that corrupt the protocol stream. Fallback story: `notifies(timeout=...)` and notification handlers cover LISTEN loops; fd-level integrations keep `impl="libpq"`; a wakeup-only self-pipe fd is an optional future nicety. | Boundary |
-| Concrete cursor classes | The default ferrocopg cursor handles typed text/binary results. Psycopg's concrete cursor classes require libpq-specific locks and `PGconn` state, so injecting one now fails immediately with `NotSupportedError`; backend-specific custom cursors may subclass `NoTlsCursorAdapter`. | Documented boundary: use the default/custom ferrocopg cursor for Rust connections or `impl="libpq"` when a concrete Psycopg cursor class is required. | Boundary |
-| Concrete libpq COPY writers | `LibpqWriter` and `QueuedLibpqWriter` require a real `PGconn`; ferrocopg instead handles its byte pipe directly and supports generic writer objects. | Documented boundary: use the default COPY writer or a generic custom writer with ferrocopg; use `impl="libpq"` for the concrete libpq writer classes. | Boundary |
-| Exact libpq pipeline state machine | Ferrocopg pipelines queued batches but does not emulate `PQpipelineSync` or produce `PIPELINE_ABORTED` results. | Documented boundary: normal batching and ordered results are supported; applications depending on exact libpq sync/abort transitions keep `impl="libpq"`. | Boundary |
-
-## Compatibility Contract Harness
-
-The main test suite in `tests/` is the real compatibility contract. The
-Milestone 3.1 harness routes its connection fixtures through the ferrocopg
-facade so the suite can run against the Rust adapter without changing the
-default libpq jobs.
-
-Design:
-
-- A `--impl {libpq,ferrocopg}` pytest option in `tests/fix_db.py`
-  (`pytest_addoption`), defaulting from a `PSYCOPG_TEST_IMPL` environment
-  variable. This is deliberately distinct from `PSYCOPG_IMPL`, which selects
-  the pq wrapper and rejects `ferrocopg` by design.
-- The switch point is the session-scoped `conn_cls` fixture: under
-  `--impl=ferrocopg` it returns a `FerrocopgConnection` facade class (in
-  `psycopg/psycopg/_ferrocopg.py`) whose `connect()` classmethod matches
-  `psycopg.Connection.connect`'s signature and defaults. This also fixes the
-  current default drift where `connect_ferrocopg()` defaults
-  `autocommit=True` while psycopg defaults to `False`.
-- Fixtures that are inherently libpq-level auto-skip under ferrocopg: the raw
-  `pgconn` fixture and `tests/pq/`. The `aconn_cls`/`aconn` fixtures select
-  `FerrocopgAsyncConnection`, so the main async suite participates in the
-  denominator. Combining `--pq-trace`/`--pq-debug` with
-  `--impl=ferrocopg` is a `pytest.UsageError`.
-- The `tests/fix_ferrocopg.py` plugin applies markers from a declarative
-  manifest (`tests/ferrocopg_manifest.toml`) mapping test node-id globs to
-  current boundary tags: raw `pgconn`, pool/CRDB async injection, concrete
-  cursor classes, concrete libpq COPY writers, exact pipeline semantics,
-  `fileno()`, and libpq-specific handshake/cancel behavior. Implemented
-  feature tags such as TLS, notices, TPC, server cursors, and COPY options have
-  been removed.
-- The backend-native `_exec_command` protocol supports transaction commands,
-  server cursor operations, COPY control, and related command fixtures without
-  pretending that the Rust session is a libpq `PGconn`.
-- Pass-rate ratchet: a CI step in the `ferrocopg-rust` job runs
-  `pytest tests --impl=ferrocopg` with a JUnit report; a small script
-  computes the pass rate over non-manifested tests and compares it against a
-  committed floor file. CI fails if the rate regresses below the floor; the
-  floor is raised manually as gaps close.
-
-The harness and CI plumbing are active. The completed PostgreSQL 14-18 matrix
-measured non-manifested rates from `0.834` to `0.841`; the committed `0.80`
-floor leaves cross-version headroom while protecting the sync and async
-compatibility baseline.
-
-The conditional cutover gate derived from this harness: the floor reaches 100%
-of non-manifested tests (sync and async) and the manifest contains only the
-documented permanent-boundary tags.
-
-## Milestones
-
-### Milestone 0: Rebaseline the backend contract
-
-Objective:
-Rewrite the plan and milestone language around the current repository state.
+Build a Rust-native PostgreSQL backend on top of Psycopg's trusted Python API,
+adaptation system, row factories, SQL composition, errors, and test suite.
+
+The product will be published as a separate `ferrocopg` distribution and
+import namespace:
+
+```python
+import ferrocopg as psycopg
+```
+
+The first product goal is a synchronous, Rust-default `0.1.0` beta. The
+source tree should switch its synchronous default to Rust immediately so
+ordinary development exposes backend gaps. Publishing to PyPI remains blocked
+until the release gates in this document pass.
+
+Upstreaming is deliberately undecided. It is not a prerequisite for building,
+testing, or releasing the fork.
+
+## Product Decisions
+
+The following decisions define the roadmap:
+
+- Synchronous `connect()` defaults to the Rust backend in this source tree.
+- If the Rust extension is unavailable, the default connection fails with an
+  actionable error. There is no silent fallback.
+- `impl="libpq"` lazily delegates to an installed official `psycopg`
+  package and returns an official `psycopg.Connection`.
+- The first release is synchronous-only for the Rust support contract.
+- `ferrocopg.AsyncConnection` delegates to official Psycopg in `0.1.0`.
+  The existing Rust thread-offload async facade remains experimental.
+- The distribution name and import namespace are both `ferrocopg`, allowing
+  official `psycopg` to coexist in the same environment.
+- The public API target is a drop-in import change: supported synchronous code
+  should normally need only `import ferrocopg as psycopg`.
+- Ferrocopg vendors Psycopg's Python implementation instead of depending on
+  it for the Rust path.
+- The repository remains shaped like upstream Psycopg. The release build
+  stages the vendored Python source under the `ferrocopg` namespace instead
+  of committing a permanent source-tree rename.
+- Official `psycopg` is an optional fallback dependency, exposed through a
+  documented extra such as `ferrocopg[libpq]`.
+- Official `psycopg_pool` must work with synchronous ferrocopg connection
+  classes. A separate pool fork is out of scope.
+- The first release supports CPython 3.11-3.14 and PostgreSQL 14-18.
+- The first release is `0.1.0` with beta status. Only the Rust async facade is
+  labeled experimental.
+
+## Current State
+
+Phase 3 completed the backend foundation and broad compatibility harness.
+
+Implemented Rust-backed capabilities include:
+
+- plaintext and rustls connections
+- all six libpq-style SSL modes
+- custom roots, channel binding, and client certificates
+- simple, parameterized, prepared, text, and binary query execution
+- Psycopg dumpers, loaders, row factories, and result metadata
+- transactions, savepoints, transaction characteristics, and TPC
+- cancellation, diagnostics, notices, LISTEN, and NOTIFY
+- text and binary COPY, type pinning, and generic writers
+- named, scrollable, and withhold server cursors
+- pipelined simple-query batches
+- an experimental connection-affine thread-offload async facade
+
+Validation evidence:
+
+- 22 Rust backend tests pass.
+- The focused live bootstrap suite reports 196 passing tests with 8 expected
+  accelerator-dependent skips in the PostgreSQL matrix.
+- All five ferrocopg jobs pass on Python 3.10-3.14 and PostgreSQL 14-18.
+- The current broad compatibility rate is approximately `0.834`-`0.842`.
+- CI enforces the current `0.80` mixed sync/async compatibility floor.
+- Lint, formatting, typing, documentation, and Rust checks pass.
+
+The complete workflow is not yet green. The current C/Cython jobs share one
+ferrocopg bootstrap failure: `test_no_tls_cursor_adapter_copy` selects the C
+COPY formatter for a backend-specific transformer. This is an isolated
+backend-test dispatch defect, but it violates the coexistence contract and is
+the first item in the new roadmap.
+
+The development guide is also stale: it still describes several completed
+Phase 3 capabilities as missing and cites the old `0.65` floor.
+
+## Architecture
+
+### Source layout
+
+Keep the repository close to upstream Psycopg so upstream changes remain
+reviewable:
+
+- `psycopg/` remains the upstream-shaped Python source and pure-Python
+  baseline during development.
+- `psycopg_c/` remains available only for upstream comparison and regression
+  testing. It is not part of the ferrocopg distribution.
+- `crates/ferrocopg-postgres/` owns connection planning, rustls transport,
+  protocol sessions, queries, parameters, transactions, COPY, cancellation,
+  and notifications.
+- `crates/ferrocopg-python/` exposes the PyO3 extension and Rust helper
+  seams.
+
+### Release namespace
+
+The wheel build creates a staging tree and packages the vendored Python source
+as `ferrocopg`. Generated staging output is never committed.
+
+The staging proof must verify:
+
+- relative and absolute imports resolve under `ferrocopg`
+- package resources and typing metadata are included
+- exceptions, rows, SQL objects, adapters, and public symbols report sensible
+  `ferrocopg` module identities
+- official `psycopg` can be imported in the same interpreter
+- no wheel installs files into the official `psycopg` namespace
+- license and attribution requirements from vendored Psycopg are preserved
+
+If build-time namespace staging proves unreliable, stop and revisit the
+packaging decision before committing a bulk namespace rename.
+
+### Backend selection
+
+The target behavior of the staged `ferrocopg` package is:
+
+```python
+import ferrocopg as psycopg
+
+# Rust by default.
+conn = psycopg.connect(dsn)
+
+# Explicit delegation to official Psycopg.
+libpq_conn = psycopg.connect(dsn, impl="libpq")
+```
+
+Rules:
+
+- omitted `impl` means Rust
+- `impl="ferrocopg"` remains an accepted explicit spelling
+- `impl="libpq"` performs a lazy import of official Psycopg
+- delegated connections are official Psycopg objects; they are not wrapped
+- missing Rust produces an installation error naming the required wheel
+- missing official Psycopg on explicit libpq or async use produces an error
+  naming the fallback extra
+- backend choice never changes after a connection is created
+
+During the upstream-shaped source-tree transition, the package is still
+imported as `psycopg`. It cannot import a second official `psycopg` package for
+delegation without module-name recursion. Therefore:
+
+- the source-tree default changes to Rust immediately
+- the existing internal libpq path remains temporarily available for upstream
+  comparison jobs
+- official delegation is implemented and enforced in the staged `ferrocopg`
+  package once namespace isolation exists
+- this temporary source-only behavior is not the PyPI product contract
+
+## Compatibility Contract
+
+### Release boundaries
+
+The `0.1.0` Rust backend aims for near-total synchronous public API parity.
+Only raw libpq connection and socket access may remain unsupported:
+
+- raw `PGconn` access
+- raw socket access such as `fileno()`
+- tracing or debugging that requires direct libpq protocol objects
+
+These boundaries must raise clear `NotSupportedError` exceptions and point to
+`impl="libpq"`.
+
+The following current gaps are not accepted as permanent release boundaries:
+
+- concrete `Cursor`, `RawCursor`, and `ClientCursor` behavior
+- concrete COPY writer behavior
+- exact public pipeline state behavior
+- complete connection timeout coverage
+- multi-host attempts and target selection
+- cancellation behavior exposed through the public synchronous API
+
+### Broad compatibility gate
+
+Before publishing `0.1.0`:
+
+- at least 95% of non-manifested synchronous tests pass
+- the denominator and manifest are deterministic across PostgreSQL 14-18
+- async tests are reported separately and do not affect the first release
+  floor
+- remaining non-critical failures are documented as beta defects, not hidden
+  by broad skip rules
+- no known hang, data corruption, security failure, or silent fallback exists
+
+The current mixed `0.80` ratchet remains in place until a trustworthy
+sync-only baseline is measured. The floor may only move upward after that
+measurement.
+
+### Release-critical gate
+
+The following synchronous contract must be 100% green:
+
+- connection lifecycle, context management, and close/broken state
+- DSN and keyword connection parameters
+- PostgreSQL 14-18 plaintext and TLS connections
+- all SSL modes, certificates, roots, and channel binding
+- connection timeouts, multi-host attempts, and target-session behavior
+- simple, parameterized, prepared, text, and binary execution
+- positional and mapping parameter adaptation
+- built-in types, arrays, ranges, multiranges, enums, and composites
+- row factories, descriptions, metadata, and result navigation
+- transactions, nested transactions, savepoints, characteristics, and TPC
+- default, raw, client, and named cursor behavior
+- text and binary COPY, COPY errors, writers, and connection locking
+- pipeline ordering, sync, error, and recovery behavior
+- diagnostics, SQLSTATE mapping, encoding, notices, and notifications
+- cancellation and concurrent synchronous use
+- official `psycopg_pool` synchronous interoperability
+- Rust-missing and official-Psycopg-missing error behavior
+- explicit official-Psycopg delegation
+
+## Performance Contract
+
+Publication is blocked until repeatable benchmarks show:
+
+- ferrocopg matches or outperforms official Psycopg's pure-Python path
+- ferrocopg remains within approximately 25% of Psycopg C on core synchronous
+  workloads
+- no benchmark shows unbounded memory growth or connection/thread leakage
+
+The benchmark suite must cover:
+
+- connection setup with plaintext and TLS
+- single-row parameterized queries
+- prepared statement reuse
+- multi-row result adaptation
+- common row factories
+- transaction and savepoint cycles
+- text and binary COPY throughput
+- synchronous pool checkout/query/return cycles
+
+Results must include latency distributions, throughput, CPU time, and peak
+memory. Any exception to the 25% target requires a documented rationale and an
+explicit release decision.
+
+## Release Matrix
+
+Target interpreters:
+
+- CPython 3.11
+- CPython 3.12
+- CPython 3.13
+- CPython 3.14
+
+Target wheels:
+
+- manylinux x86_64
+- manylinux aarch64
+- macOS arm64
+- macOS x86_64
+- Windows x64
+
+Use PyO3 `abi3-py311` if the extension and all required APIs pass the complete
+test and smoke matrix. If `abi3` is not viable, build per-interpreter wheels
+without reducing the supported matrix.
+
+Target PostgreSQL servers:
+
+- PostgreSQL 14
+- PostgreSQL 15
+- PostgreSQL 16
+- PostgreSQL 17
+- PostgreSQL 18
+
+Each wheel must be installed into a clean environment without a source
+checkout and pass:
+
+- import and metadata smoke tests
+- a live Rust connection and query
+- TLS verification
+- parameters and typed results
+- transactions
+- COPY
+- explicit missing-Rust diagnostics where applicable
+- coexistence with official Psycopg
+- explicit libpq delegation when the fallback extra is installed
+
+## Roadmap
+
+### Phase 4.0: Restore a trustworthy baseline
 
 Tasks:
 
-- Mark toolchain/bootstrap work as complete.
-- Record which Python seams already support the optional Rust path.
-- Record which backend session capabilities already exist.
-- Define cutover gates before any default-path change.
+- Fix `test_no_tls_cursor_adapter_copy` so backend COPY tests do not select a
+  C formatter for a Rust-only transformer.
+- Restore a green complete upstream Python/C/Cython workflow.
+- Update the README and development guide to match Phase 3 reality.
+- Split compatibility reporting into sync and async result sets.
+- Measure and commit the initial sync-only denominator and floor.
+- Record failure counts by feature family in CI artifacts.
 
 Definition of done:
 
-- The plan reflects reality instead of future bootstrap intent.
-- The next slices are framed around parity and cutover readiness.
+- The complete workflow is green.
+- Ferrocopg, pure-Python, and C/Cython validation lanes fail independently.
+- Documentation and the manifest describe the same capabilities.
+- The sync release denominator is stable across PostgreSQL 14-18.
 
-### Milestone 1: Finish optional Rust helper parity
-
-Objective:
-Close the remaining parity gaps in the helper-level Rust path.
+### Phase 4.1: Make Rust the synchronous development default
 
 Tasks:
 
-- Finish parity for COPY helpers.
-- Finish parity for `wait_c`.
-- Finish parity for generator helpers.
-- Finish parity for `Transformer` and selected adaptation fast paths.
-- Keep Python and Cython fallbacks intact where Rust is absent.
+- Change omitted synchronous `impl` from libpq to Rust.
+- Preserve `impl="ferrocopg"` as an explicit spelling.
+- Add a clear error when the Rust extension is missing.
+- Keep the internal source-tree libpq path as a temporary, explicit comparison
+  implementation until namespace staging is available.
+- Keep upstream baseline jobs explicit about their selected implementation and
+  document that this is transition-only behavior.
+- Add a Rust-default CI lane that never passes an implementation selector.
 
 Definition of done:
 
-- Focused helper-parity tests pass with the Rust path enabled.
-- Python behavior remains unchanged when Rust is absent.
+- Normal source-tree synchronous use exercises Rust.
+- Missing Rust never falls back silently.
+- Rust-default and explicit internal-libpq comparison tests are both green.
+- No source-tree behavior is mistaken for the final delegation contract.
 
-### Milestone 2: Finish backend session parity
-
-Objective:
-Continue the Rust-native backend session until the core behavior contract is
-covered.
+### Phase 4.2: Prove the ferrocopg package boundary
 
 Tasks:
 
-- Complete and harden session APIs for query, parameter binding, describe,
-  prepare, execute, transactions, cancel, COPY, and notify flows.
-- Preserve expected Python-facing error mapping and encoding behavior.
-- Keep the backend session path optional and isolated from default execution.
-- Keep the backend work compatible with continued coexistence of the pure
-  Python and Cython/C implementations.
+- Build a non-committed namespace staging tool.
+- Package the vendored Python API as `ferrocopg`.
+- Package the Rust extension inside the ferrocopg wheel.
+- Add lazy official-Psycopg delegation for libpq and async entry points.
+- Make delegated return types and type overloads honest.
+- Define the fallback extra and installation errors.
+- Define and test the supported official-Psycopg version range for delegation.
+- Test side-by-side imports and distribution uninstall behavior.
+- Establish version metadata independent from upstream Psycopg while recording
+  the vendored upstream revision.
 
 Definition of done:
 
-- DSN-backed backend tests pass for the session contract.
-- Known unsupported cases are documented explicitly.
+- A local `ferrocopg` wheel installs without writing into `psycopg`.
+- `import ferrocopg as psycopg` supports the documented synchronous API.
+- Official Psycopg can coexist and power explicit libpq and async calls.
+- Upstream source synchronization remains practical.
 
-### Milestone 3: Add CI enforcement for the Rust path
+### Phase 4.3: Close synchronous compatibility gaps
 
-Objective:
-Make the Rust path part of normal repository validation.
+Work in measured order, starting with the largest current failure clusters:
+
+1. transactions and savepoints
+2. type adaptation and metadata
+3. connection and connection-info behavior
+4. prepared statement behavior
+5. concrete default, raw, client, and server cursors
+6. COPY writers and COPY edge cases
+7. pipeline state and error recovery
+8. timeout, multi-host, cancellation, and concurrency behavior
+9. remaining low-volume sync failures
+
+For every slice:
+
+- add or strengthen focused tests
+- run the relevant upstream test modules
+- run the full sync compatibility harness
+- remove obsolete manifest entries instead of raising the floor alone
+- preserve explicit libpq behavior and upstream mergeability
+
+Definition of done:
+
+- The sync compatibility rate is at least 95% on PostgreSQL 14-18.
+- Only raw libpq/socket boundaries remain manifested for the release contract.
+- The complete release-critical suite is green.
+
+### Phase 5: Pooling, stress, and performance
 
 Tasks:
 
-- Install the Rust extension path in CI.
-- Run focused `ferrocopg` parity tests in CI.
-- Run Rust crate tests in CI.
-- Keep this coverage independent from the future default-path cutover.
+- Prove official `psycopg_pool.ConnectionPool` integration.
+- Add connection churn, transaction, cancellation, COPY, and pipeline soak
+  tests.
+- Add leak checks for Python objects, Rust sessions, sockets, and threads.
+- Build the comparative benchmark suite.
+- Publish reproducible benchmark commands and machine metadata.
 
 Definition of done:
 
-- CI fails if the optional Rust path regresses.
-- Rust-specific tests are not documentation-only anymore.
+- Sync pooling is documented and green.
+- Soak tests complete without hangs or resource growth.
+- Ferrocopg meets the performance contract.
 
-Current status:
-
-- The dedicated `ferrocopg-rust` GitHub Actions job installs the Rust extension
-  with `maturin`, runs the focused `tests/test_ferrocopg_bootstrap.py` parity
-  suite against a real PostgreSQL service, and exercises both Rust crates with
-  `cargo test`.
-- The job is intentionally independent from the default Python/Cython test
-  matrix so Rust regressions are visible without changing default-path
-  behavior.
-- Complete: the final Python 3.10-3.14/PostgreSQL 14-18 matrix passes all five
-  jobs, including crate, focused bootstrap, TLS, and full compatibility
-  validation.
-
-### Milestone 3.1: Compatibility harness
-
-Objective:
-Make the main test suite executable against the ferrocopg adapter and turn
-compatibility into a measured number instead of a claim.
+### Phase 6: Build and validate release wheels
 
 Tasks:
 
-- Add the `--impl` / `PSYCOPG_TEST_IMPL` switch to `tests/fix_db.py`.
-- Add the `FerrocopgConnection` facade class with a
-  `psycopg.Connection.connect`-compatible classmethod (adopting psycopg's
-  `autocommit=False` default).
-- Add `tests/fix_ferrocopg.py` and the `tests/ferrocopg_manifest.toml`
-  xfail/skip manifest.
-- Auto-skip libpq-level fixtures (`pgconn`, `aconn_cls`, `tests/pq/`, trace
-  and debug options).
-- Add the pass-rate script and ratchet step to the `ferrocopg-rust` CI job.
+- Adopt `abi3-py311` or document why per-interpreter wheels are required.
+- Build the complete Linux, macOS, and Windows matrix.
+- Run clean-environment wheel smoke tests.
+- Verify PostgreSQL 14-18 with the supported matrix.
+- Verify package metadata, licenses, notices, and source provenance.
+- Add release reproducibility and artifact integrity checks.
 
 Definition of done:
 
-- `pytest tests --impl=ferrocopg` completes without collection errors.
-- A baseline pass rate is recorded and the CI ratchet enforces it.
-
-Current status:
-
-- The selector, fixtures, manifest, JUnit report, pass-rate script, and CI job
-  are implemented and the full suite executes against ferrocopg.
-- Concrete cursor, pool/CRDB async injection, and raw libpq families are
-  classified as boundaries; the main async connection suite is enabled.
-- Whole-handshake timeout tests are explicitly skipped: rust-postgres applies
-  `connect_timeout` to socket establishment and otherwise blocks forever when
-  a peer accepts TCP but never begins the PostgreSQL handshake.
-- The full deterministic matrix completes in roughly 11-14 minutes per job
-  and measures `0.834`-`0.841` across PostgreSQL 14-18. The committed `0.80`
-  floor makes the async-inclusive harness a real regression ratchet with
-  cross-version headroom.
-
-### Milestone 3.2: TLS via rustls
-
-Objective:
-Support TLS-backed connections with a pure-Rust stack so production DSNs can
-use the ferrocopg path.
-
-Tasks:
-
-- Add `tokio-postgres-rustls` (rustls 0.23) to `ferrocopg-postgres`.
-- Map libpq `sslmode` semantics: `disable`/`prefer`/`require` onto the
-  tokio-postgres `SslMode`; `allow` as a two-attempt bootstrap (plaintext
-  first, then TLS); `require` with a no-verification verifier to match libpq
-  semantics; `verify-ca` with a chain-checking, hostname-skipping verifier;
-  `verify-full` as stock rustls verification.
-- Support `sslrootcert` (including `system` via `rustls-native-certs`) and
-  `sslcert`/`sslkey` client certificates.
-- Support `channel_binding` (tokio-postgres-rustls provides
-  tls-server-end-point).
-
-Definition of done:
-
-- All six sslmodes plus root/client certificate options are covered by
-  bootstrap tests against an SSL-enabled PostgreSQL service in CI.
-- The `tls` tag is removed from the compatibility manifest.
-
-Current status:
-
-- `rustls`, `tokio-postgres-rustls`, native root loading, sslmode routing, and
-  TLS-backed session construction are implemented.
-- The ferrocopg PostgreSQL 14-18 workflow now starts an SSL-enabled service
-  with an ephemeral CA, server certificate, and client certificate.
-- Live tests cover all six sslmodes, custom-root verification, required channel
-  binding, rejection without a required client certificate, and successful
-  client-certificate authentication. The obsolete `tls` manifest tag is
-  removed and all five remote matrix jobs pass.
-
-### Milestone 3.3: Result adaptation and rows protocol
-
-Objective:
-Return properly typed Python values and adopt psycopg's real row-factory
-protocol, closing the largest compatibility gap.
-
-Tasks:
-
-- Plumb raw column bytes (binary wire format) plus OIDs out of
-  `ferrocopg-postgres` via a passthrough `FromSql` capture.
-- Feed them through psycopg's `Transformer`/loader pipeline keyed on column
-  OIDs, for both text and binary loaders.
-- Adopt the `psycopg.rows` factory protocol and drop the adapter-local
-  `(columns, row)` contract.
-- Expose an `adapters` context on the adapter connection.
-- Support `execute(..., binary=True)` by selecting binary loaders.
-
-Definition of done:
-
-- `tests/test_adapt.py` and `tests/types/` are largely green under
-  `--impl=ferrocopg`.
-- The `binary` and `adapters` tags are removed from the manifest.
-
-Current status: complete for the adaptation-and-rows scope.
-
-- Raw result bytes and OIDs are captured by Rust and loaded through Psycopg's
-  adapter maps.
-- Standard `psycopg.rows` factories, connection/cursor-local adapters,
-  Psycopg query parameter dumping, and default-cursor text/binary execution
-  are implemented and covered.
-- Remaining failures involving Psycopg's concrete cursor classes, streaming
-  variants, and server cursors are cursor-bridge work tracked in Milestone
-  3.5, not missing result typing.
-
-### Milestone 3.4: Diagnostics and notices
-
-Objective:
-Bring error diagnostics and notice handling to parity.
-
-Tasks:
-
-- Map the full tokio-postgres `DbError` field set (severity, detail, hint,
-  position, internal query/position, schema, table, column, datatype,
-  constraint, file, line, routine) into `psycopg.errors.Diagnostic`.
-- Register a `notice_callback` on the sync client that pushes notices into a
-  queue on the session; the adapter drains it after each operation and
-  dispatches to `add_notice_handler` callbacks. Never call into Python from
-  the Rust callback thread.
-
-Definition of done:
-
-- `tests/test_errors.py` and the notice-handler tests are green under
-  `--impl=ferrocopg`; the `notice` tag is removed.
-- The equivalency matrix error-mapping row moves to Available.
-
-Current status: complete.
-
-- Every plaintext and TLS session installs a Rust-only notice callback that
-  queues owned diagnostic data. The Python adapter drains the queue after
-  operations and isolates exceptions raised by user notice handlers.
-- SQLSTATE classes, the full `DbError` field set, query context, DB-API error
-  aliases, synthetic `pgresult`, and failed-connect metadata are implemented.
-- The exact locked tokio-postgres source is patched locally to retain raw
-  protocol diagnostic fields, allowing Psycopg to decode errors and notices
-  with the active client encoding instead of accepting lossy UTF-8 conversion.
-- Focused unit and live PostgreSQL notice/diagnostic tests pass, including
-  non-UTF8 error and notice text.
-
-### Milestone 3.5: Cursor and COPY completeness
-
-Objective:
-Close the cursor-mode and COPY-option gaps.
-
-Tasks:
-
-- Keep `_exec_command` on the adapter connection as the internal SQL command
-  channel and extend its small result protocol only when server-cursor behavior
-  needs it.
-- Keep Psycopg's concrete `Cursor`, `RawCursor`, and `ClientCursor` classes as
-  a documented libpq-only boundary. Reject them at connect time rather than
-  emulating a full `PGconn` through an expanding compatibility shim.
-- Close the related streaming and per-call format override failures for the
-  intentionally supported cursor surface.
-- Implement server-side, scrollable, and withhold cursors with
-  `DECLARE`/`FETCH`/`MOVE`/`CLOSE`, mirroring `psycopg/server_cursor.py`.
-- Implement COPY options, binary COPY, and custom writers, reusing
-  psycopg's COPY statement building and the Track A binary row helpers over
-  rust-postgres's raw byte COPY endpoints.
-
-Definition of done:
-
-- `tests/test_server_cursor.py` and `tests/test_copy.py` (sync) are green
-  under `--impl=ferrocopg`; the `server-cursor` and `copy-options` tags are
-  removed.
-
-Current status: complete for the backend-supported cursor and COPY surface.
-
-- Named, scrollable, and withhold cursors use backend-native
-  `DECLARE`/`FETCH`/`MOVE`/`CLOSE` commands and have focused live coverage.
-- Sync COPY passes the upstream module for backend-supported behavior,
-  including binary format, parameters, type pinning, generic writers,
-  descriptions, error state, and locking. Only concrete libpq writer classes
-  are manifested under their permanent boundary.
-- The former `server-cursor` and `copy-options` gap tags are removed. Upstream
-  tests that directly instantiate concrete `ServerCursor`/`RawServerCursor`
-  remain under the existing concrete-cursor boundary.
-
-### Milestone 3.6: TPC and pipeline
-
-Objective:
-Cover two-phase commit and define the pipeline parity boundary.
-
-Tasks:
-
-- Implement TPC via `PREPARE TRANSACTION`, `COMMIT PREPARED`, and
-  `ROLLBACK PREPARED`, reusing `psycopg._tpc.Xid` verbatim and implementing
-  `tpc_recover()` over `pg_prepared_xacts`.
-- Build an async batch API on the crate runtime behind the pipeline adapter
-  so queued statements actually pipeline on the wire, with stop-on-first-error
-  batch semantics.
-- Document the residual delta from exact libpq
-  `PQpipelineSync`/`PIPELINE_ABORTED` state-machine behavior as a boundary.
-
-Definition of done:
-
-- `tests/test_tpc.py` is green under `--impl=ferrocopg`; the `tpc` tag is
-  removed.
-- Pipeline-marked tests pass or the residual delta is documented and
-  manifested as a boundary.
-
-Current status: complete.
-
-- TPC begin, prepare, one- and two-phase commit/rollback, recovery, Xid
-  encoding, cancellation rules, and state transitions are implemented; the
-  sync upstream TPC module is green and the `tpc` gap tag is removed.
-- The exact locked `postgres` wrapper is patched with a batch method that
-  polls tokio-postgres simple-query futures concurrently on its existing
-  runtime, preserving the active session and submission order.
-- Exact `PQpipelineSync`/`PIPELINE_ABORTED` behavior is documented and
-  manifested as a permanent protocol boundary.
-
-### Milestone 3.7: Async adapter
-
-Objective:
-Provide the `AsyncConnection`-equivalent ferrocopg path so the async half of
-the suite counts toward the compatibility metric.
-
-Tasks:
-
-- Decide the mechanism: pyo3-async-runtimes bridging of tokio futures to
-  asyncio, or a thread-offload adapter as a stopgap.
-- Implement the async facade and enable the `aconn_cls` fixture switch.
-
-Definition of done:
-
-- The async suite is included in the pass-rate denominator under
-  `--impl=ferrocopg`.
-
-Current status: complete.
-
-- `FerrocopgAsyncConnection` uses a connection-affine single-worker
-  thread-offload mechanism and exposes async connection, cursor, transaction,
-  pipeline, COPY, TPC, named-cursor, cancellation, and notification operations.
-- `aconn_cls` now selects this facade and the blanket main-async manifest rule
-  is removed, so main async tests count toward the compatibility denominator.
-- Concrete Psycopg async cursor classes, pool injection, and exact libpq
-  pipeline behavior remain separately documented boundaries rather than
-  being hidden by an `async` gap tag.
-- The async-inclusive compatibility harness passes on Python 3.10-3.14 and
-  PostgreSQL 14-18, satisfying the Phase 3.7 definition of done.
-
-### Milestone 4: Define conditional cutover readiness
-
-Objective:
-If the project decides to consider changing the default or replacing another
-implementation, create explicit measured criteria for that move. Completing
-the optional backend does not itself make this decision.
-
-Cutover gates (replacing the earlier prose gates):
-
-- The compatibility-harness pass-rate floor reaches 100% of non-manifested
-  tests, sync and async included.
-- The manifest contains only the documented permanent-boundary tags
-  (`fileno`, trace, `tests/pq/`).
-- Packaging readiness (Milestone 5) is demonstrated in CI.
-
-Routing decision (settled):
-Unsupported features fail with hard errors plus documented boundaries; there
-is no transparent fallback. Per-feature fallback to libpq is incoherent
-mid-session (a server cursor or TPC fallback would need the same connection),
-and connect-time fallback would silently return a different object type with
-different semantics. The coexistence policy itself — the libpq path staying
-installed and selectable — is the fallback: unsupported features raise
-`NotSupportedError` with a message naming `impl="libpq"`. This converts the
-"Unsupported feature routing" gate from Blocked into a closable checklist:
-each gap is either implemented (Milestones 3.2–3.7) or on the
-permanent-boundary list with a documented fallback story.
-
-Tasks:
-
-- Decide whether a default-path cutover is desirable at all and whether an
-  upstream proposal is in scope.
-- Decide whether cutover happens through compatibility naming or selector
-  expansion.
-- Define the coexistence period explicitly, including which selectors or
-  packaging combinations continue to expose Python, Cython/C, and Rust paths.
-
-Definition of done:
-
-- There is a written, test-backed cutover contract measured by the harness
-  ratchet.
-- No one needs to infer readiness from momentum alone.
-
-Current status:
-
-- The current safe operating model remains explicit opt-in through
-  `psycopg.connect_ferrocopg(...)` or `psycopg.connect(..., impl="ferrocopg")`.
-- No upstreaming or default-cutover decision has been made.
-- The compatibility floor is `0.80`, calibrated from the final `0.834`-`0.841`
-  matrix, so regressions in the supported sync and async surfaces are now
-  enforceable.
-
-### Milestone 5: Conditional packaging cutover
-
-Objective:
-If a distribution or default-path decision is made, make Rust a supported
-packaged backend or accelerated build path.
-
-Tasks:
-
-- Replace Cython-first accelerated packaging with Rust-first packaging.
-- Build a maturin wheel matrix for `crates/ferrocopg-python`:
-  manylinux_2_28 and musllinux for x86_64/aarch64, macOS arm64 and x86_64,
-  Windows x64.
-- Adopt PyO3 `abi3` (for example `abi3-py310`) to collapse per-Python-version
-  wheels; nothing in the extension appears to need version-specific ABI.
-- Decide the `psycopg[binary]`/`psycopg_binary` relationship: the ferrocopg
-  wheel needs no libpq at all (rust-postgres speaks the wire protocol
-  natively), so it can supersede the libpq-bundling binary wheel story.
-- Execute the naming decision from Compatibility Decisions item 2.
-- Update wheel build jobs and contributor docs (`uv` plus `maturin develop`).
-- Remove Cython from dev/build requirements once no longer needed.
-
-Definition of done:
-
-- Wheels build in CI from Rust sources without Cython or libpq for the
-  accelerated path.
-- CI no longer depends on Cython to build the accelerated path.
-
-### Milestone 6: Conditional Cython removal
-
-Objective:
-Remove the old implementation only if a future cutover explicitly chooses to
-replace it. A successful standalone or upstreamed ferrocopg backend does not
-require this milestone.
-
-Precondition:
-
-- At least one released coexistence version has shipped after the Milestone 4
-  gates pass, so downstream users have a version where both paths work.
-
-Tasks:
-
-- Delete `.pyx`, `.pxd`, generated C files, and Cython-specific build code.
-- Remove dead compatibility shims and docs.
-- Update repository docs to describe the Rust-based accelerated path.
-
-Definition of done:
-
-- There is no Cython left in the repository.
-- The repository and CI pass without Cython installed.
-
-## Compatibility Decisions
-
-These do not need to block the current optional-path work.
-
-1. Upstream relationship
-   Decide whether to propose the backend upstream, maintain the fork, or ship
-   it as a separate package only after compatibility and maintenance evidence
-   exists.
-
-2. Naming and distribution
-   Keep transitional names (`ferrocopg_rust`, `psycopg._ferrocopg`) for now,
-   then decide when and where `ferrocopg` branding becomes the primary package
-   or import surface.
-
-3. Cutover mechanics
-   Decide whether Rust becomes selectable through the current implementation
-   selector, becomes an additional selectable backend, or replaces the current
-   accelerated path outright after the coexistence period.
-
-4. PyPy support
-   Decide whether Rust acceleration remains CPython-only at first, with Python
-   fallback on PyPy.
-
-5. Backend scope
-   Decide whether pipeline behavior is required for backend cutover or remains
-   on a later milestone with explicit fallback behavior.
-
-## Test Plan
-
-Backend development should use layered validation instead of a single
-“it builds” gate.
-
-Required validation buckets:
-
-- helper parity tests for COPY, waiting, generators, transformer, and selected
-  type helpers
-- DSN-backed backend tests for connect/query/prepare/transaction/cancel/COPY/
-  notify behavior
-- the main suite under the compatibility harness
-  (`pytest tests --impl=ferrocopg`) with the pass-rate ratchet as the
-  compatibility metric
-- Rust crate tests for backend internals
-- existing Python API tests to ensure behavior does not regress when Rust is
-  absent
-- selector and packaging tests to ensure Python, Cython/C, and Rust modes can
-  coexist without import-path or runtime conflicts
-
-Minimum CI coverage for the Rust path should include:
-
-- `uv sync --dev --group rust --locked`
-- `uv run maturin develop --manifest-path crates/ferrocopg-python/Cargo.toml`
-- `uv run pytest tests/test_ferrocopg_bootstrap.py -q`
-- `uv run pytest tests --impl=ferrocopg` plus the pass-rate ratchet check
-- `cargo test -p ferrocopg-postgres`
-- `cargo test -p ferrocopg-python --lib`
-
-## Conditional Cutover Gates
-
-These gates apply only if a default-path or implementation-removal proposal is
-made. No such change should happen until all of the following are true:
-
-- The optional Rust helper path is green in CI.
-- The backend session live tests are green against a real PostgreSQL DSN.
-- The compatibility-harness pass rate is at its 100% floor for non-manifested
-  tests (sync and async), and the manifest contains only permanent-boundary
-  tags.
-- Error mapping, encoding behavior, cancel semantics, COPY semantics, and
-  notify behavior have explicit parity coverage.
-- The coexistence story is proven: Python-only, Cython/C, and Rust-backed
-  modes all still work as intended under supported selectors and packaging
-  layouts.
-- The fallback story is documented for unsupported or deferred features
-  (hard errors naming `impl="libpq"`; no transparent fallback).
-- Packaging and contributor workflow are ready for a Rust-first path.
-
-## Cutover Readiness Contract
-
-The Rust backend can only move closer to the default path when each gate has
-both implementation coverage and CI evidence.
-
-| Gate | Required evidence | Current status |
-| --- | --- | --- |
-| Selector coexistence | Python-only, Cython/C, and ferrocopg selectors can be installed and imported in the same checkout without shadowing each other. | Available in the source workspace; explicit connection selectors are tested and default behavior remains unchanged. |
-| Backend live contract | DSN-backed tests cover connect, query, parameters, describe, prepare, transactions, cancel, COPY, notify, and error mapping against real PostgreSQL. | Covered by `test_ferrocopg_bootstrap.py` across PostgreSQL 14-18, including TLS certificates, diagnostics/notices, binary COPY, named cursors, TPC, pipeline batches, and the async facade. |
-| Helper seam parity | COPY helpers, waiting, generators, transformer, and selected type helpers behave equivalently to Python/Cython seams when Rust is present. | In progress; focused side-by-side tests exist for many helper seams. |
-| Unsupported feature routing | Every gap in the gaps table is either implemented (Milestones 3.2–3.7) or on the permanent-boundary list with a documented fallback story; unsupported features raise hard errors naming `impl="libpq"`. | Phase 3 implementation complete; remaining entries are explicit libpq-only boundaries with no transparent mid-session fallback. |
-| Error and diagnostic compatibility | SQLSTATE classes, diagnostic fields, and user-facing exception types match Psycopg expectations for common server and connection errors. | Available, including raw non-UTF8 diagnostic fields, SQLSTATE subclasses, structured constraint metadata, notices, and fatal-connection state. |
-| Packaging readiness | Rust wheels build through maturin without relying on Cython for the accelerated path, while Python fallback remains usable. | Not started for default cutover; maturin is wired for the optional extension only. |
-| CI default-path safety | Existing Python and Cython/C jobs stay green while Rust-path jobs fail independently on Rust regressions. | The dedicated `ferrocopg-rust` job is separate from the default matrix and enforces the measured `0.80` pass-rate floor across PostgreSQL 14-18. |
-
-## Success Criteria
-
-The current backend program is successful when all of the following are true:
-
-- The Rust backend is useful for documented synchronous and asynchronous
-  Psycopg workflows.
-- Rust-backed behavior passes a meaningful, ratcheted compatibility contract.
-- Unsupported features and libpq-specific boundaries are explicit.
-- `uv` is the standard contributor workflow.
-- `maturin` is the standard extension build path.
-- A pinned Rust toolchain is part of the repository.
-- CI validates the Rust-backed implementation.
-- The Python-facing Psycopg API remains compatible.
-
-Removing Cython is a separate success criterion only if the conditional
-cutover milestones are activated.
-
-## Recommended Next Actions
-
-1. Begin Milestone 4 only as a conditional-readiness exercise: decide whether
-   the remaining concrete libpq boundaries are acceptable for a supported
-   optional backend. This does not imply changing Psycopg's default.
-2. Prioritize packaging evidence from Milestone 5: build and smoke-test wheels
-   for supported Python/platform combinations and document installation
-   without a source checkout.
-3. Add performance and cancellation stress measurements for the thread-offload
-   async facade and pipelined batch path before considering a native
-   pyo3-async-runtimes bridge.
-4. Keep upstreaming deliberately undecided. First establish a stable optional
-   backend release and collect user feedback on the API and permanent
-   boundaries.
+- Every required wheel builds and installs.
+- Wheel smoke and release-critical tests pass.
+- Official Psycopg coexistence and delegation pass from installed artifacts.
+
+### Phase 7: Publish ferrocopg 0.1.0 beta
+
+Release checklist:
+
+- 95% sync compatibility floor passes.
+- 100% release-critical suite passes.
+- Performance contract passes.
+- Pooling and soak tests pass.
+- All required wheels pass.
+- PostgreSQL 14-18 pass.
+- Migration, fallback, limitations, and benchmark documentation are published.
+- The vendored Psycopg revision and upstream delta are recorded.
+
+The release remains beta while production experience is limited. A future
+`1.0.0` requires a separate stability review and should target 100% of the
+supported synchronous contract, not merely the `0.1.0` percentage floor.
+
+## CI Strategy
+
+Keep independent lanes for:
+
+- upstream pure-Python behavior with an explicit implementation selection
+- upstream C/Cython comparison behavior
+- Rust-default focused and full synchronous compatibility
+- experimental Rust async compatibility, reported separately
+- PostgreSQL 14-18 TLS/live coverage
+- official Psycopg delegation and coexistence
+- sync pool integration
+- wheel build and installed-wheel smoke tests
+- benchmarks and scheduled soak tests
+
+Do not let a pass-rate job hide abnormal pytest termination. Every harness must
+produce JUnit, report its denominator, and reject collection errors, crashes,
+timeouts, and missing result files.
+
+## Upstream Synchronization
+
+Keep upstream synchronization as a recurring maintenance operation:
+
+- fetch and review every supported Psycopg stable release
+- preserve upstream commits separately from ferrocopg changes where practical
+- run pure-Python, C/Cython comparison, Rust, and package-boundary tests after
+  every sync
+- record the vendored upstream commit in package metadata and release notes
+- keep the Rust-backend delta small and documented
+
+Do not block routine upstream synchronization on an upstreaming decision.
+
+## Deferred Work
+
+The following are explicitly outside the `0.1.0` release:
+
+- a supported Rust-native async backend
+- making Rust async the default
+- PyPy support
+- PostgreSQL versions older than 14
+- musllinux wheels
+- raw `PGconn` or socket emulation
+- a vendored pool package
+- shipping a renamed Cython accelerator
+- removing upstream Cython sources from the development repository
+- deciding whether to propose the backend upstream
+
+The experimental Rust async facade remains useful for compatibility research,
+but it does not affect the first release floor. Native Tokio/asyncio work
+should be planned from measured scalability and cancellation evidence after
+the synchronous beta is established.
+
+## Immediate Next Actions
+
+1. Restore the complete green CI baseline.
+2. Update stale user and contributor documentation.
+3. Introduce sync-only compatibility reporting.
+4. Switch the synchronous source default to Rust with hard missing-extension
+   errors.
+5. Build the ferrocopg namespace staging proof of concept.
+6. Prove explicit official-Psycopg delegation inside the staged namespace.
+7. Start compatibility closure with transactions, then types and metadata.
