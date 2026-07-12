@@ -396,9 +396,12 @@ class Identifier(Composable):
 
     def as_bytes(self, context: AdaptContext | None = None) -> bytes:
         if conn := (context.connection if context else None):
-            esc = Escaping(conn.pgconn)
             enc = conn_encoding(conn)
-            escs = [esc.escape_identifier(s.encode(enc)) for s in self._obj]
+            if quote_identifier := getattr(conn, "_quote_sql_identifier", None):
+                escs = [quote_identifier(s) for s in self._obj]
+            else:
+                esc = Escaping(conn.pgconn)
+                escs = [esc.escape_identifier(s.encode(enc)) for s in self._obj]
         else:
             escs = [self._escape_identifier(s.encode()) for s in self._obj]
         return b".".join(escs)
@@ -432,6 +435,9 @@ class Literal(Composable):
     """
 
     def as_bytes(self, context: AdaptContext | None = None) -> bytes:
+        conn = context.connection if context else None
+        if conn and (quote_literal := getattr(conn, "_quote_sql_literal", None)):
+            return bytes(quote_literal(self._obj, context))
         tx = Transformer.from_context(context)
         return tx.as_literal(self._obj)
 

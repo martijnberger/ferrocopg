@@ -37,12 +37,12 @@ from ._encodings import conninfo_encoding, pg2pyenc, py2pgenc
 from ._enums import IsolationLevel, PyFormat
 from ._oids import BYTEA_OID, INVALID_OID, TEXT_OID
 from ._py_transformer import Transformer as AdaptTransformer
-from ._queries import PostgresClientQuery, PostgresQuery
+from ._queries import PostgresClientQuery, PostgresQuery, PostgresRawQuery
 from ._rmodule import __version__ as __version__
 from ._rmodule import _ferrocopg
 from ._tpc import Xid
 from ._tz import get_tzinfo
-from .abc import Buffer, Loader, Params, Query
+from .abc import AdaptContext, Buffer, Loader, Params, Query
 from .adapt import Dumper, RecursiveDumper, RecursiveLoader
 from .conninfo import _param_escape, conninfo_attempts, conninfo_to_dict, make_conninfo
 from .pq import ExecStatus
@@ -58,6 +58,7 @@ class _StatementColumnLike(Protocol):
     name: str
     oid: int
     type_name: str
+    is_enum: bool
     type_modifier: int
     type_size: int
 
@@ -96,6 +97,7 @@ class _SyntheticResult:
 class _BoundParams(NamedTuple):
     values: list[tuple[int, bool, bytes | None]]
     types: tuple[int, ...]
+    transcode: tuple[bool, ...]
 
 
 class _PreparedStatementLike(Protocol):
@@ -2091,7 +2093,6 @@ class NoTlsCursorAdapter:
             return tuple(row)
 
         if self._result_transformer is None:
-            encoding = cursor_result.encoding or self._encoding
             tx = _BackendTransformer(
                 _AdaptContext(
                     self._conn,
@@ -2106,7 +2107,7 @@ class NoTlsCursorAdapter:
                     expose_connection=True,
                 )
             )
-            tx._encoding = encoding
+            tx._encoding = self._encoding
             tx._row_loaders = [
                 tx.get_loader(
                     column.oid,
@@ -2123,12 +2124,17 @@ class NoTlsCursorAdapter:
             ]
             self._result_transformer = tx
 
-        if wire_format == pq.Format.TEXT:
-            encoding = cursor_result.encoding or self._encoding
-            row = tuple(
-                value.encode(encoding) if isinstance(value, str) else value
-                for value in row
+        wire_encoding = cursor_result.encoding or self._encoding
+        row = tuple(
+            _transcode_result_value(
+                value,
+                column,
+                wire_format,
+                source_encoding=wire_encoding,
+                target_encoding=self._encoding,
             )
+            for value, column in zip(row, descriptions, strict=True)
+        )
         return self._result_transformer.load_sequence(
             cast(Sequence[Buffer | None], row)
         )
@@ -2992,10 +2998,8 @@ class NoTlsConnectionAdapter:
         return self._adapters
 
     @property
-    def connection(self) -> None:
-        # C adaptation expects a real libpq PGconn here. Ferrocopg has no
-        # such handle, so exposing its compatibility shim would be invalid.
-        return None
+    def connection(self) -> NoTlsConnectionAdapter:
+        return self
 
     @property
     def pgconn(self) -> _PgconnEncodingShim:
@@ -3003,6 +3007,20 @@ class NoTlsConnectionAdapter:
 
     def parameter_status(self, param_name: bytes) -> bytes | None:
         return self._pgconn.parameter_status(param_name)
+
+    def _quote_sql_identifier(self, value: str) -> bytes:
+        return _quoted_identifier(value).encode(self._pgconn._encoding)
+
+    def _quote_sql_literal(self, value: object, context: AdaptContext) -> bytes:
+        tx = _BackendTransformer(
+            _AdaptContext(
+                self,
+                _pure_python_adapters(context.adapters),
+                expose_connection=True,
+            )
+        )
+        tx._encoding = self._pgconn._encoding
+        return tx.as_literal(value)
 
     @property
     def autocommit(self) -> bool:
@@ -3496,10 +3514,18 @@ class NoTlsConnectionAdapter:
             raise e.NotSupportedError(str(self._unsupported_client_encoding))
         self._ensure_transaction()
         client_encoding = self._pgconn._encoding
-        bridge_encoding = (
-            client_encoding not in {"utf-8", "ascii"}
-            and not _changes_client_encoding(query)
-            and not query.isascii()
+        bridge_encoding = client_encoding not in {
+            "utf-8",
+            "ascii",
+        } and not _changes_client_encoding(query)
+        bridge_encoding = bridge_encoding and (
+            not query.isascii()
+            or isinstance(params, _BoundParams)
+            and any(params.transcode)
+        )
+        bridge_encoding = bridge_encoding and hasattr(
+            self._session._session,
+            "run_text_params_format",
         )
         if bridge_encoding:
             self._session.execute_params("SET client_encoding TO 'UTF8'", [])
@@ -3510,12 +3536,15 @@ class NoTlsConnectionAdapter:
                             oid,
                             binary,
                             value
-                            if binary or value is None
+                            if not transcode or value is None
                             else value.decode(client_encoding).encode("utf-8"),
                         )
-                        for oid, binary, value in params.values
+                        for (oid, binary, value), transcode in zip(
+                            params.values, params.transcode, strict=True
+                        )
                     ],
                     types=params.types,
+                    transcode=params.transcode,
                 )
 
         execution_error: BaseException | None = None
@@ -3716,7 +3745,7 @@ class NoTlsConnectionAdapter:
             _AdaptContext(
                 self,
                 _pure_python_adapters(adapters or self.adapters),
-                expose_connection=False,
+                expose_connection=True,
             )
         )
         tx._encoding = self._pgconn._encoding
@@ -3731,6 +3760,7 @@ class NoTlsConnectionAdapter:
 
         assert pgq.formats is not None
         assert len(pgq.params) == len(pgq.types) == len(pgq.formats)
+        transcode = _query_param_transcode_flags(pgq, query, params, tx)
         bound = _BoundParams(
             values=[
                 (
@@ -3743,6 +3773,7 @@ class NoTlsConnectionAdapter:
                 )
             ],
             types=pgq.types,
+            transcode=transcode,
         )
         return pgq.query.decode(tx.encoding), bound
 
@@ -4002,6 +4033,57 @@ def _result_rowcount(result: _ResultSetLike, statusmessage: str | None) -> int:
         if command in {"INSERT", "UPDATE", "DELETE", "MERGE", "MOVE", "FETCH", "COPY"}:
             return result.rows_affected
     return -1
+
+
+def _query_param_transcode_flags(
+    pgq: PostgresQuery,
+    query: Query,
+    params: Params | None,
+    tx: _BackendTransformer,
+) -> tuple[bool, ...]:
+    assert pgq.formats is not None
+    flags = [format == pq.Format.TEXT for format in pgq.formats]
+    if params is None or isinstance(query, Template):
+        return tuple(flags)
+
+    if isinstance(pgq, PostgresRawQuery):
+        objects = cast(Sequence[Any], params)
+    else:
+        objects = pgq.validate_and_reorder_params(pgq._parts, params, pgq._order)
+    want_formats = pgq._want_formats or [PyFormat.AUTO] * len(objects)
+    for index, (obj, want_format) in enumerate(zip(objects, want_formats, strict=True)):
+        if obj is not None and not flags[index]:
+            dumper = tx.get_dumper(obj, want_format)
+            flags[index] = any(
+                base.__module__ in {"psycopg.types.enum", "psycopg.types.string"}
+                for base in type(dumper).__mro__
+            )
+    return tuple(flags)
+
+
+def _transcode_result_value(
+    value: object,
+    column: _StatementColumnLike,
+    wire_format: pq.Format | None,
+    *,
+    source_encoding: str,
+    target_encoding: str,
+) -> object:
+    if isinstance(value, str):
+        value = value.encode(source_encoding)
+    if (
+        value is None
+        or source_encoding == target_encoding
+        or not isinstance(value, (bytes, bytearray, memoryview))
+    ):
+        return value
+    if (
+        wire_format == pq.Format.TEXT
+        or column.oid in _TEXT_WIRE_OIDS
+        or getattr(column, "is_enum", False)
+    ):
+        return bytes(value).decode(source_encoding).encode(target_encoding)
+    return value
 
 
 def _quote_backend_literal(value: bytes) -> bytes:

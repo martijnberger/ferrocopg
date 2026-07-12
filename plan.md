@@ -474,11 +474,27 @@ dependency cases not present in the CI key, so its denominator is reported
 independently; the committed PostgreSQL 14-18 CI matrix remains the release gate
 and must establish the new minimum before the sync floor is raised.
 
-Continue in measured order, closing the current cursor work before reopening
+The implementation for all 21 synchronous type-tail cases is now live-family
+green. The 18 enum variants pass all 48 focused non-ASCII cases, and the
+interval and tuple-row slice passes 33 focused cases. Enum result metadata now
+crosses the Rust/Python boundary, non-UTF sessions transcode only textual
+parameters and results through the UTF-8 Rust protocol bridge, SQL composition
+uses backend-native identifier and literal quoting instead of libpq escaping,
+and hosted cursors retain the row maker selected by the backend adapter. The
+complete local type, metadata, and row family reports `2590` passing tests,
+seven environment skips, 37 expected failures, and 25 failures that are all
+experimental async-facade cases from mixed modules; no synchronous failure
+remains. The database-independent bootstrap suite passes `179` cases with 30
+expected live skips, and all 22 Rust backend tests pass. The complete sync
+harness and PostgreSQL 14-18 CI reruns are still required before this slice is
+marked complete.
+
+Continue in measured order, verifying the current type work before reopening
 the next broad failure cluster:
 
-1. Close the 21 actual synchronous type failures: LATIN1 enum adaptation,
-   SQL-standard negative intervals, and tuple-row integration.
+1. Re-run the complete sync harness to verify the live-family-green LATIN1 enum,
+   SQL-standard negative-interval, and tuple-row fixes without cross-family
+   regressions.
 2. Re-run the complete PostgreSQL 14-18 CI matrix and ratchet the sync floor to
    a conservative value below the new observed matrix minimum.
 3. Close prepared statement behavior.
@@ -605,8 +621,8 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Make the focused LATIN1 enum, SQL-standard interval, and tuple-row cases
-   green, then re-run the type family and complete sync harness.
+1. Re-run the complete sync harness for the live-family-green LATIN1 enum,
+   SQL-standard interval, and tuple-row implementation.
 2. Use the PostgreSQL 14-18 CI result to ratchet the sync floor without exceeding
    the slowest supported lane.
 3. Return to handshake-stall and bounded cancellation timeout boundaries before

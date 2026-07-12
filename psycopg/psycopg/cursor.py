@@ -65,6 +65,8 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
             self.pgresult = self._ferrocopg_cursor.pgresult
             self._closed = self._ferrocopg_cursor.closed
             self._query = self._ferrocopg_cursor._query
+            if self._ferrocopg_cursor._make_row is not None:
+                self._make_row = self._ferrocopg_cursor._make_row
 
     def __enter__(self) -> Self:
         return self

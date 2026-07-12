@@ -10,7 +10,7 @@ use crate::params::{
     query_param_refs,
 };
 use fallible_iterator::FallibleIterator;
-use postgres::types::{FromSql, Type};
+use postgres::types::{FromSql, Kind, Type};
 use std::collections::{HashMap, VecDeque};
 use std::error::Error;
 use std::io::Write;
@@ -681,6 +681,7 @@ pub(crate) fn statement_description(statement: &postgres::Statement) -> Statemen
                 name: column.name().to_owned(),
                 oid: column.type_().oid(),
                 type_name: column.type_().name().to_owned(),
+                is_enum: matches!(column.type_().kind(), Kind::Enum(_)),
                 type_modifier: column.type_modifier(),
                 type_size: column.type_size(),
             })

@@ -123,6 +123,7 @@ pub struct StatementColumn {
     pub name: String,
     pub oid: u32,
     pub type_name: String,
+    pub is_enum: bool,
     pub type_modifier: i32,
     pub type_size: i16,
 }
