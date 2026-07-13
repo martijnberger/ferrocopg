@@ -1,5 +1,18 @@
 # Changelog
 
+## ferrocopg-m4.3-sync-compat.1 - 2026-07-13
+
+- Completed the synchronous compatibility phase with a `0.95` release floor;
+  the PostgreSQL 14-18 and CPython 3.11-3.14 matrix reports `0.995-0.996`.
+- Made the standalone Rust-default `ferrocopg` wheel libpq-free while retaining
+  explicit delegation to an installed official Psycopg package.
+- Closed synchronous prepared statement, COPY, pipeline, concurrency,
+  connection-attempt, cancellation, notification, and official pool gaps.
+- Added deterministic executed-case accounting and committed per-matrix
+  baselines so collection or manifest drift cannot hide compatibility changes.
+- This is a source and GitHub milestone prerelease. PyPI publication remains
+  blocked on the soak, performance, release-wheel, and final release gates.
+
 ## ferrocopg-m3.3-row-factory-protocol.1 - 2026-07-06
 
 - Added a `pgresult` shim on the ferrocopg cursor so psycopg row factories can
