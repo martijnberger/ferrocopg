@@ -87,8 +87,9 @@ Validation evidence:
   node ID, so fixing an execution error cannot masquerade as collection drift.
 - The sync-only ratchet is `0.95`; the complete supported matrix reports
   `0.995-0.996`, and the latest local run reports `0.998`.
-- The final denominator-corrected workflow rerun is the remaining Phase 4.3
-  gate; all eight Rust lanes already satisfy the behavioral floor.
+- The denominator-corrected workflow run `29213883257` is green for the
+  standalone wheel and all eight Rust lanes. Every supported matrix key
+  satisfies the behavioral floor and its committed accounting baseline.
 - Lint, formatting, typing, documentation, and Rust checks pass.
 
 The C/Cython coexistence failure in `test_no_tls_cursor_adapter_copy` is fixed.
@@ -379,7 +380,7 @@ Definition of done:
 
 ### Phase 4.3: Close synchronous compatibility gaps
 
-Status: in progress.
+Status: complete.
 
 Completed slices:
 
@@ -599,23 +600,23 @@ timing assertions, and two transaction/pipeline timing assertions; every other
 synchronous feature family executes at `1.000`. The committed sync floor is
 therefore ratcheted from `0.85` to the release contract of `0.95`. All eight
 PostgreSQL 14-18 / CPython 3.11-3.14 matrix artifacts satisfy it at
-`0.995-0.996`; one denominator-corrected rerun remains before phase closure.
+`0.995-0.996`. The denominator-corrected workflow run `29213883257` completed
+all eight Rust lanes and the standalone package job successfully, closing the
+phase. A separate upstream PyPy job is outside the `0.1.0` release contract and
+does not change this acceptance result.
 
 The same release checkpoint makes namespace staging explicitly UTF-8 for both
 reads and writes. This closes the Windows locale failure on non-ASCII upstream
 source comments without changing generated package contents; the combined
 reporter and package regression suite passes `22/22` locally.
 
-Continue in measured order, using the supported-server matrix before reopening
-the next broad failure cluster:
+Completed acceptance evidence:
 
-1. Publish the matrix/package fixes and require bootstrap, standalone-wheel, and
-   complete compatibility jobs to finish on PostgreSQL 14-18 and CPython
-   3.11-3.14.
-2. Confirm the executed-rate scope and regenerated baselines on every matrix
-   artifact; adjust only if an interpreter has a different collected set.
-3. Require every server/interpreter key to satisfy the ratcheted `0.95` sync
-   floor before marking Phase 4.3 complete.
+1. Bootstrap, standalone-wheel, and complete compatibility jobs finish on
+   PostgreSQL 14-18 and CPython 3.11-3.14.
+2. Every matrix artifact matches its committed executed-rate denominator and
+   manifested-boundary baseline.
+3. Every server/interpreter key satisfies the ratcheted `0.95` sync floor.
 
 For every slice:
 
@@ -633,9 +634,11 @@ Definition of done:
 
 ### Phase 5: Pooling, stress, and performance
 
+Status: next.
+
 Tasks:
 
-- Prove official `psycopg_pool.ConnectionPool` integration.
+- [x] Prove official `psycopg_pool.ConnectionPool` integration.
 - Add connection churn, transaction, cancellation, COPY, and pipeline soak
   tests.
 - Add leak checks for Python objects, Rust sessions, sockets, and threads.
@@ -735,9 +738,9 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Use the post-COPY/pipeline PostgreSQL 14-18 CI result to ratchet the sync floor
-   without exceeding the slowest supported lane.
-2. Re-run the complete sync harness and close the measured residual low-volume
-   failures before Phase 5 soak and performance work.
-3. Preserve the standalone package, explicit delegation, and source-tree
-   comparison proofs while each compatibility slice changes shared Python code.
+1. Define reproducible Phase 5 soak and benchmark commands, machine metadata,
+   durations, workloads, and pass/fail thresholds before optimizing results.
+2. Add scheduled connection churn, transaction, cancellation, COPY, pipeline,
+   pool, and resource-growth soak jobs, retaining failure artifacts.
+3. Establish libpq comparison baselines for latency, throughput, memory,
+   sockets, and threads, then use measured bottlenecks to prioritize work.
