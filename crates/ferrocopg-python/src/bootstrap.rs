@@ -2,7 +2,10 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
 use pyo3::wrap_pyfunction;
-use std::sync::{Mutex, TryLockError};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{self, RecvTimeoutError};
+use std::sync::{Arc, Mutex, TryLockError};
+use std::thread;
 use std::time::Duration;
 
 use crate::python_helpers::psycopg_import;
@@ -122,6 +125,8 @@ struct BackendSyncNoTlsProbe {
     server_version_num: i32,
     #[pyo3(get)]
     application_name: String,
+    #[pyo3(get)]
+    client_encoding: String,
     #[pyo3(get)]
     server_address: Option<String>,
     #[pyo3(get)]
@@ -260,7 +265,38 @@ struct BackendSyncNoTlsCancelHandle {
 
 #[pyclass(module = "ferrocopg_rust._ferrocopg")]
 struct BackendSyncNoTlsSession {
-    inner: Mutex<ferrocopg_postgres::SyncNoTlsSession>,
+    inner: Arc<Mutex<ferrocopg_postgres::SyncNoTlsSession>>,
+    sender: mpsc::Sender<SessionTask>,
+    used_password: bool,
+    backend_pid: Option<i32>,
+    client_encoding: Option<String>,
+}
+
+type SessionTask = Box<dyn FnOnce() + Send + 'static>;
+
+impl BackendSyncNoTlsSession {
+    fn new(session: ferrocopg_postgres::SyncNoTlsSession) -> Self {
+        let used_password = session.used_password();
+        let backend_pid = session.backend_pid().ok();
+        let client_encoding = session.parameter("client_encoding");
+        let (sender, receiver) = mpsc::channel::<SessionTask>();
+        thread::Builder::new()
+            .name("ferrocopg-session".to_owned())
+            .spawn(move || {
+                while let Ok(task) = receiver.recv() {
+                    task();
+                }
+            })
+            .expect("failed to start ferrocopg session worker");
+
+        Self {
+            inner: Arc::new(Mutex::new(session)),
+            sender,
+            used_password,
+            backend_pid,
+            client_encoding,
+        }
+    }
 }
 
 fn backend_runtime_error(message: impl Into<String>) -> PyErr {
@@ -537,18 +573,67 @@ fn map_backend_result<T>(
 
 fn with_session<T, F>(py: Python<'_>, session: &BackendSyncNoTlsSession, f: F) -> PyResult<T>
 where
-    T: Send,
+    T: Send + 'static,
     F: FnOnce(
             &mut ferrocopg_postgres::SyncNoTlsSession,
         ) -> Result<T, ferrocopg_postgres::ProbeError>
-        + Send,
+        + Send
+        + 'static,
 {
-    let result = py.detach(|| {
-        let mut inner = session.inner.lock().map_err(|_| {
+    let cancel_handle = session
+        .inner
+        .lock()
+        .ok()
+        .and_then(|inner| inner.cancel_handle().ok());
+    let inner = Arc::clone(&session.inner);
+    let (result_sender, result_receiver) = mpsc::sync_channel(1);
+    let task = Box::new(move || {
+        let result = inner.lock().map_err(|_| {
             BackendThreadError::Runtime("backend session mutex is poisoned".to_owned())
-        })?;
-        f(&mut inner).map_err(BackendThreadError::Backend)
+        });
+        let result = match result {
+            Ok(mut inner) => f(&mut inner).map_err(BackendThreadError::Backend),
+            Err(err) => Err(err),
+        };
+        let _ = result_sender.send(result);
     });
+
+    session
+        .sender
+        .send(task)
+        .map_err(|_| backend_runtime_error("backend session worker is closed"))?;
+
+    let result_receiver = Mutex::new(result_receiver);
+    let mut signal_error = None;
+    let result = loop {
+        match py.detach(|| {
+            result_receiver
+                .lock()
+                .map_err(|_| RecvTimeoutError::Disconnected)?
+                .recv_timeout(Duration::from_millis(10))
+        }) {
+            Ok(result) => break result,
+            Err(RecvTimeoutError::Timeout) if signal_error.is_none() => {
+                if let Err(err) = py.check_signals() {
+                    signal_error = Some(err);
+                    if let Some(handle) = cancel_handle.as_ref() {
+                        let _ = py.detach(|| handle.cancel_timeout(Duration::from_secs(1)));
+                    }
+                }
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => {
+                return Err(backend_runtime_error(
+                    "backend session worker dropped its result",
+                ));
+            }
+        }
+    };
+
+    if let Some(err) = signal_error {
+        return Err(err);
+    }
+
     match result {
         Ok(value) => Ok(value),
         Err(BackendThreadError::Runtime(message)) => Err(backend_runtime_error(message)),
@@ -752,20 +837,57 @@ fn describe_text_no_tls(
 
 #[pyfunction]
 fn connect_no_tls_session(py: Python<'_>, conninfo: &str) -> PyResult<BackendSyncNoTlsSession> {
-    map_backend_result(py, ferrocopg_postgres::connect_no_tls_session(conninfo)).map(|session| {
-        BackendSyncNoTlsSession {
-            inner: Mutex::new(session),
-        }
-    })
+    map_backend_result(py, ferrocopg_postgres::connect_no_tls_session(conninfo))
+        .map(BackendSyncNoTlsSession::new)
 }
 
 #[pyfunction]
 fn connect_session(py: Python<'_>, conninfo: &str) -> PyResult<BackendSyncNoTlsSession> {
-    map_backend_result(py, ferrocopg_postgres::connect_session(conninfo)).map(|session| {
-        BackendSyncNoTlsSession {
-            inner: Mutex::new(session),
+    let conninfo = conninfo.to_owned();
+    let cancelled = Arc::new(AtomicBool::new(false));
+    let worker_cancelled = Arc::clone(&cancelled);
+    let (result_sender, result_receiver) = mpsc::sync_channel(1);
+    let worker = thread::Builder::new()
+        .name("ferrocopg-connect".to_owned())
+        .spawn(move || {
+            let result =
+                ferrocopg_postgres::connect_session_cancelable(&conninfo, &worker_cancelled);
+            let _ = result_sender.send(result);
+        })
+        .map_err(|err| backend_runtime_error(format!("failed to start connect worker: {err}")))?;
+
+    let result_receiver = Mutex::new(result_receiver);
+    let mut signal_error = None;
+    let result = loop {
+        match py.detach(|| {
+            result_receiver
+                .lock()
+                .map_err(|_| RecvTimeoutError::Disconnected)?
+                .recv_timeout(Duration::from_millis(10))
+        }) {
+            Ok(result) => break result,
+            Err(RecvTimeoutError::Timeout) if signal_error.is_none() => {
+                if let Err(err) = py.check_signals() {
+                    signal_error = Some(err);
+                    cancelled.store(true, Ordering::Release);
+                }
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => {
+                let _ = worker.join();
+                return Err(backend_runtime_error(
+                    "backend connect worker dropped its result",
+                ));
+            }
         }
-    })
+    };
+    let _ = worker.join();
+
+    if let Some(err) = signal_error {
+        return Err(err);
+    }
+
+    map_backend_result(py, result).map(BackendSyncNoTlsSession::new)
 }
 
 impl From<ferrocopg_postgres::ConninfoSummary> for BackendConninfoSummary {
@@ -849,6 +971,7 @@ impl From<ferrocopg_postgres::SyncNoTlsProbe> for BackendSyncNoTlsProbe {
             current_database: probe.current_database,
             server_version_num: probe.server_version_num,
             application_name: probe.application_name,
+            client_encoding: probe.client_encoding,
             server_address: probe.server_address,
             server_port: probe.server_port,
         }
@@ -1000,6 +1123,13 @@ impl BackendSyncNoTlsCancelHandle {
 #[pymethods]
 impl BackendSyncNoTlsSession {
     fn used_password(&self) -> PyResult<bool> {
+        Ok(self.used_password)
+    }
+
+    fn parameter(&self, name: &str) -> PyResult<Option<String>> {
+        if name == "client_encoding" {
+            return Ok(self.client_encoding.clone());
+        }
         Ok(self
             .inner
             .lock()
@@ -1008,7 +1138,12 @@ impl BackendSyncNoTlsSession {
                     "backend session mutex is poisoned",
                 )
             })?
-            .used_password())
+            .parameter(name))
+    }
+
+    fn backend_pid(&self) -> PyResult<i32> {
+        self.backend_pid
+            .ok_or_else(|| backend_runtime_error("backend session is closed"))
     }
 
     #[getter]

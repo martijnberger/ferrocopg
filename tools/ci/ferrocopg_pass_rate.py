@@ -101,6 +101,10 @@ def main() -> int:
     regressions += _check_floor("overall", scopes["overall"], args.floor)
     if args.sync_floor:
         regressions += _check_floor("sync", scopes["sync"], args.sync_floor)
+    if args.sync_max_regressions is not None:
+        regressions += _check_regression_budget(
+            "sync", scopes["sync"], args.sync_max_regressions
+        )
     if args.baseline:
         regressions += _check_baseline(scopes, args.baseline, args.baseline_key)
     return 1 if regressions else 0
@@ -112,6 +116,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--floor", type=Path, required=True)
     parser.add_argument("--sync-floor", type=Path)
+    parser.add_argument("--sync-max-regressions", type=int)
     parser.add_argument("--baseline", type=Path)
     parser.add_argument("--baseline-key")
     parser.add_argument("--report", type=Path)
@@ -119,6 +124,8 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     if bool(args.baseline) != bool(args.baseline_key):
         parser.error("--baseline and --baseline-key must be used together")
+    if args.sync_max_regressions is not None and args.sync_max_regressions < 0:
+        parser.error("--sync-max-regressions must be non-negative")
     return args
 
 
@@ -298,6 +305,19 @@ def _check_floor(name: str, counts: Counts, floor_path: Path) -> int:
     print(
         f"ferrocopg {name} pass rate regressed below the committed floor: "
         f"{counts.rate:.3f} < {floor:.3f}",
+        file=sys.stderr,
+    )
+    return 1
+
+
+def _check_regression_budget(name: str, counts: Counts, maximum: int) -> int:
+    actual = counts.failed + counts.errors
+    if actual <= maximum:
+        print(f"ferrocopg {name} regression budget satisfied: {actual} <= {maximum}")
+        return 0
+    print(
+        f"ferrocopg {name} regression budget exceeded: "
+        f"{actual} > {maximum} ({counts.failed} failed, {counts.errors} errors)",
         file=sys.stderr,
     )
     return 1

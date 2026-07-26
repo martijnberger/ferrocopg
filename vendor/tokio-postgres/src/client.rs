@@ -187,6 +187,7 @@ pub struct Client {
     process_id: i32,
     secret_key: i32,
     used_password: bool,
+    parameters: HashMap<String, String>,
 }
 
 impl Client {
@@ -197,6 +198,7 @@ impl Client {
         process_id: i32,
         secret_key: i32,
         used_password: bool,
+        parameters: HashMap<String, String>,
     ) -> Client {
         Client {
             inner: Arc::new(InnerClient {
@@ -211,6 +213,7 @@ impl Client {
             process_id,
             secret_key,
             used_password,
+            parameters,
         }
     }
 
@@ -824,6 +827,16 @@ impl Client {
     /// Reports whether the server requested password authentication.
     pub fn used_password(&self) -> bool {
         self.used_password
+    }
+
+    /// Returns a parameter reported by the server during connection startup.
+    pub fn parameter(&self, name: &str) -> Option<&str> {
+        self.parameters.get(name).map(String::as_str)
+    }
+
+    /// Returns the process ID assigned by the server during connection startup.
+    pub fn backend_pid(&self) -> i32 {
+        self.process_id
     }
 
     #[doc(hidden)]

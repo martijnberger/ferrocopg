@@ -74,7 +74,15 @@ impl Connection {
                             notice_callback(notice)
                         }
                         Poll::Ready(Some(Ok(_))) => {}
-                        Poll::Ready(Some(Err(e))) => return Poll::Ready(Err(e)),
+                        Poll::Ready(Some(Err(e))) => {
+                            // A fatal ErrorResponse and EOF can arrive together.
+                            // Prefer the operation error already delivered by the
+                            // connection before falling back to the terminal error.
+                            return match f(cx, notifications, true) {
+                                Poll::Ready(result) => Poll::Ready(result),
+                                Poll::Pending => Poll::Ready(Err(e)),
+                            };
+                        }
                         Poll::Ready(None) => break true,
                         Poll::Pending => break false,
                     }
@@ -133,5 +141,43 @@ where
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.connection.poll_message(cx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures_util::stream;
+    use tokio::runtime::Builder;
+
+    #[test]
+    fn operation_result_wins_terminal_connection_error() {
+        let mut connection = connection_with_error();
+
+        let result = connection.poll_block_on(|_, _, _| Poll::Ready(Ok(42)));
+
+        assert_eq!(result.unwrap(), 42);
+    }
+
+    #[test]
+    fn terminal_connection_error_wins_pending_operation() {
+        let mut connection = connection_with_error();
+
+        let result: Result<(), Error> =
+            connection.poll_block_on(|_, _, _| Poll::Pending);
+
+        assert!(result.is_err());
+    }
+
+    fn connection_with_error() -> Connection {
+        let error = "invalid-option=1"
+            .parse::<tokio_postgres::Config>()
+            .unwrap_err();
+        Connection {
+            runtime: Builder::new_current_thread().build().unwrap(),
+            connection: Box::pin(stream::iter([Err(error)])),
+            notifications: VecDeque::new(),
+            notice_callback: Arc::new(|_| {}),
+        }
     }
 }

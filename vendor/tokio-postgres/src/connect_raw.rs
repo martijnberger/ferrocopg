@@ -121,6 +121,7 @@ where
         process_id,
         secret_key,
         used_password,
+        parameters.clone(),
     );
     let connection = Connection::new(stream.inner, stream.delayed, parameters, receiver);
 

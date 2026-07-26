@@ -1,34 +1,34 @@
 {
   "py3.11-pg14": {
     "async": {"manifested": 766, "total": 611},
-    "sync": {"manifested": 248, "total": 4778}
+    "sync": {"manifested": 249, "total": 4781}
   },
   "py3.11-pg15": {
     "async": {"manifested": 766, "total": 611},
-    "sync": {"manifested": 248, "total": 4778}
+    "sync": {"manifested": 249, "total": 4781}
   },
   "py3.11-pg16": {
     "async": {"manifested": 766, "total": 611},
-    "sync": {"manifested": 248, "total": 4778}
+    "sync": {"manifested": 249, "total": 4781}
   },
   "py3.11-pg17": {
     "async": {"manifested": 766, "total": 611},
-    "sync": {"manifested": 248, "total": 4778}
+    "sync": {"manifested": 249, "total": 4781}
   },
   "py3.11-pg18": {
     "async": {"manifested": 766, "total": 611},
-    "sync": {"manifested": 248, "total": 4778}
+    "sync": {"manifested": 249, "total": 4781}
   },
   "py3.12-pg16": {
     "async": {"manifested": 766, "total": 611},
-    "sync": {"manifested": 248, "total": 4778}
+    "sync": {"manifested": 249, "total": 4781}
   },
   "py3.13-pg17": {
     "async": {"manifested": 766, "total": 611},
-    "sync": {"manifested": 248, "total": 4778}
+    "sync": {"manifested": 249, "total": 4781}
   },
   "py3.14-pg18": {
     "async": {"manifested": 766, "total": 646},
-    "sync": {"manifested": 248, "total": 4813}
+    "sync": {"manifested": 249, "total": 4816}
   }
 }

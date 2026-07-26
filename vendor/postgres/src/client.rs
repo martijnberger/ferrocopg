@@ -747,6 +747,16 @@ impl Client {
         self.client.used_password()
     }
 
+    /// Returns a parameter reported by the server during connection startup.
+    pub fn parameter(&self, name: &str) -> Option<&str> {
+        self.client.parameter(name)
+    }
+
+    /// Returns the process ID assigned by the server during connection startup.
+    pub fn backend_pid(&self) -> i32 {
+        self.client.backend_pid()
+    }
+
     /// Closes the client's connection to the server.
     ///
     /// This is equivalent to `Client`'s `Drop` implementation, except that it returns any error encountered to the

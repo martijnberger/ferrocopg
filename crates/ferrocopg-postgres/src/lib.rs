@@ -13,10 +13,10 @@ mod tls;
 
 pub use bootstrap::{
     BootstrapConfig, backend_core, backend_stack, bootstrap_summary, connect_no_tls_probe,
-    connect_no_tls_session, connect_plan, connect_session, connect_target, describe_text_no_tls,
-    execute_text_params_no_tls, pipeline_simple_query_results_no_tls, query_text_no_tls,
-    query_text_params_no_tls, run_text_params_no_tls, simple_query_no_tls,
-    simple_query_results_no_tls,
+    connect_no_tls_session, connect_plan, connect_session, connect_session_cancelable,
+    connect_target, describe_text_no_tls, execute_text_params_no_tls,
+    pipeline_simple_query_results_no_tls, query_text_no_tls, query_text_params_no_tls,
+    run_text_params_no_tls, simple_query_no_tls, simple_query_results_no_tls,
 };
 pub use error::{PostgresDiagnostic, ProbeError};
 pub use model::{
@@ -30,6 +30,8 @@ pub use session::{SyncNoTlsCancelHandle, SyncNoTlsSession};
 #[cfg(test)]
 mod tests {
     use std::net::TcpListener;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::mpsc;
     use std::thread;
     use std::time::{Duration, Instant};
@@ -186,6 +188,37 @@ mod tests {
             "elapsed: {elapsed:?}"
         );
         assert!(elapsed < Duration::from_secs(2), "elapsed: {elapsed:?}");
+    }
+
+    #[test]
+    fn connect_session_cancels_during_stalled_handshake() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let (release_tx, release_rx) = mpsc::channel();
+        let server = thread::spawn(move || {
+            let (_socket, _) = listener.accept().unwrap();
+            release_rx.recv().unwrap();
+        });
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let cancel_worker = Arc::clone(&cancelled);
+        let cancel = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(100));
+            cancel_worker.store(true, Ordering::Release);
+        });
+
+        let start = Instant::now();
+        let result = connect_session_cancelable(
+            &format!("host=127.0.0.1 port={port} user=postgres sslmode=disable connect_timeout=3"),
+            &cancelled,
+        );
+        let elapsed = start.elapsed();
+
+        cancel.join().unwrap();
+        release_tx.send(()).unwrap();
+        server.join().unwrap();
+        assert!(result.is_err());
+        assert!(elapsed >= Duration::from_millis(80), "elapsed: {elapsed:?}");
+        assert!(elapsed < Duration::from_secs(1), "elapsed: {elapsed:?}");
     }
 
     #[test]

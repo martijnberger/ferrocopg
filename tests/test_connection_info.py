@@ -33,6 +33,8 @@ def test_attrs(conn, attr):
 
 @pytest.mark.libpq("< 12")
 def test_hostaddr_not_supported(conn):
+    if getattr(conn, "_is_ferrocopg", False):
+        pytest.skip("ferrocopg supports hostaddr independently of the loaded libpq")
     with pytest.raises(psycopg.NotSupportedError):
         conn.info.hostaddr
 

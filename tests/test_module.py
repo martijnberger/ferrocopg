@@ -29,7 +29,8 @@ def test_connect(monkeypatch, dsn_env, args, kwargs, want, setpgenv):
     setpgenv({})
     monkeypatch.setattr(psycopg.generators, "connect", mock_connect)
 
-    conn = psycopg.connect(*args, **kwargs)
+    # This test monkeypatches the libpq connection generator, not backend routing.
+    conn = psycopg.connect(*args, impl="libpq", **kwargs)
     assert conninfo_to_dict(got_conninfo) == conninfo_to_dict(want)
     conn.close()
 

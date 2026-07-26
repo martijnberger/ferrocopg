@@ -177,6 +177,7 @@ else:
     assert result.returncode == 0, result.stderr
 
 
+@pytest.mark.mypy
 def test_staged_package_exposes_honest_connect_types(tmp_path: Path) -> None:
     output = tmp_path / "stage"
     staging.stage_package(output)

@@ -69,39 +69,53 @@ Implemented Rust-backed capabilities include:
 
 Validation evidence:
 
-- 25 Rust backend tests pass.
-- The focused live bootstrap suite reports 201 passing tests with 9 expected
+- 26 Rust backend tests pass.
+- The focused live bootstrap suite reports 205 passing tests with 8 expected
   environment or accelerator-dependent skips.
-- The Rust compatibility matrix passes across PostgreSQL 14-18 and the target
-  CPython 3.11-3.14 range.
+- The Rust compatibility jobs execute across PostgreSQL 14-18 and the target
+  CPython 3.11-3.14 range, satisfy the `0.95` sync rate floor, and enforce zero
+  non-manifested synchronous failures or errors.
 - The latest complete local PostgreSQL 14 / CPython 3.14 compatibility run
-  reports `4669/4680` executed synchronous cases (`0.998`); skips and async
+  reports `4708/4718` executed synchronous cases (`0.998`); skips and async
   coverage are reported separately.
 - CI enforces the current `0.80` mixed sync/async compatibility floor and the
-  `0.95` sync-only release floor.
+  `0.95` sync-only release floor, plus a zero-regression budget for
+  non-manifested synchronous tests.
 - CI reports sync and async independently and uploads family-level JSON and
   JUnit evidence for every PostgreSQL 14-18 matrix job.
-- The validated CPython 3.11 server-axis denominator is `4778` sync and `611`
-  async tests on PostgreSQL 14-18, with `248` sync and `766` async manifested
+- The validated CPython 3.11 server-axis denominator is `4781` sync and `611`
+  async tests on PostgreSQL 14-18, with `249` sync and `766` async manifested
   tests in every lane. Duplicate JUnit call/teardown records are collapsed by
   node ID, so fixing an execution error cannot masquerade as collection drift.
-- The sync-only ratchet is `0.95`; the complete supported matrix reports
-  `0.995-0.996`, and the latest local run reports `0.998`.
+- The sync-only ratchet is `0.95`; the latest supported matrix reports `1.000`
+  for executed, non-manifested synchronous cases, and the latest local run
+  reports `0.998`. The matrix also proves the separate 100% release-critical
+  gate through its zero-regression budget.
 - The denominator-corrected workflow run `29213883257` is green for the
   standalone wheel and all eight Rust lanes. Every supported matrix key
   satisfies the behavioral floor and its committed accounting baseline.
 - Lint, formatting, typing, documentation, and Rust checks pass.
+
+The authoritative Phase 4 workflow run `30227231014` completed all `57` jobs
+successfully. All eight PostgreSQL 14-18 / CPython 3.11-3.14 Rust lanes, the
+standalone package job, both PyPy jobs, and the macOS CPython 3.14 job are
+green. Every Rust lane passed the strict zero-regression gate. The PostgreSQL
+15 / CPython 3.11 lane, for example, reports `4591/4591` executed synchronous
+cases (`1.000`), zero failures, zero errors, a stable total of `4781`, and `249`
+manifested boundaries. The companion lint workflow run `30227231070` is also
+green.
 
 The C/Cython coexistence failure in `test_no_tls_cursor_adapter_copy` is fixed.
 The focused C and pure-Python bootstrap/harness slices are green, and the user
 and contributor documentation now reflects the Phase 3 implementation and
 the separate `ferrocopg` product direction.
 
-Phase 4.0 through Phase 4.2 are complete. Omitted synchronous `connect()` uses
-Rust, missing Rust is a hard actionable error, and comparison jobs select
-libpq explicitly. The staging tool builds a standalone `ferrocopg` wheel,
-records its vendored upstream revision, and passes clean installed-wheel CI for
-Rust-only use, side-by-side delegation, coexistence, and uninstall isolation.
+Phase 4 is complete. Omitted synchronous `connect()` uses Rust, missing Rust is
+a hard actionable error, and comparison jobs select libpq explicitly. The
+staging tool builds a standalone `ferrocopg` wheel, records its vendored
+upstream revision, and passes clean installed-wheel CI for Rust-only use,
+side-by-side delegation, coexistence, and uninstall isolation. The full
+release-critical synchronous contract is green across the supported matrix.
 
 ## Architecture
 
@@ -319,6 +333,7 @@ Tasks:
   expected per-matrix denominator, and retain `0.85` as a conservative initial
   ratchet below the validated server-axis minimum.
 - [x] Record failure counts by feature family in CI artifacts.
+- [x] Validate the PyPy `mypy` marker correction in the complete workflow.
 
 Definition of done:
 
@@ -553,8 +568,9 @@ binding programmatically in Rust, and gives the staged package a libpq-free
 keyword/URI conninfo parser with environment metadata and invalid-option
 diagnostics. Local evidence is `25/25` Rust tests, `200` bootstrap passes with
 nine environment skips, `6/6` staging tests including mypy, a clean pre-commit
-run, and a live Rust query from an isolated CPython 3.11 wheel. A fresh matrix
-run is still required before any floor or phase status changes.
+run, and a live Rust query from an isolated CPython 3.11 wheel. At that
+checkpoint, a fresh matrix run was still required before any floor or phase
+status change.
 
 The same workflow also marked many otherwise unrelated upstream jobs failed
 after their behavioral suites completed because the packaging type probe made
@@ -585,8 +601,9 @@ URI parsing for all Rust connection selection, metadata, merging, DSN, and
 cancellation-probe paths, with early `ProgrammingError` diagnostics for invalid
 options. This source parser is covered alongside the already-green standalone
 wheel parser; the complete local Python bootstrap suite is `201` passes with
-nine environment skips and pre-commit is green. PostgreSQL 14 CI must still
-confirm that no old-libpq parse remains before the harness evidence is accepted.
+nine environment skips and pre-commit is green. PostgreSQL 14 CI still had to
+confirm that no old-libpq parse remained before the harness evidence could be
+accepted.
 
 Compatibility accounting now defines the release rate over executed,
 non-manifested cases while retaining `total` and `manifested` as deterministic
@@ -601,22 +618,81 @@ synchronous feature family executes at `1.000`. The committed sync floor is
 therefore ratcheted from `0.85` to the release contract of `0.95`. All eight
 PostgreSQL 14-18 / CPython 3.11-3.14 matrix artifacts satisfy it at
 `0.995-0.996`. The denominator-corrected workflow run `29213883257` completed
-all eight Rust lanes and the standalone package job successfully, closing the
-phase. A separate upstream PyPy job is outside the `0.1.0` release contract and
-does not change this acceptance result.
+all eight Rust lanes and the standalone package job successfully, proving the
+broad percentage gate. A separate upstream PyPy job is outside the `0.1.0`
+release contract, but it remains part of the repository's complete workflow
+health gate.
 
 The same release checkpoint makes namespace staging explicitly UTF-8 for both
 reads and writes. This closes the Windows locale failure on non-ASCII upstream
 source comments without changing generated package contents; the combined
 reporter and package regression suite passes `22/22` locally.
 
-Completed acceptance evidence:
+Completed broad-gate evidence:
 
 1. Bootstrap, standalone-wheel, and complete compatibility jobs finish on
    PostgreSQL 14-18 and CPython 3.11-3.14.
 2. Every matrix artifact matches its committed executed-rate denominator and
    manifested-boundary baseline.
 3. Every server/interpreter key satisfies the ratcheted `0.95` sync floor.
+
+Current closure backlog from workflow run `30195687685`:
+
+- [x] Restore bytea adapter-map isolation so minimal caller maps remain valid
+  while maps with bytea support retain the OID-only Rust wire dumper.
+- [x] Close connection, failover, cancellation, signal, and concurrent-close
+  differences, distinguishing backend defects from exact platform/version
+  behavior with focused Rust and explicit-libpq comparisons.
+- [x] Close synchronous cursor metadata and DB-API state differences, including
+  DDL `description` and `fetchmany()`/`arraysize`.
+- [x] Close notification generator, blocking, callback, and connection-lock
+  behavior without weakening timing or lock assertions globally.
+- [x] Close TPC prepared-state cancellation and pipeline transaction/savepoint
+  differences.
+- [x] Keep upstream tests that intentionally exercise libpq generator plumbing
+  explicit about `impl="libpq"` instead of accidentally exercising the
+  Rust-default product path.
+- [x] Audit the low-frequency remote-close, `hostaddr`, GSSAPI-warning, and pool
+  destructor failures across the supported matrix; fix deterministic backend
+  behavior and use only narrow, justified environment/version exclusions.
+- [x] Rerun focused modules, the complete synchronous harness, all eight
+  PostgreSQL/CPython Rust lanes, the standalone package job, and the complete
+  upstream workflow with zero release-critical failures.
+
+Latest local closure evidence:
+
+1. Both Rust crates compile and format cleanly; the core suite passes `26/26`,
+   including bounded cancellation during a stalled PostgreSQL handshake.
+2. The complete bootstrap suite passes `205` cases with eight expected local
+   TLS-configuration skips.
+3. The complete synchronous concurrency module passes `15` cases with one
+   macOS-inapplicable fork skip. The previously failing stalled-host SIGINT,
+   active-query SIGINT, remote termination, and concurrent-close cases pass
+   together in `3.84s`.
+4. The notification module passes `15/15` in isolation. The deterministic
+   synchronous pool suite passes `131` cases with one upstream-version skip.
+5. The complete local harness reports `4708/4718` executed synchronous cases
+   (`0.998`), zero synchronous errors, and 242 manifested boundaries. Its ten
+   synchronous failures were five notification timings, four macOS waiting
+   timings, and one COPY-description regression. The timing groups pass in
+   isolation or reproduce under explicit libpq; the COPY regression is fixed
+   with focused COPY and DB-API description tests passing together.
+6. Compatibility CI now installs the release-mode extension before running
+   timing-sensitive upstream tests, matching the artifact users will run.
+7. The compatibility reporter now fails a Rust lane on any non-manifested
+   synchronous failure or error instead of allowing the broad `0.95` floor to
+   hide a release-critical regression.
+8. Workflow run `30227231014` is the authoritative Phase 4 closure evidence.
+   All `57` jobs passed, including all eight PostgreSQL/CPython Rust lanes, the
+   standalone package, both PyPy lanes, Linux fork behavior, and the strict
+   zero release-critical regression gate. The representative PostgreSQL 15 /
+   CPython 3.11 report is `4591/4591` executed synchronous cases (`1.000`),
+   with zero failures, zero errors, total `4781`, and `249` manifested
+   boundaries.
+9. The final PostgreSQL 15 disconnect fix passes its focused upstream test ten
+   consecutive times, and the vendored connection-poller regression tests pass
+   `2/2`. The final combined notification, disconnect, and bootstrap run passes
+   `207` tests with eight expected TLS skips.
 
 For every slice:
 
@@ -639,11 +715,14 @@ Status: next.
 Tasks:
 
 - [x] Prove official `psycopg_pool.ConnectionPool` integration.
-- Add connection churn, transaction, cancellation, COPY, and pipeline soak
+- [ ] Define reproducible soak and benchmark commands, machine metadata, and
+  acceptance thresholds.
+- [ ] Add connection churn, transaction, cancellation, COPY, and pipeline soak
   tests.
-- Add leak checks for Python objects, Rust sessions, sockets, and threads.
-- Build the comparative benchmark suite.
-- Publish reproducible benchmark commands and machine metadata.
+- [ ] Add leak checks for Python objects, Rust sessions, sockets, and threads.
+- [ ] Build the comparative libpq benchmark suite for latency, throughput,
+  memory, sockets, and threads.
+- [ ] Run scheduled soaks and publish reproducible results.
 
 Definition of done:
 
@@ -738,9 +817,11 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Define reproducible Phase 5 soak and benchmark commands, machine metadata,
-   durations, workloads, and pass/fail thresholds before optimizing results.
-2. Add scheduled connection churn, transaction, cancellation, COPY, pipeline,
-   pool, and resource-growth soak jobs, retaining failure artifacts.
-3. Establish libpq comparison baselines for latency, throughput, memory,
-   sockets, and threads, then use measured bottlenecks to prioritize work.
+1. Define the Phase 5 soak and benchmark commands, machine metadata, run
+   duration, and pass/fail thresholds so results are reproducible.
+2. Add scheduled connection-churn, transaction, cancellation, COPY, pipeline,
+   and pool soaks with resource-growth assertions.
+3. Establish comparative libpq baselines for latency, throughput, memory,
+   sockets, and threads.
+4. Use the measured results to close performance or resource-lifecycle gaps
+   before beginning the Phase 6 wheel matrix.

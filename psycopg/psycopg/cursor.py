@@ -337,7 +337,7 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
         :rtype: Sequence[Row], with Row defined by `row_factory`
         """
         if self._ferrocopg_cursor is not None:
-            rows = self._ferrocopg_cursor.fetchmany(size)
+            rows = self._ferrocopg_cursor.fetchmany(size or self.arraysize)
             self._sync_ferrocopg_cursor()
             return cast(list[Row], rows)
 

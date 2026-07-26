@@ -36,7 +36,7 @@ from ._copy_base import (
     _parse_row_binary,
     _parse_row_text,
 )
-from ._encodings import conninfo_encoding, pg2pyenc, py2pgenc
+from ._encodings import pg2pyenc, py2pgenc
 from ._enums import IsolationLevel, PyFormat
 from ._ferrocopg_conninfo import conninfo_to_dict as _rust_conninfo_to_dict
 from ._oids import BYTEA_OID, INVALID_OID, TEXT_OID
@@ -141,6 +141,7 @@ class _BackendProbeLike(Protocol):
     current_database: str
     server_version_num: int
     application_name: str
+    client_encoding: str
     server_address: str | None
     server_port: int | None
 
@@ -194,6 +195,34 @@ class _NoopCancelHandle:
 
     def cancel_timeout(self, timeout: float) -> None:
         del timeout
+
+
+class _BackendRLock:
+    """Expose the modern Lock API while retaining backend reentrancy."""
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+
+    def acquire(self, *args: Any, **kwargs: Any) -> bool:
+        return self._lock.acquire(*args, **kwargs)
+
+    def release(self) -> None:
+        self._lock.release()
+
+    def locked(self) -> bool:
+        if is_owned := getattr(self._lock, "_is_owned", None):
+            if is_owned():
+                return True
+        if self._lock.acquire(blocking=False):
+            self._lock.release()
+            return False
+        return True
+
+    def __enter__(self) -> bool:
+        return self.acquire()
+
+    def __exit__(self, *args: object) -> None:
+        self.release()
 
 
 class _PgconnEncodingShim:
@@ -271,6 +300,8 @@ class _PgconnEncodingShim:
     def error_message(self) -> bytes:
         if self._conn is None:
             return b"NULL"
+        if self._conn.closed:
+            return b"connection pointer is NULL\n"
         return self._conn._last_error_message.encode(self._encoding, "replace")
 
     @property
@@ -295,6 +326,10 @@ class _PgconnEncodingShim:
         if self._conn is None:
             raise e.OperationalError("connection is closed")
         return self._conn._exec_command(query)
+
+    def finish(self) -> None:
+        if self._conn is not None:
+            self._conn.close()
 
     def _info_bytes(self, name: str) -> bytes:
         if self._conn is None:
@@ -429,20 +464,19 @@ def _install_wire_bytea_dumper(adapters: AdaptersMap) -> None:
     from .dbapi20 import Binary
 
     default_dumper = AdaptersMap._optimised.get(BytesDumper, BytesDumper)
-    classes = [
-        cls
-        for cls in (bytes, bytearray, memoryview, Binary)
-        if (
-            (dumper := adapters.get_dumper(cls, PyFormat.TEXT)) is default_dumper
-            or dumper.__module__
-            in {
-                "psycopg.dbapi20",
-                "psycopg.types.string",
-                "psycopg_c._psycopg",
-                "psycopg_binary._psycopg",
-            }
-        )
-    ]
+    classes = []
+    for cls in (bytes, bytearray, memoryview, Binary):
+        try:
+            dumper = adapters.get_dumper(cls, PyFormat.TEXT)
+        except e.ProgrammingError:
+            continue
+        if dumper is default_dumper or dumper.__module__ in {
+            "psycopg.dbapi20",
+            "psycopg.types.string",
+            "psycopg_c._psycopg",
+            "psycopg_binary._psycopg",
+        }:
+            classes.append(cls)
     if not classes:
         return
 
@@ -453,7 +487,10 @@ def _install_wire_bytea_dumper(adapters: AdaptersMap) -> None:
     for cls in classes:
         adapters._dumpers[PyFormat.TEXT][cls] = _WireByteaDumper
 
-    oid_dumper = adapters.get_dumper_by_oid(BYTEA_OID, pq.Format.TEXT)
+    try:
+        oid_dumper = adapters.get_dumper_by_oid(BYTEA_OID, pq.Format.TEXT)
+    except e.ProgrammingError:
+        return
     if oid_dumper.__module__ in {"psycopg.dbapi20", "psycopg.types.string"}:
         adapters.register_dumper(None, _WireByteaDumper)
 
@@ -707,10 +744,17 @@ class FerrocopgConnection:
             raise e.OperationalError("no connection attempts available")
 
         last_error = errors[-1][0]
-        lines = [str(last_error)]
+        last_message = str(last_error)
+        if not last_message.startswith("connection failed:"):
+            last_message = f"connection failed: {last_message}"
+        lines = [last_message]
         if len(errors) > 1:
             lines.append("Multiple connection attempts failed. All failures were:")
-            lines.extend(f"- {description}: {error}" for error, description in errors)
+            for error, description in errors:
+                message = str(error)
+                if not message.startswith("connection failed:"):
+                    message = f"connection failed: {message}"
+                lines.append(f"- {description}: {message}")
         elif errors[0][1] not in lines[0]:
             lines.append(errors[0][1])
         raise type(last_error)("\n".join(lines), pgconn=last_error.pgconn) from None
@@ -775,6 +819,8 @@ class BackendConnectionInfo:
     @property
     def backend_pid(self) -> int:
         self._ensure_open()
+        if (backend_pid := self._conn._session.backend_pid()) is not None:
+            return backend_pid
         return self._conn._probe().backend_pid
 
     @property
@@ -823,8 +869,8 @@ class BackendConnectionInfo:
 
     @property
     def encoding(self) -> str:
-        pgenc = self.parameter_status("client_encoding")
-        return pg2pyenc((pgenc or "UTF8").encode())
+        self._ensure_open()
+        return self._conn.pgconn._encoding
 
     @property
     def full_protocol_version(self) -> int:
@@ -1040,6 +1086,10 @@ class _NoTlsSessionLike(Protocol):
     def close(self) -> None: ...
 
     def used_password(self) -> bool: ...
+
+    def parameter(self, name: str) -> str | None: ...
+
+    def backend_pid(self) -> int: ...
 
     def probe(self) -> _BackendProbeLike: ...
 
@@ -1449,6 +1499,14 @@ class NoTlsSessionAdapter:
     def used_password(self) -> bool:
         return self._session.used_password()
 
+    def parameter(self, name: str) -> str | None:
+        method = getattr(self._session, "parameter", None)
+        return None if method is None else cast(str | None, method(name))
+
+    def backend_pid(self) -> int | None:
+        method = getattr(self._session, "backend_pid", None)
+        return None if method is None else int(method())
+
     def close(self) -> None:
         self._session.close()
 
@@ -1605,7 +1663,7 @@ class NoTlsSessionAdapter:
         ]
 
     def wait_for_notification(self, timeout: float = 0.0) -> Notify | None:
-        timeout_ms = max(0, int(timeout * 1000))
+        timeout_ms = max(0, ceil(timeout * 1000))
         notification = self._call(self._session.wait_for_notification, timeout_ms)
         if notification is None:
             return None
@@ -1640,6 +1698,8 @@ class NoTlsSessionAdapter:
                     self._session.close()
                 if self.error_handler is not None:
                     self.error_handler(ex)
+            elif isinstance(ex, KeyboardInterrupt) and self.error_handler is not None:
+                self.error_handler(ex)
             try:
                 self._drain_notices()
                 self._drain_notifications()
@@ -1844,6 +1904,8 @@ class NoTlsCursorAdapter:
                 )
                 for column in cast(list[_StatementColumnLike], descriptions)
             ]
+        if not getattr(current, "is_tuples", bool(current.columns or current.rows)):
+            return None
         return [BackendColumn(name) for name in current.columns]
 
     @property
@@ -3003,6 +3065,7 @@ class NoTlsPipelineAdapter:
         if self._aborted:
             cursor._pipeline_error = e.PipelineAborted("pipeline aborted")
             return
+        self._conn._ensure_transaction()
         plan = self._conn._make_pipeline_prepare_plan(query, params, prepare, cursor)
         self.result_queue.append((query, cursor, params, prepare, plan))
 
@@ -3137,7 +3200,7 @@ class NoTlsConnectionAdapter:
         autocommit: bool = True,
     ):
         self._session = session
-        self.lock = threading.RLock()
+        self.lock = _BackendRLock()
         self._is_ferrocopg = True
         self._conninfo = conninfo
         self.row_factory = row_factory
@@ -3184,10 +3247,23 @@ class NoTlsConnectionAdapter:
         self._ensure_cancel_handle()
         try:
             self._used_password = self._session.used_password()
-            self._probe_cache = self._session.probe()
         except AttributeError:
-            # Lightweight bootstrap doubles may not expose connection metadata.
             pass
+
+        try:
+            pgenc = self._session.parameter("client_encoding")
+        except AttributeError:
+            pgenc = None
+        if not pgenc and not hasattr(self._session._session, "parameter"):
+            try:
+                self._probe_cache = self._session.probe()
+            except AttributeError:
+                pass
+            else:
+                pgenc = getattr(self._probe_cache, "client_encoding", None)
+        if pgenc:
+            self._pgconn._encoding = pg2pyenc(pgenc.encode())
+            self._session.encoding = self._pgconn._encoding
 
     @property
     def closed(self) -> bool:
@@ -3522,6 +3598,10 @@ class NoTlsConnectionAdapter:
     def cancel_safe(self, *, timeout: float = 30.0) -> None:
         if self._closed:
             return
+        if self._tpc and self._tpc[1]:
+            raise e.ProgrammingError(
+                "cancel_safe() cannot be used during a prepared two-phase transaction"
+            )
         handle = self._ensure_cancel_handle()
         cancel_timeout = getattr(handle, "cancel_timeout", None)
         if cancel_timeout is None:
@@ -4604,8 +4684,6 @@ def no_tls_connection_adapter(
         prepare_threshold=prepare_threshold,
         autocommit=autocommit,
     )
-    conn.pgconn._encoding = conninfo_encoding(conninfo)
-    session.encoding = conn.pgconn._encoding
     if isolation_level is not None:
         conn.set_isolation_level(isolation_level)
     if read_only is not None:

@@ -2188,6 +2188,32 @@ def test_backend_literals_do_not_use_libpq(monkeypatch: pytest.MonkeyPatch) -> N
     assert tx.as_literal(b"\x00\xff") == b"E'\\\\x00ff'::bytea"
 
 
+def test_wire_bytea_dumper_tolerates_minimal_adapter_map() -> None:
+    from psycopg.adapt import AdaptersMap, PyFormat
+
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+    adapters = AdaptersMap()
+
+    module._install_wire_bytea_dumper(adapters)
+
+    with pytest.raises(psycopg.ProgrammingError, match="cannot adapt type 'bytes'"):
+        adapters.get_dumper(bytes, PyFormat.TEXT)
+
+
+def test_backend_rlock_exposes_locked_state() -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+    lock = module._BackendRLock()
+
+    assert not lock.locked()
+    with lock:
+        assert lock.locked()
+        with lock:
+            assert lock.locked()
+    assert not lock.locked()
+
+
 def test_split_extended_statements() -> None:
     module = importlib.import_module("psycopg._ferrocopg")
 
@@ -3287,7 +3313,7 @@ def test_no_tls_connection_adapter_notifications(
 
     conn.listen("ferro")
     conn.notify("ferro", "payload")
-    first = conn.wait_for_notification(0.25)
+    first = conn.wait_for_notification(0.2501)
     assert first == psycopg.Notify("ferro", "one", 10)
     assert conn.drain_notifications() == [
         psycopg.Notify("ferro", "two", 11),
@@ -3298,7 +3324,7 @@ def test_no_tls_connection_adapter_notifications(
     assert stub.calls == [
         ("listen", "ferro"),
         ("notify", "ferro", "payload"),
-        ("wait", 250),
+        ("wait", 251),
         ("drain",),
         ("unlisten", "ferro"),
     ]
@@ -4051,6 +4077,9 @@ def test_no_tls_cursor_adapter_copy(monkeypatch: pytest.MonkeyPatch) -> None:
 
         def rollback(self) -> None:
             pass
+
+        def parameter(self, name: str) -> str | None:
+            return "LATIN1" if name == "client_encoding" else None
 
         def run_text_params(self, query: str, params: list[str | None]) -> object:
             key = params[0]
@@ -4813,6 +4842,7 @@ def test_no_tls_connection_adapter_info(monkeypatch: pytest.MonkeyPatch) -> None
                 current_database="ferrocopg",
                 server_version_num=170004,
                 application_name="ferrocopg-tests",
+                client_encoding="UTF8",
                 server_address="127.0.0.1",
                 server_port=5432,
             )
@@ -4885,6 +4915,31 @@ def test_no_tls_connection_adapter_info(monkeypatch: pytest.MonkeyPatch) -> None
 
     with conn.pipeline():
         assert conn.info.pipeline_status == psycopg.pq.PipelineStatus.ON
+
+
+def test_connection_startup_metadata_does_not_probe() -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class StubSession:
+        closed = False
+
+        def used_password(self) -> bool:
+            return False
+
+        def parameter(self, name: str) -> str | None:
+            return "UTF8" if name == "client_encoding" else None
+
+        def backend_pid(self) -> int:
+            return 4321
+
+        def probe(self) -> object:
+            raise AssertionError("startup metadata must not issue a probe query")
+
+    session = module.NoTlsSessionAdapter(cast(Any, StubSession()))
+    conn = module.NoTlsConnectionAdapter(session)
+
+    assert conn.info.encoding == "utf-8"
+    assert conn.info.backend_pid == 4321
 
 
 def test_backend_connect_target_parses_endpoints() -> None:
@@ -5241,6 +5296,7 @@ def test_backend_connect_no_tls_probe_live(dsn: str) -> None:
     assert probe.current_database
     assert probe.current_user
     assert probe.server_version_num >= 100000
+    assert probe.client_encoding
 
 
 def test_backend_query_text_no_tls_live(dsn: str) -> None:

@@ -360,7 +360,7 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
         """
         if False:  # ASYNC
             if self._ferrocopg_cursor is not None:
-                rows = self._ferrocopg_cursor.fetchmany(size)
+                rows = self._ferrocopg_cursor.fetchmany(size or self.arraysize)
                 self._sync_ferrocopg_cursor()
                 return cast(list[Row], rows)
 

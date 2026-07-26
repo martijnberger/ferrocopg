@@ -236,7 +236,9 @@ jobs:
         run: cargo test -p ferrocopg-python --lib
 
       - name: Install ferrocopg Rust extension
-        run: uv run --no-sync maturin develop --manifest-path crates/ferrocopg-python/Cargo.toml
+        run: >-
+          uv run --no-sync maturin develop --release
+          --manifest-path crates/ferrocopg-python/Cargo.toml
 
       - name: Run Rust-default connection smoke test
         run: >-
@@ -263,6 +265,7 @@ jobs:
             --manifest tests/ferrocopg_manifest.toml \
             --floor tests/ferrocopg_pass_rate.txt \
             --sync-floor tests/ferrocopg_sync_pass_rate.txt \
+            --sync-max-regressions 0 \
             --baseline tests/ferrocopg_compat_baselines.json \
             --baseline-key py${{ matrix.python }}-pg${{ matrix.pg }} \
             --report ferrocopg-compat-report.json \

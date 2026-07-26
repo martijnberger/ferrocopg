@@ -1015,6 +1015,9 @@ async def test_connect_tsa_bad(aconn_cls, dsn, mode):
 @pytest.mark.libpq(">= 16")
 @pytest.mark.skipif(pq.__impl__ != "python", reason="can't monkeypatch C module")
 async def test_implicit_gssapi_warning(aconn_cls, dsn, recwarn, monkeypatch):
+    if False:  # ASYNC
+        if aconn_cls.__module__ == "psycopg._ferrocopg":
+            pytest.skip("ferrocopg doesn't use libpq's implicit GSSAPI negotiation")
     if get_param(conninfo_to_dict(dsn), "gssencmode"):
         pytest.skip("gssencmode parameter explicitly set in test connection string")
 

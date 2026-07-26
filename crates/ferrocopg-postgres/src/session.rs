@@ -157,6 +157,20 @@ impl SyncNoTlsSession {
         self.used_password
     }
 
+    pub fn parameter(&self, name: &str) -> Option<String> {
+        self.client
+            .as_ref()
+            .and_then(|client| client.parameter(name))
+            .map(str::to_owned)
+    }
+
+    pub fn backend_pid(&self) -> Result<i32, ProbeError> {
+        self.client
+            .as_ref()
+            .map(postgres::Client::backend_pid)
+            .ok_or(ProbeError::Closed)
+    }
+
     pub fn close(&mut self) {
         self.prepared.clear();
         self.prepared_queries.clear();
@@ -182,6 +196,7 @@ impl SyncNoTlsSession {
                     current_database()::text, \
                     current_setting('server_version_num')::int4, \
                     coalesce(current_setting('application_name', true), '')::text, \
+                    current_setting('client_encoding')::text, \
                     inet_server_addr()::text, \
                     inet_server_port()",
                 &[],
@@ -189,7 +204,7 @@ impl SyncNoTlsSession {
             .map_err(ProbeError::Query)?;
 
         let server_port = row
-            .get::<_, Option<i32>>(6)
+            .get::<_, Option<i32>>(7)
             .and_then(|port| u16::try_from(port).ok());
 
         Ok(SyncNoTlsProbe {
@@ -198,7 +213,8 @@ impl SyncNoTlsSession {
             current_database: row.get(2),
             server_version_num: row.get(3),
             application_name: row.get(4),
-            server_address: row.get(5),
+            client_encoding: row.get(5),
+            server_address: row.get(6),
             server_port,
         })
     }

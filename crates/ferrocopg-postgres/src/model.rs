@@ -62,6 +62,7 @@ pub struct SyncNoTlsProbe {
     pub current_database: String,
     pub server_version_num: i32,
     pub application_name: String,
+    pub client_encoding: String,
     pub server_address: Option<String>,
     pub server_port: Option<u16>,
 }

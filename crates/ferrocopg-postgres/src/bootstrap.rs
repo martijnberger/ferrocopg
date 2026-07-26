@@ -8,6 +8,7 @@ use crate::session::{NoticeQueue, SyncNoTlsSession};
 use crate::tls::make_tls_connector;
 use std::collections::VecDeque;
 use std::str::FromStr;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
 const DEFAULT_CONNECT_TIMEOUT_SECS: u64 = 130;
@@ -147,6 +148,7 @@ impl BootstrapConfig {
                     current_database()::text, \
                     current_setting('server_version_num')::int4, \
                     coalesce(current_setting('application_name', true), '')::text, \
+                    current_setting('client_encoding')::text, \
                     inet_server_addr()::text, \
                     inet_server_port()",
                 &[],
@@ -154,7 +156,7 @@ impl BootstrapConfig {
             .map_err(ProbeError::Connect)?;
 
         let server_port = row
-            .get::<_, Option<i32>>(6)
+            .get::<_, Option<i32>>(7)
             .and_then(|port| u16::try_from(port).ok());
 
         Ok(SyncNoTlsProbe {
@@ -163,7 +165,8 @@ impl BootstrapConfig {
             current_database: row.get(2),
             server_version_num: row.get(3),
             application_name: row.get(4),
-            server_address: row.get(5),
+            client_encoding: row.get(5),
+            server_address: row.get(6),
             server_port,
         })
     }
@@ -223,45 +226,80 @@ impl BootstrapConfig {
     }
 
     pub fn connect_no_tls_session(&self) -> Result<SyncNoTlsSession, ProbeError> {
+        self.connect_no_tls_session_inner(None)
+    }
+
+    fn connect_no_tls_session_inner(
+        &self,
+        cancelled: Option<&Arc<AtomicBool>>,
+    ) -> Result<SyncNoTlsSession, ProbeError> {
         if !self.connect_plan().can_bootstrap_with_no_tls {
             return Err(ProbeError::NoTlsNotSupported);
         }
 
         let (config, notices) = self.sync_config_with_notices()?;
-        let client = config
-            .connect(postgres::NoTls)
-            .map_err(ProbeError::Connect)?;
+        let client = match cancelled {
+            Some(cancelled) => {
+                config.__private_api_connect_cancelable(postgres::NoTls, Arc::clone(cancelled))
+            }
+            None => config.connect(postgres::NoTls),
+        }
+        .map_err(ProbeError::Connect)?;
 
         Ok(SyncNoTlsSession::from_client(client, notices))
     }
 
     pub fn connect_session(&self) -> Result<SyncNoTlsSession, ProbeError> {
+        self.connect_session_inner(None)
+    }
+
+    pub fn connect_session_cancelable(
+        &self,
+        cancelled: &Arc<AtomicBool>,
+    ) -> Result<SyncNoTlsSession, ProbeError> {
+        self.connect_session_inner(Some(cancelled))
+    }
+
+    fn connect_session_inner(
+        &self,
+        cancelled: Option<&Arc<AtomicBool>>,
+    ) -> Result<SyncNoTlsSession, ProbeError> {
         match self.tls.sslmode {
-            LibpqSslMode::Disable => self.connect_no_tls_session(),
-            LibpqSslMode::Allow => self.connect_allow_session(),
-            LibpqSslMode::Prefer => self.connect_tls_session(false),
+            LibpqSslMode::Disable => self.connect_no_tls_session_inner(cancelled),
+            LibpqSslMode::Allow => self.connect_allow_session(cancelled),
+            LibpqSslMode::Prefer => self.connect_tls_session(false, cancelled),
             LibpqSslMode::Require | LibpqSslMode::VerifyCa | LibpqSslMode::VerifyFull => {
-                self.connect_tls_session(true)
+                self.connect_tls_session(true, cancelled)
             }
         }
     }
 
-    fn connect_allow_session(&self) -> Result<SyncNoTlsSession, ProbeError> {
-        match self.connect_no_tls_session() {
+    fn connect_allow_session(
+        &self,
+        cancelled: Option<&Arc<AtomicBool>>,
+    ) -> Result<SyncNoTlsSession, ProbeError> {
+        match self.connect_no_tls_session_inner(cancelled) {
             Ok(session) => Ok(session),
-            Err(ProbeError::Connect(_)) => self.connect_tls_session(true),
+            Err(ProbeError::Connect(_)) => self.connect_tls_session(true, cancelled),
             Err(err) => Err(err),
         }
     }
 
-    fn connect_tls_session(&self, require_tls: bool) -> Result<SyncNoTlsSession, ProbeError> {
+    fn connect_tls_session(
+        &self,
+        require_tls: bool,
+        cancelled: Option<&Arc<AtomicBool>>,
+    ) -> Result<SyncNoTlsSession, ProbeError> {
         let (mut config, notices) = self.sync_config_with_notices()?;
         if require_tls {
             config.ssl_mode(postgres::config::SslMode::Require);
         }
-        let client = config
-            .connect(make_tls_connector(&self.tls).map_err(ProbeError::TlsConfig)?)
-            .map_err(ProbeError::Connect)?;
+        let tls = make_tls_connector(&self.tls).map_err(ProbeError::TlsConfig)?;
+        let client = match cancelled {
+            Some(cancelled) => config.__private_api_connect_cancelable(tls, Arc::clone(cancelled)),
+            None => config.connect(tls),
+        }
+        .map_err(ProbeError::Connect)?;
 
         Ok(SyncNoTlsSession::from_tls_client(
             client,
@@ -367,6 +405,14 @@ pub fn connect_no_tls_session(conninfo: &str) -> Result<SyncNoTlsSession, ProbeE
 pub fn connect_session(conninfo: &str) -> Result<SyncNoTlsSession, ProbeError> {
     let config = BootstrapConfig::parse(conninfo).map_err(ProbeError::Parse)?;
     config.connect_session()
+}
+
+pub fn connect_session_cancelable(
+    conninfo: &str,
+    cancelled: &Arc<AtomicBool>,
+) -> Result<SyncNoTlsSession, ProbeError> {
+    let config = BootstrapConfig::parse(conninfo).map_err(ProbeError::Parse)?;
+    config.connect_session_cancelable(cancelled)
 }
 
 pub fn describe_text_no_tls(

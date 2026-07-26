@@ -4,11 +4,13 @@
 
 use crate::Client;
 use crate::connection::Connection;
+use futures_util::future::{self, Either};
 use log::info;
 use std::fmt;
 use std::net::IpAddr;
 use std::path::Path;
 use std::str::FromStr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime;
@@ -457,6 +459,35 @@ impl Config {
         T::Stream: Send,
         <T::TlsConnect as TlsConnect<Socket>>::Future: Send,
     {
+        self.connect_inner(tls, None)
+    }
+
+    #[doc(hidden)]
+    pub fn __private_api_connect_cancelable<T>(
+        &self,
+        tls: T,
+        cancelled: Arc<AtomicBool>,
+    ) -> Result<Client, Error>
+    where
+        T: MakeTlsConnect<Socket> + 'static + Send,
+        T::TlsConnect: Send,
+        T::Stream: Send,
+        <T::TlsConnect as TlsConnect<Socket>>::Future: Send,
+    {
+        self.connect_inner(tls, Some(cancelled))
+    }
+
+    fn connect_inner<T>(
+        &self,
+        tls: T,
+        cancelled: Option<Arc<AtomicBool>>,
+    ) -> Result<Client, Error>
+    where
+        T: MakeTlsConnect<Socket> + 'static + Send,
+        T::TlsConnect: Send,
+        T::Stream: Send,
+        <T::TlsConnect as TlsConnect<Socket>>::Future: Send,
+    {
         let runtime = runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -465,11 +496,27 @@ impl Config {
         let timeout = self.config.get_connect_timeout().copied();
         let connect = self.config.connect(tls);
         let (client, connection) = runtime.block_on(async {
-            match timeout {
-                Some(timeout) => tokio::time::timeout(timeout, connect)
-                    .await
-                    .map_err(|_| Error::__private_api_timeout())?,
-                None => connect.await,
+            let connect = async {
+                match timeout {
+                    Some(timeout) => tokio::time::timeout(timeout, connect)
+                        .await
+                        .map_err(|_| Error::__private_api_timeout())?,
+                    None => connect.await,
+                }
+            };
+
+            if let Some(cancelled) = cancelled {
+                let cancellation = async move {
+                    while !cancelled.load(Ordering::Acquire) {
+                        tokio::time::sleep(Duration::from_millis(10)).await;
+                    }
+                };
+                match future::select(Box::pin(connect), Box::pin(cancellation)).await {
+                    Either::Left((result, _)) => result,
+                    Either::Right(((), _)) => Err(Error::__private_api_timeout()),
+                }
+            } else {
+                connect.await
             }
         })?;
 

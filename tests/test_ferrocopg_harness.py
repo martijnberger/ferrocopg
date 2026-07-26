@@ -188,6 +188,42 @@ def test_pass_rate_report_checks_committed_denominator(tmp_path: Path) -> None:
     assert "denominator drift for sample" in result.stderr
 
 
+def test_pass_rate_report_enforces_sync_regression_budget(tmp_path: Path) -> None:
+    junit = _write_sample_junit(tmp_path)
+    manifest = tmp_path / "manifest.toml"
+    manifest.write_text("")
+    floor = tmp_path / "floor.txt"
+    floor.write_text("0.0\n")
+
+    command = [
+        sys.executable,
+        str(PASS_RATE_SCRIPT),
+        str(junit),
+        "--manifest",
+        str(manifest),
+        "--floor",
+        str(floor),
+        "--sync-max-regressions",
+        "0",
+        "--pytest-status",
+        "1",
+    ]
+    result = subprocess.run(
+        command, cwd=ROOT, text=True, capture_output=True, check=False
+    )
+
+    assert result.returncode == 1
+    assert "sync regression budget exceeded: 1 > 0" in result.stderr
+
+    command[command.index("0")] = "1"
+    result = subprocess.run(
+        command, cwd=ROOT, text=True, capture_output=True, check=False
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "sync regression budget satisfied: 1 <= 1" in result.stdout
+
+
 def test_pass_rate_report_collapses_duplicate_teardown_record(tmp_path: Path) -> None:
     junit = tmp_path / "compat.xml"
     junit.write_text(
