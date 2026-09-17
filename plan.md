@@ -776,11 +776,15 @@ COPY. Parameterized/prepared queries, transactions, COPY, and pool cycles also
 exceed the Python limit. These measurements establish optimization priorities,
 not release acceptance or the status of the separate soak job.
 
-Current working-copy changes reduce notice-draining overhead, cache COPY
-formats, and split binary COPY output in one native pass. They are work in
-progress, not accepted performance improvements until a rebuilt wheel is
-measured. Preserve cancellation, concurrent use, custom adapters, encoding,
-row factories, and COPY error behavior while optimizing these paths.
+Checkpoint `2d7ca925` reduces notice-draining overhead, caches COPY formats,
+and splits binary COPY output in one native pass. The next slice shares native
+primitive loaders between results and COPY while retaining custom callbacks
+and conversion errors. It passes 2,809 synchronous bootstrap/COPY/type tests
+and 13 harness/installed-wheel tests. Its development benchmark puts binary
+COPY at Rust/Python `0.919` and Rust/C `1.586`: improved, but still outside the
+C gate. This is single-run development evidence, not release acceptance.
+Preserve cancellation, concurrent use, custom adapters, encoding, row
+factories, and COPY error behavior while optimizing these paths.
 
 Definition of done:
 

@@ -3,7 +3,7 @@ use crate::python_helpers::{
 };
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict, PyList, PyString};
+use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 use pyo3::wrap_pyfunction;
 use time::{Date, Duration, Month, OffsetDateTime, PrimitiveDateTime, Time, UtcOffset};
 use uuid::Uuid;
@@ -652,16 +652,12 @@ fn parse_row_text(
         }
     }
 
-    let row = PyList::empty(py);
-    for field in fields {
-        if field == br"\N" {
-            row.append(py.None())?;
-        } else {
-            row.append(PyBytes::new(py, &unescape_text_field(&field)))?;
-        }
-    }
-
-    tx.call_method1("load_sequence", (row,)).map(Bound::unbind)
+    let fields: Vec<_> = fields
+        .iter()
+        .map(|field| (field != br"\N").then(|| unescape_text_field(field)))
+        .collect();
+    let row: Vec<_> = fields.iter().map(Option::as_deref).collect();
+    load_copy_row(py, tx, &row)
 }
 
 #[pyfunction]
@@ -684,7 +680,7 @@ fn parse_row_binary(
         ));
     }
 
-    let row = PyList::empty(py);
+    let mut row = Vec::with_capacity(nfields as usize);
     let mut pos = 2_usize;
     for _ in 0..usize::try_from(nfields).unwrap_or(0) {
         if data.len().saturating_sub(pos) < 4 {
@@ -697,7 +693,7 @@ fn parse_row_binary(
         pos += 4;
 
         if length < 0 {
-            row.append(py.None())?;
+            row.push(None);
             continue;
         }
 
@@ -710,11 +706,86 @@ fn parse_row_binary(
             ));
         }
 
-        row.append(PyBytes::new(py, &data[pos..pos + length]))?;
+        row.push(Some(&data[pos..pos + length]));
         pos += length;
     }
 
-    tx.call_method1("load_sequence", (row,)).map(Bound::unbind)
+    load_copy_row(py, tx, &row)
+}
+
+pub(crate) fn load_wire_value(
+    py: Python<'_>,
+    data: &[u8],
+    code: u8,
+    loader: &Py<PyAny>,
+) -> PyResult<Py<PyAny>> {
+    match code {
+        1 => {
+            if let Some(value) = std::str::from_utf8(data)
+                .ok()
+                .and_then(|s| s.parse::<i64>().ok())
+            {
+                return Ok(value.into_pyobject(py)?.into_any().unbind());
+            }
+        }
+        2 => {
+            if let Ok(value) = std::str::from_utf8(data) {
+                return Ok(PyString::new(py, value).into_any().unbind());
+            }
+        }
+        3 => return Ok(PyBytes::new(py, data).into_any().unbind()),
+        4 if data.len() == 2 => {
+            return Ok(i16::from_be_bytes(data.try_into().unwrap())
+                .into_pyobject(py)?
+                .into_any()
+                .unbind());
+        }
+        5 if data.len() == 4 => {
+            return Ok(i32::from_be_bytes(data.try_into().unwrap())
+                .into_pyobject(py)?
+                .into_any()
+                .unbind());
+        }
+        6 if data.len() == 8 => {
+            return Ok(i64::from_be_bytes(data.try_into().unwrap())
+                .into_pyobject(py)?
+                .into_any()
+                .unbind());
+        }
+        _ => {}
+    }
+    loader.call1(py, (PyBytes::new(py, data),))
+}
+
+fn load_copy_row(
+    py: Python<'_>,
+    tx: &Bound<'_, PyAny>,
+    row: &[Option<&[u8]>],
+) -> PyResult<Py<PyAny>> {
+    if let Ok(plan) = tx.getattr("_copy_loaders") {
+        if !plan.is_none() {
+            let (codes, loaders): (Vec<u8>, Vec<Py<PyAny>>) = plan.extract()?;
+            if codes.len() == row.len() && loaders.len() == row.len() {
+                let values = row
+                    .iter()
+                    .zip(codes)
+                    .zip(&loaders)
+                    .map(|((data, code), loader)| match data {
+                        Some(data) => load_wire_value(py, data, code, loader),
+                        None => Ok(py.None()),
+                    })
+                    .collect::<PyResult<Vec<_>>>()?;
+                return Ok(PyTuple::new(py, values)?.into_any().unbind());
+            }
+        }
+    }
+    // Generic transformers and mismatched field counts retain Psycopg's errors.
+    let values = PyList::empty(py);
+    for data in row {
+        values.append(data.map(|data| PyBytes::new(py, data)))?;
+    }
+    tx.call_method1("load_sequence", (values,))
+        .map(Bound::unbind)
 }
 
 fn dump_sequence(

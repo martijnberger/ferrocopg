@@ -1,6 +1,6 @@
 use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
+use pyo3::types::{PyBytes, PyDict, PyList, PyTuple};
 use pyo3::wrap_pyfunction;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
@@ -219,39 +219,7 @@ impl BackendResultSet {
             for ((value, code), loader) in row.iter().zip(&codes).zip(&loaders) {
                 let value = match value {
                     None => py.None(),
-                    Some(data) => match code {
-                        1 => match std::str::from_utf8(data)
-                            .ok()
-                            .and_then(|s| s.parse::<i64>().ok())
-                        {
-                            Some(value) => value.into_pyobject(py)?.into_any().unbind(),
-                            None => loader.call1(py, (PyBytes::new(py, data),))?,
-                        },
-                        2 => match std::str::from_utf8(data) {
-                            Ok(value) => PyString::new(py, value).into_any().unbind(),
-                            Err(_) => loader.call1(py, (PyBytes::new(py, data),))?,
-                        },
-                        3 => PyBytes::new(py, data).into_any().unbind(),
-                        4 if data.len() == 2 => {
-                            i16::from_be_bytes(data.as_slice().try_into().unwrap())
-                                .into_pyobject(py)?
-                                .into_any()
-                                .unbind()
-                        }
-                        5 if data.len() == 4 => {
-                            i32::from_be_bytes(data.as_slice().try_into().unwrap())
-                                .into_pyobject(py)?
-                                .into_any()
-                                .unbind()
-                        }
-                        6 if data.len() == 8 => {
-                            i64::from_be_bytes(data.as_slice().try_into().unwrap())
-                                .into_pyobject(py)?
-                                .into_any()
-                                .unbind()
-                        }
-                        _ => loader.call1(py, (PyBytes::new(py, data),))?,
-                    },
+                    Some(data) => crate::adapt::load_wire_value(py, data, *code, loader)?,
                 };
                 values.push(value);
             }

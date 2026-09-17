@@ -382,6 +382,14 @@ class _BackendTransformer(AdaptTransformer):
     """Keep connection-free dumpers/loaders on the backend wire encoding."""
 
     _copy_formats: list[PyFormat] | None = None
+    _copy_loaders: tuple[list[int], list[Callable[..., object]]] | None = None
+
+    def set_loader_types(self, types: Sequence[int], format: pq.Format) -> None:
+        super().set_loader_types(types, format)
+        self._copy_loaders = (
+            [_native_loader_code(loader) for loader in self._row_loaders],
+            self._row_loaders,
+        )
 
     def _dump_copy_sequence(
         self, row: Sequence[Any], binary: bool

@@ -9,6 +9,69 @@ import unittest
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_copy_native_loaders_preserve_custom_types_encoding_and_errors(self):
+        import ferrocopg
+        from ferrocopg import _ferrocopg as adapter
+        from ferrocopg import pq
+        from ferrocopg._rust import _ferrocopg as native
+        from ferrocopg.types.numeric import Int4BinaryLoader, IntLoader
+
+        class CustomIntLoader(IntLoader):
+            def load(self, data):
+                return super().load(data) + 100
+
+        class CustomBinaryLoader(Int4BinaryLoader):
+            def load(self, data):
+                return super().load(data) + 200
+
+        def binary_row(*fields):
+            return struct.pack("!h", len(fields)) + b"".join(
+                struct.pack("!i", -1 if value is None else len(value)) + (value or b"")
+                for value in fields
+            )
+
+        tx = adapter._BackendTransformer()
+        tx._encoding = "utf-8"
+        tx.set_loader_types([23, 25, 20], pq.Format.TEXT)
+        self.assertEqual(
+            native.parse_row_text(b"42\tvalue\\ttext\t\\N\n", tx),
+            (42, "value\ttext", None),
+        )
+        with self.assertRaises(ferrocopg.ProgrammingError):
+            native.parse_row_text(b"42\n", tx)
+        with self.assertRaises(ValueError):
+            native.parse_row_text(b"bad\tvalue\t1\n", tx)
+        with self.assertRaises(ValueError) as original:
+            tx.load_sequence([b"42", b"\xff", b"1"])
+        with self.assertRaises(type(original.exception)) as optimized:
+            native.parse_row_text(b"42\t\xff\t1\n", tx)
+        self.assertEqual(str(optimized.exception), str(original.exception))
+        tx.set_loader_types([21, 23, 20, 25], pq.Format.BINARY)
+        data = binary_row(
+            struct.pack("!h", -2),
+            struct.pack("!i", 42),
+            struct.pack("!q", 2**40),
+            b"text",
+        )
+        self.assertEqual(native.parse_row_binary(data, tx), (-2, 42, 2**40, "text"))
+        with self.assertRaises(struct.error):
+            native.parse_row_binary(binary_row(b"x", b"", b"", b""), tx)
+        for encoding, expected in (("latin-1", "\u00ff"), ("ascii", b"\xff")):
+            tx = adapter._BackendTransformer()
+            tx._encoding = encoding
+            tx.set_loader_types([25], pq.Format.TEXT)
+            self.assertEqual(native.parse_row_text(b"\xff\n", tx), (expected,))
+
+        with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+            with conn.cursor() as cur:
+                cur.adapters.register_loader("int4", CustomIntLoader)
+                cur.adapters.register_loader("int4", CustomBinaryLoader)
+                for binary in (False, True):
+                    suffix = " (format binary)" if binary else ""
+                    with cur.copy("copy (select 42::int4) to stdout" + suffix) as copy:
+                        copy.set_types(["int4"])
+                        self.assertEqual(list(copy.rows()), [(242 if binary else 142,)])
+
     def test_native_binary_copy_scanner_preserves_blocks_and_rejects_truncation(self):
         from ferrocopg import _ferrocopg as adapter
         from ferrocopg._rust import _ferrocopg as native
