@@ -3886,7 +3886,8 @@ class NoTlsConnectionAdapter:
             elif self._in_transaction:
                 self.commit()
         finally:
-            self.close()
+            if not getattr(self, "_pool", None):
+                self.close()
 
     def _execute(
         self,
