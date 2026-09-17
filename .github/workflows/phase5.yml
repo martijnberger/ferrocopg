@@ -1,0 +1,86 @@
+name: Phase 5 reliability and performance
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 3 * * 1'
+  push:
+    branches: [main]
+    paths:
+      - 'tools/phase5/**'
+      - '.github/workflows/phase5.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase5-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  installed-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 130
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [benchmark, soak]
+    env:
+      PHASE5_DSN: host=127.0.0.1 user=postgres password=password dbname=postgres sslmode=disable
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Start TLS-enabled PostgreSQL
+        run: |
+          docker pull postgres:18
+          sh tools/ci/ci_make_ferrocopg_tls_certs.sh .ci-tls
+          postgres_uid=$(docker run --rm postgres:18 id -u postgres)
+          sudo chown "$postgres_uid" .ci-tls/server.key
+          docker run --rm -d --name phase5-postgres -p 5432:5432 \
+            -v "$PWD/.ci-tls:/tls:ro" -e POSTGRES_PASSWORD=password postgres:18 \
+            -c ssl=on -c ssl_cert_file=/tls/server.crt -c ssl_key_file=/tls/server.key
+          for attempt in $(seq 1 60); do
+            if docker exec phase5-postgres pg_isready -U postgres; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs phase5-postgres
+          exit 1
+      - name: Build and install the release wheel and official comparators
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpq-dev
+          uv sync --locked --no-default-groups --group rust
+          uv run --no-sync python tools/stage_ferrocopg.py /tmp/phase5-stage
+          cd /tmp/phase5-stage
+          "$GITHUB_WORKSPACE/.venv/bin/maturin" build --release --out /tmp/phase5-wheels
+          cd "$GITHUB_WORKSPACE"
+          uv venv /tmp/phase5-env --python 3.14
+          uv pip install --python /tmp/phase5-env/bin/python \
+            -r tools/phase5/requirements.txt /tmp/phase5-wheels/*.whl
+      - name: Check acceptance accounting
+        run: /tmp/phase5-env/bin/python -m unittest discover -s tools/phase5 -v
+      - name: Run installed-package acceptance
+        run: |
+          /tmp/phase5-env/bin/python tools/phase5/run.py ${{ matrix.mode }} \
+            --revision "$GITHUB_SHA" --output phase5-results \
+            --seconds 1800 --iterations 20 --samples 9 --rows 1000 --timeout 2400
+      - name: Collect server diagnostics
+        if: always()
+        run: docker logs phase5-postgres > phase5-postgres.log 2>&1
+      - name: Publish measurements and failure diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: phase5-${{ matrix.mode }}-${{ github.sha }}
+          retention-days: 90
+          path: |
+            phase5-results/
+            phase5-postgres.log
+          if-no-files-found: error

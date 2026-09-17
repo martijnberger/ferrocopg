@@ -1,0 +1,81 @@
+"""Tests for acceptance accounting, independent of database availability."""
+
+import copy
+import unittest
+
+from run import BACKENDS, BENCHMARKS, compare, growth_failures, percentile
+
+
+class ContractTests(unittest.TestCase):
+    def results(self):
+        return [
+            {
+                "backend": backend,
+                "workload": name,
+                "seconds": [1.0, 1.0, 1.0],
+                "failures": [],
+            }
+            for name in BENCHMARKS
+            for backend in BACKENDS
+        ]
+
+    def samples(self):
+        return [
+            dict(
+                rss_bytes=1_000_000,
+                driver_objects=10,
+                threads=1,
+                sockets=1,
+                fds=4,
+                sessions=0,
+            )
+            for _ in range(6)
+        ]
+
+    def test_exact_parity_passes(self):
+        self.assertFalse(compare(self.results())["failures"])
+
+    def test_python_regression_is_not_hidden_by_c_budget(self):
+        results = self.results()
+        results[0]["seconds"] = [1.01] * 3
+        self.assertIn("rust/python", compare(results)["failures"][0])
+
+    def test_c_budget_is_enforced(self):
+        results = self.results()
+        for row in results:
+            if row["backend"] == "c":
+                row["seconds"] = [0.5] * 3
+        self.assertEqual(len(compare(results)["failures"]), len(BENCHMARKS))
+
+    def test_missing_or_failed_worker_cannot_pass(self):
+        results = self.results()
+        self.assertTrue(compare(results[:-1])["failures"])
+        results[0]["failures"] = ["timeout"]
+        self.assertTrue(compare(results)["failures"])
+
+    def test_small_resource_samples_do_not_prove_stability(self):
+        self.assertTrue(growth_failures(self.samples()[:5]))
+
+    def test_stable_cleanup_passes(self):
+        self.assertFalse(growth_failures(self.samples()))
+
+    def test_each_resource_leak_fails(self):
+        for key in self.samples()[0]:
+            with self.subTest(key=key):
+                samples = copy.deepcopy(self.samples())
+                for row in samples[-3:]:
+                    row[key] += 20 * 1024**2
+                self.assertTrue(growth_failures(samples))
+
+    def test_live_sessions_fail_even_without_growth(self):
+        samples = self.samples()
+        for row in samples:
+            row["sessions"] = 1
+        self.assertTrue(growth_failures(samples))
+
+    def test_tail_percentile_does_not_round_down(self):
+        self.assertEqual(percentile([1.0, 2.0, 3.0], 0.99), 3.0)
+
+
+if __name__ == "__main__":
+    unittest.main()

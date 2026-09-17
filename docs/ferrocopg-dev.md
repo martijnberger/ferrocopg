@@ -19,6 +19,9 @@ upstream-shaped; omitted synchronous `psycopg.connect()` calls now select Rust,
 while upstream comparison jobs select libpq explicitly. Whether the work is
 eventually proposed upstream remains undecided.
 
+For installed-package pooling, stress tests, and comparative benchmarks, see
+[Phase 5 reliability and performance](ferrocopg-performance.md).
+
 ## Python environment
 
 Use `uv` for local environment management:

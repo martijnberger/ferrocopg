@@ -710,19 +710,31 @@ Definition of done:
 
 ### Phase 5: Pooling, stress, and performance
 
-Status: next.
+Status: in progress. The installed-package harness is implemented; acceptance
+runs and performance fixes remain required.
 
 Tasks:
 
 - [x] Prove official `psycopg_pool.ConnectionPool` integration.
-- [ ] Define reproducible soak and benchmark commands, machine metadata, and
+- [x] Define reproducible soak and benchmark commands, machine metadata, and
   acceptance thresholds.
-- [ ] Add connection churn, transaction, cancellation, COPY, and pipeline soak
+- [x] Add connection churn, transaction, cancellation, COPY, and pipeline soak
   tests.
-- [ ] Add leak checks for Python objects, Rust sessions, sockets, and threads.
-- [ ] Build the comparative libpq benchmark suite for latency, throughput,
+- [x] Add leak checks for Python objects, Rust sessions, sockets, and threads.
+- [x] Build the comparative libpq benchmark suite for latency, throughput,
   memory, sockets, and threads.
 - [ ] Run scheduled soaks and publish reproducible results.
+
+The commands and acceptance budgets are documented in
+`docs/ferrocopg-performance.md`. The harness under `tools/phase5` measures the
+installed release wheel against pinned official Python/C packages, records raw
+samples and machine metadata, and rejects incomplete or failed workers. The
+weekly/manual CI workflow retains reports and logs even on failure.
+
+Initial short macOS / PostgreSQL 15 measurements expose query and adaptation
+performance gaps, and the installed pool test exposed connections closing on
+checkout-context exit. These findings must be fixed and measured again. Short
+development runs do not establish the 30-minute soak or performance gates.
 
 Definition of done:
 
