@@ -514,45 +514,41 @@ def _backend_copy_impl() -> tuple[Callable[..., Any], ...]:
 def _pure_python_adapters(
     template: AdaptersMap, *, text_loader_oids: frozenset[int] = frozenset()
 ) -> AdaptersMap:
-    """Copy an adapter map without the libpq/C-only replacements."""
-    from .types.array import ArrayBinaryLoader
+    """Resolve pure adapters only for types actually used by this query."""
+    return _BackendAdaptersMap(template, text_loader_oids)
 
-    adapters = AdaptersMap(template)
-    originals = {
-        optimized: original
-        for original, optimized in AdaptersMap._optimised.items()
-        if original is not optimized
-    }
 
-    for py_format in PyFormat:
-        adapters._dumpers[py_format] = {
-            key: originals.get(dumper, dumper)
-            for key, dumper in adapters._dumpers[py_format].items()
+class _BackendAdaptersMap(AdaptersMap):
+    def __init__(self, template: AdaptersMap, text_loader_oids: frozenset[int]):
+        super().__init__(template)
+        self._text_loader_oids = text_loader_oids
+        self._originals = {
+            optimized: original
+            for original, optimized in AdaptersMap._optimised.items()
+            if original is not optimized
         }
-        adapters._own_dumpers[py_format] = True
 
-    for pg_format in (pq.Format.TEXT, pq.Format.BINARY):
-        adapters._dumpers_by_oid[pg_format] = {
-            oid: originals.get(dumper, dumper)
-            for oid, dumper in adapters._dumpers_by_oid[pg_format].items()
-        }
-        adapters._own_dumpers_by_oid[pg_format] = True
+    def get_dumper(self, cls: type, format: PyFormat) -> type[Dumper]:
+        dumper = super().get_dumper(cls, format)
+        return self._originals.get(dumper, dumper)
 
-    for pg_format in (pq.Format.TEXT, pq.Format.BINARY):
-        adapters._loaders[pg_format] = {
-            oid: _pure_loader_class(loader, originals, ArrayBinaryLoader)
-            for oid, loader in adapters._loaders[pg_format].items()
-        }
-        adapters._own_loaders[pg_format] = True
+    def get_dumper_by_oid(self, oid: int, format: pq.Format) -> type[Dumper]:
+        dumper = super().get_dumper_by_oid(oid, format)
+        return self._originals.get(dumper, dumper)
 
-    if text_loader_oids:
-        adapters._loaders[pq.Format.BINARY] = adapters._loaders[pq.Format.BINARY].copy()
-        for oid in text_loader_oids:
-            if loader := adapters._loaders[pq.Format.TEXT].get(oid):
-                adapters._loaders[pq.Format.BINARY][oid] = loader
-        adapters._own_loaders[pq.Format.BINARY] = True
+    def get_loader(self, oid: int, format: pq.Format) -> type[Loader] | None:
+        from .types.array import ArrayBinaryLoader
 
-    return adapters
+        loader = None
+        if format == pq.Format.BINARY and oid in self._text_loader_oids:
+            loader = super().get_loader(oid, pq.Format.TEXT)
+        if loader is None:
+            loader = super().get_loader(oid, format)
+        return (
+            _pure_loader_class(loader, self._originals, ArrayBinaryLoader)
+            if loader is not None
+            else None
+        )
 
 
 _pure_array_loader_classes: dict[type[Any], type[Any]] = {}
