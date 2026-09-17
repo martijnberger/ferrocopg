@@ -1448,6 +1448,25 @@ class BackendResultCursor:
         )
         self._index = 0 if self._results else -1
         self._pos = 0
+        self._pgresults_cache: (
+            tuple[str, pq.Format, list[_BackendPgResultShim]] | None
+        ) = None
+
+    def pgresults(self, encoding: str, format: pq.Format) -> list[_BackendPgResultShim]:
+        cache = self._pgresults_cache
+        if cache is None or cache[0] != encoding or cache[1] != format:
+            results = [
+                _BackendPgResultShim(
+                    result,
+                    self._encodings[index] or encoding,
+                    format,
+                    self._statusmessages[index],
+                )
+                for index, result in enumerate(self._results)
+            ]
+            self._pgresults_cache = (encoding, format, results)
+            return results
+        return cache[2]
 
     @property
     def current_result(self) -> _ResultSetLike | None:
@@ -1483,6 +1502,7 @@ class BackendResultCursor:
 
     def set_encoding(self, encoding: str | None) -> None:
         self._encodings = [encoding for _ in self._results]
+        self._pgresults_cache = None
 
     def fetchone(self) -> list[bytes | str | None] | None:
         result = self.current_result
@@ -1854,6 +1874,7 @@ class NoTlsCursorAdapter:
         self._adapters._register_loader_callback = self._loaders_changed
         self._make_row: RowMaker | None = None
         self._result_transformer: AdaptTransformer | None = None
+        self._query_transformer: _BackendTransformer | None = None
         self._stream_result: _ResultSetLike | None = None
         self._pipeline_error: e.Error | None = None
         self._pipeline_autosync = False
@@ -1902,27 +1923,14 @@ class NoTlsCursorAdapter:
         current = result.current_result
         if current is None:
             return None
-        return _BackendPgResultShim(
-            current,
-            result.encoding or self._encoding,
-            self.format,
-            result.statusmessage,
-        )
+        return result.pgresults(self._encoding, self.format)[result._index]
 
     @property
     def pgresults(self) -> list[_BackendPgResultShim]:
         result = self._result
         if result is None:
             return []
-        return [
-            _BackendPgResultShim(
-                item,
-                result._encodings[index] or self._encoding,
-                self.format,
-                result._statusmessages[index],
-            )
-            for index, item in enumerate(result._results)
-        ]
+        return result.pgresults(self._encoding, self.format)
 
     @property
     def rowcount(self) -> int:
@@ -1980,6 +1988,7 @@ class NoTlsCursorAdapter:
         self._closed = True
         self._result = None
         self._result_transformer = None
+        self._query_transformer = None
         self._stream_result = None
 
     def copy(
@@ -2318,6 +2327,7 @@ class NoTlsCursorAdapter:
         self._result = None
         self._make_row = None
         self._result_transformer = None
+        self._query_transformer = None
         self._stream_result = None
         self._rowcount_override = None
         self._statusmessage_override = None
@@ -2333,6 +2343,7 @@ class NoTlsCursorAdapter:
     def _loaders_changed(self, oid: int, loader: type[Loader]) -> None:
         del oid, loader
         self._result_transformer = None
+        self._query_transformer = None
 
     def _make_row_for_result(self, result: BackendResultCursor) -> RowMaker:
         current = result.current_result
@@ -2380,21 +2391,31 @@ class NoTlsCursorAdapter:
             return tuple(row)
 
         if self._result_transformer is None:
-            tx = _BackendTransformer(
-                _AdaptContext(
-                    self._conn,
-                    _pure_python_adapters(
-                        self.adapters,
-                        text_loader_oids=(
-                            _TEXT_WIRE_OIDS
-                            if self.format == pq.Format.TEXT
-                            else frozenset()
+            tx = self._query_transformer
+            # A query's dumper and loader caches are independent. Reuse its
+            # context only when no legacy wire remapping or encoding change is needed.
+            if (
+                tx is None
+                or tx.encoding != self._encoding
+                or wire_format is None
+                or self.format == pq.Format.TEXT
+                and wire_format == pq.Format.BINARY
+            ):
+                tx = _BackendTransformer(
+                    _AdaptContext(
+                        self._conn,
+                        _pure_python_adapters(
+                            self.adapters,
+                            text_loader_oids=(
+                                _TEXT_WIRE_OIDS
+                                if self.format == pq.Format.TEXT
+                                else frozenset()
+                            ),
                         ),
-                    ),
-                    expose_connection=True,
+                        expose_connection=True,
+                    )
                 )
-            )
-            tx._encoding = self._encoding
+                tx._encoding = self._encoding
             tx._row_loaders = [
                 tx.get_loader(
                     column.oid,
@@ -4212,15 +4233,7 @@ class NoTlsConnectionAdapter:
         if plan is None:
             key = self._prepared.maybe_add_to_cache(pgq, prep, name)
         if key is not None:
-            pgresults = [
-                _BackendPgResultShim(
-                    item,
-                    result._encodings[index] or self._pgconn._encoding,
-                    result_format,
-                    result._statusmessages[index],
-                )
-                for index, item in enumerate(result._results)
-            ]
+            pgresults = result.pgresults(self._pgconn._encoding, result_format)
             self._prepared.validate(key, prep, name, cast(Any, pgresults))
         self._maintain_prepared()
         return result
@@ -4345,6 +4358,7 @@ class NoTlsConnectionAdapter:
         pgq = query_cls(tx)
         if cursor_state is not None:
             cursor_state._query = pgq
+            cursor_state._query_transformer = tx
         pgq.convert(query, params)
         if query_cls is PostgresClientQuery:
             return pgq.query.decode(tx.encoding), None
@@ -4672,6 +4686,8 @@ def _query_param_transcode_flags(
     tx: _BackendTransformer,
 ) -> tuple[bool, ...]:
     assert pgq.formats is not None
+    if tx.encoding in {"utf-8", "ascii"}:
+        return (False,) * len(pgq.formats)
     flags = [format == pq.Format.TEXT for format in pgq.formats]
     if params is None or isinstance(query, Template):
         return tuple(flags)

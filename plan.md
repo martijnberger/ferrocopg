@@ -786,6 +786,17 @@ C gate. This is single-run development evidence, not release acceptance.
 Preserve cancellation, concurrent use, custom adapters, encoding, row
 factories, and COPY error behavior while optimizing these paths.
 
+The following query-setup slice caches result wrappers, reuses the query's
+adaptation context when encoding and loader state permit it, and avoids a
+second dumper lookup for unnecessary UTF-8/SQL_ASCII transcoding. The focused
+bootstrap/cursor/pipeline/prepared/type selection reports 2,848 passes, 22
+skips, 415 deselections, and 37 expected failures; all 14 harness/installed-wheel
+tests pass. A 30-second Rust cache-cleanup smoke shows stable objects, sockets,
+and file descriptors with zero surviving workload sessions. The complete
+development benchmark still fails nine workloads against C. Neither this
+focused selection nor the short soak replaces final matrix or sustained-soak
+acceptance.
+
 Definition of done:
 
 - Sync pooling is documented and green.
@@ -885,9 +896,10 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Validate the in-progress query/COPY bookkeeping changes with focused tests
-   and a freshly staged, installed release wheel. Measure against both official
-   implementations before retaining a performance claim.
+1. Continue profiling the remaining query/COPY overhead using the rebuilt,
+   installed release wheel and both official implementations. The bookkeeping,
+   native COPY-loader, and query-context slices are development progress, not
+   completion of the performance gate.
 2. Profile and reduce shared small-query overhead affecting parameterized and
    prepared execution, transaction/savepoint cycles, and pool queries. Address
    COPY conversion and remaining bulk-row overhead against C as separate

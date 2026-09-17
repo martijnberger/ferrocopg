@@ -9,6 +9,47 @@ import unittest
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_query_context_reuse_invalidates_loaders_and_preserves_results(self):
+        import ferrocopg
+        from ferrocopg.types.numeric import Int4BinaryDumper, IntLoader
+
+        adapted = []
+
+        class CustomIntDumper(Int4BinaryDumper):
+            def get_key(self, obj, format):
+                adapted.append(obj)
+                return super().get_key(obj, format)
+
+        class CustomIntLoader(IntLoader):
+            def load(self, data):
+                return super().load(data) + 100
+
+        with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select i from generate_series(%s::int4, %s::int4) i", (1, 3)
+                )
+                original = cur.pgresult
+                self.assertEqual(cur.fetchone(), (1,))
+                self.assertIs(cur.pgresult, original)
+                cur.adapters.register_loader("int4", CustomIntLoader)
+                self.assertEqual(cur.fetchall(), [(102,), (103,)])
+                self.assertEqual(original.get_value(0, 0), b"1")
+                cur.execute("select %s::int4", (4,))
+                self.assertEqual(cur.fetchone(), (104,))
+                self.assertIsNot(cur.pgresult, original)
+                cur.execute("select 5::int4; select 6::int4")
+                first = cur.pgresult
+                self.assertEqual(cur.fetchone(), (105,))
+                self.assertTrue(cur.nextset())
+                self.assertIsNot(cur.pgresult, first)
+                self.assertEqual(cur.fetchone(), (106,))
+                self.assertEqual(first.get_value(0, 0), b"5")
+                cur.adapters.register_dumper(int, CustomIntDumper)
+                cur.execute("select %s::int4", (7,))
+                self.assertEqual(cur.fetchone(), (107,))
+                self.assertEqual(adapted, [7])
+
     def test_copy_native_loaders_preserve_custom_types_encoding_and_errors(self):
         import ferrocopg
         from ferrocopg import _ferrocopg as adapter
