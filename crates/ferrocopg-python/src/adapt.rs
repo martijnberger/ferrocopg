@@ -723,15 +723,18 @@ fn dump_sequence(
     tx: &Bound<'_, PyAny>,
     format_name: &str,
 ) -> PyResult<Vec<Option<Vec<u8>>>> {
-    let pyformat = psycopg_import(py, "adapt")?
-        .getattr("PyFormat")?
-        .getattr(format_name)?;
-    let formats = PyList::empty(py);
-    for _ in 0..row.len()? {
-        formats.append(pyformat.clone())?;
-    }
-
-    let adapted = tx.call_method1("dump_sequence", (row, formats))?;
+    let adapted = if let Ok(dump_copy) = tx.getattr("_dump_copy_sequence") {
+        dump_copy.call1((row, format_name == "BINARY"))?
+    } else {
+        let pyformat = psycopg_import(py, "adapt")?
+            .getattr("PyFormat")?
+            .getattr(format_name)?;
+        let formats = PyList::empty(py);
+        for _ in 0..row.len()? {
+            formats.append(pyformat.clone())?;
+        }
+        tx.call_method1("dump_sequence", (row, formats))?
+    };
     let mut out = Vec::new();
     for item in adapted.try_iter()? {
         let item = item?;
@@ -743,6 +746,50 @@ fn dump_sequence(
     }
 
     Ok(out)
+}
+
+#[pyfunction]
+fn split_binary_copy(py: Python<'_>, data: &[u8]) -> Option<(Vec<Py<PyBytes>>, usize)> {
+    if data.is_empty() {
+        return Some((Vec::new(), 0));
+    }
+    if data.len() < 19 || !data.starts_with(b"PGCOPY\n\xff\r\n\0") {
+        return None;
+    }
+    let extension = u32::from_be_bytes(data[15..19].try_into().ok()?) as usize;
+    let mut pos = 19_usize.checked_add(extension)?;
+    let mut blocks = Vec::new();
+    let mut count = 0;
+    while data.len().saturating_sub(pos) >= 2 {
+        let start = if count == 0 { 0 } else { pos };
+        let fields = i16::from_be_bytes(data[pos..pos + 2].try_into().ok()?);
+        pos += 2;
+        if fields == -1 {
+            blocks.push(PyBytes::new(py, &data[start..pos]).unbind());
+            return Some((blocks, count));
+        }
+        if fields < 0 {
+            return None;
+        }
+        for _ in 0..fields {
+            if data.len().saturating_sub(pos) < 4 {
+                return None;
+            }
+            let length = i32::from_be_bytes(data[pos..pos + 4].try_into().ok()?);
+            pos += 4;
+            if length >= 0 {
+                pos = pos.checked_add(length as usize)?;
+                if pos > data.len() {
+                    return None;
+                }
+            } else if length != -1 {
+                return None;
+            }
+        }
+        blocks.push(PyBytes::new(py, &data[start..pos]).unbind());
+        count += 1;
+    }
+    None
 }
 
 fn extend_bytearray(out: &Bound<'_, PyAny>, data: &[u8]) -> PyResult<()> {
@@ -1505,5 +1552,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(format_row_binary, m)?)?;
     m.add_function(wrap_pyfunction!(parse_row_text, m)?)?;
     m.add_function(wrap_pyfunction!(parse_row_binary, m)?)?;
+    m.add_function(wrap_pyfunction!(split_binary_copy, m)?)?;
     Ok(())
 }

@@ -1,6 +1,7 @@
 """Live regression tests for the staged wheel and official pool package."""
 
 import os
+import struct
 import unittest
 
 
@@ -8,6 +9,21 @@ import unittest
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_native_binary_copy_scanner_preserves_blocks_and_rejects_truncation(self):
+        from ferrocopg import _ferrocopg as adapter
+        from ferrocopg._rust import _ferrocopg as native
+
+        header = b"PGCOPY\n\xff\r\n\0" + struct.pack("!II", 0, 3) + b"ext"
+        row = struct.pack("!hii", 2, -1, 3) + b"abc"
+        for data in (b"", header + b"\xff\xff", header + row * 3 + b"\xff\xff"):
+            blocks, count = native.split_binary_copy(data)
+            self.assertEqual(blocks, adapter._split_binary_copy_blocks(data))
+            self.assertEqual(count, adapter._binary_copy_row_count(data))
+        data = header + row + b"\xff\xff"
+        for end in range(1, len(data)):
+            self.assertIsNone(native.split_binary_copy(data[:end]))
+        self.assertIsNone(native.split_binary_copy(header + b"\xff\xfe"))
+
     def test_checkout_reuses_connection_and_preserves_transaction_context(self):
         import ferrocopg
 

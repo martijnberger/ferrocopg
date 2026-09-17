@@ -381,6 +381,21 @@ class _AdaptContext:
 class _BackendTransformer(AdaptTransformer):
     """Keep connection-free dumpers/loaders on the backend wire encoding."""
 
+    _copy_formats: list[PyFormat] | None = None
+
+    def _dump_copy_sequence(
+        self, row: Sequence[Any], binary: bool
+    ) -> Sequence[Buffer | None]:
+        format = PyFormat.BINARY if binary else PyFormat.TEXT
+        formats = self._copy_formats
+        if (
+            formats is None
+            or len(formats) != len(row)
+            or (formats and formats[0] != format)
+        ):
+            self._copy_formats = formats = [format] * len(row)
+        return self.dump_sequence(row, formats)
+
     def get_dumper(self, obj: Any, format: PyFormat) -> Any:
         dumper = super().get_dumper(obj, format)
         if isinstance(dumper, RecursiveDumper):
@@ -2776,16 +2791,26 @@ class NoTlsCopyAdapter:
                     self._read_error = ex
                     return self
                 self._out_fully_buffered = len(data) <= 8192
-                self._read_blocks = (
-                    _split_binary_copy_blocks(data)
+                native_blocks = (
+                    _ferrocopg.split_binary_copy(data)
                     if self._binary
-                    else data.splitlines(keepends=True)
+                    and _ferrocopg
+                    and hasattr(_ferrocopg, "split_binary_copy")
+                    else None
                 )
-                self._rowcount = (
-                    _binary_copy_row_count(data)
-                    if self._binary
-                    else len(self._read_blocks)
-                )
+                if native_blocks is not None:
+                    self._read_blocks, self._rowcount = native_blocks
+                else:
+                    self._read_blocks = (
+                        _split_binary_copy_blocks(data)
+                        if self._binary
+                        else data.splitlines(keepends=True)
+                    )
+                    self._rowcount = (
+                        _binary_copy_row_count(data)
+                        if self._binary
+                        else len(self._read_blocks)
+                    )
                 descriptions: Sequence[_StatementColumnLike] = ()
                 if inner_query := _copy_inner_query(self._statement):
                     descriptions = [

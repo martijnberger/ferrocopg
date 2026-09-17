@@ -51,6 +51,15 @@ The following decisions define the roadmap:
 
 ## Current State
 
+Planning checkpoint: 2026-09-17.
+
+Phases 3 and 4 are complete. Phase 5 is the active release blocker: the
+installed-package benchmark and soak infrastructure exists, but performance
+acceptance has not passed and sustained soak acceptance remains unconfirmed.
+Phase 6 wheel-matrix validation and Phase 7 publication remain pending.
+The completed Phase 4 evidence below is a historical baseline, not validation
+of every subsequent performance change.
+
 Phase 3 completed the backend foundation and broad compatibility harness.
 
 Implemented Rust-backed capabilities include:
@@ -223,9 +232,10 @@ Before publishing `0.1.0`:
   by broad skip rules
 - no known hang, data corruption, security failure, or silent fallback exists
 
-The current mixed `0.80` ratchet remains in place until a trustworthy
-sync-only baseline is measured. The floor may only move upward after that
-measurement.
+The trustworthy sync-only baseline is established and the synchronous floor
+is now `0.95`, with a separate zero-regression gate for non-manifested
+synchronous failures and errors. The mixed `0.80` ratchet is retained as an
+additional CI check, not as a substitute for either synchronous release gate.
 
 ### Release-critical gate
 
@@ -723,7 +733,15 @@ Tasks:
 - [x] Add leak checks for Python objects, Rust sessions, sockets, and threads.
 - [x] Build the comparative libpq benchmark suite for latency, throughput,
   memory, sockets, and threads.
+- [ ] Close the measured query, result-adaptation, transaction, COPY, and pool
+  performance gaps without weakening correctness or acceptance thresholds.
+- [ ] Pass the complete benchmark at least three times on the same otherwise
+  idle machine using an installed release wheel built from the recorded revision.
+- [ ] Pass the full 30-minute-per-backend soak, including concurrent pool use,
+  on the candidate revision.
 - [ ] Run scheduled soaks and publish reproducible results.
+- [ ] Revalidate the complete supported synchronous compatibility matrix and
+  installed-package boundary after the performance changes.
 
 The commands and acceptance budgets are documented in
 `docs/ferrocopg-performance.md`. The harness under `tools/phase5` measures the
@@ -748,11 +766,33 @@ The new soak also exercises eight concurrent pool clients. Short development
 runs do not establish the 30-minute soak or performance gates. Phase 5 remains
 incomplete until repeated full benchmarks and sustained soaks pass.
 
+The benchmark artifact from CI run
+[`35275945289`](https://github.com/martijnberger/ferrocopg/actions/runs/35275945289)
+records revision `24b646e364c261a8e39195dd9e34c29b2fee899d`. Connection
+setup passes both duration limits, and bulk row adaptation beats the Python
+baseline. Nine of eleven workloads still exceed the C limit: Rust/C median
+duration ratios range from `1.445` for dictionary rows to `2.668` for text
+COPY. Parameterized/prepared queries, transactions, COPY, and pool cycles also
+exceed the Python limit. These measurements establish optimization priorities,
+not release acceptance or the status of the separate soak job.
+
+Current working-copy changes reduce notice-draining overhead, cache COPY
+formats, and split binary COPY output in one native pass. They are work in
+progress, not accepted performance improvements until a rebuilt wheel is
+measured. Preserve cancellation, concurrent use, custom adapters, encoding,
+row factories, and COPY error behavior while optimizing these paths.
+
 Definition of done:
 
 - Sync pooling is documented and green.
-- Soak tests complete without hangs or resource growth.
-- Ferrocopg meets the performance contract.
+- Full-duration soaks pass the documented resource budgets without hangs;
+  short smoke runs do not satisfy this gate.
+- At least three complete benchmark runs meet both limits for every workload:
+  Rust/Python median duration <= `1.0` and Rust/C <= `1.25`.
+- Published evidence identifies the tested source revision, installed packages,
+  machine/server configuration, raw samples, and any failures.
+- The supported synchronous compatibility and package-boundary gates remain
+  green after optimization. No performance exception is assumed approved.
 
 ### Phase 6: Build and validate release wheels
 
@@ -841,11 +881,20 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Define the Phase 5 soak and benchmark commands, machine metadata, run
-   duration, and pass/fail thresholds so results are reproducible.
-2. Add scheduled connection-churn, transaction, cancellation, COPY, pipeline,
-   and pool soaks with resource-growth assertions.
-3. Establish comparative libpq baselines for latency, throughput, memory,
-   sockets, and threads.
-4. Use the measured results to close performance or resource-lifecycle gaps
-   before beginning the Phase 6 wheel matrix.
+1. Validate the in-progress query/COPY bookkeeping changes with focused tests
+   and a freshly staged, installed release wheel. Measure against both official
+   implementations before retaining a performance claim.
+2. Profile and reduce shared small-query overhead affecting parameterized and
+   prepared execution, transaction/savepoint cycles, and pool queries. Address
+   COPY conversion and remaining bulk-row overhead against C as separate
+   measured slices; do not trade away cancellation or adaptation correctness.
+3. Inspect completed CI soak artifacts and resolve any lifecycle failures.
+   Once the candidate stabilizes, run the full 30-minute soak for each backend
+   and at least three complete idle-machine benchmarks. Publish exact-revision
+   results; earlier checkpoints and short runs are supporting evidence only.
+4. Rerun the complete supported synchronous compatibility matrix and clean
+   installed-package checks on the optimized candidate. Mark Phase 5 complete
+   only when performance, reliability, and compatibility gates all pass.
+5. Proceed to Phase 6's full wheel matrix, then Phase 7's release checklist.
+   Keep Rust as the development default now, but do not publish to PyPI before
+   all release gates pass. An upstream proposal remains a separate decision.
