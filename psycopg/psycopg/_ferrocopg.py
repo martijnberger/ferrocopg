@@ -383,6 +383,15 @@ class _BackendTransformer(AdaptTransformer):
 
     _copy_formats: list[PyFormat] | None = None
     _copy_loaders: tuple[list[int], list[Callable[..., object]]] | None = None
+    _copy_dumpers: tuple[list[int], list[Callable[..., object]]] | None = None
+
+    def set_dumper_types(self, types: Sequence[int], format: pq.Format) -> None:
+        super().set_dumper_types(types, format)
+        dumpers = self._row_dumpers or []
+        self._copy_dumpers = (
+            [_native_dumper_code(dumper) for dumper in dumpers],
+            [dumper.dump for dumper in dumpers],
+        )
 
     def set_loader_types(self, types: Sequence[int], format: pq.Format) -> None:
         super().set_loader_types(types, format)
@@ -575,6 +584,31 @@ class _BackendAdaptersMap(AdaptersMap):
 
 
 _pure_array_loader_classes: dict[type[Any], type[Any]] = {}
+
+
+def _native_dumper_code(dumper: Any) -> int:
+    from .types.numeric import (
+        Int2BinaryDumper,
+        Int2Dumper,
+        Int4BinaryDumper,
+        Int4Dumper,
+        Int8BinaryDumper,
+        Int8Dumper,
+    )
+    from .types.string import StrBinaryDumper, StrDumper
+
+    cls = type(dumper)
+    if cls in (Int2Dumper, Int4Dumper, Int8Dumper):
+        return 1
+    if cls in (StrDumper, StrBinaryDumper) and dumper._encoding == "utf-8":
+        return 2 if cls is StrDumper else 3
+    if cls is Int2BinaryDumper:
+        return 4
+    if cls is Int4BinaryDumper:
+        return 5
+    if cls is Int8BinaryDumper:
+        return 6
+    return 0
 
 
 def _native_loader_code(load: Callable[..., object]) -> int:

@@ -3,7 +3,7 @@ use crate::python_helpers::{
 };
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
+use pyo3::types::{PyBytes, PyDict, PyInt, PyList, PyString, PyTuple};
 use pyo3::wrap_pyfunction;
 use time::{Date, Duration, Month, OffsetDateTime, PrimitiveDateTime, Time, UtcOffset};
 use uuid::Uuid;
@@ -794,6 +794,23 @@ fn dump_sequence(
     tx: &Bound<'_, PyAny>,
     format_name: &str,
 ) -> PyResult<Vec<Option<Vec<u8>>>> {
+    if let Ok(plan) = tx.getattr("_copy_dumpers") {
+        if !plan.is_none() {
+            let (codes, dumpers): (Vec<u8>, Vec<Py<PyAny>>) = plan.extract()?;
+            if (row.is_exact_instance_of::<PyTuple>() || row.is_exact_instance_of::<PyList>())
+                && !codes.is_empty()
+                && codes.len() == row.len()?
+                && dumpers.len() == codes.len()
+            {
+                return row
+                    .try_iter()?
+                    .zip(codes)
+                    .zip(&dumpers)
+                    .map(|((value, code), dumper)| dump_wire_value(py, &value?, code, dumper))
+                    .collect();
+            }
+        }
+    }
     let adapted = if let Ok(dump_copy) = tx.getattr("_dump_copy_sequence") {
         dump_copy.call1((row, format_name == "BINARY"))?
     } else {
@@ -817,6 +834,53 @@ fn dump_sequence(
     }
 
     Ok(out)
+}
+
+fn dump_wire_value(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    code: u8,
+    dumper: &Py<PyAny>,
+) -> PyResult<Option<Vec<u8>>> {
+    if value.is_none() {
+        return Ok(None);
+    }
+    if matches!(code, 1 | 4..=6) && value.is_exact_instance_of::<PyInt>() {
+        let bytes = match code {
+            1 => Some(value.str()?.to_str()?.as_bytes().to_vec()),
+            4 => value
+                .extract::<i16>()
+                .ok()
+                .map(|v| v.to_be_bytes().to_vec()),
+            5 => value
+                .extract::<i32>()
+                .ok()
+                .map(|v| v.to_be_bytes().to_vec()),
+            6 => value
+                .extract::<i64>()
+                .ok()
+                .map(|v| v.to_be_bytes().to_vec()),
+            _ => None,
+        };
+        if let Some(bytes) = bytes {
+            return Ok(Some(bytes));
+        }
+    }
+    if matches!(code, 2 | 3) {
+        if let Ok(text) = value.cast_exact::<PyString>() {
+            let text = text.to_str()?;
+            if code == 3 || !text.contains('\0') {
+                return Ok(Some(text.as_bytes().to_vec()));
+            }
+        }
+    }
+    // Preserve custom adaptation, subclass coercion, and the original errors.
+    let adapted = dumper.call1(py, (value,))?;
+    if adapted.is_none(py) {
+        Ok(None)
+    } else {
+        bytes_like_to_vec(py, adapted.bind(py)).map(Some)
+    }
 }
 
 #[pyfunction]

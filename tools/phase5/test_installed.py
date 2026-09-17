@@ -9,6 +9,68 @@ import unittest
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_copy_pinned_dumpers_preserve_bytes_subclasses_and_errors(self):
+        import ferrocopg
+        from ferrocopg import _ferrocopg as adapter
+        from ferrocopg import pq
+        from ferrocopg._rust import _ferrocopg as native
+        from ferrocopg.types.numeric import Int4BinaryDumper
+
+        class IntSubclass(int):
+            def __str__(self):
+                return "not the integer representation"
+
+        class ReversedList(list):
+            def __iter__(self):
+                return reversed(self)
+
+        for binary in (False, True):
+            original = (
+                adapter._format_row_binary if binary else adapter._format_row_text
+            )
+            optimized = native.format_row_binary if binary else native.format_row_text
+            for encoding in ("utf-8", "latin-1", "ascii"):
+                tx = adapter._BackendTransformer()
+                tx._encoding = encoding
+                tx.set_dumper_types([21, 23, 20, 25], pq.Format(binary))
+                for values in (
+                    (-2, 42, 2**40, "value\t\\\n"),
+                    (None, None, None, None),
+                    (IntSubclass(2), True, -(2**63), "\u00e9"),
+                    ReversedList([1, 2, 3, "text"]),
+                ):
+                    expected, actual = bytearray(), bytearray()
+                    original(values, tx, expected)
+                    optimized(values, tx, actual)
+                    self.assertEqual(actual, expected)
+                invalid = [(1, 2)]
+                invalid += [(2**15, 2, 3, "text")] if binary else [(1, 2, 3, "\x00")]
+                for values in invalid:
+                    with self.assertRaises(Exception) as expected:
+                        original(values, tx, bytearray())
+                    with self.assertRaises(type(expected.exception)) as actual:
+                        optimized(values, tx, bytearray())
+                    self.assertEqual(str(actual.exception), str(expected.exception))
+
+        class CustomDumper(Int4BinaryDumper):
+            def dump(self, value):
+                return memoryview(struct.pack("!i", value + 100))
+
+        with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+            conn.execute("create temporary table phase5_custom_copy (value int)")
+            with conn.cursor() as cur:
+                cur.adapters.register_dumper(int, CustomDumper)
+                with cur.copy(
+                    "copy phase5_custom_copy from stdin (format binary)"
+                ) as copy:
+                    copy.set_types(["int4"])
+                    copy.write_row((42,))
+                    copy.write_row((None,))
+            self.assertEqual(
+                conn.execute("select * from phase5_custom_copy").fetchall(),
+                [(142,), (None,)],
+            )
+
     def test_query_context_reuse_invalidates_loaders_and_preserves_results(self):
         import ferrocopg
         from ferrocopg.types.numeric import Int4BinaryDumper, IntLoader
