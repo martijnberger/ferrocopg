@@ -384,6 +384,30 @@ class _BackendTransformer(AdaptTransformer):
     _copy_formats: list[PyFormat] | None = None
     _copy_loaders: object | None = None
     _copy_dumpers: object | None = None
+    _copy_text_config: tuple[bool, int | None, pq.Format] | None = None
+
+    def _get_copy_text_config(self) -> tuple[bool, int | None, pq.Format]:
+        from .types.numeric import IntDumper
+        from .types.string import StrDumper, StrDumperUnknown
+
+        if self._copy_text_config is None:
+            integer = False
+            text_oid = None
+            try:
+                integer = self.adapters.get_dumper(int, PyFormat.TEXT) is IntDumper
+            except e.ProgrammingError:
+                pass
+            try:
+                string = self.adapters.get_dumper(str, PyFormat.TEXT)
+                if (
+                    string in (StrDumper, StrDumperUnknown)
+                    and self._dumper_encoding == "utf-8"
+                ):
+                    text_oid = string.oid
+            except e.ProgrammingError:
+                pass
+            self._copy_text_config = (integer, text_oid, pq.Format.TEXT)
+        return self._copy_text_config
 
     def set_dumper_types(self, types: Sequence[int], format: pq.Format) -> None:
         super().set_dumper_types(types, format)

@@ -55,7 +55,10 @@ Planning checkpoint: 2026-09-18.
 
 Phases 3 and 4 are complete. Phase 5 is the active release blocker: the
 installed-package benchmark and soak infrastructure exists, but performance
-acceptance has not passed and sustained soak acceptance remains unconfirmed.
+acceptance has not passed. A full 30-minute-per-backend CI soak passed on
+revision `24b646e3`; sustained validation of the optimized candidate remains
+required. The latest working-copy benchmark still fails eight workloads
+against C and is development evidence, not release acceptance.
 Phase 6 wheel-matrix validation and Phase 7 publication remain pending.
 The completed Phase 4 evidence below is a historical baseline, not validation
 of every subsequent performance change.
@@ -211,7 +214,8 @@ Only raw libpq connection and socket access may remain unsupported:
 These boundaries must raise clear `NotSupportedError` exceptions and point to
 `impl="libpq"`.
 
-The following current gaps are not accepted as permanent release boundaries:
+The following former gaps were addressed in Phase 4 and must remain covered
+by the release-critical gate, not become permanent release boundaries:
 
 - concrete `Cursor`, `RawCursor`, and `ClientCursor` behavior
 - concrete COPY writer behavior
@@ -733,13 +737,17 @@ Tasks:
 - [x] Add leak checks for Python objects, Rust sessions, sockets, and threads.
 - [x] Build the comparative libpq benchmark suite for latency, throughput,
   memory, sockets, and threads.
+- [x] Establish a full-duration, three-backend soak baseline with published CI
+  artifacts (revision `24b646e3`; not the final optimized candidate).
+- [x] Configure weekly/manual reliability CI and artifact retention.
 - [ ] Close the measured query, result-adaptation, transaction, COPY, and pool
   performance gaps without weakening correctness or acceptance thresholds.
 - [ ] Pass the complete benchmark at least three times on the same otherwise
   idle machine using an installed release wheel built from the recorded revision.
 - [ ] Pass the full 30-minute-per-backend soak, including concurrent pool use,
   on the candidate revision.
-- [ ] Run scheduled soaks and publish reproducible results.
+- [ ] Confirm scheduled soak execution and publish final-candidate reproducible
+  results; a passing earlier CI run does not validate later code.
 - [ ] Revalidate the complete supported synchronous compatibility matrix and
   installed-package boundary after the performance changes.
 
@@ -776,6 +784,16 @@ COPY. Parameterized/prepared queries, transactions, COPY, and pool cycles also
 exceed the Python limit. These measurements establish optimization priorities,
 not release acceptance or the status of the separate soak job.
 
+The separate soak artifact from that same run is now confirmed green on Linux
+x86_64, CPython 3.14.7, and PostgreSQL 18.6. Rust ran for `1800.87` seconds,
+official Python for `1800.82`, and C for `1800.35`, with no reported failures.
+All sampled workload-session counts were zero. Rust completed 21,580
+operations in each of the eight scenarios, including concurrent pool use;
+its driver-object count stayed at 630, with one thread, one observer socket,
+and five file descriptors after cleanup. Retained RSS grew from approximately
+54.5 to 57.2 MiB, within the documented budget. This proves a sustained
+baseline, not the absence of all leaks or acceptance of subsequent changes.
+
 Checkpoint `2d7ca925` reduces notice-draining overhead, caches COPY formats,
 and splits binary COPY output in one native pass. The next slice shares native
 primitive loaders between results and COPY while retaining custom callbacks
@@ -811,8 +829,29 @@ Rust connection. Those paths now select backend-compatible adaptation without
 adding skips. The C-enabled Rust bootstrap/COPY/type selection passes 2,802
 tests with 24 skips and 37 expected failures. Explicit C/libpq COPY and NumPy
 tests pass 278 cases with six skips; the rebuilt C pipeline/prepared suite
-passes 72 with six skips. All 16 harness/installed-wheel checks pass, including
+passes 72 with six skips. At checkpoint `b66c1549`, all 16
+harness/installed-wheel checks pass, including
 callback-cycle collection. A fresh complete CI matrix is still required.
+
+The text COPY slice adds a native path for exact built-in integer
+and UTF-8 string values while retaining fallback for custom adapters and other
+types. Its local report, labeled `text-primitives-working-copy` at
+`/tmp/phase5-text-primitives-bench/report.json`, measures text COPY at
+Rust/Python `0.761` and Rust/C `1.405`. Binary COPY measures `0.728` and
+`1.238`, passing both limits in this run only. Eight workloads still fail
+against C: parameterized and prepared queries, all three row factories,
+transactions, text COPY, and pool cycles. The query, transaction, and pool
+workloads also miss the Python limit. This temporary local report is not
+published exact-revision evidence and does not satisfy the three-run gate.
+
+Rebuilt-wheel validation for this slice passes all 17 harness/installed checks.
+The C-enabled synchronous bootstrap/COPY/type selection reports 2,803 passes,
+23 skips, 17 deselections, and 37 expected failures. A fresh 30-second Rust
+smoke reports no resource failures, stable driver-object/socket/file-descriptor
+counts, and zero surviving workload sessions. These remain focused checks.
+The preceding checkpoint `b66c1549` now has a complete green 57-job Tests run
+[`35279919888`](https://github.com/martijnberger/ferrocopg/actions/runs/35279919888)
+and green Lint run `35279919881`; subsequent changes need their own matrix.
 
 Definition of done:
 
@@ -913,18 +952,21 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Continue profiling the remaining query/COPY overhead using the rebuilt,
-   installed release wheel and both official implementations. The bookkeeping,
-   native COPY-loader, and query-context slices are development progress, not
-   completion of the performance gate.
-2. Profile and reduce shared small-query overhead affecting parameterized and
-   prepared execution, transaction/savepoint cycles, and pool queries. Address
-   COPY conversion and remaining bulk-row overhead against C as separate
-   measured slices; do not trade away cancellation or adaptation correctness.
-3. Inspect completed CI soak artifacts and resolve any lifecycle failures.
-   Once the candidate stabilizes, run the full 30-minute soak for each backend
-   and at least three complete idle-machine benchmarks. Publish exact-revision
-   results; earlier checkpoints and short runs are supporting evidence only.
+1. Validate the text COPY checkpoint in the full CI matrix, including custom
+   adapters, subclasses, encodings, type metadata, and error behavior. Record
+   its source revision and rebuild the installed wheel before collecting
+   candidate evidence.
+2. Prioritize shared small-query overhead affecting parameterized and prepared
+   execution, transaction/savepoint cycles, and pool queries: these still miss
+   both baselines. Profile Rust query execution and result allocation for the
+   bulk-row C gap, and finish text COPY optimization as a separate measured
+   slice. Preserve cancellation, concurrency, and adaptation correctness;
+   recheck binary COPY because its single passing result is close to the limit.
+3. Once the candidate stabilizes, run at least three complete benchmarks on
+   the same otherwise idle machine and the full 30-minute soak for each backend
+   on that same candidate. Publish raw results and exact-revision metadata;
+   the passing `24b646e3` soak and short runs are supporting evidence only.
+   Confirm scheduled execution separately from push/manual CI coverage.
 4. Rerun the complete supported synchronous compatibility matrix and clean
    installed-package checks on the optimized candidate. Mark Phase 5 complete
    only when performance, reliability, and compatibility gates all pass.

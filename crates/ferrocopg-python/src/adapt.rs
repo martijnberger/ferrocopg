@@ -610,6 +610,9 @@ fn format_row_text(
     tx: &Bound<'_, PyAny>,
     out: &Bound<'_, PyAny>,
 ) -> PyResult<()> {
+    if row.len()? == 0 {
+        return extend_bytearray(out, b"\n");
+    }
     let adapted = dump_sequence(py, row, tx, "TEXT")?;
     let mut buffer = Vec::new();
 
@@ -824,9 +827,11 @@ fn dump_sequence(
     tx: &Bound<'_, PyAny>,
     format_name: &str,
 ) -> PyResult<Vec<Option<Vec<u8>>>> {
+    let mut pinned = false;
     if let Ok(plan) = tx.getattr("_copy_dumpers") {
         if !plan.is_none() {
             let plan: PyRef<'_, CopyCodecPlan> = plan.extract()?;
+            pinned = !plan.codes.is_empty();
             if (row.is_exact_instance_of::<PyTuple>() || row.is_exact_instance_of::<PyList>())
                 && !plan.codes.is_empty()
                 && plan.codes.len() == row.len()?
@@ -838,6 +843,11 @@ fn dump_sequence(
                     .map(|((value, code), dumper)| dump_wire_value(py, &value?, *code, dumper))
                     .collect();
             }
+        }
+    }
+    if format_name == "TEXT" && !pinned {
+        if let Some(values) = dump_text_primitives(py, row, tx)? {
+            return Ok(values);
         }
     }
     let adapted = if let Ok(dump_copy) = tx.getattr("_dump_copy_sequence") {
@@ -863,6 +873,69 @@ fn dump_sequence(
     }
 
     Ok(out)
+}
+
+fn dump_text_primitives(
+    py: Python<'_>,
+    row: &Bound<'_, PyAny>,
+    tx: &Bound<'_, PyAny>,
+) -> PyResult<Option<Vec<Option<Vec<u8>>>>> {
+    if !(row.is_exact_instance_of::<PyTuple>() || row.is_exact_instance_of::<PyList>()) {
+        return Ok(None);
+    }
+    let Ok(config) = tx.getattr("_copy_text_config") else {
+        return Ok(None);
+    };
+    let config = if config.is_none() {
+        tx.call_method0("_get_copy_text_config")?
+    } else {
+        config
+    };
+    let (integer, text_oid, format): (bool, Option<u32>, Py<PyAny>) = config.extract()?;
+    // A mixed/custom row must use the ordinary dispatcher, including its error order.
+    for value in row.try_iter()? {
+        let value = value?;
+        if !value.is_none()
+            && !(integer && value.is_exact_instance_of::<PyInt>())
+            && !(text_oid.is_some() && value.is_exact_instance_of::<PyString>())
+        {
+            return Ok(None);
+        }
+    }
+    let mut values = Vec::with_capacity(row.len()?);
+    let mut types = Vec::with_capacity(row.len()?);
+    for value in row.try_iter()? {
+        let value = value?;
+        if value.is_none() {
+            types.push(tx.call_method0("_get_none_oid")?.extract::<u32>()?);
+            values.push(None);
+        } else if value.is_exact_instance_of::<PyInt>() {
+            let oid = match value.extract::<i64>().ok() {
+                Some(v) if i16::try_from(v).is_ok() => 21,
+                Some(v) if i32::try_from(v).is_ok() => 23,
+                Some(_) => 20,
+                None => 1700,
+            };
+            types.push(oid);
+            values.push(Some(value.str()?.to_str()?.as_bytes().to_vec()));
+        } else {
+            let text = value.cast::<PyString>()?.to_str()?;
+            if text.contains('\0') {
+                return Err(psycopg_operational_error(
+                    &psycopg_import(py, "errors")?.getattr("DataError")?,
+                    "PostgreSQL text fields cannot contain NUL (0x00) bytes",
+                ));
+            }
+            types.push(text_oid.unwrap());
+            values.push(Some(text.as_bytes().to_vec()));
+        }
+    }
+    tx.setattr("types", PyTuple::new(py, types)?)?;
+    tx.setattr(
+        "formats",
+        PyList::new(py, std::iter::repeat_n(format.bind(py), values.len()))?,
+    )?;
+    Ok(Some(values))
 }
 
 fn dump_wire_value(

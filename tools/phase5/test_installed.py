@@ -11,6 +11,50 @@ import weakref
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_untyped_text_copy_keeps_dispatch_and_type_metadata(self):
+        from ferrocopg import _ferrocopg as adapter
+        from ferrocopg._rust import _ferrocopg as native
+        from ferrocopg.types.numeric import IntDumper
+
+        class IntSubclass(int):
+            def __str__(self):
+                return "not an integer"
+
+        for encoding in ("utf-8", "latin-1", "ascii"):
+            for values in (
+                (1, "text", None),
+                (-(2**15), 2**15, 2**31, 2**63, -(2**100)),
+                ("\u00e9\t\\\n",),
+                (True, IntSubclass(42)),
+                ([1, 2], "array"),
+                (),
+            ):
+                original, optimized = (
+                    adapter._BackendTransformer(),
+                    adapter._BackendTransformer(),
+                )
+                original._encoding = optimized._encoding = encoding
+                expected, actual = bytearray(), bytearray()
+                adapter._format_row_text(values, original, expected)
+                native.format_row_text(values, optimized, actual)
+                self.assertEqual(actual, expected)
+                self.assertEqual(optimized.types, original.types)
+                self.assertEqual(optimized.formats, original.formats)
+
+        class CustomIntDumper(IntDumper):
+            def get_key(self, obj, format):
+                return self.cls
+
+            def dump(self, obj):
+                return str(obj + 100).encode()
+
+        tx = adapter._BackendTransformer()
+        tx._adapters = adapter._pure_python_adapters(tx.adapters)
+        tx.adapters.register_dumper(int, CustomIntDumper)
+        output = bytearray()
+        native.format_row_text((42, "custom"), tx, output)
+        self.assertEqual(output, b"142\tcustom\n")
+
     def test_native_copy_codec_plan_releases_callback_cycles(self):
         from ferrocopg._rust import _ferrocopg as native
 
