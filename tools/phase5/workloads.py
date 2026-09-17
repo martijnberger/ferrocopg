@@ -6,6 +6,7 @@ import contextlib
 import threading
 import time
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 BENCHMARKS = (
@@ -29,6 +30,7 @@ SOAKS = (
     "copy_binary",
     "pipeline",
     "pool",
+    "pool_contention",
 )
 
 
@@ -46,7 +48,7 @@ class Workload:
     def __enter__(self) -> Workload:
         if self.name in ("connect_plain", "connect_tls", "churn"):
             return self
-        if self.name == "pool":
+        if self.name in ("pool", "pool_contention"):
             from psycopg_pool import ConnectionPool
 
             # The installed Rust adapter is intentionally a different concrete class.
@@ -70,6 +72,8 @@ class Workload:
         self.conn = self.connect()
         if self.name == "prepared":
             self.conn.prepare_threshold = 0
+        elif self.name == "parameterized":
+            self.conn.prepare_threshold = None
         if self.name.startswith("rows_"):
             from importlib import import_module
 
@@ -189,13 +193,25 @@ class Workload:
                 raise failures[0]
             assert conn.execute("select 42").fetchone() == (42,)
             return 1
+        if name == "pool_contention":
+
+            def checkout(_index: int) -> None:
+                for _ in range(4):
+                    self.pool_cycle()
+
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                list(executor.map(checkout, range(8)))
+            return 32
         if name == "pool":
-            with self.pool.connection(timeout=10) as c:
-                assert c.execute("select %s::int", (42,)).fetchone() == (42,)
-            assert not c.closed, "pool checkout context closed a reusable connection"
-            assert self.pool.get_stats().get("returns_bad", 0) == 0
+            self.pool_cycle()
             return 1
         raise ValueError(name)
+
+    def pool_cycle(self) -> None:
+        with self.pool.connection(timeout=10) as c:
+            assert c.execute("select %s::int", (42,)).fetchone() == (42,)
+        assert not c.closed, "pool checkout context closed a reusable connection"
+        assert self.pool.get_stats().get("returns_bad", 0) == 0
 
 
 @contextlib.contextmanager

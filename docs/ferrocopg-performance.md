@@ -36,14 +36,14 @@ isolated environment, not the repository's editable source installation.
 The DSN stays in the environment and is not included in JSON reports.
 
 The benchmark covers plaintext and TLS connection establishment, parameterized
-queries, prepared reuse, tuple/dict/namedtuple result adaptation, transactions
+queries with preparation disabled, prepared reuse, tuple/dict/namedtuple result adaptation, transactions
 with savepoint rollback, text and binary COPY in both directions, and official
 pool checkout/query/return. Every workload checks returned data or recovery
 behavior. TLS setup verifies encryption using `pg_stat_ssl`.
 
 Defaults are 10 warmup operations, nine samples of 20 operations, and 1,000 rows
 per bulk operation. Each worker records raw wall and process CPU measurements,
-latency percentiles, work units per second, peak RSS sampled by the parent,
+individual-operation latency percentiles, work units per second, peak RSS sampled by the parent,
 cleanup resources, and machine/server/package metadata. Benchmark order rotates
 across workloads. Preserve all raw JSON and logs when publishing comparisons.
 Run the complete benchmark at least three times on the same idle machine before
@@ -59,7 +59,8 @@ explicit release decision approves a documented exception.
 
 The soak runs connection churn, transactions and savepoint rollback,
 cancellation of an observed running query, text/binary COPY roundtrips,
-pipeline ordering and error recovery, and pool cycles. After three warmup
+pipeline ordering and error recovery, pool cycles, and eight concurrent pool
+clients contending for four connections. After three warmup
 epochs it runs for at least 30 minutes per backend, with at least six resource
 samples after complete workload cleanup. All three backends run sequentially.
 Allow roughly 90 minutes plus warmup for the default soak command.

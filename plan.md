@@ -731,10 +731,22 @@ installed release wheel against pinned official Python/C packages, records raw
 samples and machine metadata, and rejects incomplete or failed workers. The
 weekly/manual CI workflow retains reports and logs even on failure.
 
-Initial short macOS / PostgreSQL 15 measurements expose query and adaptation
+Initial macOS / PostgreSQL 15 measurements exposed query and adaptation
 performance gaps, and the installed pool test exposed connections closing on
-checkout-context exit. These findings must be fixed and measured again. Short
-development runs do not establish the 30-minute soak or performance gates.
+checkout-context exit. Pool reuse, commit, rollback, and shutdown now pass an
+installed-wheel regression. Lazy adapter lookup and native batch row loading
+remove repeated registry scans and Python row conversion overhead. Result
+metadata and single-row access no longer copy an entire result set.
+
+Development evidence on 2026-09-17 includes 11 harness/installed-wheel tests,
+2,687 synchronous bootstrap/type/cursor passes, and a 30-second-per-backend
+resource soak. Bulk row workloads now outperform the official Python path,
+but the C comparison and small-query/COPY targets still fail. The first CI
+benchmark run `35273950915` published its complete failure artifacts. Its
+superseded soak was canceled after the Rust pool defect was identified.
+The new soak also exercises eight concurrent pool clients. Short development
+runs do not establish the 30-minute soak or performance gates. Phase 5 remains
+incomplete until repeated full benchmarks and sustained soaks pass.
 
 Definition of done:
 

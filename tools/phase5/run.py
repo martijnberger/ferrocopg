@@ -17,6 +17,7 @@ import sys
 import time
 import traceback
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -104,6 +105,7 @@ def metadata(driver: Any, observer: Any, args: argparse.Namespace) -> dict[str, 
 
     return {
         "revision": args.revision,
+        "measured_at": datetime.now(timezone.utc).isoformat(),
         "python": sys.version,
         "platform": platform.platform(),
         "machine": platform.machine(),
@@ -156,7 +158,7 @@ def worker(args: argparse.Namespace) -> dict[str, Any]:
         }
         if args.mode == "benchmark":
             result["workload"] = args.workload
-            durations, cpu_samples = [], []
+            durations, cpu_samples, latencies = [], [], []
             with workload(driver, dsn, args.workload, args.rows) as item:
                 for _ in range(args.warmup):
                     item.run()
@@ -165,7 +167,11 @@ def worker(args: argparse.Namespace) -> dict[str, Any]:
                     start = time.perf_counter_ns()
                     units = 0
                     for _ in range(args.iterations):
+                        operation_start = time.perf_counter_ns()
                         units += item.run()
+                        latencies.append(
+                            (time.perf_counter_ns() - operation_start) / 1e6
+                        )
                     elapsed = (time.perf_counter_ns() - start) / 1e9
                     cpu_samples.append((time.process_time_ns() - cpu_start) / 1e9)
                     durations.append(elapsed)
@@ -175,10 +181,11 @@ def worker(args: argparse.Namespace) -> dict[str, Any]:
                     "rows": args.rows,
                     "seconds": durations,
                     "cpu_seconds": cpu_samples,
+                    "operation_latency_ms": latencies,
                     "latency_ms": {
-                        "p50": statistics.median(durations) * 1000 / args.iterations,
-                        "p95": percentile(durations, 0.95) * 1000 / args.iterations,
-                        "p99": percentile(durations, 0.99) * 1000 / args.iterations,
+                        "p50": statistics.median(latencies),
+                        "p95": percentile(latencies, 0.95),
+                        "p99": percentile(latencies, 0.99),
                     },
                     "units_per_second": units / statistics.median(durations),
                 }

@@ -45,6 +45,43 @@ class InstalledPoolTests(unittest.TestCase):
             self.assertEqual(pool.get_stats().get("returns_bad", 0), 0)
         self.assertTrue(conn.closed)
 
+    def test_bulk_rows_preserve_custom_loaders_factories_and_navigation(self):
+        import ferrocopg
+        from ferrocopg import rows
+        from ferrocopg.types.numeric import IntLoader
+
+        class CustomIntLoader(IntLoader):
+            def load(self, data):
+                return super().load(data) + 100
+
+        with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+            for binary in (False, True):
+                for factory in (rows.tuple_row, rows.dict_row, rows.namedtuple_row):
+                    with conn.cursor(binary=binary, row_factory=factory) as cur:
+                        cur.execute(
+                            "select i::int2 as i, 'value-' || i as value, "
+                            "null::int8 as missing from generate_series(1, 1000) i"
+                        )
+                        cur.fetchone()
+                        batch = cur.fetchall()
+                        self.assertEqual(len(batch), 999)
+                        expected = (1000, "value-1000", None)
+                        if factory is rows.dict_row:
+                            self.assertEqual(
+                                batch[-1],
+                                dict(zip(("i", "value", "missing"), expected)),
+                            )
+                        else:
+                            self.assertEqual(batch[-1], expected)
+                        self.assertEqual(cur.rownumber, 1000)
+                        self.assertEqual(cur.fetchall(), [])
+                        cur.scroll(0, mode="absolute")
+                        self.assertEqual(len(cur.fetchall()), 1000)
+            with conn.cursor() as cur:
+                cur.adapters.register_loader("int4", CustomIntLoader)
+                cur.execute("select i::int4 from generate_series(1, 10) i")
+                self.assertEqual(cur.fetchall(), [(i + 100,) for i in range(1, 11)])
+
 
 if __name__ == "__main__":
     unittest.main()

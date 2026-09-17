@@ -1,6 +1,6 @@
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict};
+use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 use pyo3::wrap_pyfunction;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
@@ -168,6 +168,97 @@ struct BackendResultSet {
     is_tuples: bool,
     #[pyo3(get)]
     wire_format: u8,
+}
+
+#[pymethods]
+impl BackendResultSet {
+    #[getter]
+    fn row_count(&self) -> usize {
+        self.rows.len()
+    }
+
+    fn row(&self, index: usize) -> PyResult<Vec<Option<Vec<u8>>>> {
+        self.rows
+            .get(index)
+            .cloned()
+            .ok_or_else(|| PyIndexError::new_err(index))
+    }
+
+    fn get_value(
+        &self,
+        py: Python<'_>,
+        row: usize,
+        column: usize,
+    ) -> PyResult<Option<Py<PyBytes>>> {
+        let value = self
+            .rows
+            .get(row)
+            .and_then(|r| r.get(column))
+            .ok_or_else(|| PyIndexError::new_err((row, column)))?;
+        Ok(value.as_ref().map(|v| PyBytes::new(py, v).unbind()))
+    }
+
+    fn load_rows(
+        &self,
+        py: Python<'_>,
+        start: usize,
+        end: usize,
+        codes: Vec<u8>,
+        loaders: Vec<Py<PyAny>>,
+        make_row: &Bound<'_, PyAny>,
+    ) -> PyResult<Py<PyList>> {
+        if start > end || end > self.rows.len() {
+            return Err(PyValueError::new_err("invalid result row range"));
+        }
+        if codes.len() != self.columns.len() || loaders.len() != codes.len() {
+            return Err(PyValueError::new_err("loader count does not match columns"));
+        }
+        let output = PyList::empty(py);
+        for row in &self.rows[start..end] {
+            let mut values = Vec::with_capacity(row.len());
+            for ((value, code), loader) in row.iter().zip(&codes).zip(&loaders) {
+                let value = match value {
+                    None => py.None(),
+                    Some(data) => match code {
+                        1 => match std::str::from_utf8(data)
+                            .ok()
+                            .and_then(|s| s.parse::<i64>().ok())
+                        {
+                            Some(value) => value.into_pyobject(py)?.into_any().unbind(),
+                            None => loader.call1(py, (PyBytes::new(py, data),))?,
+                        },
+                        2 => match std::str::from_utf8(data) {
+                            Ok(value) => PyString::new(py, value).into_any().unbind(),
+                            Err(_) => loader.call1(py, (PyBytes::new(py, data),))?,
+                        },
+                        3 => PyBytes::new(py, data).into_any().unbind(),
+                        4 if data.len() == 2 => {
+                            i16::from_be_bytes(data.as_slice().try_into().unwrap())
+                                .into_pyobject(py)?
+                                .into_any()
+                                .unbind()
+                        }
+                        5 if data.len() == 4 => {
+                            i32::from_be_bytes(data.as_slice().try_into().unwrap())
+                                .into_pyobject(py)?
+                                .into_any()
+                                .unbind()
+                        }
+                        6 if data.len() == 8 => {
+                            i64::from_be_bytes(data.as_slice().try_into().unwrap())
+                                .into_pyobject(py)?
+                                .into_any()
+                                .unbind()
+                        }
+                        _ => loader.call1(py, (PyBytes::new(py, data),))?,
+                    },
+                };
+                values.push(value);
+            }
+            output.append(make_row.call1((PyTuple::new(py, values)?,))?)?;
+        }
+        Ok(output.unbind())
+    }
 }
 
 #[derive(Clone)]

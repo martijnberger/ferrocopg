@@ -554,6 +554,35 @@ class _BackendAdaptersMap(AdaptersMap):
 _pure_array_loader_classes: dict[type[Any], type[Any]] = {}
 
 
+def _native_loader_code(load: Callable[..., object]) -> int:
+    from .types.numeric import (
+        Int2BinaryLoader,
+        Int4BinaryLoader,
+        Int8BinaryLoader,
+        IntLoader,
+    )
+    from .types.string import TextBinaryLoader, TextLoader
+
+    loader = getattr(load, "__self__", None)
+    if loader is None:
+        return 0
+    cls = type(loader)
+    if cls is IntLoader:
+        return 1
+    if cls in (TextLoader, TextBinaryLoader):
+        if loader._encoding == "utf-8":
+            return 2
+        if not loader._encoding:
+            return 3
+    if cls is Int2BinaryLoader:
+        return 4
+    if cls is Int4BinaryLoader:
+        return 5
+    if cls is Int8BinaryLoader:
+        return 6
+    return 0
+
+
 def _pure_array_loader_class(loader: type[Any]) -> type[Any]:
     from .types.array import ArrayLoader
 
@@ -930,6 +959,11 @@ def scalar_row(columns: list[str], row: list[str | None]) -> str | None:
 _LEGACY_ROW_FACTORIES = frozenset({list_row, tuple_row, dict_row, scalar_row})
 
 
+def _result_length(result: _ResultSetLike) -> int:
+    count = getattr(result, "row_count", None)
+    return len(result.rows) if count is None else cast(int, count)
+
+
 class _BackendPgResultShim:
     def __init__(
         self,
@@ -952,7 +986,7 @@ class _BackendPgResultShim:
             )
         )
         self.nfields = len(result.columns)
-        self.ntuples = len(result.rows)
+        self.ntuples = _result_length(result)
         self.command_status = (statusmessage or "").encode(encoding)
 
     def fname(self, index: int) -> bytes | None:
@@ -970,6 +1004,8 @@ class _BackendPgResultShim:
         return int(descriptions[index].oid)
 
     def get_value(self, row: int, column: int) -> bytes | None:
+        if getter := getattr(self._result, "get_value", None):
+            return cast(bytes | None, getter(row, column))
         value = self._result.rows[row][column]
         if value is None or isinstance(value, bytes):
             return value
@@ -1429,6 +1465,13 @@ class BackendResultCursor:
         result = self.current_result
         if result is None:
             return None
+
+        if get_row := getattr(result, "row", None):
+            if self._pos >= _result_length(result):
+                return None
+            row = get_row(self._pos)
+            self._pos += 1
+            return cast(list[bytes | str | None], row)
 
         rows = result.rows
         if self._pos >= len(rows):
@@ -2088,10 +2131,37 @@ class NoTlsCursorAdapter:
     def fetchall(self) -> list[object]:
         result = self._require_result()
         self._check_result_for_fetch(result)
+        if (native_rows := self._fetch_native_rows(result)) is not None:
+            return native_rows
         rows = result.fetchall()
         self._rownumber = (self._rownumber or 0) + len(rows)
         make_row = self._make_row_for_result(result)
         return [make_row(row) for row in rows]
+
+    def _fetch_native_rows(self, result: BackendResultCursor) -> list[object] | None:
+        current = result.current_result
+        load_rows = getattr(current, "load_rows", None)
+        if (
+            load_rows is None
+            or self._row_factory in _LEGACY_ROW_FACTORIES
+            or result.encoding not in (None, self._encoding)
+        ):
+            return None
+        assert current is not None
+        self._make_row_for_result(result)
+        descriptions = current.column_descriptions
+        if not descriptions:
+            return None
+        self._load_result_values(current, (None,) * len(descriptions))
+        tx = self._result_transformer
+        assert tx is not None
+        codes = [_native_loader_code(loader) for loader in tx._row_loaders]
+        end = current.row_count  # type: ignore[attr-defined]
+        start = result._pos
+        result._pos = end
+        self._rownumber = (self._rownumber or 0) + end - start
+        rows = load_rows(start, end, codes, tx._row_loaders, self._make_row)
+        return cast(list[object], rows)
 
     def fetchmany(self, size: int = 0) -> list[object]:
         result = self._require_result()
@@ -2117,7 +2187,7 @@ class NoTlsCursorAdapter:
             newpos = value
         else:
             raise ValueError(f"bad mode: {mode}. It should be 'relative' or 'absolute'")
-        if not 0 <= newpos < len(current.rows):
+        if not 0 <= newpos < _result_length(current):
             raise IndexError("position out of bound")
         result._pos = newpos
         self._rownumber = newpos
@@ -4554,7 +4624,7 @@ def _statusmessage_for_query(
 
 def _result_rowcount(result: _ResultSetLike, statusmessage: str | None) -> int:
     if getattr(result, "is_tuples", bool(result.columns or result.rows)):
-        return len(result.rows)
+        return _result_length(result)
     if statusmessage:
         command = statusmessage.split(maxsplit=1)[0]
         if command in {"INSERT", "UPDATE", "DELETE", "MERGE", "MOVE", "FETCH", "COPY"}:
