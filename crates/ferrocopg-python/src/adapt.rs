@@ -3,6 +3,7 @@ use crate::python_helpers::{
 };
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::pyclass::{PyTraverseError, PyVisit};
 use pyo3::types::{PyBytes, PyDict, PyInt, PyList, PyString, PyTuple};
 use pyo3::wrap_pyfunction;
 use time::{Date, Duration, Month, OffsetDateTime, PrimitiveDateTime, Time, UtcOffset};
@@ -14,6 +15,35 @@ const NUMERIC_NAN: u16 = 0xC000;
 const NUMERIC_PINF: u16 = 0xD000;
 const NUMERIC_NINF: u16 = 0xF000;
 const DEC_DIGITS: usize = 4;
+
+#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+struct CopyCodecPlan {
+    codes: Vec<u8>,
+    callbacks: Vec<Py<PyAny>>,
+}
+
+#[pymethods]
+impl CopyCodecPlan {
+    #[new]
+    fn new(codes: Vec<u8>, callbacks: Vec<Py<PyAny>>) -> PyResult<Self> {
+        if codes.len() != callbacks.len() {
+            return Err(PyValueError::new_err("codec and callback counts differ"));
+        }
+        Ok(Self { codes, callbacks })
+    }
+
+    fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
+        for callback in &self.callbacks {
+            visit.call(callback)?;
+        }
+        Ok(())
+    }
+
+    fn __clear__(&mut self) {
+        self.callbacks.clear();
+        self.codes.clear();
+    }
+}
 
 #[pyfunction]
 fn array_load_binary(
@@ -764,14 +794,14 @@ fn load_copy_row(
 ) -> PyResult<Py<PyAny>> {
     if let Ok(plan) = tx.getattr("_copy_loaders") {
         if !plan.is_none() {
-            let (codes, loaders): (Vec<u8>, Vec<Py<PyAny>>) = plan.extract()?;
-            if codes.len() == row.len() && loaders.len() == row.len() {
+            let plan: PyRef<'_, CopyCodecPlan> = plan.extract()?;
+            if plan.codes.len() == row.len() {
                 let values = row
                     .iter()
-                    .zip(codes)
-                    .zip(&loaders)
+                    .zip(&plan.codes)
+                    .zip(&plan.callbacks)
                     .map(|((data, code), loader)| match data {
-                        Some(data) => load_wire_value(py, data, code, loader),
+                        Some(data) => load_wire_value(py, data, *code, loader),
                         None => Ok(py.None()),
                     })
                     .collect::<PyResult<Vec<_>>>()?;
@@ -796,17 +826,16 @@ fn dump_sequence(
 ) -> PyResult<Vec<Option<Vec<u8>>>> {
     if let Ok(plan) = tx.getattr("_copy_dumpers") {
         if !plan.is_none() {
-            let (codes, dumpers): (Vec<u8>, Vec<Py<PyAny>>) = plan.extract()?;
+            let plan: PyRef<'_, CopyCodecPlan> = plan.extract()?;
             if (row.is_exact_instance_of::<PyTuple>() || row.is_exact_instance_of::<PyList>())
-                && !codes.is_empty()
-                && codes.len() == row.len()?
-                && dumpers.len() == codes.len()
+                && !plan.codes.is_empty()
+                && plan.codes.len() == row.len()?
             {
                 return row
                     .try_iter()?
-                    .zip(codes)
-                    .zip(&dumpers)
-                    .map(|((value, code), dumper)| dump_wire_value(py, &value?, code, dumper))
+                    .zip(&plan.codes)
+                    .zip(&plan.callbacks)
+                    .map(|((value, code), dumper)| dump_wire_value(py, &value?, *code, dumper))
                     .collect();
             }
         }
@@ -1647,6 +1676,7 @@ fn parse_binary_array_level<'py>(
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<CopyCodecPlan>()?;
     m.add_function(wrap_pyfunction!(array_load_text, m)?)?;
     m.add_function(wrap_pyfunction!(array_load_binary, m)?)?;
     m.add_function(wrap_pyfunction!(uuid_load_text, m)?)?;

@@ -4053,9 +4053,14 @@ def test_no_tls_cursor_adapter_stream(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_no_tls_cursor_adapter_copy(monkeypatch: pytest.MonkeyPatch) -> None:
-    import psycopg
+    from io import BytesIO
 
-    from ._test_copy import sample_binary
+    from psycopg.copy import Copy, FileWriter
+
+    import psycopg
+    from psycopg import _copy_base
+
+    from ._test_copy import sample_binary, sample_records, sample_text
 
     module = cast(Any, importlib.import_module("psycopg._ferrocopg"))
 
@@ -4116,6 +4121,20 @@ def test_no_tls_cursor_adapter_copy(monkeypatch: pytest.MonkeyPatch) -> None:
 
     conn = module.no_tls_connection_adapter("host=localhost")
     assert conn is not None
+
+    def wrong_formatter(*args: object) -> None:
+        raise AssertionError("standalone Rust COPY selected the global formatter")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(_copy_base, "format_row_text", wrong_formatter)
+        patch.setattr(_copy_base, "format_row_binary", wrong_formatter)
+        for binary, expected in ((False, sample_text), (True, sample_binary)):
+            output = BytesIO()
+            with conn.cursor() as cur:
+                with Copy(cur, binary=binary, writer=FileWriter(output)) as copy:
+                    for record in sample_records:
+                        copy.write_row(record)
+            assert output.getvalue() == expected
 
     with conn.cursor() as cur:
         with cur.copy("copy demo from stdin") as copy:

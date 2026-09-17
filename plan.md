@@ -51,7 +51,7 @@ The following decisions define the roadmap:
 
 ## Current State
 
-Planning checkpoint: 2026-09-17.
+Planning checkpoint: 2026-09-18.
 
 Phases 3 and 4 are complete. Phase 5 is the active release blocker: the
 installed-package benchmark and soak infrastructure exists, but performance
@@ -796,6 +796,23 @@ and file descriptors with zero surviving workload sessions. The complete
 development benchmark still fails nine workloads against C. Neither this
 focused selection nor the short soak replaces final matrix or sustained-soak
 acceptance.
+
+Checkpoint `20434436` adds native dumping for pinned COPY primitives, with
+fallback for custom dumpers, subclasses, encodings, and conversion errors.
+Native codec plans now avoid reconstructing their callback lists per row and
+participate in Python cycle collection. The latest development benchmark puts
+binary COPY at Rust/Python `0.750` and Rust/C `1.259`; the latter still fails
+the strict `1.25` limit and is not rounded down to a pass.
+
+Revalidation also exposed two comparison/coexistence issues: a duplicate Cython
+pipeline declaration prevented fresh C builds (fixed in `91cc4525`), and
+standalone file COPY plus the random-data fixture selected C adaptation for a
+Rust connection. Those paths now select backend-compatible adaptation without
+adding skips. The C-enabled Rust bootstrap/COPY/type selection passes 2,802
+tests with 24 skips and 37 expected failures. Explicit C/libpq COPY and NumPy
+tests pass 278 cases with six skips; the rebuilt C pipeline/prepared suite
+passes 72 with six skips. All 16 harness/installed-wheel checks pass, including
+callback-cycle collection. A fresh complete CI matrix is still required.
 
 Definition of done:
 

@@ -11,7 +11,7 @@ import struct
 import sys
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any, Generic
+from typing import TYPE_CHECKING, Any, Generic, cast
 
 from . import adapt, pq
 from . import errors as e
@@ -93,11 +93,42 @@ class BaseCopy(Generic[ConnectionType]):
         if binary is None:
             binary = bool(result and result.binary_tuples)
 
-        tx: Transformer = getattr(cursor, "_tx", None) or adapt.Transformer(cursor)
-        if binary:
-            self.formatter = BinaryFormatter(tx)
+        tx: Transformer
+        format_row = parse_row = None
+        if getattr(self.connection, "_is_ferrocopg", False):
+            from ._ferrocopg import (
+                _AdaptContext,
+                _backend_copy_impl,
+                _BackendTransformer,
+                _install_wire_bytea_dumper,
+                _pure_python_adapters,
+            )
+
+            adapters = _pure_python_adapters(cursor.adapters)
+            _install_wire_bytea_dumper(adapters)
+            backend_tx = _BackendTransformer(
+                _AdaptContext(
+                    cast(Any, self.connection), adapters, expose_connection=True
+                )
+            )
+            backend_tx._encoding = self._pgconn._encoding
+            tx = backend_tx
+            text_dump, binary_dump, text_load, binary_load = _backend_copy_impl()
+            format_row = binary_dump if binary else text_dump
+            parse_row = binary_load if binary else text_load
         else:
-            self.formatter = TextFormatter(tx, encoding=self._pgconn._encoding)
+            tx = getattr(cursor, "_tx", None) or adapt.Transformer(cursor)
+        if binary:
+            self.formatter = BinaryFormatter(
+                tx, format_row=format_row, parse_row=parse_row
+            )
+        else:
+            self.formatter = TextFormatter(
+                tx,
+                encoding=self._pgconn._encoding,
+                format_row=format_row,
+                parse_row=parse_row,
+            )
 
         self._finished = False
 

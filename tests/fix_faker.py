@@ -12,6 +12,7 @@ from typing import Any
 from uuid import UUID
 
 import pytest
+from psycopg.abc import Transformer
 from psycopg.adapt import PyFormat
 from psycopg.types.json import Json, Jsonb
 from psycopg.types.multirange import Multirange
@@ -85,7 +86,24 @@ class Faker:
             return self._types_names
 
         record = self.make_record(nulls=0)
-        tx = psycopg.adapt.Transformer(self.conn)
+        tx: Transformer
+        if getattr(self.conn, "_is_ferrocopg", False):
+            from psycopg._ferrocopg import (
+                _AdaptContext,
+                _BackendTransformer,
+                _pure_python_adapters,
+            )
+
+            tx = _BackendTransformer(
+                _AdaptContext(
+                    self.conn,
+                    _pure_python_adapters(self.conn.adapters),
+                    expose_connection=True,
+                )
+            )
+            tx._encoding = self.conn.info.encoding
+        else:
+            tx = psycopg.adapt.Transformer(self.conn)
         types = [
             self._get_type_name(tx, schema, value)
             for schema, value in zip(self.schema, record)

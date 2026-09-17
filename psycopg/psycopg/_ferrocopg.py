@@ -382,20 +382,20 @@ class _BackendTransformer(AdaptTransformer):
     """Keep connection-free dumpers/loaders on the backend wire encoding."""
 
     _copy_formats: list[PyFormat] | None = None
-    _copy_loaders: tuple[list[int], list[Callable[..., object]]] | None = None
-    _copy_dumpers: tuple[list[int], list[Callable[..., object]]] | None = None
+    _copy_loaders: object | None = None
+    _copy_dumpers: object | None = None
 
     def set_dumper_types(self, types: Sequence[int], format: pq.Format) -> None:
         super().set_dumper_types(types, format)
         dumpers = self._row_dumpers or []
-        self._copy_dumpers = (
+        self._copy_dumpers = _copy_codec_plan(
             [_native_dumper_code(dumper) for dumper in dumpers],
             [dumper.dump for dumper in dumpers],
         )
 
     def set_loader_types(self, types: Sequence[int], format: pq.Format) -> None:
         super().set_loader_types(types, format)
-        self._copy_loaders = (
+        self._copy_loaders = _copy_codec_plan(
             [_native_loader_code(loader) for loader in self._row_loaders],
             self._row_loaders,
         )
@@ -584,6 +584,14 @@ class _BackendAdaptersMap(AdaptersMap):
 
 
 _pure_array_loader_classes: dict[type[Any], type[Any]] = {}
+
+
+def _copy_codec_plan(
+    codes: list[int], callbacks: list[Callable[..., object]]
+) -> object | None:
+    if _ferrocopg and hasattr(_ferrocopg, "CopyCodecPlan"):
+        return cast(object, _ferrocopg.CopyCodecPlan(codes, callbacks))
+    return None
 
 
 def _native_dumper_code(dumper: Any) -> int:

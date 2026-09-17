@@ -1,14 +1,33 @@
 """Live regression tests for the staged wheel and official pool package."""
 
+import gc
 import os
 import struct
 import unittest
+import weakref
 
 
 @unittest.skipUnless(
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_native_copy_codec_plan_releases_callback_cycles(self):
+        from ferrocopg._rust import _ferrocopg as native
+
+        class Owner:
+            def convert(self, value):
+                return value
+
+        owner = Owner()
+        owner.plan = native.CopyCodecPlan([0], [owner.convert])
+        self.assertTrue(gc.is_tracked(owner.plan))
+        ref = weakref.ref(owner)
+        del owner
+        gc.collect()
+        self.assertIsNone(ref())
+        with self.assertRaises(ValueError):
+            native.CopyCodecPlan([1], [])
+
     def test_copy_pinned_dumpers_preserve_bytes_subclasses_and_errors(self):
         import ferrocopg
         from ferrocopg import _ferrocopg as adapter
