@@ -3,6 +3,8 @@
 import gc
 import os
 import struct
+import subprocess
+import sys
 import unittest
 import weakref
 
@@ -11,6 +13,93 @@ import weakref
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_native_session_lock_wait_releases_interpreter(self):
+        code = """
+import os
+import threading
+import time
+import psycopg
+from ferrocopg._rust import _ferrocopg as native
+
+dsn = os.environ["PHASE5_DSN"]
+with psycopg.connect(dsn, autocommit=True) as observer:
+    for action in ("parameter", "close"):
+        session = native.connect_session(dsn)
+        pid = session.backend_pid()
+        errors = []
+        def query():
+            try:
+                session.run_params_format("select pg_sleep(0.5)", [], False)
+            except BaseException as exc:
+                errors.append(exc)
+        worker = threading.Thread(target=query, daemon=True)
+        worker.start()
+        try:
+            deadline = time.monotonic() + 3
+            while not observer.execute(
+                "select state = 'active' and query like '%%pg_sleep%%' "
+                "from pg_stat_activity where pid = %s", (pid,)
+            ).fetchone()[0]:
+                assert time.monotonic() < deadline, "query did not start"
+                time.sleep(0.005)
+            if action == "parameter":
+                session.parameter("application_name")
+            else:
+                session.close()
+            worker.join(timeout=2)
+            assert not worker.is_alive(), "session lock retained the interpreter"
+            assert not errors, errors
+        finally:
+            session.close()
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    @unittest.skipIf(os.name == "nt", "requires POSIX signal delivery")
+    def test_signal_handler_can_query_another_connection_and_recover(self):
+        code = """
+import os
+import signal
+import threading
+import ferrocopg
+
+with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as active:
+    with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as other:
+        handled = []
+        def interrupt(signum, frame):
+            handled.append(other.execute("select 42").fetchone())
+            raise KeyboardInterrupt
+
+        previous = signal.signal(signal.SIGINT, interrupt)
+        timer = threading.Timer(0.15, lambda: os.kill(os.getpid(), signal.SIGINT))
+        timer.start()
+        try:
+            try:
+                active.execute("select pg_sleep(10)")
+            except KeyboardInterrupt:
+                pass
+            else:
+                raise AssertionError("query did not receive KeyboardInterrupt")
+            assert handled == [(42,)]
+            assert active.execute("select 43").fetchone() == (43,)
+        finally:
+            timer.cancel()
+            timer.join()
+            signal.signal(signal.SIGINT, previous)
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_wire_rows_survive_session_close_and_keep_raw_access(self):
         from ferrocopg._rust import _ferrocopg as native
 

@@ -163,12 +163,18 @@ workflows:
 - an experimental connection-affine thread-offload async facade
 
 Known gaps are kept in `plan.md` and `tests/ferrocopg_manifest.toml`. The main
-release work is concrete cursor parity, concrete libpq COPY writer behavior,
-exact public pipeline state behavior, complete handshake timeout and multi-host
-coverage, and cancellation/concurrency edges. Only raw `PGconn`, socket, and
-libpq tracing access are intended release boundaries. A source-tree
-ferrocopg-specific custom cursor must currently subclass
-`psycopg._ferrocopg.NoTlsCursorAdapter`.
+release work is performance acceptance, sustained resource testing, and the
+release wheel matrix. Phase 4 closed the synchronous cursor, COPY, pipeline,
+timeout, multi-host, and cancellation compatibility gaps; performance changes
+must keep those gates green. Only raw `PGconn`, socket, and libpq tracing
+access are intended release boundaries.
+
+Synchronous Rust operations execute on the calling thread with the interpreter
+released, serialized by the session mutex. The I/O wait loop checks Python
+signals at ten-millisecond intervals outside Tokio's runtime; an interrupted
+query is canceled and drained before the Python exception is raised. There
+is no extra native worker thread per session. The experimental async facade
+still uses its own connection-affine Python executor.
 
 ## Side-by-side validation
 

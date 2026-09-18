@@ -332,32 +332,18 @@ struct BackendSyncNoTlsCancelHandle {
 #[pyclass(module = "ferrocopg_rust._ferrocopg")]
 struct BackendSyncNoTlsSession {
     inner: Arc<Mutex<ferrocopg_postgres::SyncNoTlsSession>>,
-    sender: mpsc::Sender<SessionTask>,
     used_password: bool,
     backend_pid: Option<i32>,
     client_encoding: Option<String>,
 }
-
-type SessionTask = Box<dyn FnOnce() + Send + 'static>;
 
 impl BackendSyncNoTlsSession {
     fn new(session: ferrocopg_postgres::SyncNoTlsSession) -> Self {
         let used_password = session.used_password();
         let backend_pid = session.backend_pid().ok();
         let client_encoding = session.parameter("client_encoding");
-        let (sender, receiver) = mpsc::channel::<SessionTask>();
-        thread::Builder::new()
-            .name("ferrocopg-session".to_owned())
-            .spawn(move || {
-                while let Ok(task) = receiver.recv() {
-                    task();
-                }
-            })
-            .expect("failed to start ferrocopg session worker");
-
         Self {
             inner: Arc::new(Mutex::new(session)),
-            sender,
             used_password,
             backend_pid,
             client_encoding,
@@ -646,57 +632,33 @@ where
         + Send
         + 'static,
 {
-    let cancel_handle = session
-        .inner
-        .lock()
-        .ok()
-        .and_then(|inner| inner.cancel_handle().ok());
-    let inner = Arc::clone(&session.inner);
-    let (result_sender, result_receiver) = mpsc::sync_channel(1);
-    let task = Box::new(move || {
-        let result = inner.lock().map_err(|_| {
+    let signal_error = Arc::new(Mutex::new(None));
+    let signals = Arc::clone(&signal_error);
+    let result = py.detach(|| {
+        let mut inner = session.inner.lock().map_err(|_| {
             BackendThreadError::Runtime("backend session mutex is poisoned".to_owned())
-        });
-        let result = match result {
-            Ok(mut inner) => f(&mut inner).map_err(BackendThreadError::Backend),
-            Err(err) => Err(err),
-        };
-        let _ = result_sender.send(result);
-    });
-
-    session
-        .sender
-        .send(task)
-        .map_err(|_| backend_runtime_error("backend session worker is closed"))?;
-
-    let result_receiver = Mutex::new(result_receiver);
-    let mut signal_error = None;
-    let result = loop {
-        match py.detach(|| {
-            result_receiver
-                .lock()
-                .map_err(|_| RecvTimeoutError::Disconnected)?
-                .recv_timeout(Duration::from_millis(10))
-        }) {
-            Ok(result) => break result,
-            Err(RecvTimeoutError::Timeout) if signal_error.is_none() => {
-                if let Err(err) = py.check_signals() {
-                    signal_error = Some(err);
-                    if let Some(handle) = cancel_handle.as_ref() {
-                        let _ = py.detach(|| handle.cancel_timeout(Duration::from_secs(1)));
-                    }
+        })?;
+        let cancel_handle = inner.cancel_handle().ok();
+        inner.set_wait_callback(Some(Arc::new(move || {
+            let mut signal = signals.lock().unwrap();
+            if signal.is_some() {
+                return;
+            }
+            if let Err(err) = Python::attach(|py| py.check_signals()) {
+                *signal = Some(err);
+                if let Some(handle) = cancel_handle.as_ref() {
+                    // The wait hook runs outside the query runtime. Cancel
+                    // there, then drain the operation before raising in Python.
+                    let _ = handle.cancel_timeout(Duration::from_secs(1));
                 }
             }
-            Err(RecvTimeoutError::Timeout) => {}
-            Err(RecvTimeoutError::Disconnected) => {
-                return Err(backend_runtime_error(
-                    "backend session worker dropped its result",
-                ));
-            }
-        }
-    };
+        })));
+        let result = f(&mut inner).map_err(BackendThreadError::Backend);
+        inner.set_wait_callback(None);
+        result
+    });
 
-    if let Some(err) = signal_error {
+    if let Some(err) = signal_error.lock().unwrap().take() {
         return Err(err);
     }
 
@@ -1192,19 +1154,21 @@ impl BackendSyncNoTlsSession {
         Ok(self.used_password)
     }
 
-    fn parameter(&self, name: &str) -> PyResult<Option<String>> {
+    fn parameter(&self, py: Python<'_>, name: &str) -> PyResult<Option<String>> {
         if name == "client_encoding" {
             return Ok(self.client_encoding.clone());
         }
-        Ok(self
-            .inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "backend session mutex is poisoned",
-                )
-            })?
-            .parameter(name))
+        py.detach(|| {
+            Ok(self
+                .inner
+                .lock()
+                .map_err(|_| {
+                    PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                        "backend session mutex is poisoned",
+                    )
+                })?
+                .parameter(name))
+        })
     }
 
     fn backend_pid(&self) -> PyResult<i32> {
@@ -1225,16 +1189,18 @@ impl BackendSyncNoTlsSession {
         }
     }
 
-    fn close(&self) -> PyResult<()> {
-        self.inner
-            .lock()
-            .map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "backend session mutex is poisoned",
-                )
-            })?
-            .close();
-        Ok(())
+    fn close(&self, py: Python<'_>) -> PyResult<()> {
+        py.detach(|| {
+            self.inner
+                .lock()
+                .map_err(|_| {
+                    PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                        "backend session mutex is poisoned",
+                    )
+                })?
+                .close();
+            Ok(())
+        })
     }
 
     fn probe(&self, py: Python<'_>) -> PyResult<BackendSyncNoTlsProbe> {
@@ -1449,8 +1415,8 @@ impl BackendSyncNoTlsSession {
     }
 
     fn drain_notices(&self, py: Python<'_>) -> PyResult<Vec<Py<PyDict>>> {
-        // This only drains memory. Avoid waking the I/O worker, but release the
-        // GIL while acquiring its session lock so concurrent queries can finish.
+        // Release the GIL while acquiring the session lock so a concurrent
+        // query can check signals and finish its I/O.
         let notices = py.detach(|| {
             self.inner
                 .lock()

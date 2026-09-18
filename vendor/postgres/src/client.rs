@@ -47,6 +47,14 @@ impl Client {
         Config::new()
     }
 
+    /// Installs a callback checked at ten-millisecond intervals during I/O.
+    ///
+    /// The callback runs on the calling thread outside the client's runtime.
+    /// It must not re-enter this client, but may use other clients.
+    pub fn set_wait_callback(&mut self, callback: Option<std::sync::Arc<dyn Fn() + Sync + Send>>) {
+        self.connection.set_wait_callback(callback);
+    }
+
     /// Executes a statement, returning the number of rows modified.
     ///
     /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list

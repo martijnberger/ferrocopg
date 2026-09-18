@@ -57,7 +57,7 @@ Phases 3 and 4 are complete. Phase 5 is the active release blocker: the
 installed-package benchmark and soak infrastructure exists, but performance
 acceptance has not passed. A full 30-minute-per-backend CI soak passed on
 revision `24b646e3`; sustained validation of the optimized candidate remains
-required. The latest working-copy benchmark still fails nine workloads
+required. The latest working-copy benchmark still fails eight workloads
 against C and is development evidence, not release acceptance.
 Phase 6 wheel-matrix validation and Phase 7 publication remain pending.
 The completed Phase 4 evidence below is a historical baseline, not validation
@@ -875,6 +875,41 @@ Both complete reports and the parent comparison are retained locally under
 `/tmp/phase5-text-parent-bench`. These development comparisons are not the
 required three passing exact-revision acceptance runs.
 
+The direct synchronous execution slice removes the native per-session worker
+and per-operation channel handoff. It releases the interpreter while executing
+on the caller's thread, checking signals during I/O at ten-millisecond
+intervals outside Tokio's runtime. Cancellation still drains the active
+operation before raising the signal exception. Metadata and close calls also
+release the interpreter while waiting for the session mutex. The experimental
+async facade retains its separate connection-affine executor.
+
+Validation includes 26 Rust core tests, three vendored wait-loop tests, 211
+synchronous concurrency/bootstrap passes, both existing async-facade checks,
+and all 20 harness/installed-wheel checks. New subprocess regressions cover a
+signal handler querying another connection, cancellation recovery, and
+concurrent metadata/close calls without a GIL/session-lock deadlock.
+A 60.14-second Rust resource smoke reports no failures: driver objects remain
+at 615, sockets at one, file descriptors at four, and workload sessions at zero;
+retained RSS does not grow. This is not the required sustained candidate soak.
+
+The complete local synchronous selection with the Rust CI adapter setting
+(`PSYCOPG_IMPL=python`) reports 4,072 passes, five failures, 467 skips, 2,066
+deselections, and 38 expected failures. Four waiting failures also reproduce
+under explicit libpq; pool backoff passes in isolation but misses its tight
+timing bound in the full run. The C-enabled selection reports 4,082 passes and
+ten failures, adding a fifth libpq waiting failure and four C-transformer
+array-adaptation failures that reproduce on parent `16ac4f9b`. No skips or
+budgets were changed. These are not green full-matrix acceptance results;
+the source-tree C-transformer coexistence issue remains a separate follow-up.
+
+Both complete local `direct-execution-working-copy` benchmark reports retain
+eight C-limit failures. Transaction Rust/C ratios are `1.731-1.798`, pool
+`1.445-1.617`, and binary COPY `1.201-1.210`. Binary COPY passes in these two
+runs, but the full performance gate remains failed and timings still vary.
+Raw evidence is under `/tmp/phase5-direct-execution-bench` and
+`/tmp/phase5-direct-execution-bench-2`; final exact-revision repeated benchmarks,
+sustained soaks, and the supported compatibility matrix remain required.
+
 Definition of done:
 
 - Sync pooling is documented and green.
@@ -974,11 +1009,12 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Validate the text COPY and retained-row checkpoints in the full CI matrix,
-   including custom adapters, subclasses, encodings, type metadata, result
-   lifetime, and error behavior. Record
-   its source revision and rebuild the installed wheel before collecting
-   candidate evidence.
+1. Validate the direct-execution checkpoint in the full CI matrix, including
+   signals, cancellation recovery, concurrent close, custom adapters, encodings,
+   and result lifetime. Track the separately reproduced source-tree C-transformer
+   coexistence failures without treating them as new executor regressions or
+   hiding them with skips. Rebuild the installed wheel from the recorded revision
+   before collecting candidate evidence.
 2. Prioritize shared small-query overhead affecting parameterized and prepared
    execution, transaction/savepoint cycles, and pool queries: these still miss
    both baselines. Profile Rust query execution and result allocation for the

@@ -84,6 +84,12 @@ pub struct SyncNoTlsSession {
 }
 
 impl SyncNoTlsSession {
+    pub fn set_wait_callback(&mut self, callback: Option<Arc<dyn Fn() + Sync + Send>>) {
+        if let Some(client) = self.client.as_mut() {
+            client.set_wait_callback(callback);
+        }
+    }
+
     pub(crate) fn from_client(client: postgres::Client, notices: NoticeQueue) -> Self {
         let used_password = client.used_password();
         Self {
