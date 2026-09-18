@@ -1056,6 +1056,11 @@ def _result_length(result: _ResultSetLike) -> int:
     return len(result.rows) if count is None else cast(int, count)
 
 
+def _result_is_tuples(result: _ResultSetLike) -> bool:
+    is_tuples = getattr(result, "is_tuples", None)
+    return bool(result.columns or result.rows) if is_tuples is None else bool(is_tuples)
+
+
 class _BackendPgResultShim:
     def __init__(
         self,
@@ -1073,7 +1078,7 @@ class _BackendPgResultShim:
             if status is not None
             else (
                 ExecStatus.TUPLES_OK
-                if getattr(result, "is_tuples", bool(result.columns or result.rows))
+                if _result_is_tuples(result)
                 else ExecStatus.COMMAND_OK
             )
         )
@@ -2025,7 +2030,7 @@ class NoTlsCursorAdapter:
         current = result.current_result
         if current is None:
             return None
-        if not getattr(current, "is_tuples", bool(current.columns or current.rows)):
+        if not _result_is_tuples(current):
             return None
         return self._rownumber
 
@@ -2048,7 +2053,7 @@ class NoTlsCursorAdapter:
                 )
                 for column in cast(list[_StatementColumnLike], descriptions)
             ]
-        if not getattr(current, "is_tuples", bool(current.columns or current.rows)):
+        if not _result_is_tuples(current):
             return None
         return [BackendColumn(name) for name in current.columns]
 
@@ -2413,9 +2418,7 @@ class NoTlsCursorAdapter:
 
     def _check_result_for_fetch(self, result: BackendResultCursor) -> None:
         current = result.current_result
-        if current is None or not getattr(
-            current, "is_tuples", bool(current.columns or current.rows)
-        ):
+        if current is None or not _result_is_tuples(current):
             pgresult = self.pgresult
             if pgresult is not None and pgresult.command_status:
                 detail = f" (command status: {pgresult.command_status.decode()})"
@@ -4783,7 +4786,7 @@ def _statusmessage_for_query(
 
 
 def _result_rowcount(result: _ResultSetLike, statusmessage: str | None) -> int:
-    if getattr(result, "is_tuples", bool(result.columns or result.rows)):
+    if _result_is_tuples(result):
         return _result_length(result)
     if statusmessage:
         command = statusmessage.split(maxsplit=1)[0]

@@ -63,7 +63,10 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
             self._results = cast(Any, self._ferrocopg_cursor.pgresults)
             result = self._ferrocopg_cursor._result
             self._iresult = result._index if result is not None else 0
-            self.pgresult = self._ferrocopg_cursor.pgresult
+            if self._ferrocopg_cursor._stream_result is not None:
+                self.pgresult = self._ferrocopg_cursor.pgresult
+            else:
+                self.pgresult = self._results[self._iresult] if self._results else None
             self._closed = self._ferrocopg_cursor.closed
             self._query = self._ferrocopg_cursor._query
             if self._ferrocopg_cursor._make_row is not None:

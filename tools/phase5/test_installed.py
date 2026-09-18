@@ -13,6 +13,37 @@ import weakref
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_cursor_metadata_stays_current_after_fetch_and_navigation(self):
+        import ferrocopg
+
+        with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+            with conn.execute("select 1 as first; select 2 as second") as cur:
+                first, second = cur._results
+                self.assertEqual(cur.fetchone(), (1,))
+                self.assertIs(cur.pgresult, first)
+                self.assertTrue(cur.nextset())
+                self.assertEqual(cur.fetchall(), [(2,)])
+                self.assertIs(cur.pgresult, second)
+                cur.set_result(0)
+                self.assertEqual(cur.fetchmany(1), [(1,)])
+                self.assertIs(cur.pgresult, first)
+            self.assertIsNone(cur.pgresult)
+            self.assertEqual(cur._results, [])
+
+            with conn.pipeline():
+                cur = conn.execute("select 3 as pipelined")
+                self.assertEqual(cur.fetchone(), (3,))
+                self.assertIs(cur.pgresult, cur._results[0])
+                self.assertEqual(cur.description[0].name, "pipelined")
+
+            with conn.cursor() as cur:
+                for i, row in enumerate(
+                    cur.stream("select generate_series(1, 3) as i"), 1
+                ):
+                    self.assertEqual(row, (i,))
+                    self.assertIsNotNone(cur.pgresult)
+                    self.assertEqual(cur.description[0].name, "i")
+
     def test_cursor_adapters_do_not_require_cyclic_collection(self):
         import ferrocopg
         from ferrocopg.types.numeric import IntLoader

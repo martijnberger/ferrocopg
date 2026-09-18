@@ -2688,6 +2688,48 @@ def test_package_connect_ferrocopg_connect_options(
     ]
 
 
+@pytest.mark.parametrize("is_tuples", [False, True])
+def test_backend_result_metadata_does_not_materialize_rows(is_tuples: bool) -> None:
+    import psycopg
+
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    class Result:
+        is_tuples: bool
+        columns: list[str] = []
+        column_descriptions: list[object] = []
+        row_count = 3
+        rows_affected = 3
+
+        @property
+        def rows(self) -> object:
+            raise AssertionError("metadata access must not copy native rows")
+
+    result = Result()
+    result.is_tuples = is_tuples
+    shim = module._BackendPgResultShim(result, "utf-8", psycopg.pq.Format.TEXT)
+    assert shim.status == (
+        psycopg.pq.ExecStatus.TUPLES_OK
+        if is_tuples
+        else psycopg.pq.ExecStatus.COMMAND_OK
+    )
+    assert shim.nfields == 0
+    assert shim.ntuples == 3
+    assert module._result_rowcount(result, None) == (3 if is_tuples else -1)
+    conn = SimpleNamespace(
+        adapters=psycopg.adapters, pgconn=SimpleNamespace(_encoding="utf-8")
+    )
+    cur = module.NoTlsCursorAdapter(conn)
+    cur._result = module.BackendResultCursor([result])
+    assert cur.rownumber == (0 if is_tuples else None)
+    assert cur.description == ([] if is_tuples else None)
+    if is_tuples:
+        cur._check_result_for_fetch(cur._result)
+    else:
+        with pytest.raises(psycopg.ProgrammingError):
+            cur._check_result_for_fetch(cur._result)
+
+
 def test_backend_result_cursor_navigation() -> None:
     module = importlib.import_module("psycopg._ferrocopg")
 

@@ -58,8 +58,8 @@ installed-package benchmark and soak infrastructure exists, but performance
 acceptance has not passed. A full 30-minute-per-backend CI soak passed on
 revision `24b646e3`; sustained validation of the optimized candidate remains
 required. The latest longer-sample working-copy benchmark fails seven workloads
-against C and additionally misses plaintext-connection Python parity. It is
-development evidence, not release acceptance.
+against C; parameterized/prepared queries, transactions, and pool cycles also
+miss Python parity. It is development evidence, not release acceptance.
 Phase 6 wheel-matrix validation and Phase 7 publication remain pending.
 The completed Phase 4 evidence below is a historical baseline, not validation
 of every subsequent performance change.
@@ -76,7 +76,7 @@ The acceptance status at this planning checkpoint is:
 | --- | --- | --- |
 | Synchronous API and package boundary | Implemented in Phase 4 | Revalidate after the Phase 5 optimizations |
 | Official synchronous pool | Implemented and regression-tested | Retain coverage in final benchmarks, soak, and matrix |
-| Performance | Not accepted; seven workloads exceed the C limit, and plaintext setup also misses Python parity | Optimize, then pass three complete candidate runs |
+| Performance | Not accepted; seven workloads exceed the C limit, with four also missing Python parity | Optimize, then pass three complete candidate runs |
 | Sustained reliability | Earlier three-backend baseline passed | Repeat 30 minutes per backend on the final candidate |
 | Latest compatibility validation | Focused checks pass; local full selections have failures | Resolve or account for reproduced failures and obtain a green supported matrix |
 | Release wheels and publication | Pending | Complete Phases 6 and 7 before publishing to PyPI |
@@ -1061,7 +1061,14 @@ the required performance contract.
 
 The cursor-lifecycle Rust resource smoke ran for `60.32` seconds with no
 reported failures and zero surviving workload sessions. This is development
-evidence only. Its full unfiltered compatibility run is still pending.
+evidence only. The full unfiltered compatibility run reports `4715/4720`
+executed synchronous cases, five failures, and zero synchronous errors. All five
+failures reproduce under explicit C/libpq: four macOS waiting-duration checks
+and the pool's check-backoff timing assertion. The local run and strict
+zero-regression reporter remain failed; comparison reproduction is not a waiver.
+Experimental async coverage is reported separately (`504/620` executed, with
+105 failures and 11 errors). The local optional-dependency denominator is not
+a replacement for a supported CI matrix key.
 
 The older three-backend CI soak in run
 [`35311495257`](https://github.com/martijnberger/ferrocopg/actions/runs/35311495257)
@@ -1078,6 +1085,26 @@ zero-session acceptance budget are unchanged, and persistent sessions still
 fail. All 12 accounting tests pass, including transient cleanup, persistent
 sessions, and unstable-resource cases; a 60.22-second C-backend smoke passes.
 Neither this correction nor the smoke retroactively accepts the failed CI run.
+
+The next result-bookkeeping slice avoids eager row/column materialization when
+native result metadata is available and reuses the already-selected public
+result wrapper instead of repeating its cache lookup. Zero-column result
+metadata is tested with a row accessor that raises if materialized. Installed
+coverage verifies navigation, pipeline-triggered fetching, streaming metadata,
+and cursor close. The unfiltered focused modules pass 902 cases with 26 skips
+under pure Python and 896 with 32 skips with the C accelerator selected;
+all 27 harness/installed-wheel checks and pre-commit pass. Synchronous cursor
+generation is reproducible. These are focused checks, not a new full matrix.
+
+For 9,010 profiled prepared queries, result-cache calls fall from 36,041 to
+18,021 and cumulative public-cursor synchronization time falls from about
+81 ms to 62 ms. The complete 100-operation-per-sample development benchmark
+under `/tmp/phase5-result-bookkeeping-bench` still fails seven C comparisons:
+parameterized `1.665`, prepared `1.910`, tuple rows `1.279`, namedtuple rows
+`1.373`, transactions `1.641`, text COPY `1.407`, and pool cycles `2.032`.
+Dictionary rows and binary COPY pass both limits in this run. Plaintext setup
+also passes, unlike the lifecycle run. Timing variability and the remaining
+failures preclude an acceptance claim; final-candidate repetition is unchanged.
 
 Definition of done:
 
