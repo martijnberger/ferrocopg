@@ -209,6 +209,33 @@ impl<'py> IntoPyObject<'py> for LoadedResultRow<'py> {
 #[pymethods]
 impl BackendResultSet {
     #[getter]
+    fn column_count(&self) -> usize {
+        self.columns.len()
+    }
+
+    #[getter]
+    fn column_oids(&self) -> Vec<u32> {
+        self.column_descriptions
+            .iter()
+            .map(|column| column.oid)
+            .collect()
+    }
+
+    fn column_name(&self, index: usize) -> PyResult<&str> {
+        self.columns
+            .get(index)
+            .map(String::as_str)
+            .ok_or_else(|| PyIndexError::new_err(index))
+    }
+
+    fn column_oid(&self, index: usize) -> PyResult<u32> {
+        self.column_descriptions
+            .get(index)
+            .map(|column| column.oid)
+            .ok_or_else(|| PyIndexError::new_err(index))
+    }
+
+    #[getter]
     fn rows(&self) -> Vec<Vec<Option<Vec<u8>>>> {
         self.rows
             .iter()

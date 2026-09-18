@@ -13,6 +13,58 @@ import weakref
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_native_result_metadata_is_detached_and_matches_public_rows(self):
+        import ferrocopg
+        from ferrocopg import rows
+        from ferrocopg._rust import _ferrocopg as native
+
+        names = [f"value_{i}" for i in range(64)]
+        query = "select " + ", ".join(
+            f"{i}::int4 as {name}" for i, name in enumerate(names)
+        )
+        session = native.connect_session(os.environ["PHASE5_DSN"])
+        try:
+            result = session.run_params_format(query, [], False)
+            empty = session.run_params_format(
+                "select from generate_series(1, 2)", [], False
+            )
+        finally:
+            session.close()
+        self.assertEqual(result.column_count, 64)
+        self.assertEqual(result.column_oids, [23] * 64)
+        self.assertEqual([result.column_name(i) for i in range(64)], names)
+        self.assertEqual([result.column_oid(i) for i in range(64)], [23] * 64)
+        result.column_oids.append(999)
+        self.assertEqual(result.column_oids, [23] * 64)
+        self.assertEqual(empty.column_count, 0)
+        self.assertEqual(empty.column_oids, [])
+        self.assertEqual(empty.row_count, 2)
+        for item, index in ((result, 64), (empty, 0)):
+            with self.assertRaises(IndexError):
+                item.column_name(index)
+            with self.assertRaises(IndexError):
+                item.column_oid(index)
+
+        with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+            for binary in (False, True):
+                for factory in (rows.tuple_row, rows.dict_row, rows.namedtuple_row):
+                    with conn.cursor(binary=binary, row_factory=factory) as cur:
+                        cur.execute(query)
+                        self.assertEqual(
+                            [column.name for column in cur.description], names
+                        )
+                        self.assertEqual(
+                            [column.type_code for column in cur.description], [23] * 64
+                        )
+                        row = cur.fetchone()
+                        expected = tuple(range(64))
+                        self.assertEqual(
+                            row,
+                            dict(zip(names, expected))
+                            if factory is rows.dict_row
+                            else expected,
+                        )
+
     def test_bound_parameters_preserve_buffers_formats_and_prepared_recovery(self):
         import ferrocopg
         from ferrocopg._rust import _ferrocopg as native

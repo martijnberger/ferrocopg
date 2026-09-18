@@ -2723,6 +2723,55 @@ def test_backend_result_metadata_does_not_materialize_rows(is_tuples: bool) -> N
     cur._result = module.BackendResultCursor([result])
     assert cur.rownumber == (0 if is_tuples else None)
     assert cur.description == ([] if is_tuples else None)
+
+    class NativeMetadata:
+        is_tuples: bool
+        column_count = 2
+        column_oids = [23, 25]
+        row_count = 3
+        rows_affected = 3
+        wire_format = 0
+
+        @property
+        def columns(self) -> list[str]:
+            raise AssertionError("metadata access must not copy column names")
+
+        @property
+        def column_descriptions(self) -> list[object]:
+            raise AssertionError("loader setup must not copy column descriptions")
+
+        @property
+        def rows(self) -> object:
+            raise AssertionError("metadata access must not copy rows")
+
+        def column_name(self, index: int) -> str:
+            return ("number", "value")[index]
+
+        def column_oid(self, index: int) -> int:
+            return self.column_oids[index]
+
+    metadata = NativeMetadata()
+    metadata.is_tuples = is_tuples
+    shim = module._BackendPgResultShim(metadata, "utf-8", psycopg.pq.Format.TEXT)
+    assert shim.nfields == 2
+    assert shim.fname(0) == b"number"
+    assert shim.fname(-1) == b"value"
+    assert shim.ftype(0) == 23
+    assert shim.ftype(1) == 25
+    assert shim.ftype(-1) == shim.ftype(2) == 0
+    assert shim.fformat(0) == 0
+    for index in (-3, 2):
+        with pytest.raises(IndexError):
+            shim.fname(index)
+        with pytest.raises(IndexError):
+            shim.fformat(index)
+    assert module._statusmessage_for_query("  SELECT 1", metadata) == "SELECT 3"
+    assert module._statusmessage_for_query("VALUES (1)", metadata) == (
+        "VALUES 3" if is_tuples else "VALUES"
+    )
+    cur._make_row = tuple
+    tx = cur._native_result_transformer(metadata)
+    assert tx.load_sequence((b"42", b"value")) == (42, "value")
     if is_tuples:
         cur._check_result_for_fetch(cur._result)
     else:

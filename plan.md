@@ -55,11 +55,12 @@ Planning checkpoint: 2026-09-18.
 
 Phases 3 and 4 are complete. Phase 5 is the active release blocker: the
 installed-package benchmark and soak infrastructure exists, but performance
-acceptance has not passed. A full 30-minute-per-backend CI soak passed on
-revision `24b646e3`; sustained validation of the optimized candidate remains
-required. The latest longer-sample working-copy benchmark fails seven workloads
-against C; parameterized/prepared queries, transactions, and pool cycles also
-miss Python parity, as does TLS setup in this run. It is development evidence,
+acceptance has not passed. Full 30-minute-per-backend CI soaks passed on
+revisions `24b646e3` and `2ed94013`; sustained validation of the final candidate
+remains required. The latest longer-sample working-copy benchmark fails seven
+workloads against C; parameterized/prepared queries, transactions, and pool cycles also
+miss Python parity. TLS passes this run but missed parity in the preceding
+borrowed-parameter run. These are development measurements,
 not release acceptance.
 Phase 6 wheel-matrix validation and Phase 7 publication remain pending.
 The completed Phase 4 evidence below is a historical baseline, not validation
@@ -71,18 +72,21 @@ cursor-lifecycle/bookkeeping, and the audited CI accounting repair. Its
 completed all 57 jobs successfully, including all eight Rust lanes and the
 standalone package job. This supersedes `639bbd69` as the latest verified
 complete green compatibility checkpoint, not as performance acceptance.
-The borrowed-parameter follow-up is `cb556467`; its complete CI status was not
-verified at this update and requires separate evidence. No final candidate
-has passed all acceptance gates.
+The borrowed-parameter follow-up is `cb556467`. Its lint passed, but its Tests
+workflow and the subsequent documentation checkpoint were superseded and
+cancelled. The result-metadata follow-up, including the corrected timeout test
+in `61ab3655`, passes all 4,724 executed synchronous cases locally and still
+requires fresh full CI evidence. No final candidate has passed all acceptance
+gates.
 The acceptance status at this planning checkpoint is:
 
 | Area | Status | Remaining evidence or work |
 | --- | --- | --- |
 | Synchronous API and package boundary | Implemented in Phase 4 | Revalidate after the Phase 5 optimizations |
 | Official synchronous pool | Implemented and regression-tested | Retain coverage in final benchmarks, soak, and matrix |
-| Performance | Not accepted; seven workloads exceed the C limit, and five miss Python parity | Optimize, then pass three complete candidate runs |
-| Sustained reliability | Earlier three-backend baseline passed | Repeat 30 minutes per backend on the final candidate |
-| Latest compatibility validation | All 57 CI jobs pass at `4a132959`; `cb556467` has focused passes and local full-harness timing failures | Verify the follow-up's supported matrix and investigate local timing failures |
+| Performance | Not accepted; seven workloads exceed the C limit, and four miss Python parity | Optimize, then pass three complete candidate runs |
+| Sustained reliability | Three-backend soaks passed at `24b646e3` and `2ed94013` | Repeat 30 minutes per backend on the final candidate |
+| Latest compatibility validation | All 57 CI jobs pass at `4a132959`; the metadata/test follow-up passes all 4,724 executed local sync cases | Verify the follow-up's supported matrix and installed-package boundary |
 | Release wheels and publication | Pending | Complete Phases 6 and 7 before publishing to PyPI |
 
 The implementation checkpoint is not a release candidate designation. Local
@@ -97,7 +101,7 @@ not mean the performance, reliability, packaging, or publication gates are done.
 
 Work in this order:
 
-1. Verify full compatibility for the borrowed-parameter follow-up to the green
+1. Verify full compatibility for the parameter/metadata follow-ups to the green
    `4a132959` checkpoint. Classify full-harness failures and retain explicit
    Python/C comparison coverage before accepting another correctness baseline.
 2. Profile and reduce shared small-query overhead first, then remaining bulk-row
@@ -118,8 +122,11 @@ explicit decision.
 
 ### Next implementation slice
 
-Investigate parameter adaptation and query/result setup on `cb556467` before
-choosing another optimization. These paths are shared by the failing
+Continue profiling parameter adaptation and query/result setup after the
+metadata slice. A direct port of dumper-cache dispatch was measured and rejected
+as effectively flat; do not repeat it without a different measured mechanism.
+Loader class resolution, loader construction, and adaptation-context setup
+remain candidates for measurement. These paths are shared by the failing
 parameterized, prepared, transaction, and pool workloads, making them the first
 priority rather than expanding the API or starting native async work.
 
@@ -1183,6 +1190,85 @@ small-query throughput improvement or closed an acceptance gate. Prioritize
 the remaining measured query/adaptation costs rather than assuming this slice
 satisfies the performance contract.
 
+The result-bookkeeping revision `2ed94013` now has a second verified sustained
+checkpoint in workflow
+[`35320190913`](https://github.com/martijnberger/ferrocopg/actions/runs/35320190913).
+The published soak reports record Rust `1800.39` seconds, Python `1800.55`, and
+C `1800.64`, with no failures and zero surviving workload sessions in every
+sample (2,302 / 1,817 / 2,528 samples respectively). Rust completed 46,080
+operations in each of the eight scenarios. Its final cleanup had 630 driver
+objects, one thread, one observer socket, and five file descriptors. The
+benchmark job in the same workflow failed; a successful soak does not accept
+its performance or the later parameter/metadata changes.
+
+The next metadata slice exposes native column counts, OIDs, and indexed names
+without constructing complete Python column/description objects. Row-loader
+setup consumes the OIDs directly; status messages avoid eager metadata access
+and unbounded token splitting. Static `Callable` casts no longer construct
+typing objects on each query. Existing fallback results, custom loaders,
+encodings, and row factories retain their conversion paths. The unfiltered
+focused bootstrap/adaptation/cursor/row/prepared modules pass 680 cases with
+22 skips, all 28 Rust tests pass, and all 29 installed-wheel/accounting checks
+pass, including 64-column rows, zero-column results, index bounds, and detached
+metadata. Pre-commit passes.
+The final C-accelerator coexistence selection covers the same cursor/adaptation
+modules plus the complete type directory without name filtering: all 3,170
+executed synchronous cases pass. Its six failures are independently classified
+experimental async type-info cases (`9/15` async); the subset's synchronous
+zero-regression reporter passes. This is additional coexistence coverage, not
+a replacement for the complete supported matrix.
+
+The first full metadata harness reports `4720/4724` synchronous cases, four
+failures and no errors. All four failures reproduce under C/libpq and reveal a
+deterministic test expectation bug, not ordinary timing jitter: the non-Linux
+waiting test asks its generator for two timeout cycles but expects only one
+`interval`. Revision `61ab3655` corrects the async source and regenerates the
+sync test to expect `nevents * interval`, matching the Linux test. The ready
+case, 20% tolerance, test count, manifests, and regression budget are unchanged.
+The complete affected sync/async C/libpq selection passes 24 cases with four
+platform skips, and sync regeneration is reproducible. This does not waive the
+failed full report. The fresh unfiltered run with the corrected test and final
+metadata code passes `4724/4724` executed synchronous cases, with zero failures
+or errors, 277 skips, and 242 manifested boundaries. The strict zero-regression
+reporter passes. Experimental async remains separate at `505/620`, with 104
+failures and 11 errors; the overall pytest invocation therefore still exits
+nonzero. Raw evidence is in `/tmp/phase5-column-metadata-corrected-full.xml`
+and its `-report.json` companion. Supported CI remains required; this local
+optional-dependency denominator is not a replacement for a matrix key.
+
+A native dumper-cache dispatcher was also prototyped and measured, then removed:
+it was effectively flat versus the existing Python dispatcher. The retained
+metadata/typing slice reduces callable-type construction from 20,069 to 67 calls
+in a 10,000-query profile, and notice-draining cumulative time from about 46 ms
+to 19 ms. Two warmed parent/candidate comparisons (1,000 warmups and nine samples
+of 1,000 operations, with the second comparison reversing order) show prepared
+latency of `70.0 -> 67.9` and `73.1 -> 71.8` microseconds. Parameterized latency
+is `79.5 -> 74.6` and `79.2 -> 70.5` microseconds; that larger variability is not
+proof of a stable percentage gain. Raw reports are under
+`/tmp/phase5-{before-,}column-metadata-{prepared,parameterized}*.json`.
+
+The complete metadata development benchmark in `/tmp/phase5-column-metadata-bench`
+still fails seven C limits: parameterized `1.846`, prepared `1.301`, tuple rows
+`1.310`, namedtuple rows `1.327`, transactions `1.700`, text COPY `1.428`, and
+pool cycles `2.064`. Parameterized/prepared, transactions, and pool also miss
+Python parity. Connection setup, dictionary rows, and binary COPY pass both
+limits in this run. Neither these local reports nor the modest warmed gains
+satisfy final-candidate performance acceptance.
+
+The second complete metadata run, using the final rebuilt wheel and retained
+under `/tmp/phase5-column-metadata-bench-2`, also fails seven C limits and four
+Python limits. Rust/C ratios are parameterized `1.887`, prepared `1.513`, tuple
+rows `1.259`, namedtuple rows `1.335`, transactions `1.642`, text COPY `1.468`,
+and pool cycles `1.950`. Dictionary rows (`1.233`) and binary COPY (`1.208`)
+pass narrowly. Do not count near misses or variability as acceptance, or combine
+passing workloads from different runs.
+
+The final metadata wheel's Rust resource smoke ran for `60.29` seconds with
+129 samples, no reported failures, and zero workload sessions in every sample.
+Final cleanup recorded 615 driver objects, two threads, one socket, and four
+file descriptors. The report is `/tmp/phase5-column-metadata-soak.json`; this
+short smoke does not satisfy the final 30-minute-per-backend soak gate.
+
 Definition of done:
 
 - Sync pooling is documented and green.
@@ -1283,10 +1369,13 @@ the synchronous beta is established.
 ## Immediate Next Actions
 
 1. Use the green `4a132959` matrix as the correctness checkpoint and verify
-   the borrowed-parameter revision `cb556467` in the full CI matrix, including
+   the parameter/metadata follow-ups and `61ab3655` test correction in the full
+   CI matrix, including
    signals, cancellation recovery, concurrent close, custom adapters, encodings,
-   and result lifetime. Investigate the local timing failures with explicit
-   libpq comparisons; isolated passes do not make a failing full run green.
+   and result lifetime. Retain the corrected per-cycle waiting expectation and
+   the zero-failure local synchronous baseline. Investigate any new timing
+   failures with explicit libpq comparisons; isolated passes do not make a
+   failing full run green.
    Retain coverage of the now-matrix-validated C-transformer coexistence fix
    without misclassifying the original failures as new executor regressions or
    hiding failures with skips.
@@ -1307,8 +1396,9 @@ the synchronous beta is established.
    NULL/empty values, encoding behavior, and result lifetime after connection close.
    Recheck all eleven workloads after each slice. Binary COPY passes the latest
    borrowed-parameter run but failed an earlier row-storage repeat, so it still
-   needs repeated final-candidate validation. TLS setup also narrowly misses
-   Python parity in the latest run and must not be omitted from acceptance.
+   needs repeated final-candidate validation. TLS setup passes the metadata run
+   but narrowly missed Python parity in the borrowed-parameter run, so it must
+   not be omitted from acceptance.
 4. Keep the README aligned as optimizations land. It now removes obsolete
    Phase 4 limitations and distinguishes source-tree use, staged `ferrocopg`
    installation, official libpq/async delegation, and the experimental Rust

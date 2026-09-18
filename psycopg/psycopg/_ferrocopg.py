@@ -1082,19 +1082,28 @@ class _BackendPgResultShim:
                 else ExecStatus.COMMAND_OK
             )
         )
-        self.nfields = len(result.columns)
+        count = getattr(result, "column_count", None)
+        self.nfields = len(result.columns) if count is None else count
         self.ntuples = _result_length(result)
         self.command_status = (statusmessage or "").encode(encoding)
 
     def fname(self, index: int) -> bytes | None:
+        if getter := getattr(self._result, "column_name", None):
+            if index < 0:
+                index += self.nfields
+            if not 0 <= index < self.nfields:
+                raise IndexError(index)
+            return cast(str, getter(index)).encode(self._encoding)
         return self._result.columns[index].encode(self._encoding)
 
     def fformat(self, index: int) -> int:
-        if not 0 <= index < len(self._result.columns):
+        if not 0 <= index < self.nfields:
             raise IndexError(index)
         return int(self._format)
 
     def ftype(self, index: int) -> int:
+        if getter := getattr(self._result, "column_oid", None):
+            return int(getter(index)) if 0 <= index < self.nfields else 0
         descriptions = getattr(self._result, "column_descriptions", ())
         if not 0 <= index < len(descriptions):
             return 0
@@ -1723,7 +1732,7 @@ class NoTlsSessionAdapter:
                 for _oid, _binary, value in params.values
             ]
             return self.execute_params(query, values, result_format)
-        bound_method = cast(Callable[..., Any], method or fallback)
+        bound_method = cast("Callable[..., Any]", method or fallback)
         result = self._call(
             bound_method,
             query,
@@ -1778,7 +1787,7 @@ class NoTlsSessionAdapter:
                 statusmessage=statusmessage,
                 result_format=result_format,
             )
-        prepared_method = cast(Callable[..., Any], method or fallback)
+        prepared_method = cast("Callable[..., Any]", method or fallback)
         result = self._call(
             prepared_method,
             statement_id,
@@ -1907,7 +1916,7 @@ class NoTlsSessionAdapter:
         if self.closed:
             return
         drain = cast(
-            Callable[[], list[dict[int, bytes | None]]] | None,
+            "Callable[[], list[dict[int, bytes | None]]] | None",
             getattr(self._session, "drain_notices", None),
         )
         if drain is None:
@@ -2295,9 +2304,10 @@ class NoTlsCursorAdapter:
         if tx is None:
             wire_format = current.wire_format
             assert wire_format is not None
-            tx = self._result_loaders(
-                current.column_descriptions, pq.Format(wire_format)
-            )
+            oids = getattr(current, "column_oids", None)
+            if oids is None:
+                oids = [column.oid for column in current.column_descriptions]
+            tx = self._result_loaders(oids, pq.Format(wire_format))
         if tx._native_row_codes is None:
             tx._native_row_codes = [
                 _native_loader_code(load) for load in tx._row_loaders
@@ -2502,7 +2512,11 @@ class NoTlsCursorAdapter:
         ):
             return tuple(row)
 
-        tx = self._result_loaders(descriptions, wire_format)
+        tx = self._result_transformer
+        if tx is None:
+            tx = self._result_loaders(
+                [column.oid for column in descriptions], wire_format
+            )
         wire_encoding = cursor_result.encoding or self._encoding
         row = tuple(
             _transcode_result_value(
@@ -2517,7 +2531,7 @@ class NoTlsCursorAdapter:
         return tx.load_sequence(cast(Sequence[Buffer | None], row))
 
     def _result_loaders(
-        self, descriptions: list[_StatementColumnLike], wire_format: pq.Format | None
+        self, oids: Sequence[int], wire_format: pq.Format | None
     ) -> _BackendTransformer:
         if self._result_transformer is None:
             tx = self._query_transformer
@@ -2547,17 +2561,16 @@ class NoTlsCursorAdapter:
                 tx._encoding = self._encoding
             tx._row_loaders = [
                 tx.get_loader(
-                    column.oid,
+                    oid,
                     wire_format
                     if wire_format is not None
                     else (
                         pq.Format.TEXT
-                        if self.format == pq.Format.TEXT
-                        and column.oid in _TEXT_WIRE_OIDS
+                        if self.format == pq.Format.TEXT and oid in _TEXT_WIRE_OIDS
                         else pq.Format.BINARY
                     ),
                 ).load
-                for column in descriptions
+                for oid in oids
             ]
             tx._native_row_codes = None
             self._result_transformer = tx
@@ -4749,14 +4762,13 @@ def _statusmessage_for_query(
     elif not isinstance(query, str):
         query = query.as_string(None)
 
-    tokens = query.strip().split()
+    tokens = query.split(maxsplit=2)
     if not tokens:
         return None
 
     first = tokens[0].upper()
     second = tokens[1].upper() if len(tokens) > 1 else ""
     rows_affected = result.rows_affected if result is not None else 0
-    has_tuples = bool(result and result.columns)
 
     if first == "SELECT":
         return f"SELECT {rows_affected}"
@@ -4780,7 +4792,7 @@ def _statusmessage_for_query(
         return "BEGIN"
     if first == "COMMIT":
         return "COMMIT"
-    if has_tuples:
+    if result is not None and _result_is_tuples(result):
         return f"{first} {rows_affected}"
     return first
 
