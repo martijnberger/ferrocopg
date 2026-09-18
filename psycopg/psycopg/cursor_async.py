@@ -58,6 +58,7 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
                     cast(Any, connection),
                     row_factory=cast(Any, self._row_factory),
                     query_cls=self._query_cls,
+                    adapters=self._adapters,
                 )
 
     if False:  # ASYNC

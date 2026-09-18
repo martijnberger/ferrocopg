@@ -57,24 +57,26 @@ Phases 3 and 4 are complete. Phase 5 is the active release blocker: the
 installed-package benchmark and soak infrastructure exists, but performance
 acceptance has not passed. A full 30-minute-per-backend CI soak passed on
 revision `24b646e3`; sustained validation of the optimized candidate remains
-required. The latest longer-sample working-copy benchmark fails eight workloads
-against C and is development evidence, not release acceptance.
+required. The latest longer-sample working-copy benchmark fails seven workloads
+against C and additionally misses plaintext-connection Python parity. It is
+development evidence, not release acceptance.
 Phase 6 wheel-matrix validation and Phase 7 publication remain pending.
 The completed Phase 4 evidence below is a historical baseline, not validation
 of every subsequent performance change.
 
-Recorded performance checkpoint: `b4f5dce0` (native row construction), following
-`639bbd69` (direct synchronous execution). These have local development evidence
-below, but no final-candidate acceptance yet. The row-loading checkpoint is
-pushed on `martijn/phase5-row-loading` so the `639bbd69` matrix on `main` can
-finish instead of being canceled by another checkpoint push.
+Recorded performance checkpoint on `main`: `baec4faf` (native single-row and
+bulk result storage), following `639bbd69` (direct synchronous execution).
+The latter has a complete green 57-job matrix; the new main checkpoint requires
+its own validation. Subsequent cursor-lifecycle work is a separate checkpoint
+and must not be attributed to either recorded revision. No final candidate
+has passed all acceptance gates.
 The acceptance status at this planning checkpoint is:
 
 | Area | Status | Remaining evidence or work |
 | --- | --- | --- |
 | Synchronous API and package boundary | Implemented in Phase 4 | Revalidate after the Phase 5 optimizations |
 | Official synchronous pool | Implemented and regression-tested | Retain coverage in final benchmarks, soak, and matrix |
-| Performance | Not accepted; eight of eleven workloads exceed the C limit in the latest longer-sample run | Optimize, then pass three complete candidate runs |
+| Performance | Not accepted; seven workloads exceed the C limit, and plaintext setup also misses Python parity | Optimize, then pass three complete candidate runs |
 | Sustained reliability | Earlier three-backend baseline passed | Repeat 30 minutes per backend on the final candidate |
 | Latest compatibility validation | Focused checks pass; local full selections have failures | Resolve or account for reproduced failures and obtain a green supported matrix |
 | Release wheels and publication | Pending | Complete Phases 6 and 7 before publishing to PyPI |
@@ -82,6 +84,30 @@ The acceptance status at this planning checkpoint is:
 The implementation checkpoint is not a release candidate designation. Local
 working-copy reports, earlier green CI runs, and short resource smokes must not
 be combined into a claim that the current revision has passed all gates.
+
+### Next milestone: close Phase 5
+
+The immediate goal is a validated synchronous backend, not additional API
+scope. Phase 3 completion means the backend foundation is implemented; it does
+not mean the performance, reliability, packaging, or publication gates are done.
+
+Work in this order:
+
+1. Validate the current execution, row-loading, and cursor-lifecycle changes.
+   Classify full-harness failures and retain explicit Python/C comparison
+   coverage before treating an optimization as a new correctness baseline.
+2. Profile and reduce shared small-query overhead, then remaining bulk-row and
+   text COPY costs. Each slice needs a rebuilt installed wheel, regression
+   coverage, and a complete eleven-workload comparison, not a selected win.
+3. Freeze one candidate and collect its acceptance evidence: three passing
+   benchmark runs, the full three-backend soak, and green compatibility and
+   package-boundary validation. Publish revision-linked reports before closing
+   Phase 5; then proceed to the release-wheel matrix and publication checklist.
+
+Keep the Rust development default in place throughout. Do not substitute async
+work, a pool fork, an upstream proposal, or relaxed thresholds for the remaining
+synchronous release work. Any scope or acceptance change needs a separate
+explicit decision.
 
 ### Historical Phase 3 and Phase 4 baseline
 
@@ -292,8 +318,8 @@ The following synchronous contract must be 100% green:
 Publication is blocked until repeatable benchmarks show:
 
 - ferrocopg matches or outperforms official Psycopg's pure-Python path
-- ferrocopg remains within approximately 25% of Psycopg C on core synchronous
-  workloads
+- ferrocopg's median duration is no more than 1.25 times Psycopg C for every
+  workload in the acceptance suite
 - no benchmark shows unbounded memory growth or connection/thread leakage
 
 The benchmark suite must cover:
@@ -998,11 +1024,52 @@ inconclusive parameterized-query results. Raw development reports remain under
 parent comparisons under `/tmp/phase5-tuple-*-long.json`. These results do not
 satisfy final exact-revision acceptance.
 
+The second row-storage run, under `/tmp/phase5-row-storage-bench-2`, also fails
+eight C comparisons: dictionary rows pass at `1.210`, but binary COPY now fails
+at `1.264`. Neither workload has established reliable acceptance margin.
+
 For the earlier direct-execution revision `639bbd69`, CI run `35313980577`
-has completed all eight Rust compatibility lanes and the standalone package
-job successfully. The complete upstream workflow was still running its final
-two Windows C jobs when checked. This validates the earlier Rust checkpoint,
-not the subsequent row-storage changes.
+completed all 57 jobs successfully, including all eight Rust compatibility
+lanes, the standalone package job, and the Windows C lanes. This validates
+the earlier checkpoint, not the subsequent row-storage changes.
+
+The cursor-lifecycle follow-up removes a loader-callback reference cycle and
+shares the public cursor's owned adapter map with its Rust adapter instead of
+copying it twice. Before the fix, ten closed cursor adapters remained alive
+until cyclic GC ran. The installed regression now proves both open and closed
+cursors release immediately with cyclic GC disabled, even when their adapter
+map is retained; registering a loader on that retained map remains safe.
+All 23 harness/installed-wheel checks pass. The explicit cursor, adaptation,
+row-factory, and bootstrap modules run without name filtering and pass 854
+cases with 27 expected skips. Regenerating the synchronous cursor from its
+async source produces the same file hash, and pre-commit checks pass.
+
+Local validation must not use `-k 'not async'` as proof of full synchronous
+coverage: it also excludes synchronous cases whose fixture IDs contain
+`asyncio`. Earlier reports using that selection are subsets, even when all
+selected cases pass. Use explicit synchronous modules without that name filter,
+or the full harness with its sync/async reporter; CI's classified matrix remains
+the authoritative compatibility gate.
+
+The lifecycle benchmark (`/tmp/phase5-cursor-lifecycle-bench`, 100 operations
+per sample) still fails seven C comparisons plus plaintext Python parity
+(`1.044`). Prepared-query Rust/C is `1.852`, pool is `1.912`, tuple rows are
+`1.290`, and namedtuple rows are `1.357`. Dictionary rows and binary COPY pass
+in this run, but previous variability remains relevant. The lifecycle fix
+removes confirmed retention and allocation overhead; it does not establish
+the required performance contract.
+
+The cursor-lifecycle Rust resource smoke ran for `60.32` seconds with no
+reported failures and zero surviving workload sessions. This is development
+evidence only. Its full unfiltered compatibility run is still pending.
+
+The older three-backend CI soak in run
+[`35311495257`](https://github.com/martijnberger/ferrocopg/actions/runs/35311495257)
+on `5e1b59f8` completed but failed acceptance. Rust and Python each ran for at
+least 1,800 seconds without reported failures; C recorded one surviving session
+in one of 1,836 resource samples, although final cleanup was zero. This report
+must remain a failure. Investigate bounded cleanup sampling before attributing
+it to a persistent driver leak; it does not validate the newer candidate.
 
 Definition of done:
 
@@ -1103,13 +1170,16 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Establish correctness for `639bbd69` in the full CI matrix, including
+1. Establish correctness for `baec4faf` and the cursor-lifecycle follow-up in
+   the full CI matrix, including
    signals, cancellation recovery, concurrent close, custom adapters, encodings,
    and result lifetime. Investigate the local timing failures with explicit
    libpq comparisons; isolated passes do not make a failing full run green.
    Revalidate the C-transformer coexistence fix in the full selection and
    comparison CI, without misclassifying the original failures as new executor
    regressions or hiding failures with skips.
+   Use the full classified harness rather than filtering out `asyncio` fixture
+   names when claiming synchronous coverage.
 2. Reduce shared small-query overhead first: parameter adaptation, query setup,
    single-row result loading, and Python/Rust crossings affect parameterized
    queries, prepared reuse, transactions, and pool cycles. Profile the current
@@ -1121,8 +1191,8 @@ the synchronous beta is established.
    locally; profile the remaining row allocation and conversion costs before
    choosing the next change. Preserve custom row factories, loader exceptions,
    NULL/empty values, encoding behavior, and result lifetime after connection close.
-   Recheck all eleven workloads after each slice. Binary COPY passes the two
-   latest development runs but has varied across checkpoints, so it still
+   Recheck all eleven workloads after each slice. Binary COPY passes the latest
+   lifecycle run but failed the preceding row-storage repeat, so it still
    needs repeated final-candidate validation.
 4. Keep the README aligned as optimizations land. It now removes obsolete
    Phase 4 limitations and distinguishes source-tree use, staged `ferrocopg`

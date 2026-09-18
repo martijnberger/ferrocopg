@@ -17,11 +17,13 @@ from collections import deque
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import timedelta, tzinfo
 from enum import Enum
+from functools import partial
 from math import ceil
 from time import monotonic
 from types import SimpleNamespace
 from typing import Any, NamedTuple, ParamSpec, Protocol, TypeVar, cast
 from warnings import warn
+from weakref import ReferenceType, ref
 
 from . import _rmodule, postgres, pq
 from . import errors as e
@@ -1932,13 +1934,18 @@ class NoTlsCursorAdapter:
         *,
         row_factory: RowFactory = list_row,
         query_cls: type[PostgresQuery] = PostgresQuery,
+        adapters: AdaptersMap | None = None,
     ):
         self._conn = conn
         self._result: BackendResultCursor | None = None
         self._closed = False
         self._row_factory = row_factory
-        self._adapters = AdaptersMap(conn.adapters)
-        self._adapters._register_loader_callback = self._loaders_changed
+        self._adapters = (
+            adapters if adapters is not None else AdaptersMap(conn.adapters)
+        )
+        self._adapters._register_loader_callback = partial(
+            self._loaders_changed, ref(self)
+        )
         self._make_row: RowMaker | None = None
         self._result_transformer: _BackendTransformer | None = None
         self._query_transformer: _BackendTransformer | None = None
@@ -2437,8 +2444,13 @@ class NoTlsCursorAdapter:
         if self._row_factory not in _LEGACY_ROW_FACTORIES:
             self._make_row_for_result(result)
 
-    def _loaders_changed(self, oid: int, loader: type[Loader]) -> None:
+    @staticmethod
+    def _loaders_changed(
+        wself: ReferenceType[NoTlsCursorAdapter], oid: int, loader: type[Loader]
+    ) -> None:
         del oid, loader
+        if (self := wself()) is None:
+            return
         self._result_transformer = None
         self._query_transformer = None
 

@@ -13,6 +13,33 @@ import weakref
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_cursor_adapters_do_not_require_cyclic_collection(self):
+        import ferrocopg
+        from ferrocopg.types.numeric import IntLoader
+
+        was_enabled = gc.isenabled()
+        gc.collect()
+        gc.disable()
+        try:
+            with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+                for close in (False, True):
+                    cur = conn.execute("select %s::int4", (42,))
+                    self.assertEqual(cur.fetchone(), (42,))
+                    self.assertIs(cur._adapters, cur._ferrocopg_cursor.adapters)
+                    adapter_ref = weakref.ref(cur._ferrocopg_cursor)
+                    public_ref = weakref.ref(cur)
+                    adapters = cur.adapters
+                    if close:
+                        cur.close()
+                    del cur
+                    self.assertIsNone(public_ref())
+                    self.assertIsNone(adapter_ref())
+                    # An independently retained map must have a harmless dead callback.
+                    adapters.register_loader("int4", IntLoader)
+        finally:
+            if was_enabled:
+                gc.enable()
+
     def test_native_row_construction_preserves_callbacks_and_error_cleanup(self):
         from ferrocopg._rust import _ferrocopg as native
 

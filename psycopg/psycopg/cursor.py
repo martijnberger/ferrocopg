@@ -53,6 +53,7 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
                 cast(Any, connection),
                 row_factory=cast(Any, self._row_factory),
                 query_cls=self._query_cls,
+                adapters=self._adapters,
             )
 
     def _sync_ferrocopg_cursor(self) -> None:
