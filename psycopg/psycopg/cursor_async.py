@@ -346,7 +346,7 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
             if self._ferrocopg_cursor is not None:
                 row = self._ferrocopg_cursor.fetchone()
                 self._sync_ferrocopg_cursor()
-                return cast(Row | None, row)
+                return cast("Row | None", row)
 
         await self._fetch_pipeline()
         res = self._check_result_for_fetch()
@@ -368,7 +368,7 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
             if self._ferrocopg_cursor is not None:
                 rows = self._ferrocopg_cursor.fetchmany(size or self.arraysize)
                 self._sync_ferrocopg_cursor()
-                return cast(list[Row], rows)
+                return cast("list[Row]", rows)
 
         await self._fetch_pipeline()
         res = self._check_result_for_fetch()
@@ -391,7 +391,7 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
             if self._ferrocopg_cursor is not None:
                 rows = self._ferrocopg_cursor.fetchall()
                 self._sync_ferrocopg_cursor()
-                return cast(list[Row], rows)
+                return cast("list[Row]", rows)
 
         await self._fetch_pipeline()
         res = self._check_result_for_fetch()
