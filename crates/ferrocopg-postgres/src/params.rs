@@ -26,17 +26,16 @@ pub(crate) fn query_param_refs(params: &[Box<dyn ToSql + Sync>]) -> Vec<&(dyn To
     params.iter().map(|value| value.as_ref()).collect()
 }
 
-pub(crate) fn bound_param_types(params: &[BoundParam]) -> Vec<Type> {
-    params
-        .iter()
-        .map(|param| type_from_oid(param.oid))
-        .collect()
+pub(crate) fn bound_typed_params(
+    params: &[BoundParam],
+) -> impl ExactSizeIterator<Item = (&BoundParam, Type)> {
+    params.iter().map(|param| (param, type_from_oid(param.oid)))
 }
 
-pub(crate) fn bound_query_params(
+pub(crate) fn bound_query_params<'a>(
     statement: &postgres::Statement,
-    params: &[BoundParam],
-) -> Result<Vec<Box<dyn ToSql + Sync>>, ProbeError> {
+    params: &'a [BoundParam],
+) -> Result<Vec<&'a (dyn ToSql + Sync)>, ProbeError> {
     if statement.params().len() != params.len() {
         return Err(ProbeError::BadParam(format!(
             "expected {} params but got {}",
@@ -45,19 +44,10 @@ pub(crate) fn bound_query_params(
         )));
     }
 
-    Ok(bound_raw_query_params(params))
-}
-
-pub(crate) fn bound_raw_query_params(params: &[BoundParam]) -> Vec<Box<dyn ToSql + Sync>> {
-    params
+    Ok(params
         .iter()
-        .map(|param| {
-            Box::new(RawParam {
-                value: param.value.clone(),
-                format: param.format,
-            }) as Box<dyn ToSql + Sync>
-        })
-        .collect()
+        .map(|param| param as &(dyn ToSql + Sync))
+        .collect())
 }
 
 pub(crate) fn param_types_from_oids(oids: &[u32]) -> Vec<Type> {
@@ -79,13 +69,9 @@ fn type_from_oid(oid: u32) -> Type {
     })
 }
 
-#[derive(Debug)]
-struct RawParam {
-    value: Option<Vec<u8>>,
-    format: ParamFormat,
-}
-
-impl ToSql for RawParam {
+// Values are already serialized by the caller's registered dumper. Borrow
+// them until the client copies them into its outgoing protocol buffer.
+impl ToSql for BoundParam {
     fn to_sql(&self, _: &Type, out: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         if let Some(value) = &self.value {
             out.extend_from_slice(value);
@@ -415,6 +401,57 @@ fn invalid_interval_param(index: usize, value: &str, reason: impl fmt::Display) 
 mod tests {
     use super::*;
     use time::{Month, UtcOffset};
+
+    #[test]
+    fn bound_typed_params_borrow_values_and_preserve_type_oids() {
+        let params = [
+            BoundParam {
+                oid: 23,
+                value: Some(b"42".to_vec()),
+                format: ParamFormat::Text,
+            },
+            BoundParam {
+                oid: 0,
+                value: None,
+                format: ParamFormat::Binary,
+            },
+            BoundParam {
+                oid: 90000,
+                value: Some(Vec::new()),
+                format: ParamFormat::Text,
+            },
+        ];
+        let typed: Vec<_> = bound_typed_params(&params).collect();
+        assert_eq!(typed.len(), params.len());
+        for ((value, _), original) in typed.iter().zip(&params) {
+            assert!(std::ptr::eq(*value, original));
+        }
+        assert_eq!(typed[0].1, Type::INT4);
+        assert_eq!(typed[1].1, Type::UNKNOWN);
+        assert_eq!(typed[2].1.oid(), 90000);
+    }
+
+    #[test]
+    fn bound_values_keep_wire_formats_nulls_and_empty_buffers() {
+        for format in [ParamFormat::Text, ParamFormat::Binary] {
+            for value in [None, Some(Vec::new()), Some(vec![0, 1, 255])] {
+                let param = BoundParam {
+                    oid: 17,
+                    value,
+                    format,
+                };
+                let mut output = BytesMut::from(&b"prefix"[..]);
+                let null = param.to_sql_checked(&Type::BYTEA, &mut output).unwrap();
+                assert_eq!(matches!(null, IsNull::Yes), param.value.is_none());
+                assert_eq!(&output[..6], b"prefix");
+                assert_eq!(&output[6..], param.value.as_deref().unwrap_or_default());
+                assert!(matches!(
+                    (param.encode_format(&Type::BYTEA), format),
+                    (Format::Text, ParamFormat::Text) | (Format::Binary, ParamFormat::Binary)
+                ));
+            }
+        }
+    }
 
     #[test]
     fn parses_date_values() {

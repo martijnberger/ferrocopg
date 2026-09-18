@@ -59,24 +59,26 @@ acceptance has not passed. A full 30-minute-per-backend CI soak passed on
 revision `24b646e3`; sustained validation of the optimized candidate remains
 required. The latest longer-sample working-copy benchmark fails seven workloads
 against C; parameterized/prepared queries, transactions, and pool cycles also
-miss Python parity. It is development evidence, not release acceptance.
+miss Python parity, as does TLS setup in this run. It is development evidence,
+not release acceptance.
 Phase 6 wheel-matrix validation and Phase 7 publication remain pending.
 The completed Phase 4 evidence below is a historical baseline, not validation
 of every subsequent performance change.
 
-Recorded performance checkpoint: `baec4faf` (native single-row and
-bulk result storage), following `639bbd69` (direct synchronous execution).
-The latter has a complete green 57-job matrix; the new main checkpoint requires
-its own validation. Subsequent cursor-lifecycle work is a separate checkpoint
-and must not be attributed to either recorded revision. No final candidate
-has passed all acceptance gates.
+The current main checkpoint is `4a132959`, including result storage,
+cursor-lifecycle/bookkeeping, and the audited CI accounting repair. Its matrix
+has 53 completed jobs with no failures, including seven of eight Rust lanes
+and the standalone package job; complete validation remains pending. The last
+recorded complete green 57-job checkpoint is `639bbd69`. Subsequent borrowed
+parameter work requires its own validation. No final candidate has passed all
+acceptance gates.
 The acceptance status at this planning checkpoint is:
 
 | Area | Status | Remaining evidence or work |
 | --- | --- | --- |
 | Synchronous API and package boundary | Implemented in Phase 4 | Revalidate after the Phase 5 optimizations |
 | Official synchronous pool | Implemented and regression-tested | Retain coverage in final benchmarks, soak, and matrix |
-| Performance | Not accepted; seven workloads exceed the C limit, with four also missing Python parity | Optimize, then pass three complete candidate runs |
+| Performance | Not accepted; seven workloads exceed the C limit, and five miss Python parity | Optimize, then pass three complete candidate runs |
 | Sustained reliability | Earlier three-backend baseline passed | Repeat 30 minutes per backend on the final candidate |
 | Latest compatibility validation | Focused checks pass; local full selections have failures | Resolve or account for reproduced failures and obtain a green supported matrix |
 | Release wheels and publication | Pending | Complete Phases 6 and 7 before publishing to PyPI |
@@ -1120,6 +1122,36 @@ budget are unchanged. Local Rust adaptation/accounting tests pass 86 cases with
 one raw-libpq skip; explicit C/libpq adaptation passes 70. A fresh complete CI
 matrix must verify these revised counts and CockroachDB coverage.
 
+The borrowed-parameter slice removes per-parameter byte-vector clones and
+boxes from the Rust wire path. Unprepared execution now passes a borrowed
+typed iterator; prepared execution keeps only a vector of borrowed references.
+The existing dumper output, OIDs, text/binary formats, NULL/empty distinction,
+and parameter-count validation are unchanged. All 28 Rust tests and 28
+harness/installed-wheel checks pass, including a 1 MiB mixed-format roundtrip,
+prepared mismatch recovery, and result validity after session close. The
+C-enabled adaptation/prepared/cursor selection passes 562 cases with 13 skips.
+A 60.25-second Rust resource smoke passes with zero workload sessions in all
+125 cleanup samples. It is not sustained-soak acceptance.
+
+The full local unfiltered run reports `4715/4724` executed synchronous cases
+with nine timing failures and no synchronous errors. Eight reproduce under
+explicit C/libpq; the remaining readiness-timing case passes when rerun alone.
+All synchronous connection, COPY, cursor, notification, pipeline, prepared,
+transaction, and type/metadata cases in this run pass. The strict reporter
+still fails, and fresh supported CI is required. Async remains independently
+reported at `504/620`, with 105 failures and 11 errors.
+
+The complete development benchmark under `/tmp/phase5-borrowed-params-bench`
+still fails seven C limits and narrowly misses TLS/Python parity (`1.013`).
+Rust/C ratios include parameterized `1.812`, prepared `1.819`, tuple `1.296`,
+namedtuple `1.315`, transactions `1.675`, text COPY `1.393`, and pool `1.945`.
+Longer warmed query comparisons are effectively flat: prepared latency is
+about 68.8 microseconds versus 68.3 before, and parameterized latency is about
+72.8 microseconds for both. Removing the allocations has not established a
+small-query throughput improvement or closed an acceptance gate. Prioritize
+the remaining measured query/adaptation costs rather than assuming this slice
+satisfies the performance contract.
+
 Definition of done:
 
 - Sync pooling is documented and green.
@@ -1219,7 +1251,7 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Establish correctness for `baec4faf` and the cursor-lifecycle follow-up in
+1. Establish correctness for `4a132959` and the borrowed-parameter follow-up in
    the full CI matrix, including
    signals, cancellation recovery, concurrent close, custom adapters, encodings,
    and result lifetime. Investigate the local timing failures with explicit

@@ -6,8 +6,8 @@ use crate::model::{
     StatementParameter, SyncNoTlsProbe, TextQueryResult, WireFormat, WireRow,
 };
 use crate::params::{
-    bound_param_types, bound_query_params, bound_raw_query_params, param_types_from_oids,
-    parsed_query_params, query_param_refs,
+    bound_query_params, bound_typed_params, param_types_from_oids, parsed_query_params,
+    query_param_refs,
 };
 use fallible_iterator::FallibleIterator;
 use postgres::types::Kind;
@@ -306,12 +306,7 @@ impl SyncNoTlsSession {
         params: &[BoundParam],
         wire_format: WireFormat,
     ) -> Result<ResultSet, ProbeError> {
-        let types = bound_param_types(params);
-        let values = bound_raw_query_params(params);
-        let typed = values
-            .iter()
-            .zip(types)
-            .map(|(value, ty)| (value.as_ref(), ty));
+        let typed = bound_typed_params(params);
         let mut rows = self
             .client_mut()?
             .query_typed_raw_with_result_format(query, typed, wire_format == WireFormat::Binary)
@@ -682,8 +677,7 @@ impl SyncNoTlsSession {
         params: &[BoundParam],
         wire_format: WireFormat,
     ) -> Result<ResultSet, ProbeError> {
-        let params = bound_query_params(statement, params)?;
-        let refs = query_param_refs(&params);
+        let refs = bound_query_params(statement, params)?;
 
         self.run_statement_refs(statement, &refs, wire_format)
     }

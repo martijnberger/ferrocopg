@@ -13,6 +13,45 @@ import weakref
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_bound_parameters_preserve_buffers_formats_and_prepared_recovery(self):
+        import ferrocopg
+        from ferrocopg._rust import _ferrocopg as native
+
+        session = native.connect_session(os.environ["PHASE5_DSN"])
+        payload = bytes(range(256)) * 4096
+        text = "value\u00e9".encode()
+        number = (42).to_bytes(4, "big")
+        values = [
+            (17, True, payload),
+            (25, False, text),
+            (23, True, number),
+            (25, False, None),
+            (17, True, b""),
+        ]
+        query = "select $1::bytea, $2::text, $3::int4, $4::text, $5::bytea"
+        try:
+            prepared = session.prepare_params(query, [17, 25, 23, 25, 17])
+            results = [session.run_params_format(query, values, True)]
+            for supplied in (values[:-1], values + [values[0]]):
+                with self.assertRaisesRegex(
+                    ferrocopg.ProgrammingError, "expected 5 params"
+                ):
+                    session.run_prepared_params_format(
+                        prepared.statement_id, supplied, True
+                    )
+            results.append(
+                session.run_prepared_params_format(prepared.statement_id, values, True)
+            )
+        finally:
+            session.close()
+        del values
+        for result in results:
+            self.assertEqual(result.row_count, 1)
+            self.assertEqual(
+                [result.get_value(0, i) for i in range(5)],
+                [payload, text, number, None, b""],
+            )
+
     def test_cursor_metadata_stays_current_after_fetch_and_navigation(self):
         import ferrocopg
 
