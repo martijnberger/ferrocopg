@@ -101,6 +101,10 @@ cdef class Transformer:
         if context is not None:
             self.adapters = context.adapters
             self.connection = context.connection
+            if getattr(self.connection, "_is_ferrocopg", False):
+                # C dumpers/loaders require a real libpq PGconn, not the Rust shim.
+                from psycopg._ferrocopg import _pure_python_adapters
+                self.adapters = _pure_python_adapters(self.adapters)
         else:
             from psycopg import postgres
             self.adapters = postgres.adapters

@@ -924,7 +924,7 @@ timing bound in the full run. The C-enabled selection reports 4,082 passes and
 ten failures, adding a fifth libpq waiting failure and four C-transformer
 array-adaptation failures that reproduce on parent `16ac4f9b`. No skips or
 budgets were changed. These are not green full-matrix acceptance results;
-the source-tree C-transformer coexistence issue remains a separate follow-up.
+the C-transformer follow-up below addresses the separate coexistence issue.
 
 Both complete local `direct-execution-working-copy` benchmark reports retain
 eight C-limit failures. Transaction Rust/C ratios are `1.731-1.798`, pool
@@ -955,6 +955,19 @@ exact-revision acceptance. No threshold or skip rule was relaxed.
 A 60.34-second Rust smoke reports no resource failures, stable driver objects,
 sockets, and file descriptors, and zero surviving workload sessions. It is not
 the required final-candidate sustained soak.
+
+The source-tree C transformer now resolves backend-compatible Python adapters
+when its context is a Rust connection, instead of constructing C dumpers that
+require a real libpq `PGconn`. The four reproduced array-dumper failures pass.
+The complete adaptation module reports 67 passes and one raw-PGconn boundary
+skip with C enabled, and 66 passes with two expected skips on the Python
+transformer. Explicit C/libpq passes all 67 cases from the first regression
+slice; the additional extension-independent backend-context test also passes
+with C enabled. The broader C-enabled Rust bootstrap/COPY/type selection is
+2,803 passes, 23 skips, 17 deselections, and 37 expected failures. The new
+backend-context regression runs in comparison CI without requiring the Rust
+extension, keeping this dispatch path covered. Full-matrix revalidation still
+remains required; the official installed benchmark comparators are unchanged.
 
 Definition of done:
 
@@ -1059,9 +1072,9 @@ the synchronous beta is established.
    signals, cancellation recovery, concurrent close, custom adapters, encodings,
    and result lifetime. Investigate the local timing failures with explicit
    libpq comparisons; isolated passes do not make a failing full run green.
-   Fix the separately reproduced source-tree C-transformer array-adaptation
-   coexistence issue without misclassifying it as a new executor regression
-   or hiding it with skips.
+   Revalidate the C-transformer coexistence fix in the full selection and
+   comparison CI, without misclassifying the original failures as new executor
+   regressions or hiding failures with skips.
 2. Reduce shared small-query overhead first: parameter adaptation, query setup,
    single-row result loading, and Python/Rust crossings affect parameterized
    queries, prepared reuse, transactions, and pool cycles. Profile the current

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import datetime as dt
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from typing import Any
 
 import pytest
 from psycopg._cmodule import _psycopg
 from psycopg.abc import Buffer
-from psycopg.adapt import Dumper, Loader, PyFormat, Transformer
+from psycopg.adapt import AdaptersMap, Dumper, Loader, PyFormat, Transformer
 from psycopg.postgres import types as builtins
 from psycopg.types.array import ListBinaryDumper, ListDumper
 from psycopg.types.string import StrBinaryDumper, StrDumper
@@ -356,6 +356,54 @@ def test_str_list_dumper_binary(conn):
     assert isinstance(dstr, ListBinaryDumper)
     assert dstr.oid == builtins["text"].array_oid
     assert dstr.sub_dumper and dstr.sub_dumper.oid == builtins["text"].oid
+
+
+@pytest.mark.parametrize("cursor_context", [False, True])
+def test_transformer_connection_encoding_and_custom_adapters(conn, cursor_context):
+    conn.execute("set client_encoding to latin1")
+    with conn.cursor() as cur:
+        context = cur if cursor_context else conn
+        original = context.adapters.get_dumper(str, PyFormat.TEXT)
+        tx = Transformer(context)
+        assert tx.connection is conn
+        assert (
+            tx.get_dumper("value\u00e9", PyFormat.TEXT).dump("value\u00e9")
+            == b"value\xe9"
+        )
+        tx.set_loader_types([builtins["text"].oid], pq.Format.TEXT)
+        assert tx.load_sequence([b"value\xe9"]) == ("value\u00e9",)
+        assert context.adapters.get_dumper(str, PyFormat.TEXT) is original
+
+        class CustomDumper(StrDumper):
+            def dump(self, obj):
+                return super().dump(obj + "-custom")
+
+        context.adapters.register_dumper(str, CustomDumper)
+        custom = Transformer(context)
+        assert isinstance(custom.get_dumper("value", PyFormat.TEXT), CustomDumper)
+        assert (
+            custom.get_dumper("value", PyFormat.TEXT).dump("value") == b"value-custom"
+        )
+        assert tx.get_dumper("value", PyFormat.TEXT).dump("value") == b"value"
+
+
+def test_transformer_backend_context_without_libpq_connection():
+    # Also exercise the C/Rust selection in baseline CI without a Rust extension.
+    conn: Any = SimpleNamespace(
+        _is_ferrocopg=True,
+        adapters=AdaptersMap(postgres.adapters),
+        pgconn=SimpleNamespace(_encoding="latin-1"),
+    )
+    conn.connection = conn
+    tx = Transformer(conn)
+    assert Transformer.from_context(tx) is tx
+    assert tx.connection is conn
+    assert tx.get_dumper([0], PyFormat.TEXT).dump([0]) == b"{0}"
+    assert (
+        tx.get_dumper("value\u00e9", PyFormat.TEXT).dump("value\u00e9") == b"value\xe9"
+    )
+    tx.set_loader_types([builtins["text"].oid], pq.Format.TEXT)
+    assert tx.load_sequence([b"value\xe9"]) == ("value\u00e9",)
 
 
 def test_last_dumper_registered_ctx(conn):
