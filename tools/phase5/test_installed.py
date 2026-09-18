@@ -44,7 +44,16 @@ class InstalledPoolTests(unittest.TestCase):
             self.assertEqual(rows, [factory((str(i), "", None)) for i in (1, 2, 3)])
             self.assertTrue(all(type(row) is factory for row in rows))
             self.assertEqual(calls, [b"1", b"", b"2", b"", b"3", b""])
+            self.assertEqual(
+                result.load_row(1, [0] * 3, [load] * 3, factory),
+                factory(("2", "", None)),
+            )
         self.assertEqual(empty.load_rows(0, 2, [], [], tuple), [(), ()])
+        self.assertEqual(empty.load_row(0, [], [], tuple), ())
+        with self.assertRaises(IndexError):
+            result.load_row(3, [0] * 3, [load] * 3, tuple)
+        with self.assertRaises(ValueError):
+            result.load_row(0, [0], [load], tuple)
         self.assertEqual(result.load_rows(1, 1, [0] * 3, [load] * 3, tuple), [])
         for start, end in ((2, 1), (0, 4)):
             with self.assertRaises(ValueError):
@@ -73,6 +82,13 @@ class InstalledPoolTests(unittest.TestCase):
         gc.collect()
         self.assertTrue(refs)
         self.assertTrue(all(ref() is None for ref in refs))
+        seen.clear()
+        seen.extend([b"1", b""])
+        with self.assertRaises(ValueError) as caught:
+            result.load_row(1, [0] * 3, [partial_load] * 3, tuple)
+        self.assertIs(caught.exception, error)
+        gc.collect()
+        self.assertTrue(all(ref() is None for ref in refs))
 
         retained = []
 
@@ -90,6 +106,62 @@ class InstalledPoolTests(unittest.TestCase):
             result.load_rows(1, 3, [0] * 3, [load] * 3, tuple),
             [("2", "", None), ("3", "", None)],
         )
+
+    def test_single_row_loading_tracks_factories_loaders_and_navigation(self):
+        import ferrocopg
+        from ferrocopg import rows
+        from ferrocopg.types.numeric import Int4BinaryLoader, IntLoader
+
+        class CustomIntLoader(IntLoader):
+            def load(self, data):
+                return super().load(data) + 100
+
+        class CustomBinaryLoader(Int4BinaryLoader):
+            def load(self, data):
+                return super().load(data) + 100
+
+        class TupleSubclass(tuple):
+            pass
+
+        with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+            for binary in (False, True):
+                with conn.cursor(binary=binary) as cur:
+                    cur.execute("select i::int4 as value from generate_series(1, 5) i")
+                    self.assertEqual(cur.fetchone(), (1,))
+                    cur.adapters.register_loader("int4", CustomIntLoader)
+                    cur.adapters.register_loader("int4", CustomBinaryLoader)
+                    self.assertEqual(cur.fetchmany(1), [(102,)])
+                    self.assertEqual(cur.fetchone(), (103,))
+                    cur.row_factory = lambda cur: TupleSubclass
+                    self.assertEqual(cur.fetchone(), (104,))
+                    cur.row_factory = rows.dict_row
+                    self.assertEqual(cur.fetchall(), [{"value": 105}])
+                    self.assertEqual(cur.rownumber, 5)
+                    self.assertIsNone(cur.fetchone())
+                    cur.scroll(0, mode="absolute")
+                    self.assertEqual(cur.fetchone(), {"value": 101})
+                    cur.execute("select from generate_series(1, 2)")
+                    cur.row_factory = rows.tuple_row
+                    self.assertEqual(cur.fetchone(), ())
+                    self.assertEqual(cur.fetchall(), [()])
+
+            def factory(cur):
+                def make_row(values):
+                    if values[0] == 1:
+                        raise ValueError("factory failed")
+                    return None if values[0] == 2 else values
+
+                return make_row
+
+            with conn.cursor(row_factory=factory) as cur:
+                cur.execute("select i from generate_series(1, 3) i")
+                with self.assertRaisesRegex(ValueError, "factory failed"):
+                    cur.fetchone()
+                self.assertEqual(cur.rownumber, 1)
+                self.assertIsNone(next(cur))
+                self.assertEqual(next(cur), (3,))
+                with self.assertRaises(StopIteration):
+                    next(cur)
 
     def test_native_session_lock_wait_releases_interpreter(self):
         code = """

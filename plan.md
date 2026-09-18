@@ -57,7 +57,7 @@ Phases 3 and 4 are complete. Phase 5 is the active release blocker: the
 installed-package benchmark and soak infrastructure exists, but performance
 acceptance has not passed. A full 30-minute-per-backend CI soak passed on
 revision `24b646e3`; sustained validation of the optimized candidate remains
-required. The latest working-copy benchmark still fails seven workloads
+required. The latest longer-sample working-copy benchmark fails eight workloads
 against C and is development evidence, not release acceptance.
 Phase 6 wheel-matrix validation and Phase 7 publication remain pending.
 The completed Phase 4 evidence below is a historical baseline, not validation
@@ -74,7 +74,7 @@ The acceptance status at this planning checkpoint is:
 | --- | --- | --- |
 | Synchronous API and package boundary | Implemented in Phase 4 | Revalidate after the Phase 5 optimizations |
 | Official synchronous pool | Implemented and regression-tested | Retain coverage in final benchmarks, soak, and matrix |
-| Performance | Not accepted; seven of eleven workloads still exceed the C limit | Optimize, then pass three complete candidate runs |
+| Performance | Not accepted; eight of eleven workloads exceed the C limit in the latest longer-sample run | Optimize, then pass three complete candidate runs |
 | Sustained reliability | Earlier three-backend baseline passed | Repeat 30 minutes per backend on the final candidate |
 | Latest compatibility validation | Focused checks pass; local full selections have failures | Resolve or account for reproduced failures and obtain a green supported matrix |
 | Release wheels and publication | Pending | Complete Phases 6 and 7 before publishing to PyPI |
@@ -975,6 +975,34 @@ the macOS waiting-duration assertions previously reproduced under explicit
 libpq; the pool backoff test passes in this run. This is not a green full-matrix
 result. Full-matrix revalidation still remains required, and the official
 installed benchmark comparators are unchanged.
+
+The next row-storage slice uses native loading for `fetchone()` and iteration,
+shares loader initialization with bulk fetching without dummy rows, preallocates
+bulk result lists, and avoids validating UTF-8 twice during string construction.
+Legacy factories and encoding bridges retain the Python conversion path.
+All 22 harness/installed-wheel checks pass, including mixed fetch methods,
+loader replacement, changed factories, zero-column rows, factories returning
+`None`, and partial-row cleanup on conversion failure. The C-enabled focused
+bootstrap/cursor/row/COPY/adaptation/type selection passes 2,966 cases with
+24 skips, 17 deselections, and 37 expected failures; all 26 Rust core tests and
+pre-commit checks pass.
+
+Its first complete benchmark with 100 operations per sample (five times the
+default, with unchanged limits) still fails eight C comparisons. Tuple/dict/
+namedtuple Rust/C ratios are `1.395`, `1.278`, and `1.333`; binary COPY passes
+at `1.217`. The earlier dictionary-row passes are therefore not stable release
+evidence. Longer 1,000-operation small-query comparisons for the single-row
+sub-slice show only a modest prepared-query gain, no clear pool gain, and
+inconclusive parameterized-query results. Raw development reports remain under
+`/tmp/phase5-row-storage-bench` and `/tmp/phase5-single-row-*-long.json`, with
+parent comparisons under `/tmp/phase5-tuple-*-long.json`. These results do not
+satisfy final exact-revision acceptance.
+
+For the earlier direct-execution revision `639bbd69`, CI run `35313980577`
+has completed all eight Rust compatibility lanes and the standalone package
+job successfully. The complete upstream workflow was still running its final
+two Windows C jobs when checked. This validates the earlier Rust checkpoint,
+not the subsequent row-storage changes.
 
 Definition of done:
 

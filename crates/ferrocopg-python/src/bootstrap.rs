@@ -169,6 +169,43 @@ struct BackendResultSet {
     wire_format: u8,
 }
 
+fn load_result_row<'py>(
+    py: Python<'py>,
+    row: &ferrocopg_postgres::WireRow,
+    codes: &[u8],
+    loaders: &[Py<PyAny>],
+    make_row: &Bound<'py, PyAny>,
+    tuple_row: bool,
+) -> PyResult<Bound<'py, PyAny>> {
+    let values = row
+        .iter()
+        .zip(codes)
+        .zip(loaders)
+        .map(|((data, code), loader)| crate::adapt::LoadedWireValue {
+            data,
+            code: *code,
+            loader,
+        });
+    let values = PyTuple::new(py, values)?;
+    if tuple_row {
+        Ok(values.into_any())
+    } else {
+        make_row.call1((values,))
+    }
+}
+
+struct LoadedResultRow<'py>(PyResult<Bound<'py, PyAny>>);
+
+impl<'py> IntoPyObject<'py> for LoadedResultRow<'py> {
+    type Target = PyAny;
+    type Output = Bound<'py, PyAny>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, _py: Python<'py>) -> PyResult<Self::Output> {
+        self.0
+    }
+}
+
 #[pymethods]
 impl BackendResultSet {
     #[getter]
@@ -205,14 +242,39 @@ impl BackendResultSet {
         Ok(value.map(|v| PyBytes::new(py, v).unbind()))
     }
 
-    fn load_rows(
+    fn load_row<'py>(
         &self,
-        py: Python<'_>,
+        py: Python<'py>,
+        index: usize,
+        codes: Vec<u8>,
+        loaders: Vec<Py<PyAny>>,
+        make_row: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let row = self
+            .rows
+            .get(index)
+            .ok_or_else(|| PyIndexError::new_err(index))?;
+        if codes.len() != self.columns.len() || loaders.len() != codes.len() {
+            return Err(PyValueError::new_err("loader count does not match columns"));
+        }
+        load_result_row(
+            py,
+            row,
+            &codes,
+            &loaders,
+            make_row,
+            make_row.is(&py.get_type::<PyTuple>()),
+        )
+    }
+
+    fn load_rows<'py>(
+        &self,
+        py: Python<'py>,
         start: usize,
         end: usize,
         codes: Vec<u8>,
         loaders: Vec<Py<PyAny>>,
-        make_row: &Bound<'_, PyAny>,
+        make_row: &Bound<'py, PyAny>,
     ) -> PyResult<Py<PyList>> {
         if start > end || end > self.rows.len() {
             return Err(PyValueError::new_err("invalid result row range"));
@@ -220,26 +282,13 @@ impl BackendResultSet {
         if codes.len() != self.columns.len() || loaders.len() != codes.len() {
             return Err(PyValueError::new_err("loader count does not match columns"));
         }
-        let output = PyList::empty(py);
         let tuple_rows = make_row.is(&py.get_type::<PyTuple>());
-        for row in &self.rows[start..end] {
-            let values = row
-                .iter()
-                .zip(&codes)
-                .zip(&loaders)
-                .map(|((data, code), loader)| crate::adapt::LoadedWireValue {
-                    data,
-                    code: *code,
-                    loader,
-                });
-            let values = PyTuple::new(py, values)?;
-            if tuple_rows {
-                output.append(values)?;
-            } else {
-                output.append(make_row.call1((values,))?)?;
-            }
-        }
-        Ok(output.unbind())
+        let rows = self.rows[start..end].iter().map(|row| {
+            LoadedResultRow(load_result_row(
+                py, row, &codes, &loaders, make_row, tuple_rows,
+            ))
+        });
+        Ok(PyList::new(py, rows)?.unbind())
     }
 }
 

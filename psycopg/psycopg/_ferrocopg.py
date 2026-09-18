@@ -385,6 +385,7 @@ class _BackendTransformer(AdaptTransformer):
     _copy_loaders: object | None = None
     _copy_dumpers: object | None = None
     _copy_text_config: tuple[bool, int | None, pq.Format] | None = None
+    _native_row_codes: list[int] | None = None
 
     def _get_copy_text_config(self) -> tuple[bool, int | None, pq.Format]:
         from .types.numeric import IntDumper
@@ -1939,7 +1940,7 @@ class NoTlsCursorAdapter:
         self._adapters = AdaptersMap(conn.adapters)
         self._adapters._register_loader_callback = self._loaders_changed
         self._make_row: RowMaker | None = None
-        self._result_transformer: AdaptTransformer | None = None
+        self._result_transformer: _BackendTransformer | None = None
         self._query_transformer: _BackendTransformer | None = None
         self._stream_result: _ResultSetLike | None = None
         self._pipeline_error: e.Error | None = None
@@ -2220,6 +2221,23 @@ class NoTlsCursorAdapter:
     def _fetchone_row(self) -> object:
         result = self._require_result()
         self._check_result_for_fetch(result)
+        current = result.current_result
+        load_row = getattr(current, "load_row", None)
+        if (
+            load_row is not None
+            and self._row_factory not in _LEGACY_ROW_FACTORIES
+            and result.encoding in (None, self._encoding)
+        ):
+            assert current is not None
+            start = result._pos
+            if start >= current.row_count:  # type: ignore[attr-defined]
+                return _NO_ROW
+            result._pos += 1
+            self._rownumber = (self._rownumber or 0) + 1
+            tx = self._native_result_transformer(current)
+            return load_row(
+                start, tx._native_row_codes, tx._row_loaders, self._make_row
+            )
         row = result.fetchone()
         if row is None:
             return _NO_ROW
@@ -2246,20 +2264,33 @@ class NoTlsCursorAdapter:
         ):
             return None
         assert current is not None
-        self._make_row_for_result(result)
-        descriptions = current.column_descriptions
-        if not descriptions:
-            return None
-        self._load_result_values(current, (None,) * len(descriptions))
-        tx = self._result_transformer
-        assert tx is not None
-        codes = [_native_loader_code(loader) for loader in tx._row_loaders]
+        tx = self._native_result_transformer(current)
         end = current.row_count  # type: ignore[attr-defined]
         start = result._pos
         result._pos = end
         self._rownumber = (self._rownumber or 0) + end - start
-        rows = load_rows(start, end, codes, tx._row_loaders, self._make_row)
+        rows = load_rows(
+            start, end, tx._native_row_codes, tx._row_loaders, self._make_row
+        )
         return cast(list[object], rows)
+
+    def _native_result_transformer(
+        self, current: _ResultSetLike
+    ) -> _BackendTransformer:
+        if self._make_row is None:
+            self._make_row = cast(RowMaker, self._row_factory(self))
+        tx = self._result_transformer
+        if tx is None:
+            wire_format = current.wire_format
+            assert wire_format is not None
+            tx = self._result_loaders(
+                current.column_descriptions, pq.Format(wire_format)
+            )
+        if tx._native_row_codes is None:
+            tx._native_row_codes = [
+                _native_loader_code(load) for load in tx._row_loaders
+            ]
+        return tx
 
     def fetchmany(self, size: int = 0) -> list[object]:
         result = self._require_result()
@@ -2456,6 +2487,23 @@ class NoTlsCursorAdapter:
         ):
             return tuple(row)
 
+        tx = self._result_loaders(descriptions, wire_format)
+        wire_encoding = cursor_result.encoding or self._encoding
+        row = tuple(
+            _transcode_result_value(
+                value,
+                column,
+                wire_format,
+                source_encoding=wire_encoding,
+                target_encoding=self._encoding,
+            )
+            for value, column in zip(row, descriptions, strict=True)
+        )
+        return tx.load_sequence(cast(Sequence[Buffer | None], row))
+
+    def _result_loaders(
+        self, descriptions: list[_StatementColumnLike], wire_format: pq.Format | None
+    ) -> _BackendTransformer:
         if self._result_transformer is None:
             tx = self._query_transformer
             # A query's dumper and loader caches are independent. Reuse its
@@ -2496,22 +2544,9 @@ class NoTlsCursorAdapter:
                 ).load
                 for column in descriptions
             ]
+            tx._native_row_codes = None
             self._result_transformer = tx
-
-        wire_encoding = cursor_result.encoding or self._encoding
-        row = tuple(
-            _transcode_result_value(
-                value,
-                column,
-                wire_format,
-                source_encoding=wire_encoding,
-                target_encoding=self._encoding,
-            )
-            for value, column in zip(row, descriptions, strict=True)
-        )
-        return self._result_transformer.load_sequence(
-            cast(Sequence[Buffer | None], row)
-        )
+        return self._result_transformer
 
 
 class NoTlsServerCursorAdapter(NoTlsCursorAdapter):

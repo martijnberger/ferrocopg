@@ -1,7 +1,7 @@
 use crate::python_helpers::{
     bytes_like_to_vec, expected_field_count, psycopg_import, psycopg_operational_error,
 };
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyUnicodeDecodeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::pyclass::{PyTraverseError, PyVisit};
 use pyo3::types::{PyBytes, PyDict, PyInt, PyList, PyString, PyTuple};
@@ -782,11 +782,11 @@ pub(crate) fn load_wire_value(
                 return Ok(value.into_pyobject(py)?.into_any().unbind());
             }
         }
-        2 => {
-            if let Ok(value) = std::str::from_utf8(data) {
-                return Ok(PyString::new(py, value).into_any().unbind());
-            }
-        }
+        2 => match PyString::from_bytes(py, data) {
+            Ok(value) => return Ok(value.into_any().unbind()),
+            Err(error) if error.is_instance_of::<PyUnicodeDecodeError>(py) => {}
+            Err(error) => return Err(error),
+        },
         3 => return Ok(PyBytes::new(py, data).into_any().unbind()),
         4 if data.len() == 2 => {
             return Ok(i16::from_be_bytes(data.try_into().unwrap())
