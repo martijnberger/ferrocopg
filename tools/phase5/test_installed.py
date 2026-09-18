@@ -13,6 +13,62 @@ import weakref
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_native_loader_classification_keeps_context_and_custom_classes(self):
+        import ferrocopg
+        from ferrocopg import _ferrocopg as adapter
+        from ferrocopg import pq
+        from ferrocopg.types.numeric import (
+            Int2BinaryLoader,
+            Int4BinaryLoader,
+            Int8BinaryLoader,
+            IntLoader,
+        )
+        from ferrocopg.types.string import TextBinaryLoader, TextLoader
+
+        for cls, code in (
+            (IntLoader, 1),
+            (Int2BinaryLoader, 4),
+            (Int4BinaryLoader, 5),
+            (Int8BinaryLoader, 6),
+        ):
+            self.assertEqual(adapter._native_loader_code(cls(23).load), code)
+            self.assertIs(adapter._pure_loader_class(cls, {}), cls)
+        for cls in (TextLoader, TextBinaryLoader):
+            loader = cls(25)
+            for encoding, code in (("utf-8", 2), ("", 3), ("latin-1", 0), ("utf-8", 2)):
+                loader._encoding = encoding
+                self.assertEqual(adapter._native_loader_code(loader.load), code)
+        self.assertEqual(adapter._native_loader_code(lambda value: value), 0)
+
+        class UnhashableMeta(type(IntLoader)):
+            __hash__ = None
+
+        class UnhashableLoader(IntLoader, metaclass=UnhashableMeta):
+            pass
+
+        self.assertEqual(adapter._native_loader_code(UnhashableLoader(23).load), 0)
+
+        def check_custom_class():
+            class CustomIntLoader(IntLoader):
+                def load(self, data):
+                    return super().load(data) + 100
+
+            instance = CustomIntLoader(23)
+            adapters = adapter._BackendAdaptersMap(ferrocopg.adapters, frozenset())
+            adapters.register_loader("int4", CustomIntLoader)
+            self.assertIs(adapters.get_loader(23, pq.Format.TEXT), CustomIntLoader)
+            self.assertEqual(adapter._native_loader_code(instance.load), 0)
+            self.assertEqual(instance.load(b"42"), 142)
+            self.assertIs(
+                adapter._pure_loader_class(IntLoader, {IntLoader: CustomIntLoader}),
+                CustomIntLoader,
+            )
+            return weakref.ref(CustomIntLoader), weakref.ref(instance)
+
+        refs = check_custom_class()
+        gc.collect()
+        self.assertTrue(all(ref() is None for ref in refs))
+
     def test_native_result_metadata_is_detached_and_matches_public_rows(self):
         import ferrocopg
         from ferrocopg import rows

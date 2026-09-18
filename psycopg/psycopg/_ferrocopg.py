@@ -17,7 +17,7 @@ from collections import deque
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import timedelta, tzinfo
 from enum import Enum
-from functools import partial
+from functools import cache, partial
 from math import ceil
 from time import monotonic
 from types import SimpleNamespace
@@ -596,17 +596,13 @@ class _BackendAdaptersMap(AdaptersMap):
         return self._originals.get(dumper, dumper)
 
     def get_loader(self, oid: int, format: pq.Format) -> type[Loader] | None:
-        from .types.array import ArrayBinaryLoader
-
         loader = None
         if format == pq.Format.BINARY and oid in self._text_loader_oids:
             loader = super().get_loader(oid, pq.Format.TEXT)
         if loader is None:
             loader = super().get_loader(oid, format)
         return (
-            _pure_loader_class(loader, self._originals, ArrayBinaryLoader)
-            if loader is not None
-            else None
+            _pure_loader_class(loader, self._originals) if loader is not None else None
         )
 
 
@@ -646,7 +642,9 @@ def _native_dumper_code(dumper: Any) -> int:
     return 0
 
 
-def _native_loader_code(load: Callable[..., object]) -> int:
+@cache
+def _native_loader_class_codes() -> dict[int, tuple[type[Any], int]]:
+    # Retain built-ins and match by identity, without calling user metaclass hooks.
     from .types.numeric import (
         Int2BinaryLoader,
         Int4BinaryLoader,
@@ -655,24 +653,34 @@ def _native_loader_code(load: Callable[..., object]) -> int:
     )
     from .types.string import TextBinaryLoader, TextLoader
 
+    return {
+        id(cls): (cls, code)
+        for cls, code in (
+            (IntLoader, 1),
+            (TextLoader, 2),
+            (TextBinaryLoader, 2),
+            (Int2BinaryLoader, 4),
+            (Int4BinaryLoader, 5),
+            (Int8BinaryLoader, 6),
+        )
+    }
+
+
+def _native_loader_code(load: Callable[..., object]) -> int:
     loader = getattr(load, "__self__", None)
     if loader is None:
         return 0
-    cls = type(loader)
-    if cls is IntLoader:
-        return 1
-    if cls in (TextLoader, TextBinaryLoader):
+    entry = _native_loader_class_codes().get(id(type(loader)))
+    if entry is None:
+        return 0
+    code = entry[1]
+    if code == 2:
         if loader._encoding == "utf-8":
             return 2
         if not loader._encoding:
             return 3
-    if cls is Int2BinaryLoader:
-        return 4
-    if cls is Int4BinaryLoader:
-        return 5
-    if cls is Int8BinaryLoader:
-        return 6
-    return 0
+        return 0
+    return code
 
 
 def _pure_array_loader_class(loader: type[Any]) -> type[Any]:
@@ -693,11 +701,14 @@ def _pure_array_loader_class(loader: type[Any]) -> type[Any]:
 def _pure_loader_class(
     loader: type[Any],
     originals: dict[type[Any], type[Any]],
-    array_binary_loader: type[Any],
 ) -> type[Any]:
+    if id(loader) in _native_loader_class_codes():
+        return originals.get(loader, loader)
     if loader.__module__ == "psycopg_c._psycopg":
         if loader.__name__ == "ArrayBinaryLoader":
-            return array_binary_loader
+            from .types.array import ArrayBinaryLoader
+
+            return ArrayBinaryLoader
         return originals.get(loader, loader)
     if any(
         base.__module__ == "psycopg_c._psycopg" and base.__name__ == "ArrayLoader"
