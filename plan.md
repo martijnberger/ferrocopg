@@ -81,7 +81,9 @@ passes the full three-backend soak but fails the benchmark. The inline-offset
 local full run and unchanged repeat each pass 4,723 of 4,724 synchronous cases,
 with the same pool backoff timing failure. Preserve those failures separately
 from the green Linux Rust matrix. The newer loader-resolution revision `ed5e86b8`
-passes installed and C-coexistence checks but still needs full validation.
+passes installed and C-coexistence checks; its full local run passes 4,721 of
+4,724 synchronous cases. All three timing failures reproduce with C/libpq.
+Its new supported CI run remains pending, and the local failures are not waived.
 No final candidate has passed all acceptance gates.
 The acceptance status at this planning checkpoint is:
 
@@ -91,7 +93,7 @@ The acceptance status at this planning checkpoint is:
 | Official synchronous pool | Implemented and regression-tested | Retain coverage in final benchmarks, soak, and matrix |
 | Performance | Not accepted; latest loader-resolution run misses six C limits and five Python limits | Optimize, then pass three complete candidate runs |
 | Sustained reliability | Three-backend soaks passed at `24b646e3`, `2ed94013`, and `be46e180` | Repeat 30 minutes per backend on the final candidate |
-| Latest compatibility validation | All 57 CI jobs pass at `60ec40d6`; two inline-offset local runs pass 4,723/4,724 with a pool timing failure | Validate the loader-resolution follow-up and investigate the local failure without waiving it |
+| Latest compatibility validation | All 57 CI jobs pass at `60ec40d6`; loader resolution passes 4,721/4,724 locally, with all three timing failures reproduced under libpq | Finish the loader-resolution CI matrix and retain the failed local report |
 | Release wheels and publication | Pending | Complete Phases 6 and 7 before publishing to PyPI |
 
 The implementation checkpoint is not a release candidate designation. Local
@@ -1373,9 +1375,18 @@ The final loader-table wheel's resource smoke ran `60.33` seconds with 142
 samples, no reported failures, and zero surviving workload sessions throughout.
 Cleanup recorded 615 driver objects, two threads, one socket, and four file
 descriptors. The report is `/tmp/phase5-loader-codes-soak.json`. The full
-unfiltered local compatibility run is in progress, writing
-`/tmp/phase5-loader-codes-full.xml`; targeted passes are not a substitute for its
-classified result or a new supported CI run.
+unfiltered local run in `/tmp/phase5-loader-codes-full.xml` passes `4721/4724`
+synchronous cases, with three failures and no errors. Reconnect, check-backoff,
+and scheduler timing assertions measure first intervals of `111.512`, `110.173`,
+and `110.112 ms` respectively. The exact three cases also fail under C/libpq in
+`/tmp/phase5-loader-codes-timing-c.xml`; the Rust repeat passes reconnect but
+fails the other two. The scheduler case opens no database connection. This is
+comparative evidence of host timing sensitivity, not permission to mark the
+failed full run green or change its tolerances. All other synchronous families
+pass, and experimental async remains separately classified at `505/620`.
+The strict local reporter fails its zero-regression gate. Fresh supported CI
+is tracked in workflow
+[`35406514048`](https://github.com/martijnberger/ferrocopg/actions/runs/35406514048).
 
 Definition of done:
 
