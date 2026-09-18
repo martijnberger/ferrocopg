@@ -63,9 +63,11 @@ Phase 6 wheel-matrix validation and Phase 7 publication remain pending.
 The completed Phase 4 evidence below is a historical baseline, not validation
 of every subsequent performance change.
 
-Recorded implementation checkpoint: `639bbd69` (direct synchronous execution).
-The subsequent row-construction optimization has local development evidence
-below, but no final-candidate acceptance yet.
+Recorded performance checkpoint: `b4f5dce0` (native row construction), following
+`639bbd69` (direct synchronous execution). These have local development evidence
+below, but no final-candidate acceptance yet. The row-loading checkpoint is
+pushed on `martijn/phase5-row-loading` so the `639bbd69` matrix on `main` can
+finish instead of being canceled by another checkpoint push.
 The acceptance status at this planning checkpoint is:
 
 | Area | Status | Remaining evidence or work |
@@ -771,7 +773,7 @@ Tasks:
   results; a passing earlier CI run does not validate later code.
 - [ ] Revalidate the complete supported synchronous compatibility matrix and
   installed-package boundary after the performance changes.
-- [ ] Align the README with the completed synchronous contract, staged-package
+- [x] Align the README with the completed synchronous contract, staged-package
   usage, official async delegation, and experimental Rust async status. Remove
   obsolete Phase 4 gap claims without removing the raw libpq/socket boundaries.
 
@@ -961,13 +963,18 @@ when its context is a Rust connection, instead of constructing C dumpers that
 require a real libpq `PGconn`. The four reproduced array-dumper failures pass.
 The complete adaptation module reports 67 passes and one raw-PGconn boundary
 skip with C enabled, and 66 passes with two expected skips on the Python
-transformer. Explicit C/libpq passes all 67 cases from the first regression
-slice; the additional extension-independent backend-context test also passes
-with C enabled. The broader C-enabled Rust bootstrap/COPY/type selection is
+transformer. Explicit C/libpq passes all 68 cases, including the additional
+extension-independent backend-context test. The broader C-enabled Rust
+bootstrap/COPY/type selection is
 2,803 passes, 23 skips, 17 deselections, and 37 expected failures. The new
 backend-context regression runs in comparison CI without requiring the Rust
-extension, keeping this dispatch path covered. Full-matrix revalidation still
-remains required; the official installed benchmark comparators are unchanged.
+extension, keeping this dispatch path covered. The complete local C-enabled
+synchronous selection after this fix reports 4,090 passes, five failures,
+452 skips, 2,066 deselections, and 38 expected failures. All five failures are
+the macOS waiting-duration assertions previously reproduced under explicit
+libpq; the pool backoff test passes in this run. This is not a green full-matrix
+result. Full-matrix revalidation still remains required, and the official
+installed benchmark comparators are unchanged.
 
 Definition of done:
 
@@ -1089,11 +1096,11 @@ the synchronous beta is established.
    Recheck all eleven workloads after each slice. Binary COPY passes the two
    latest development runs but has varied across checkpoints, so it still
    needs repeated final-candidate validation.
-4. Correct the README's obsolete concrete-cursor, COPY-writer, pipeline,
-   timeout, and multi-host limitations. Clearly distinguish source-tree use,
-   staged `ferrocopg` installation, official libpq/async delegation, and the
-   experimental Rust async facade. Retain the fork's purpose, synchronous-first
-   scope, no-silent-fallback rule, and undecided upstreaming status.
+4. Keep the README aligned as optimizations land. It now removes obsolete
+   Phase 4 limitations and distinguishes source-tree use, staged `ferrocopg`
+   installation, official libpq/async delegation, and the experimental Rust
+   async facade. Retain the fork's purpose, synchronous-first scope,
+   no-silent-fallback rule, and undecided upstreaming status.
 5. Freeze and record the optimized candidate, rebuild its installed release
    wheel, and run at least three complete benchmarks on the same otherwise
    idle machine. Every workload must pass Rust/Python <= `1.0` and Rust/C

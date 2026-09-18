@@ -87,8 +87,8 @@ commands and support scrolling and ``withhold``::
             cur.execute("select id, payload from events order by id")
             print(cur.fetchmany(100))
 
-Binary COPY reuses Psycopg's formatters and type registry over the Rust byte
-pipe::
+Binary COPY preserves Psycopg's type registry and custom adapters over the Rust
+byte pipe, with native fast paths for supported built-in types::
 
     with psycopg.connect(dsn, impl="ferrocopg") as conn:
         with conn.cursor().copy(
@@ -97,8 +97,10 @@ pipe::
             copy.set_types(["int4", "text"])
             copy.write_row((1, "started"))
 
-Async applications use the thread-offload facade. Backend calls are serialized
-on one connection-affine worker thread and run outside the event-loop thread::
+The source tree also offers an experimental Rust async thread-offload facade.
+Its backend calls are serialized on one connection-affine worker thread and
+run outside the event-loop thread. This is outside the first release's
+synchronous Rust support contract::
 
     async with await psycopg.FerrocopgAsyncConnection.connect(
         dsn, row_factory=dict_row
@@ -108,26 +110,54 @@ on one connection-affine worker thread and run outside the event-loop thread::
         )).fetchone()
         print(row)
 
-It is not a drop-in replacement yet. The concrete cursor, COPY writer,
-pipeline, timeout, and multi-host gaps below are active compatibility work for
-the beta rather than accepted long-term boundaries. Keep ``impl="libpq"`` for
-applications that currently require:
+Phase 4 completed the synchronous concrete-cursor, COPY-writer, public pipeline
+state, connection-timeout, multi-host, and cancellation compatibility work.
+Normal custom cursor classes no longer need to inherit from the internal Rust
+adapter. Ongoing performance changes must preserve that compatibility; a
+completed phase is not proof that every later revision has passed validation.
 
-- Psycopg's concrete ``Cursor``, ``ClientCursor``, or ``RawCursor`` classes;
-  these remain libpq-only, while backend-specific custom cursors may subclass
-  ``psycopg._ferrocopg.NoTlsCursorAdapter``
-- concrete ``LibpqWriter``/``QueuedLibpqWriter`` COPY writers; normal COPY,
-  COPY parameters, binary row helpers, and generic custom writers are supported
-- exact libpq ``PQpipelineSync``/``PIPELINE_ABORTED`` state-machine semantics;
-  ferrocopg pipelines queued simple-query batches but documents this residual
-  protocol boundary
-- raw libpq ``PGconn``/socket access such as ``fileno()``
-- libpq-specific stalled-handshake and aggregated multi-host error behavior
+Raw libpq ``PGconn``, socket access such as ``fileno()``, and tracing that
+requires libpq protocol objects remain outside the Rust contract. Use
+``impl="libpq"`` for applications requiring those interfaces.
 
 The dedicated CI matrix exercises all six SSL modes against SSL-enabled
 PostgreSQL 14-18, including custom roots, required channel binding, and client
 certificate authentication. Unsupported features raise an error and
 ferrocopg never silently swaps an active connection to libpq.
+
+
+Using a standalone ferrocopg wheel
+------------------------------------
+
+The `standalone build instructions <docs/ferrocopg-dev.md#building-the-staged-package>`_
+describe staging the upstream-shaped Python source as a local ``ferrocopg``
+wheel. The wheel does not install into the official ``psycopg`` namespace, and
+its Rust path does not require system libpq. After installing the local wheel,
+the intended migration is an import change::
+
+    import ferrocopg as psycopg
+
+    with psycopg.connect(dsn) as conn:
+        print(conn.execute("select %s::int", (42,)).fetchone())
+
+With official Psycopg installed alongside it, ``psycopg.connect(dsn,
+impl="libpq")`` returns an official Psycopg connection. The staged package's
+``psycopg.AsyncConnection`` also delegates to official Psycopg, not to the
+experimental Rust facade. Missing optional dependencies produce an actionable
+installation error rather than silently selecting another backend. This
+delegation differs from the source tree's temporary internal libpq path.
+
+Use the official ``psycopg_pool`` package for synchronous pooling; the
+`pool integration example <docs/ferrocopg-performance.md#official-synchronous-pool>`_
+shows the connection factory and checkout/return lifecycle. There is no pool
+fork to install.
+
+These are development wheels, not a published beta. Phase 5 remains open:
+repeatable performance acceptance, sustained candidate soaks, and fresh
+compatibility validation are still required, followed by the release wheel
+matrix. See the `performance and reliability workflow
+<docs/ferrocopg-performance.md>`_ for reproducible comparisons against official
+Python and C implementations. No performance-parity claim is made yet.
 
 
 Installing upstream Psycopg
