@@ -746,6 +746,27 @@ fn parse_row_binary(
     load_copy_row(py, tx, &row)
 }
 
+// Convert directly into PyO3's tuple storage, including cleanup on loader errors.
+pub(crate) struct LoadedWireValue<'a> {
+    pub data: Option<&'a [u8]>,
+    pub code: u8,
+    pub loader: &'a Py<PyAny>,
+}
+
+impl<'py> IntoPyObject<'py> for LoadedWireValue<'_> {
+    type Target = PyAny;
+    type Output = Bound<'py, PyAny>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> PyResult<Self::Output> {
+        match self.data {
+            Some(data) => load_wire_value(py, data, self.code, self.loader),
+            None => Ok(py.None()),
+        }
+        .map(|value| value.into_bound(py))
+    }
+}
+
 pub(crate) fn load_wire_value(
     py: Python<'_>,
     data: &[u8],
@@ -799,15 +820,13 @@ fn load_copy_row(
         if !plan.is_none() {
             let plan: PyRef<'_, CopyCodecPlan> = plan.extract()?;
             if plan.codes.len() == row.len() {
-                let values = row
-                    .iter()
-                    .zip(&plan.codes)
-                    .zip(&plan.callbacks)
-                    .map(|((data, code), loader)| match data {
-                        Some(data) => load_wire_value(py, data, *code, loader),
-                        None => Ok(py.None()),
-                    })
-                    .collect::<PyResult<Vec<_>>>()?;
+                let values = row.iter().zip(&plan.codes).zip(&plan.callbacks).map(
+                    |((data, code), loader)| LoadedWireValue {
+                        data: *data,
+                        code: *code,
+                        loader,
+                    },
+                );
                 return Ok(PyTuple::new(py, values)?.into_any().unbind());
             }
         }

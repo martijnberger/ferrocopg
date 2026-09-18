@@ -57,20 +57,22 @@ Phases 3 and 4 are complete. Phase 5 is the active release blocker: the
 installed-package benchmark and soak infrastructure exists, but performance
 acceptance has not passed. A full 30-minute-per-backend CI soak passed on
 revision `24b646e3`; sustained validation of the optimized candidate remains
-required. The latest working-copy benchmark still fails eight workloads
+required. The latest working-copy benchmark still fails seven workloads
 against C and is development evidence, not release acceptance.
 Phase 6 wheel-matrix validation and Phase 7 publication remain pending.
 The completed Phase 4 evidence below is a historical baseline, not validation
 of every subsequent performance change.
 
-Current implementation checkpoint: `639bbd69` (direct synchronous execution).
+Recorded implementation checkpoint: `639bbd69` (direct synchronous execution).
+The subsequent row-construction optimization has local development evidence
+below, but no final-candidate acceptance yet.
 The acceptance status at this planning checkpoint is:
 
 | Area | Status | Remaining evidence or work |
 | --- | --- | --- |
 | Synchronous API and package boundary | Implemented in Phase 4 | Revalidate after the Phase 5 optimizations |
 | Official synchronous pool | Implemented and regression-tested | Retain coverage in final benchmarks, soak, and matrix |
-| Performance | Not accepted; eight of eleven workloads still exceed the C limit | Optimize, then pass three complete candidate runs |
+| Performance | Not accepted; seven of eleven workloads still exceed the C limit | Optimize, then pass three complete candidate runs |
 | Sustained reliability | Earlier three-backend baseline passed | Repeat 30 minutes per backend on the final candidate |
 | Latest compatibility validation | Focused checks pass; local full selections have failures | Resolve or account for reproduced failures and obtain a green supported matrix |
 | Release wheels and publication | Pending | Complete Phases 6 and 7 before publishing to PyPI |
@@ -932,6 +934,28 @@ Raw evidence is under `/tmp/phase5-direct-execution-bench` and
 `/tmp/phase5-direct-execution-bench-2`; final exact-revision repeated benchmarks,
 sustained soaks, and the supported compatibility matrix remain required.
 
+The subsequent native row-construction slice loads values directly into PyO3
+tuple storage instead of first collecting a temporary Rust vector. The exact
+built-in tuple factory bypasses a redundant Python call; custom factories and
+tuple subclasses still run normally. Native COPY loading shares the same
+fallible conversion path. All 26 Rust core tests, 21 harness/installed-wheel
+checks, and 2,906 focused synchronous bootstrap/row/cursor/COPY/type tests pass
+(16 skips, 17 deselections, and 37 expected failures in the focused selection).
+The new installed regression covers partial tuple/list cleanup on loader
+failure, factory errors, NULL/empty values, bounds, and detached result lifetime.
+
+Two complete `tuple-construction-working-copy` benchmarks retain seven C-limit
+failures. Tuple, dictionary, and namedtuple Rust/C ratios are respectively
+`1.322-1.323`, `1.198-1.233`, and `1.343-1.386`. Dictionary rows pass both
+limits in these two runs; binary COPY also passes narrowly at `1.235-1.236`
+against C. Small queries, transactions, pool cycles, tuple/namedtuple rows,
+and text COPY still fail. Raw reports are retained locally in
+`/tmp/phase5-tuple-bench` and `/tmp/phase5-tuple-bench-2`; they are not published
+exact-revision acceptance. No threshold or skip rule was relaxed.
+A 60.34-second Rust smoke reports no resource failures, stable driver objects,
+sockets, and file descriptors, and zero surviving workload sessions. It is not
+the required final-candidate sustained soak.
+
 Definition of done:
 
 - Sync pooling is documented and green.
@@ -1045,10 +1069,10 @@ the synchronous beta is established.
    Keep each change independently tested and compare rebuilt release wheels
    against both official baselines on the same machine.
 3. Address bulk result loading and text COPY as separate measured slices.
-   Evaluate removing the per-row temporary vector and redundant tuple-factory
-   call in `BackendResultSet.load_rows`; these are hypotheses, not promised
-   speedups. Preserve custom row factories, loader exceptions, NULL/empty
-   values, encoding behavior, and result lifetime after connection close.
+   The temporary-vector and redundant tuple-factory costs have been removed
+   locally; profile the remaining row allocation and conversion costs before
+   choosing the next change. Preserve custom row factories, loader exceptions,
+   NULL/empty values, encoding behavior, and result lifetime after connection close.
    Recheck all eleven workloads after each slice. Binary COPY passes the two
    latest development runs but has varied across checkpoints, so it still
    needs repeated final-candidate validation.

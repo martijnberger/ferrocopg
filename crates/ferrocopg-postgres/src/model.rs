@@ -115,7 +115,7 @@ impl WireRow {
             .map(|range| range.as_ref().map(|range| &self.data[range.clone()]))
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = Option<&[u8]>> {
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = Option<&[u8]>> {
         self.ranges
             .iter()
             .map(|range| range.as_ref().map(|range| &self.data[range.clone()]))

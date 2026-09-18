@@ -221,16 +221,23 @@ impl BackendResultSet {
             return Err(PyValueError::new_err("loader count does not match columns"));
         }
         let output = PyList::empty(py);
+        let tuple_rows = make_row.is(&py.get_type::<PyTuple>());
         for row in &self.rows[start..end] {
-            let mut values = Vec::with_capacity(row.len());
-            for ((value, code), loader) in row.iter().zip(&codes).zip(&loaders) {
-                let value = match value {
-                    None => py.None(),
-                    Some(data) => crate::adapt::load_wire_value(py, data, *code, loader)?,
-                };
-                values.push(value);
+            let values = row
+                .iter()
+                .zip(&codes)
+                .zip(&loaders)
+                .map(|((data, code), loader)| crate::adapt::LoadedWireValue {
+                    data,
+                    code: *code,
+                    loader,
+                });
+            let values = PyTuple::new(py, values)?;
+            if tuple_rows {
+                output.append(values)?;
+            } else {
+                output.append(make_row.call1((values,))?)?;
             }
-            output.append(make_row.call1((PyTuple::new(py, values)?,))?)?;
         }
         Ok(output.unbind())
     }

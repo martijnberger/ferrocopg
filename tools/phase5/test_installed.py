@@ -13,6 +13,84 @@ import weakref
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_native_row_construction_preserves_callbacks_and_error_cleanup(self):
+        from ferrocopg._rust import _ferrocopg as native
+
+        session = native.connect_session(os.environ["PHASE5_DSN"])
+        try:
+            result = session.run_params_format(
+                "select i::text, ''::text, NULL::text from generate_series(1, 3) i",
+                [],
+                False,
+            )
+            empty = session.run_params_format(
+                "select from generate_series(1, 2)", [], False
+            )
+        finally:
+            session.close()
+
+        calls = []
+
+        def load(data):
+            calls.append(data)
+            return data.decode()
+
+        class TupleSubclass(tuple):
+            pass
+
+        for factory in (tuple, TupleSubclass, list):
+            calls.clear()
+            rows = result.load_rows(0, 3, [0] * 3, [load] * 3, factory)
+            self.assertEqual(rows, [factory((str(i), "", None)) for i in (1, 2, 3)])
+            self.assertTrue(all(type(row) is factory for row in rows))
+            self.assertEqual(calls, [b"1", b"", b"2", b"", b"3", b""])
+        self.assertEqual(empty.load_rows(0, 2, [], [], tuple), [(), ()])
+        self.assertEqual(result.load_rows(1, 1, [0] * 3, [load] * 3, tuple), [])
+        for start, end in ((2, 1), (0, 4)):
+            with self.assertRaises(ValueError):
+                result.load_rows(start, end, [0] * 3, [load] * 3, tuple)
+        with self.assertRaises(ValueError):
+            result.load_rows(0, 3, [0], [load], tuple)
+
+        class Value:
+            pass
+
+        refs = []
+        seen = []
+        error = ValueError("loader failure")
+
+        def partial_load(data):
+            seen.append(data)
+            if len(seen) == 4:
+                raise error
+            value = Value()
+            refs.append(weakref.ref(value))
+            return value
+
+        with self.assertRaises(ValueError) as caught:
+            result.load_rows(0, 3, [0] * 3, [partial_load] * 3, tuple)
+        self.assertIs(caught.exception, error)
+        gc.collect()
+        self.assertTrue(refs)
+        self.assertTrue(all(ref() is None for ref in refs))
+
+        retained = []
+
+        def failing_factory(values):
+            retained.append(values)
+            if values[0] == "2":
+                raise error
+            return values
+
+        with self.assertRaises(ValueError) as caught:
+            result.load_rows(0, 3, [0] * 3, [load] * 3, failing_factory)
+        self.assertIs(caught.exception, error)
+        self.assertEqual(retained, [("1", "", None), ("2", "", None)])
+        self.assertEqual(
+            result.load_rows(1, 3, [0] * 3, [load] * 3, tuple),
+            [("2", "", None), ("3", "", None)],
+        )
+
     def test_native_session_lock_wait_releases_interpreter(self):
         code = """
 import os
