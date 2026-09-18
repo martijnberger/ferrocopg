@@ -86,6 +86,42 @@ pub enum WireFormat {
     Binary,
 }
 
+/// An owned wire buffer with validated field offsets, detached from its session.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct WireRow {
+    data: bytes::Bytes,
+    ranges: Vec<Option<std::ops::Range<usize>>>,
+}
+
+impl From<postgres::Row> for WireRow {
+    fn from(row: postgres::Row) -> Self {
+        let (data, ranges) = row.into_raw_parts();
+        Self { data, ranges }
+    }
+}
+
+impl WireRow {
+    pub fn len(&self) -> usize {
+        self.ranges.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.ranges.is_empty()
+    }
+
+    pub fn get(&self, column: usize) -> Option<Option<&[u8]>> {
+        self.ranges
+            .get(column)
+            .map(|range| range.as_ref().map(|range| &self.data[range.clone()]))
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = Option<&[u8]>> {
+        self.ranges
+            .iter()
+            .map(|range| range.as_ref().map(|range| &self.data[range.clone()]))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResultSet {
     pub columns: Vec<String>,
@@ -94,7 +130,7 @@ pub struct ResultSet {
     ///
     /// The Python adapter feeds these through Psycopg's loaders using the
     /// column OIDs above, rather than trying to decode each database type here.
-    pub rows: Vec<Vec<Option<Vec<u8>>>>,
+    pub rows: Vec<WireRow>,
     pub rows_affected: u64,
     pub is_tuples: bool,
     pub wire_format: WireFormat,

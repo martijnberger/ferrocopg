@@ -57,7 +57,7 @@ Phases 3 and 4 are complete. Phase 5 is the active release blocker: the
 installed-package benchmark and soak infrastructure exists, but performance
 acceptance has not passed. A full 30-minute-per-backend CI soak passed on
 revision `24b646e3`; sustained validation of the optimized candidate remains
-required. The latest working-copy benchmark still fails eight workloads
+required. The latest working-copy benchmark still fails nine workloads
 against C and is development evidence, not release acceptance.
 Phase 6 wheel-matrix validation and Phase 7 publication remain pending.
 The completed Phase 4 evidence below is a historical baseline, not validation
@@ -853,6 +853,28 @@ The preceding checkpoint `b66c1549` now has a complete green 57-job Tests run
 [`35279919888`](https://github.com/martijnberger/ferrocopg/actions/runs/35279919888)
 and green Lint run `35279919881`; subsequent changes need their own matrix.
 
+The next slice retains validated PostgreSQL row buffers and field offsets
+instead of allocating and copying every field before loading it. Results do
+not retain their originating session or prepared statement; Python raw access
+still returns independent values. All 18 installed-wheel checks pass,
+including retained results after connection close, NULL/empty/binary fields,
+and zero-column rows. The broader synchronous bootstrap/COPY/type/cursor/
+prepared/pipeline selection passes 2,953 cases with 29 skips, 205 deselections,
+and 37 expected failures; all 26 Rust core tests and pre-commit checks pass.
+A 30-second Rust smoke has no resource failures or surviving workload sessions.
+
+Two local `raw-rows-working-copy` benchmark runs bracket a freshly built
+`5e1b59f8` parent comparison on the same setup. Tuple, dictionary, and namedtuple
+Rust/C ratios improve from the parent's `1.862`, `1.434`, and `1.663` to
+`1.481-1.623`, `1.281-1.332`, and `1.371-1.486`, respectively, but remain
+outside the gate. Small-query timings vary across runs and still fail both
+limits. Binary COPY passes in the first run (`1.148` against C) but fails in
+the second (`1.290`); the repeat therefore fails nine workloads against C.
+Both complete reports and the parent comparison are retained locally under
+`/tmp/phase5-raw-rows-bench`, `/tmp/phase5-raw-rows-bench-2`, and
+`/tmp/phase5-text-parent-bench`. These development comparisons are not the
+required three passing exact-revision acceptance runs.
+
 Definition of done:
 
 - Sync pooling is documented and green.
@@ -952,8 +974,9 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Validate the text COPY checkpoint in the full CI matrix, including custom
-   adapters, subclasses, encodings, type metadata, and error behavior. Record
+1. Validate the text COPY and retained-row checkpoints in the full CI matrix,
+   including custom adapters, subclasses, encodings, type metadata, result
+   lifetime, and error behavior. Record
    its source revision and rebuild the installed wheel before collecting
    candidate evidence.
 2. Prioritize shared small-query overhead affecting parameterized and prepared

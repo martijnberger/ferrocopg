@@ -160,8 +160,7 @@ struct BackendResultSet {
     columns: Vec<String>,
     #[pyo3(get)]
     column_descriptions: Vec<BackendStatementColumn>,
-    #[pyo3(get)]
-    rows: Vec<Vec<Option<Vec<u8>>>>,
+    rows: Vec<ferrocopg_postgres::WireRow>,
     #[pyo3(get)]
     rows_affected: u64,
     #[pyo3(get)]
@@ -173,6 +172,14 @@ struct BackendResultSet {
 #[pymethods]
 impl BackendResultSet {
     #[getter]
+    fn rows(&self) -> Vec<Vec<Option<Vec<u8>>>> {
+        self.rows
+            .iter()
+            .map(|row| row.iter().map(|value| value.map(<[u8]>::to_vec)).collect())
+            .collect()
+    }
+
+    #[getter]
     fn row_count(&self) -> usize {
         self.rows.len()
     }
@@ -180,7 +187,7 @@ impl BackendResultSet {
     fn row(&self, index: usize) -> PyResult<Vec<Option<Vec<u8>>>> {
         self.rows
             .get(index)
-            .cloned()
+            .map(|row| row.iter().map(|value| value.map(<[u8]>::to_vec)).collect())
             .ok_or_else(|| PyIndexError::new_err(index))
     }
 
@@ -195,7 +202,7 @@ impl BackendResultSet {
             .get(row)
             .and_then(|r| r.get(column))
             .ok_or_else(|| PyIndexError::new_err((row, column)))?;
-        Ok(value.as_ref().map(|v| PyBytes::new(py, v).unbind()))
+        Ok(value.map(|v| PyBytes::new(py, v).unbind()))
     }
 
     fn load_rows(

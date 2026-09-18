@@ -189,6 +189,13 @@ impl Row {
         self.body.buffer_bytes().len()
     }
 
+    /// Consumes the row, retaining its wire buffer and validated field ranges.
+    ///
+    /// Unlike retaining `Row`, these parts do not keep the statement alive.
+    pub fn into_raw_parts(self) -> (bytes::Bytes, Vec<Option<Range<usize>>>) {
+        (self.body.buffer_bytes().clone(), self.ranges)
+    }
+
     /// Get the raw bytes for the column at the given index.
     fn col_buffer(&self, idx: usize) -> Option<&[u8]> {
         let range = self.ranges[idx].to_owned()?;

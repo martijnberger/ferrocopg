@@ -3,16 +3,15 @@ use crate::error::{PostgresDiagnostic, ProbeError};
 use crate::model::{
     BackendNotification, BoundParam, CopyOutResult, ExecuteResult, PreparedStatementInfo,
     ResultSet, SimpleQueryMessage, SimpleQueryResult, StatementColumn, StatementDescription,
-    StatementParameter, SyncNoTlsProbe, TextQueryResult, WireFormat,
+    StatementParameter, SyncNoTlsProbe, TextQueryResult, WireFormat, WireRow,
 };
 use crate::params::{
     bound_param_types, bound_query_params, bound_raw_query_params, param_types_from_oids,
     parsed_query_params, query_param_refs,
 };
 use fallible_iterator::FallibleIterator;
-use postgres::types::{FromSql, Kind, Type};
+use postgres::types::Kind;
 use std::collections::{HashMap, VecDeque};
-use std::error::Error;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -70,24 +69,6 @@ impl SyncNoTlsCancelHandle {
                     .map_err(ProbeError::Connect)
             }
         }
-    }
-}
-
-/// Capture a PostgreSQL value without assigning it a Rust type first.
-///
-/// `postgres` always receives extended-protocol result values in binary
-/// format. Keeping the bytes intact lets the Python adapter use Psycopg's
-/// established OID-specific loaders instead of duplicating them in Rust.
-#[derive(Debug)]
-struct WireValue(Vec<u8>);
-
-impl<'a> FromSql<'a> for WireValue {
-    fn from_sql(_: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
-        Ok(Self(raw.to_vec()))
-    }
-
-    fn accepts(_: &Type) -> bool {
-        true
     }
 }
 
@@ -652,7 +633,7 @@ impl SyncNoTlsSession {
                             "expected a zero-column row".to_owned(),
                         ));
                     }
-                    rows.push(Vec::new());
+                    rows.push(WireRow::default());
                 }
                 postgres::SimpleQueryMessage::CommandComplete(rows_affected) => {
                     return Ok(ResultSet {
@@ -790,7 +771,7 @@ fn result_set_from_descriptions_rows(
         .iter()
         .map(|column| column.name.clone())
         .collect();
-    let rows = rows_to_wire_values(rows)?;
+    let rows = rows.into_iter().map(WireRow::from).collect();
     Ok(ResultSet {
         columns,
         column_descriptions,
@@ -799,20 +780,6 @@ fn result_set_from_descriptions_rows(
         is_tuples: true,
         wire_format,
     })
-}
-
-fn rows_to_wire_values(rows: Vec<postgres::Row>) -> Result<Vec<Vec<Option<Vec<u8>>>>, ProbeError> {
-    rows.into_iter()
-        .map(|row| {
-            (0..row.len())
-                .map(|index| {
-                    row.try_get::<_, Option<WireValue>>(index)
-                        .map(|value| value.map(|value| value.0))
-                        .map_err(ProbeError::Query)
-                })
-                .collect::<Result<Vec<_>, _>>()
-        })
-        .collect()
 }
 
 fn rows_to_text_values(rows: Vec<postgres::Row>) -> Result<Vec<Vec<Option<String>>>, ProbeError> {

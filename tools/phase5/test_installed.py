@@ -11,6 +11,49 @@ import weakref
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_wire_rows_survive_session_close_and_keep_raw_access(self):
+        from ferrocopg._rust import _ferrocopg as native
+
+        for binary in (False, True):
+            session = native.connect_session(os.environ["PHASE5_DSN"])
+            try:
+                result = session.run_params_format(
+                    "select $1::int4, ''::text, NULL::text, "
+                    "decode('00ff', 'hex'), repeat('x', 10000)",
+                    [(23, False, b"42")],
+                    binary,
+                )
+                empty = session.run_params_format(
+                    "select from generate_series(1, 3)", [], binary
+                )
+                session.run_params_format("select 'replacement'", [], binary)
+            finally:
+                session.close()
+
+            expected = [
+                struct.pack("!i", 42) if binary else b"42",
+                b"",
+                None,
+                b"\x00\xff" if binary else b"\\x00ff",
+                b"x" * 10000,
+            ]
+            self.assertEqual(result.row_count, 1)
+            self.assertEqual([result.get_value(0, i) for i in range(5)], expected)
+            self.assertEqual(result.row(0), result.rows[0])
+            self.assertEqual(
+                [None if v is None else bytes(v) for v in result.row(0)],
+                expected,
+            )
+            with self.assertRaises(IndexError):
+                result.get_value(1, 0)
+            with self.assertRaises(IndexError):
+                result.get_value(0, 5)
+            with self.assertRaises(IndexError):
+                result.row(1)
+            self.assertTrue(empty.is_tuples)
+            self.assertEqual(empty.rows, [[], [], []])
+            self.assertEqual(empty.row_count, 3)
+
     def test_untyped_text_copy_keeps_dispatch_and_type_metadata(self):
         from ferrocopg import _ferrocopg as adapter
         from ferrocopg._rust import _ferrocopg as native
