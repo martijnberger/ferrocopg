@@ -94,7 +94,9 @@ def settle_snapshot(process: Any, observer: Any, app: str) -> dict[str, int]:
     previous = None
     while True:
         sample = snapshot(process, observer, app)
-        if sample == previous or time.monotonic() >= deadline:
+        if (
+            sample == previous and sample["sessions"] == 0
+        ) or time.monotonic() >= deadline:
             return sample
         previous = sample
         time.sleep(0.05)

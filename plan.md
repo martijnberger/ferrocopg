@@ -1071,6 +1071,14 @@ in one of 1,836 resource samples, although final cleanup was zero. This report
 must remain a failure. Investigate bounded cleanup sampling before attributing
 it to a persistent driver leak; it does not validate the newer candidate.
 
+The sampler follow-up now requires zero sessions as well as two stable resource
+readings before returning early. Previously two identical nonzero readings
+could end settling before the existing five-second deadline. The deadline and
+zero-session acceptance budget are unchanged, and persistent sessions still
+fail. All 12 accounting tests pass, including transient cleanup, persistent
+sessions, and unstable-resource cases; a 60.22-second C-backend smoke passes.
+Neither this correction nor the smoke retroactively accepts the failed CI run.
+
 Definition of done:
 
 - Sync pooling is documented and green.

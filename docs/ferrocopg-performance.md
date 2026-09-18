@@ -65,7 +65,10 @@ epochs it runs for at least 30 minutes per backend, with at least six resource
 samples after complete workload cleanup. All three backends run sequentially.
 Allow roughly 90 minutes plus warmup for the default soak command.
 
-The harness collects garbage, allows bounded cleanup settling, and checks:
+The harness collects garbage and allows up to five seconds for cleanup to
+settle. Early completion requires two identical resource readings with zero
+workload sessions; an unchanged nonzero session count is not clean. Sessions
+remaining at the deadline still fail acceptance. It checks:
 
 - zero surviving workload sessions in PostgreSQL;
 - no increase in native process threads, TCP sockets, or file descriptors;

@@ -2,8 +2,16 @@
 
 import copy
 import unittest
+from unittest.mock import patch
 
-from run import BACKENDS, BENCHMARKS, compare, growth_failures, percentile
+from run import (
+    BACKENDS,
+    BENCHMARKS,
+    compare,
+    growth_failures,
+    percentile,
+    settle_snapshot,
+)
 
 
 class ContractTests(unittest.TestCase):
@@ -72,6 +80,43 @@ class ContractTests(unittest.TestCase):
         for row in samples:
             row["sessions"] = 1
         self.assertTrue(growth_failures(samples))
+
+    def test_settling_waits_for_server_cleanup(self):
+        clean = self.samples()[0]
+        closing = dict(clean, sessions=1)
+        with (
+            patch("run.snapshot", side_effect=[closing, closing, clean, clean]) as snap,
+            patch("run.time.monotonic", return_value=0),
+            patch("run.time.sleep") as sleep,
+        ):
+            self.assertEqual(settle_snapshot(None, None, "test"), clean)
+        self.assertEqual(snap.call_count, 4)
+        self.assertEqual(sleep.call_count, 3)
+
+    def test_settling_does_not_hide_persistent_sessions(self):
+        closing = dict(self.samples()[0], sessions=1)
+        with (
+            patch("run.snapshot", return_value=closing) as snap,
+            patch("run.time.monotonic", side_effect=[0, 0, 1, 5]),
+            patch("run.time.sleep"),
+        ):
+            sample = settle_snapshot(None, None, "test")
+        self.assertEqual(snap.call_count, 3)
+        self.assertEqual(sample["sessions"], 1)
+        self.assertIn(
+            "server sessions survived workload cleanup", growth_failures([sample] * 6)
+        )
+
+    def test_clean_settling_still_requires_stable_resources(self):
+        clean = self.samples()[0]
+        busy = dict(clean, threads=2)
+        with (
+            patch("run.snapshot", side_effect=[busy, clean, clean]) as snap,
+            patch("run.time.monotonic", return_value=0),
+            patch("run.time.sleep"),
+        ):
+            self.assertEqual(settle_snapshot(None, None, "test"), clean)
+        self.assertEqual(snap.call_count, 3)
 
     def test_tail_percentile_does_not_round_down(self):
         self.assertEqual(percentile([1.0, 2.0, 3.0], 0.99), 3.0)
