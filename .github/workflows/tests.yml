@@ -10,6 +10,7 @@ on:
       - "**"
     paths-ignore:
       - README.rst
+      - plan.md
       - "docs/*"
   pull_request:
   schedule:
