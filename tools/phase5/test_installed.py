@@ -405,12 +405,21 @@ with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as active:
         for binary in (False, True):
             session = native.connect_session(os.environ["PHASE5_DSN"])
             try:
-                result = session.run_params_format(
-                    "select $1::int4, ''::text, NULL::text, "
-                    "decode('00ff', 'hex'), repeat('x', 10000)",
-                    [(23, False, b"42")],
-                    binary,
-                )
+                fields = [
+                    "$1::int4",
+                    "''::text",
+                    "NULL::text",
+                    "decode('00ff', 'hex')",
+                    "repeat('x', 10000)",
+                ]
+                results = [
+                    session.run_params_format(
+                        "select " + ", ".join(fields[:count]),
+                        [(23, False, b"42")],
+                        binary,
+                    )
+                    for count in (1, 2, 3, 5)
+                ]
                 empty = session.run_params_format(
                     "select from generate_series(1, 3)", [], binary
                 )
@@ -425,19 +434,22 @@ with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as active:
                 b"\x00\xff" if binary else b"\\x00ff",
                 b"x" * 10000,
             ]
-            self.assertEqual(result.row_count, 1)
-            self.assertEqual([result.get_value(0, i) for i in range(5)], expected)
-            self.assertEqual(result.row(0), result.rows[0])
-            self.assertEqual(
-                [None if v is None else bytes(v) for v in result.row(0)],
-                expected,
-            )
-            with self.assertRaises(IndexError):
-                result.get_value(1, 0)
-            with self.assertRaises(IndexError):
-                result.get_value(0, 5)
-            with self.assertRaises(IndexError):
-                result.row(1)
+            for count, result in zip((1, 2, 3, 5), results):
+                self.assertEqual(result.row_count, 1)
+                self.assertEqual(
+                    [result.get_value(0, i) for i in range(count)], expected[:count]
+                )
+                self.assertEqual(result.row(0), result.rows[0])
+                self.assertEqual(
+                    [None if v is None else bytes(v) for v in result.row(0)],
+                    expected[:count],
+                )
+                with self.assertRaises(IndexError):
+                    result.get_value(1, 0)
+                with self.assertRaises(IndexError):
+                    result.get_value(0, count)
+                with self.assertRaises(IndexError):
+                    result.row(1)
             self.assertTrue(empty.is_tuples)
             self.assertEqual(empty.rows, [[], [], []])
             self.assertEqual(empty.row_count, 3)

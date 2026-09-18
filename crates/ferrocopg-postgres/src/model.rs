@@ -90,7 +90,7 @@ pub enum WireFormat {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WireRow {
     data: bytes::Bytes,
-    ranges: Vec<Option<std::ops::Range<usize>>>,
+    ranges: tokio_postgres::row::RowRanges,
 }
 
 impl From<postgres::Row> for WireRow {

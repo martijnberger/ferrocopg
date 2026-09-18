@@ -7,6 +7,7 @@ use crate::types::{FromSql, Type, WrongType};
 use crate::{Error, Statement};
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend::DataRowBody;
+use smallvec::SmallVec;
 use std::fmt;
 use std::ops::Range;
 use std::str;
@@ -99,7 +100,19 @@ where
 pub struct Row {
     statement: Statement,
     body: DataRowBody,
-    ranges: Vec<Option<Range<usize>>>,
+    ranges: RowRanges,
+}
+
+/// Validated field offsets, stored inline for the common one- and two-column rows.
+pub type RowRanges = SmallVec<[Option<Range<usize>>; 2]>;
+
+fn row_ranges(body: &DataRowBody) -> Result<RowRanges, Error> {
+    let mut fields = body.ranges();
+    let mut ranges = RowRanges::with_capacity(fields.size_hint().0);
+    while let Some(range) = fields.next().map_err(Error::parse)? {
+        ranges.push(range);
+    }
+    Ok(ranges)
 }
 
 impl fmt::Debug for Row {
@@ -112,7 +125,7 @@ impl fmt::Debug for Row {
 
 impl Row {
     pub(crate) fn new(statement: Statement, body: DataRowBody) -> Result<Row, Error> {
-        let ranges = body.ranges().collect().map_err(Error::parse)?;
+        let ranges = row_ranges(&body)?;
         Ok(Row {
             statement,
             body,
@@ -192,7 +205,7 @@ impl Row {
     /// Consumes the row, retaining its wire buffer and validated field ranges.
     ///
     /// Unlike retaining `Row`, these parts do not keep the statement alive.
-    pub fn into_raw_parts(self) -> (bytes::Bytes, Vec<Option<Range<usize>>>) {
+    pub fn into_raw_parts(self) -> (bytes::Bytes, RowRanges) {
         (self.body.buffer_bytes().clone(), self.ranges)
     }
 
@@ -214,7 +227,7 @@ impl AsName for SimpleColumn {
 pub struct SimpleQueryRow {
     columns: Arc<[SimpleColumn]>,
     body: DataRowBody,
-    ranges: Vec<Option<Range<usize>>>,
+    ranges: RowRanges,
 }
 
 impl SimpleQueryRow {
@@ -223,7 +236,7 @@ impl SimpleQueryRow {
         columns: Arc<[SimpleColumn]>,
         body: DataRowBody,
     ) -> Result<SimpleQueryRow, Error> {
-        let ranges = body.ranges().collect().map_err(Error::parse)?;
+        let ranges = row_ranges(&body)?;
         Ok(SimpleQueryRow {
             columns,
             body,
@@ -283,5 +296,74 @@ impl SimpleQueryRow {
 
         let buf = self.ranges[idx].clone().map(|r| &self.body.buffer()[r]);
         FromSql::from_sql_nullable(&Type::TEXT, buf).map_err(|e| Error::from_sql(e, idx))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::BytesMut;
+    use postgres_protocol::message::backend::Message;
+
+    fn data_row(count: u16, payload: &[u8]) -> DataRowBody {
+        let mut message = BytesMut::new();
+        message.extend_from_slice(b"D");
+        message.extend_from_slice(&((payload.len() + 6) as i32).to_be_bytes());
+        message.extend_from_slice(&count.to_be_bytes());
+        message.extend_from_slice(payload);
+        match Message::parse(&mut message).unwrap().unwrap() {
+            Message::DataRow(body) => body,
+            _ => panic!("expected a data row"),
+        }
+    }
+
+    #[test]
+    fn field_ranges_preserve_inline_and_spilled_values() {
+        let values: [Option<&[u8]>; 3] = [None, Some(b""), Some(b"\0\xffvalue")];
+        for count in [0, 1, 2, 3, 64] {
+            let mut payload = Vec::new();
+            for value in values.iter().cycle().take(count) {
+                match value {
+                    Some(value) => {
+                        payload.extend_from_slice(&(value.len() as i32).to_be_bytes());
+                        payload.extend_from_slice(value);
+                    }
+                    None => payload.extend_from_slice(&(-1_i32).to_be_bytes()),
+                }
+            }
+            let body = data_row(count as u16, &payload);
+            let ranges = row_ranges(&body).unwrap();
+            let reference: Vec<_> = body.ranges().collect().unwrap();
+            assert_eq!(ranges.as_slice(), reference.as_slice());
+            assert_eq!(ranges.spilled(), count > 2);
+            let detached = body.buffer_bytes().clone();
+            drop(body);
+            let actual: Vec<_> = ranges
+                .iter()
+                .map(|range| range.clone().map(|range| &detached[range]))
+                .collect();
+            assert_eq!(
+                actual,
+                values
+                    .iter()
+                    .copied()
+                    .cycle()
+                    .take(count)
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn field_ranges_reject_malformed_rows() {
+        for (count, payload) in [
+            (0, &b"extra"[..]),
+            (1, &b"\0\0"[..]),
+            (1, &b"\0\0\0\x05four"[..]),
+            (2, &b"\xff\xff\xff\xff"[..]),
+            (3, &b"\xff\xff\xff\xff\0\0\0\0\0"[..]),
+        ] {
+            assert!(row_ranges(&data_row(count, payload)).is_err());
+        }
     }
 }
