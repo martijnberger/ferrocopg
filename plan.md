@@ -66,12 +66,14 @@ The completed Phase 4 evidence below is a historical baseline, not validation
 of every subsequent performance change.
 
 The current main checkpoint is `4a132959`, including result storage,
-cursor-lifecycle/bookkeeping, and the audited CI accounting repair. Its matrix
-has 53 completed jobs with no failures, including seven of eight Rust lanes
-and the standalone package job; complete validation remains pending. The last
-recorded complete green 57-job checkpoint is `639bbd69`. Subsequent borrowed
-parameter work requires its own validation. No final candidate has passed all
-acceptance gates.
+cursor-lifecycle/bookkeeping, and the audited CI accounting repair. Its
+[compatibility workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35320710254)
+completed all 57 jobs successfully, including all eight Rust lanes and the
+standalone package job. This supersedes `639bbd69` as the latest verified
+complete green compatibility checkpoint, not as performance acceptance.
+The borrowed-parameter follow-up is `cb556467`; its complete CI status was not
+verified at this update and requires separate evidence. No final candidate
+has passed all acceptance gates.
 The acceptance status at this planning checkpoint is:
 
 | Area | Status | Remaining evidence or work |
@@ -80,7 +82,7 @@ The acceptance status at this planning checkpoint is:
 | Official synchronous pool | Implemented and regression-tested | Retain coverage in final benchmarks, soak, and matrix |
 | Performance | Not accepted; seven workloads exceed the C limit, and five miss Python parity | Optimize, then pass three complete candidate runs |
 | Sustained reliability | Earlier three-backend baseline passed | Repeat 30 minutes per backend on the final candidate |
-| Latest compatibility validation | Focused checks pass; local full selections have failures | Resolve or account for reproduced failures and obtain a green supported matrix |
+| Latest compatibility validation | All 57 CI jobs pass at `4a132959`; `cb556467` has focused passes and local full-harness timing failures | Verify the follow-up's supported matrix and investigate local timing failures |
 | Release wheels and publication | Pending | Complete Phases 6 and 7 before publishing to PyPI |
 
 The implementation checkpoint is not a release candidate designation. Local
@@ -95,11 +97,14 @@ not mean the performance, reliability, packaging, or publication gates are done.
 
 Work in this order:
 
-1. Validate the current execution, row-loading, and cursor-lifecycle changes.
-   Classify full-harness failures and retain explicit Python/C comparison
-   coverage before treating an optimization as a new correctness baseline.
-2. Profile and reduce shared small-query overhead, then remaining bulk-row and
-   text COPY costs. Each slice needs a rebuilt installed wheel, regression
+1. Verify full compatibility for the borrowed-parameter follow-up to the green
+   `4a132959` checkpoint. Classify full-harness failures and retain explicit
+   Python/C comparison coverage before accepting another correctness baseline.
+2. Profile and reduce shared small-query overhead first, then remaining bulk-row
+   and text COPY costs. Parameter borrowing removed allocations but did not
+   measurably improve the longer warmed query comparisons. Choose the next
+   change from a fresh profile, not from an assumption that moving more code to
+   Rust must be faster. Each slice needs a rebuilt installed wheel, regression
    coverage, and a complete eleven-workload comparison, not a selected win.
 3. Freeze one candidate and collect its acceptance evidence: three passing
    benchmark runs, the full three-backend soak, and green compatibility and
@@ -110,6 +115,30 @@ Keep the Rust development default in place throughout. Do not substitute async
 work, a pool fork, an upstream proposal, or relaxed thresholds for the remaining
 synchronous release work. Any scope or acceptance change needs a separate
 explicit decision.
+
+### Next implementation slice
+
+Investigate parameter adaptation and query/result setup on `cb556467` before
+choosing another optimization. These paths are shared by the failing
+parameterized, prepared, transaction, and pool workloads, making them the first
+priority rather than expanding the API or starting native async work.
+
+- Capture warmed parameterized/prepared profiles and a complete benchmark of
+  the installed current wheel; keep the official Python/C baselines unchanged.
+- Select one measured hot path and compare its rebuilt wheel with the parent
+  on the same otherwise idle machine. Record wall time and CPU time; allocation
+  reduction alone is not evidence of a latency improvement.
+- Preserve custom dumper/loader registration and cache behavior, integer OID
+  selection, text/binary formats, NULL/empty distinctions, encoding and error
+  semantics, cancellation, and result lifetime. Add targeted regressions before
+  relying on a native fast path.
+- Re-run all eleven workloads and the relevant unfiltered compatibility modules.
+  If the change is effectively flat, record that result and reassess the profile
+  instead of treating the slice as closure of a performance gap.
+
+This slice is complete when it produces a tested, measured optimization or an
+evidence-backed decision not to pursue that approach. Phase 5 itself remains
+open until the final-candidate acceptance checklist passes.
 
 ### Historical Phase 3 and Phase 4 baseline
 
@@ -1119,8 +1148,10 @@ encoding marker. Its UTF-8 and custom-adapter coverage remains active there.
 Expected synchronous totals are therefore `4788` for CPython 3.11-3.13 and
 `4823` for 3.14. Async totals, manifests, pass-rate floors, and the zero-regression
 budget are unchanged. Local Rust adaptation/accounting tests pass 86 cases with
-one raw-libpq skip; explicit C/libpq adaptation passes 70. A fresh complete CI
-matrix must verify these revised counts and CockroachDB coverage.
+one raw-libpq skip; explicit C/libpq adaptation passes 70. The complete
+`4a132959` workflow subsequently passed all 57 jobs, validating the revised
+counts in all eight Rust lanes and the upstream comparison coverage, including
+CockroachDB. This does not validate the later borrowed-parameter change.
 
 The borrowed-parameter slice removes per-parameter byte-vector clones and
 boxes from the Rust wire path. Unprepared execution now passes a borrowed
@@ -1251,20 +1282,22 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Establish correctness for `4a132959` and the borrowed-parameter follow-up in
-   the full CI matrix, including
+1. Use the green `4a132959` matrix as the correctness checkpoint and verify
+   the borrowed-parameter revision `cb556467` in the full CI matrix, including
    signals, cancellation recovery, concurrent close, custom adapters, encodings,
    and result lifetime. Investigate the local timing failures with explicit
    libpq comparisons; isolated passes do not make a failing full run green.
-   Revalidate the C-transformer coexistence fix in the full selection and
-   comparison CI, without misclassifying the original failures as new executor
-   regressions or hiding failures with skips.
+   Retain coverage of the now-matrix-validated C-transformer coexistence fix
+   without misclassifying the original failures as new executor regressions or
+   hiding failures with skips.
    Use the full classified harness rather than filtering out `asyncio` fixture
    names when claiming synchronous coverage.
 2. Reduce shared small-query overhead first: parameter adaptation, query setup,
    single-row result loading, and Python/Rust crossings affect parameterized
    queries, prepared reuse, transactions, and pool cycles. Profile the current
    direct-execution path rather than optimizing the removed worker handoff.
+   Follow the next implementation slice above; parameter borrowing alone was
+   effectively flat in the longer warmed comparisons.
    Keep each change independently tested and compare rebuilt release wheels
    against both official baselines on the same machine.
 3. Address bulk result loading and text COPY as separate measured slices.
@@ -1273,8 +1306,9 @@ the synchronous beta is established.
    choosing the next change. Preserve custom row factories, loader exceptions,
    NULL/empty values, encoding behavior, and result lifetime after connection close.
    Recheck all eleven workloads after each slice. Binary COPY passes the latest
-   lifecycle run but failed the preceding row-storage repeat, so it still
-   needs repeated final-candidate validation.
+   borrowed-parameter run but failed an earlier row-storage repeat, so it still
+   needs repeated final-candidate validation. TLS setup also narrowly misses
+   Python parity in the latest run and must not be omitted from acceptance.
 4. Keep the README aligned as optimizations land. It now removes obsolete
    Phase 4 limitations and distinguishes source-tree use, staged `ferrocopg`
    installation, official libpq/async delegation, and the experimental Rust
