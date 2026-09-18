@@ -16,6 +16,8 @@ import psycopg
 from psycopg import errors as e
 from psycopg import postgres, pq, sql
 
+from .fix_crdb import crdb_encoding
+
 
 @pytest.mark.parametrize(
     "data, format, result, type",
@@ -359,19 +361,21 @@ def test_str_list_dumper_binary(conn):
 
 
 @pytest.mark.parametrize("cursor_context", [False, True])
-def test_transformer_connection_encoding_and_custom_adapters(conn, cursor_context):
-    conn.execute("set client_encoding to latin1")
+@pytest.mark.parametrize("encoding", ["utf8", crdb_encoding("latin1")])
+def test_transformer_connection_encoding_and_custom_adapters(
+    conn, cursor_context, encoding
+):
+    conn.execute(sql.SQL("set client_encoding to {}").format(sql.Literal(encoding)))
     with conn.cursor() as cur:
         context = cur if cursor_context else conn
         original = context.adapters.get_dumper(str, PyFormat.TEXT)
         tx = Transformer(context)
         assert tx.connection is conn
-        assert (
-            tx.get_dumper("value\u00e9", PyFormat.TEXT).dump("value\u00e9")
-            == b"value\xe9"
-        )
+        assert tx.get_dumper("value\u00e9", PyFormat.TEXT).dump(
+            "value\u00e9"
+        ) == "value\u00e9".encode(encoding)
         tx.set_loader_types([builtins["text"].oid], pq.Format.TEXT)
-        assert tx.load_sequence([b"value\xe9"]) == ("value\u00e9",)
+        assert tx.load_sequence(["value\u00e9".encode(encoding)]) == ("value\u00e9",)
         assert context.adapters.get_dumper(str, PyFormat.TEXT) is original
 
         class CustomDumper(StrDumper):

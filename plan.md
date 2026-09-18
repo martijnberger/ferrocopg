@@ -64,7 +64,7 @@ Phase 6 wheel-matrix validation and Phase 7 publication remain pending.
 The completed Phase 4 evidence below is a historical baseline, not validation
 of every subsequent performance change.
 
-Recorded performance checkpoint on `main`: `baec4faf` (native single-row and
+Recorded performance checkpoint: `baec4faf` (native single-row and
 bulk result storage), following `639bbd69` (direct synchronous execution).
 The latter has a complete green 57-job matrix; the new main checkpoint requires
 its own validation. Subsequent cursor-lifecycle work is a separate checkpoint
@@ -1105,6 +1105,20 @@ parameterized `1.665`, prepared `1.910`, tuple rows `1.279`, namedtuple rows
 Dictionary rows and binary COPY pass both limits in this run. Plaintext setup
 also passes, unlike the lifecycle run. Timing variability and the remaining
 failures preclude an acceptance claim; final-candidate repetition is unchanged.
+
+The `baec4faf` matrix exposed stale denominator accounting, not synchronous
+behavior failures, in the inspected PostgreSQL 14, 16, and 17 lanes. Comparing
+the CPython 3.12 / PostgreSQL 16 JUnit against the green `639bbd69` run proves
+exactly three added adapter test IDs and no removed IDs (`4781` to `4784`).
+Subsequent zero-column metadata coverage adds two more cases. The encoding
+regression now also runs UTF-8 for both connection/cursor contexts, adding two
+cases while marking only LATIN1 unsupported on CockroachDB through the existing
+encoding marker. Its UTF-8 and custom-adapter coverage remains active there.
+Expected synchronous totals are therefore `4788` for CPython 3.11-3.13 and
+`4823` for 3.14. Async totals, manifests, pass-rate floors, and the zero-regression
+budget are unchanged. Local Rust adaptation/accounting tests pass 86 cases with
+one raw-libpq skip; explicit C/libpq adaptation passes 70. A fresh complete CI
+matrix must verify these revised counts and CockroachDB coverage.
 
 Definition of done:
 
