@@ -63,6 +63,24 @@ Phase 6 wheel-matrix validation and Phase 7 publication remain pending.
 The completed Phase 4 evidence below is a historical baseline, not validation
 of every subsequent performance change.
 
+Current implementation checkpoint: `639bbd69` (direct synchronous execution).
+The acceptance status at this planning checkpoint is:
+
+| Area | Status | Remaining evidence or work |
+| --- | --- | --- |
+| Synchronous API and package boundary | Implemented in Phase 4 | Revalidate after the Phase 5 optimizations |
+| Official synchronous pool | Implemented and regression-tested | Retain coverage in final benchmarks, soak, and matrix |
+| Performance | Not accepted; eight of eleven workloads still exceed the C limit | Optimize, then pass three complete candidate runs |
+| Sustained reliability | Earlier three-backend baseline passed | Repeat 30 minutes per backend on the final candidate |
+| Latest compatibility validation | Focused checks pass; local full selections have failures | Resolve or account for reproduced failures and obtain a green supported matrix |
+| Release wheels and publication | Pending | Complete Phases 6 and 7 before publishing to PyPI |
+
+The implementation checkpoint is not a release candidate designation. Local
+working-copy reports, earlier green CI runs, and short resource smokes must not
+be combined into a claim that the current revision has passed all gates.
+
+### Historical Phase 3 and Phase 4 baseline
+
 Phase 3 completed the backend foundation and broad compatibility harness.
 
 Implemented Rust-backed capabilities include:
@@ -79,7 +97,7 @@ Implemented Rust-backed capabilities include:
 - pipelined simple-query batches
 - an experimental connection-affine thread-offload async facade
 
-Validation evidence:
+Historical validation evidence (not the current Phase 5 candidate):
 
 - 26 Rust backend tests pass.
 - The focused live bootstrap suite reports 205 passing tests with 8 expected
@@ -127,7 +145,8 @@ a hard actionable error, and comparison jobs select libpq explicitly. The
 staging tool builds a standalone `ferrocopg` wheel, records its vendored
 upstream revision, and passes clean installed-wheel CI for Rust-only use,
 side-by-side delegation, coexistence, and uninstall isolation. The full
-release-critical synchronous contract is green across the supported matrix.
+release-critical synchronous contract was green across the supported matrix
+at Phase 4 closure; subsequent optimizations require fresh validation.
 
 ## Architecture
 
@@ -750,6 +769,9 @@ Tasks:
   results; a passing earlier CI run does not validate later code.
 - [ ] Revalidate the complete supported synchronous compatibility matrix and
   installed-package boundary after the performance changes.
+- [ ] Align the README with the completed synchronous contract, staged-package
+  usage, official async delegation, and experimental Rust async status. Remove
+  obsolete Phase 4 gap claims without removing the raw libpq/socket boundaries.
 
 The commands and acceptance budgets are documented in
 `docs/ferrocopg-performance.md`. The harness under `tools/phase5` measures the
@@ -875,7 +897,7 @@ Both complete reports and the parent comparison are retained locally under
 `/tmp/phase5-text-parent-bench`. These development comparisons are not the
 required three passing exact-revision acceptance runs.
 
-The direct synchronous execution slice removes the native per-session worker
+Checkpoint `639bbd69` removes the native per-session worker
 and per-operation channel handoff. It releases the interpreter while executing
 on the caller's thread, checking signals during I/O at ten-millisecond
 intervals outside Tokio's runtime. Cancellation still drains the active
@@ -1009,26 +1031,46 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Validate the direct-execution checkpoint in the full CI matrix, including
+1. Establish correctness for `639bbd69` in the full CI matrix, including
    signals, cancellation recovery, concurrent close, custom adapters, encodings,
-   and result lifetime. Track the separately reproduced source-tree C-transformer
-   coexistence failures without treating them as new executor regressions or
-   hiding them with skips. Rebuild the installed wheel from the recorded revision
-   before collecting candidate evidence.
-2. Prioritize shared small-query overhead affecting parameterized and prepared
-   execution, transaction/savepoint cycles, and pool queries: these still miss
-   both baselines. Profile Rust query execution and result allocation for the
-   bulk-row C gap, and finish text COPY optimization as a separate measured
-   slice. Preserve cancellation, concurrency, and adaptation correctness;
-   recheck binary COPY because its single passing result is close to the limit.
-3. Once the candidate stabilizes, run at least three complete benchmarks on
-   the same otherwise idle machine and the full 30-minute soak for each backend
-   on that same candidate. Publish raw results and exact-revision metadata;
-   the passing `24b646e3` soak and short runs are supporting evidence only.
-   Confirm scheduled execution separately from push/manual CI coverage.
-4. Rerun the complete supported synchronous compatibility matrix and clean
-   installed-package checks on the optimized candidate. Mark Phase 5 complete
-   only when performance, reliability, and compatibility gates all pass.
-5. Proceed to Phase 6's full wheel matrix, then Phase 7's release checklist.
+   and result lifetime. Investigate the local timing failures with explicit
+   libpq comparisons; isolated passes do not make a failing full run green.
+   Fix the separately reproduced source-tree C-transformer array-adaptation
+   coexistence issue without misclassifying it as a new executor regression
+   or hiding it with skips.
+2. Reduce shared small-query overhead first: parameter adaptation, query setup,
+   single-row result loading, and Python/Rust crossings affect parameterized
+   queries, prepared reuse, transactions, and pool cycles. Profile the current
+   direct-execution path rather than optimizing the removed worker handoff.
+   Keep each change independently tested and compare rebuilt release wheels
+   against both official baselines on the same machine.
+3. Address bulk result loading and text COPY as separate measured slices.
+   Evaluate removing the per-row temporary vector and redundant tuple-factory
+   call in `BackendResultSet.load_rows`; these are hypotheses, not promised
+   speedups. Preserve custom row factories, loader exceptions, NULL/empty
+   values, encoding behavior, and result lifetime after connection close.
+   Recheck all eleven workloads after each slice. Binary COPY passes the two
+   latest development runs but has varied across checkpoints, so it still
+   needs repeated final-candidate validation.
+4. Correct the README's obsolete concrete-cursor, COPY-writer, pipeline,
+   timeout, and multi-host limitations. Clearly distinguish source-tree use,
+   staged `ferrocopg` installation, official libpq/async delegation, and the
+   experimental Rust async facade. Retain the fork's purpose, synchronous-first
+   scope, no-silent-fallback rule, and undecided upstreaming status.
+5. Freeze and record the optimized candidate, rebuild its installed release
+   wheel, and run at least three complete benchmarks on the same otherwise
+   idle machine. Every workload must pass Rust/Python <= `1.0` and Rust/C
+   <= `1.25` in every run. Run the full 30-minute soak for each backend on that
+   same candidate and rerun the supported compatibility and package-boundary
+   matrix. Publish raw results, failures, revision, and environment metadata;
+   temporary local paths alone are not durable release evidence.
+6. Confirm a scheduled reliability run separately from push/manual coverage.
+   Backend-only changes do not trigger the current Phase 5 push path filter,
+   so explicitly dispatch acceptance when needed and verify the tested revision.
+   Mark Phase 5 complete only when all its gates pass on the final candidate;
+   earlier sustained soaks and short smokes remain supporting evidence only.
+7. Proceed to Phase 6's full wheel matrix, then Phase 7's release checklist.
    Keep Rust as the development default now, but do not publish to PyPI before
-   all release gates pass. An upstream proposal remains a separate decision.
+   all release gates pass. Do not expand into Rust-native async or a pool fork
+   to avoid the remaining synchronous blockers. An upstream proposal remains
+   a separate decision.
