@@ -57,11 +57,12 @@ Phases 3 and 4 are complete. Phase 5 is the active release blocker: the
 installed-package benchmark and soak infrastructure exists, but performance
 acceptance has not passed. Full 30-minute-per-backend CI soaks passed on
 revisions `24b646e3` and `2ed94013`; sustained validation of the final candidate
-remains required. The latest longer-sample working-copy benchmark fails seven
-workloads against C; parameterized/prepared queries, transactions, and pool cycles also
-miss Python parity. TLS passes this run but missed parity in the preceding
-borrowed-parameter run. These are development measurements,
-not release acceptance.
+remains required. The latest inline row-offset working-copy benchmark fails six
+workloads against C; parameterized/prepared queries, transactions, and pool
+cycles also miss Python parity. Tuple rows narrowly pass the C limit in two
+runs, but that is not a closed performance gate. TLS passes these runs but
+missed parity in an earlier borrowed-parameter run. These are development
+measurements, not release acceptance.
 Phase 6 wheel-matrix validation and Phase 7 publication remain pending.
 The completed Phase 4 evidence below is a historical baseline, not validation
 of every subsequent performance change.
@@ -74,19 +75,27 @@ standalone package job. This supersedes `639bbd69` as the latest verified
 complete green compatibility checkpoint, not as performance acceptance.
 The borrowed-parameter follow-up is `cb556467`. Its lint passed, but its Tests
 workflow and the subsequent documentation checkpoint were superseded and
-cancelled. The result-metadata follow-up, including the corrected timeout test
-in `61ab3655`, passes all 4,724 executed synchronous cases locally and still
-requires fresh full CI evidence. No final candidate has passed all acceptance
-gates.
+cancelled. The result-metadata follow-up `be46e180`, including the corrected
+timeout test in `61ab3655`, passes all 4,724 executed synchronous cases locally.
+At this checkpoint its
+[compatibility workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35330892670)
+has completed 38 of 57 jobs with no failures so far; this is not a complete
+green matrix. Its
+[Phase 5 workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35330914691)
+has a failed benchmark job and an ongoing soak. The metadata lint workflow
+passed. The subsequent inline row-offset change is `578dbf9c`: its first full
+local run passes 4,723 of 4,724 synchronous cases, with one pool backoff timing
+failure. An unchanged full repeat is in progress. Neither parent workflow
+validates that newer change. No final candidate has passed all acceptance gates.
 The acceptance status at this planning checkpoint is:
 
 | Area | Status | Remaining evidence or work |
 | --- | --- | --- |
 | Synchronous API and package boundary | Implemented in Phase 4 | Revalidate after the Phase 5 optimizations |
 | Official synchronous pool | Implemented and regression-tested | Retain coverage in final benchmarks, soak, and matrix |
-| Performance | Not accepted; seven workloads exceed the C limit, and four miss Python parity | Optimize, then pass three complete candidate runs |
+| Performance | Not accepted; latest inline-offset run misses six C limits and four Python limits | Optimize, then pass three complete candidate runs |
 | Sustained reliability | Three-backend soaks passed at `24b646e3` and `2ed94013` | Repeat 30 minutes per backend on the final candidate |
-| Latest compatibility validation | All 57 CI jobs pass at `4a132959`; the metadata/test follow-up passes all 4,724 executed local sync cases | Verify the follow-up's supported matrix and installed-package boundary |
+| Latest compatibility validation | All 57 CI jobs pass at `4a132959`; metadata passes 4,724 local sync cases; inline offsets pass 4,723/4,724 with a pool timing failure | Finish the unchanged full repeat and supported CI; do not waive the failure |
 | Release wheels and publication | Pending | Complete Phases 6 and 7 before publishing to PyPI |
 
 The implementation checkpoint is not a release candidate designation. Local
@@ -101,9 +110,11 @@ not mean the performance, reliability, packaging, or publication gates are done.
 
 Work in this order:
 
-1. Verify full compatibility for the parameter/metadata follow-ups to the green
-   `4a132959` checkpoint. Classify full-harness failures and retain explicit
-   Python/C comparison coverage before accepting another correctness baseline.
+1. Finish validation of the inline row-offset slice and the parameter/metadata
+   follow-ups to the green `4a132959` checkpoint. Classify full-harness failures
+   and retain explicit Python/C comparison coverage before accepting another
+   correctness baseline. Let the existing metadata CI run finish rather than
+   repeatedly superseding it with new pushes to the same bookmark.
 2. Profile and reduce shared small-query overhead first, then remaining bulk-row
    and text COPY costs. Parameter borrowing removed allocations but did not
    measurably improve the longer warmed query comparisons. Choose the next
@@ -122,7 +133,14 @@ explicit decision.
 
 ### Next implementation slice
 
-Continue profiling parameter adaptation and query/result setup after the
+First finish the inline row-offset slice: classify the running full local
+harness repeat and supported CI. C-accelerator coexistence and the installed
+resource smoke pass; both complete benchmarks still fail acceptance. Preserve
+the first full-run pool timing failure and investigate it without changing the
+assertion, retry policy, manifest, or regression budget. Do not treat narrowly
+passing tuple results as closure of the complete performance gate.
+
+Then continue profiling parameter adaptation and query/result setup after the
 metadata slice. A direct port of dumper-cache dispatch was measured and rejected
 as effectively flat; do not repeat it without a different measured mechanism.
 Loader class resolution, loader construction, and adaptation-context setup
@@ -1269,6 +1287,62 @@ Final cleanup recorded 615 driver objects, two threads, one socket, and four
 file descriptors. The report is `/tmp/phase5-column-metadata-soak.json`; this
 short smoke does not satisfy the final 30-minute-per-backend soak gate.
 
+The inline row-offset slice `578dbf9c` stores up to two field ranges
+inside each row using `SmallVec`, spilling wider rows to heap storage. Both
+simple and extended result paths retain owned wire bytes and preserve NULL,
+empty, binary, and detached-result behavior. Five vendored unit tests pass,
+including malformed-row and inline/spill boundaries; all 28 Rust backend tests
+and 29 installed-wheel/accounting checks pass. The installed lifetime regression
+covers one-, two-, three-, and five-column text/binary results, alongside the
+existing zero- and 64-column coverage. The C-accelerator coexistence selection
+passes all 3,170 synchronous cases; its six known experimental async type-info
+failures remain separately classified. These targeted checks do not establish
+a new full correctness baseline.
+
+The first full inline-offset run reports `4723/4724` synchronous cases, with
+one failure and no errors. `tests/pool/test_pool.py::test_check_backoff` measures
+`105.185 ms` against a `105 ms` upper bound for a requested `100 ms` sleep.
+The unchanged isolated assertion passes under C/libpq but fails again under
+Rust. A diagnostic wrapper records the Rust sleep itself taking `105.015 ms`,
+before subsequent pool processing; the pure-Python/libpq diagnostic passes
+with a `103.725 ms` sleep. This locates the observed overshoot but does not
+prove the failure is harmless or satisfy the zero-regression gate. No test,
+tolerance, pool retry policy, or manifest was changed. Preserve the failed
+`/tmp/phase5-inline-ranges-full.xml` and its classified report; the unchanged
+full repeat writes `/tmp/phase5-inline-ranges-full-2.xml`. Async remains
+`505/620`, with 104 failures and 11 errors, separately from synchronous status.
+
+Two parent/candidate measurement orders favor inline offsets, but the gains are
+small and variable. Prepared-query medians are `68.72 -> 65.83` and
+`65.43 -> 65.04` microseconds; tuple-row medians are `312.31 -> 311.44` and
+`301.63 -> 290.08` microseconds. Do not infer a stable percentage improvement.
+The complete development report in `/tmp/phase5-inline-ranges-bench/report.json`
+still fails six C limits: parameterized `1.346`, prepared `1.747`, namedtuple
+rows `1.407`, transactions `1.626`, text COPY `1.428`, and pool cycles `1.886`.
+Parameterized/prepared queries, transactions, and pool also fail Python parity.
+Tuple rows pass narrowly at `1.248` against C in this run only. This report is
+working-copy evidence, not a revision-frozen acceptance run or a replacement
+for the three complete passing runs required below.
+
+The second complete inline-offset report in `/tmp/phase5-inline-ranges-bench-2`
+also misses six C limits and four Python limits. Rust/C ratios are parameterized
+`1.657`, prepared `1.494`, transactions `1.628`, text COPY `1.346`, binary COPY
+`1.271`, and pool cycles `1.967`. Tuple rows pass narrowly again (`1.248`), and
+namedtuple rows pass (`1.174`), but binary COPY regresses across the limit.
+Do not combine passing workloads across runs. The installed Rust resource smoke
+ran `60.05` seconds with 136 samples, no reported failures, and zero surviving
+workload sessions in every sample. Cleanup recorded 615 driver objects, two
+threads, one socket, and four file descriptors. Its report is
+`/tmp/phase5-inline-ranges-soak.json`; sustained final-candidate validation is
+still required.
+
+The parent metadata CI benchmark at `be46e180` also fails acceptance, independently
+of local machine variability: parameterized `1.519`, prepared `1.270`,
+transactions `1.261`, text COPY `1.357`, and pool `1.422` against C; four
+workloads also miss Python parity. Raw reports are published in workflow
+`35330914691`. The ongoing parent soak must not be restarted or credited to
+the inline-offset revision.
+
 Definition of done:
 
 - Sync pooling is documented and green.
@@ -1370,7 +1444,9 @@ the synchronous beta is established.
 
 1. Use the green `4a132959` matrix as the correctness checkpoint and verify
    the parameter/metadata follow-ups and `61ab3655` test correction in the full
-   CI matrix, including
+   CI matrix. Complete and classify the inline-offset local harness separately;
+   do not attribute the parent revision's results to the new change. Preserve
+   coverage of
    signals, cancellation recovery, concurrent close, custom adapters, encodings,
    and result lifetime. Retain the corrected per-cycle waiting expectation and
    the zero-failure local synchronous baseline. Investigate any new timing
@@ -1391,8 +1467,10 @@ the synchronous beta is established.
    against both official baselines on the same machine.
 3. Address bulk result loading and text COPY as separate measured slices.
    The temporary-vector and redundant tuple-factory costs have been removed
-   locally; profile the remaining row allocation and conversion costs before
-   choosing the next change. Preserve custom row factories, loader exceptions,
+   locally. Validate the current inline-offset allocation slice before choosing
+   another row-storage change; its modest paired gains and narrowly passing
+   tuple runs do not close the bulk-row gate. Profile the remaining row allocation
+   and conversion costs. Preserve custom row factories, loader exceptions,
    NULL/empty values, encoding behavior, and result lifetime after connection close.
    Recheck all eleven workloads after each slice. Binary COPY passes the latest
    borrowed-parameter run but failed an earlier row-storage repeat, so it still
