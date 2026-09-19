@@ -97,15 +97,16 @@ including a new COPY/status regression. These
 experiments do not close a performance gate; avoid repeating them without a
 different measured mechanism.
 
-Current candidate boundary: production sources are restored to notice-drain
-revision `e2651478`; later commits retain the added regressions and investigation
-evidence. The active branch remains `martijn/phase5-notice-lock`. Notice draining
+Current candidate boundary: production code remains at notice-drain revision
+`e2651478`, with the ThinLTO release profile added in `9d160e8e`; later commits
+retain the added regressions and investigation evidence. The active branch
+remains `martijn/phase5-notice-lock`. Notice draining
 passes its complete 57-job CI matrix and full three-backend soak, but not its
 benchmark or strict local compatibility gate. The discarded dispatcher's
 unfinished validation runs are cancelled rather than treated as acceptance.
 The restored revision's Tests run `35454687013` completed with 56 passing jobs
 and one failed macOS C/Python 3.13 cancellation test; its lint passes. That
-failure remains open and is not covered by the earlier notice-drain matrix's
+historical failure is not covered by the earlier notice-drain matrix's
 success. Follow-up `f0c45f95` fixes a demonstrated query-start wait defect in
 the cancellation test and passes focused local validation, including real
 C/Python libpq 18.6 cancellation. The original test also passes locally, so this
@@ -121,7 +122,8 @@ failure: CockroachDB master now denies direct access to `crdb_internal`.
 All eight Rust jobs and macOS C/3.13 pass; lint also passes. Correction `fa548322`
 uses the documented `SHOW LOCAL STATEMENTS` interface instead of internal tables.
 All six focused checks pass on both CockroachDB 24.3.36 and the same development
-version as CI; full validation of the corrected candidate is still pending.
+version as CI. The corrected candidate `9d160e8e` now passes all 57 CI jobs and
+the full three-backend soak; its benchmark and local strict gate still fail.
 The product decisions and release gates remain unchanged. Further work should
 reuse the active development branch once its prior CI completes rather than
 creating a branch per optimization. Superseded-branch deletion awaits user
@@ -133,7 +135,8 @@ Phases 3 and 4 are complete. Phase 5 is the active release blocker: the
 installed-package benchmark and soak infrastructure exists, but performance
 acceptance has not passed. Full 30-minute-per-backend CI soaks passed on
 revisions `24b646e3`, `2ed94013`, `be46e180`, `cc7b60e2`, `e7b008c2`,
-`7c740a41`, `3a0bb3db`, `0dcecac2`, `f237202b`, `a7c145d2`, `347ce908`, and `e2651478`;
+`7c740a41`, `3a0bb3db`, `0dcecac2`, `f237202b`, `a7c145d2`, `347ce908`, `e2651478`,
+and `9d160e8e`;
 sustained validation of the final
 candidate remains required. The retained implementation's complete local benchmark, for notice-drain
 revision `e2651478`, fails five workloads against C: parameterized/prepared
@@ -3166,7 +3169,7 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Use `e2651478` as the latest completed CI compatibility/reliability checkpoint:
+1. Use `9d160e8e` as the latest completed CI compatibility/reliability checkpoint:
    all 57 compatibility jobs, lint, and the full three-backend soak pass.
    The restored `c28cd643` matrix completed with 56 passing jobs and a failed
    macOS C/Python 3.13 cancellation test. The demonstrated query-start wait
