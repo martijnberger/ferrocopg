@@ -66,6 +66,13 @@ results for workflows that are still running.
   result-adaptation gaps. Do not expand into native async or a pool fork.
 - Keep upstream synchronization separate from the undecided upstreaming question.
 
+Latest investigation: narrower COPY preflight and a single-runtime-call buffered
+unprepared query were both tested in installed wheels and removed after mixed
+paired timings. Production code remains at `347ce908`. The restored wheel
+passes 43 installed checks, including a new COPY/status regression. These
+experiments do not close a performance gate; avoid repeating them without a
+different measured mechanism.
+
 Current candidate boundary: wait-timer reuse is committed as `347ce908` on
 `martijn/phase5-wait-timer`; its parent's completed validation at `a7c145d2`
 does not validate the new timer. Its complete local benchmark and compatibility
@@ -312,6 +319,14 @@ soak validation before promotion. Preserve signal-check deadlines, callbacks
 outside Tokio, cancellation and recovery, notification ordering, and connection
 use across threads. Return to the measured query/setup and first-row adaptation
 gaps rather than expanding the timer rewrite without a new measured mechanism.
+Combining unprepared stream creation and collection into one runtime call was
+also tested and removed after inconsistent paired results. A narrower COPY
+preflight check likewise failed to improve both orders. These isolated boundary
+and dispatch changes are not pending implementation work. Investigate the
+broader Python query/cursor setup and adaptation lifecycle next, while retaining
+the actual registered adapter classes, context snapshots, caches, and callback
+ordering. Earlier native binding and loader-batching experiments do not establish
+that porting another helper will improve the complete public query.
 
 Do not repeat shared immutable adapter ownership flags: both-order timings were
 mixed, and the prototype broke pickling of an empty `AdaptersMap`. Adapter
@@ -2416,7 +2431,7 @@ COPY (`0.648` / `1.243`), binary COPY, both connection cases, and tuple/dict
 rows pass both limits in this run. These remain variable workload passes, not
 three complete passing runs or durable release acceptance.
 
-Tests `35446094700` is unfinished, with five completed jobs and no failures at
+Tests `35446094700` is unfinished, with 32 completed jobs and no failures at
 this snapshot. The full
 [benchmark/soak workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35446115679)
 has failed its benchmark and is still running the soak; its head SHA is verified
@@ -2447,6 +2462,47 @@ unprepared execution boundaries before proposing another isolated helper or
 timer change. Preserve registered adapters, protocol/metadata semantics,
 signal handling, and callback ordering; neither profile justifies bypassing
 those contracts.
+
+#### Rejected COPY preflight shortcut
+
+A diagnostic call profile of 20,000 parameterized public queries records
+4,620,001 calls. It identifies two `_statusmessage_for_query()` calls per query:
+one only rejects COPY before execution, while the other builds the real result
+status. The local profile `/tmp/phase5-wait-timer-parameterized.prof` is
+instrumented development evidence, not a latency baseline or release artifact.
+
+The prototype checked only the first token for exact strings and retained the
+original path for subclasses. All 43 installed checks passed, including the new
+regression for COPY rejection before transaction start, bytes/composed/subclass
+queries, status messages, non-COPY syntax errors, and recovery. That regression
+also passes on the unchanged parent and is retained for future work.
+
+Prepared-query parent/prototype wall medians were `51.298/51.288 us` and
+`50.046/47.031 us` in reverse order. CPU medians were `38.687/38.806 us` and
+`38.433/35.008 us`. The first pair is flat with slightly worse CPU time, so
+the reverse-order gain is not a repeatable improvement. Raw samples are
+`/tmp/phase5-{before-,}copy-preflight-prepared-{a,b}.json`. The production change
+was removed; do not use this as justification to alter COPY rejection or
+query status semantics.
+
+#### Rejected combined unprepared runtime entry
+
+The next prototype created the unprepared row stream and drained it inside
+one runtime call, returning the exhausted stream for metadata and final row
+counts. It reused the existing pinned allocation and did not copy metadata or
+change streaming iteration. All 43 installed checks passed, including empty
+results, text/binary formats, large rowsets, affected counts, collection errors,
+signal handling, and recovery.
+
+Parameterized parent/prototype wall medians were `58.278/56.020 us` and
+`55.519/56.113 us` in reverse order. CPU medians were `39.944/38.254 us` and
+`37.932/38.215 us`. The reverse pair is slower, so the prototype and its extra
+vendored API were removed. Raw samples are
+`/tmp/phase5-{before-,}buffered-query-parameterized-{a,b}.json`.
+The installed environment is restored to the exact `347ce908` wheel and all
+43 installed checks pass again. No full compatibility, benchmark, or soak
+acceptance is claimed for either rejected prototype. The timer candidate's
+original failed full reports and unfinished CI remain authoritative.
 
 #### Phase 5 definition of done
 
@@ -2597,6 +2653,10 @@ the synchronous beta is established.
    fails on one pool timing assertion. Finish its exact-revision matrix and
    sustained soak before promotion. The ownership-flag prototype is removed after
    mixed timings and a pickle regression. Do not revive it as unfinished work.
+   The COPY-preflight and combined unprepared-runtime prototypes are also
+   removed after mixed paired timings. Do not repeat those local shortcuts;
+   investigate the broader query/cursor setup and adaptation lifecycle while
+   preserving the retained cache, callback-order, COPY, and result-status tests.
    Profile the current
    direct-execution path rather than optimizing the removed worker handoff.
    Follow the next implementation slice above; parameter borrowing alone was
