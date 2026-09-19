@@ -380,13 +380,6 @@ class _AdaptContext:
         return self._connection
 
 
-_transformer_dispatch = (
-    _ferrocopg.TransformerDispatch(RecursiveDumper, RecursiveLoader, pq.Format.TEXT)
-    if _ferrocopg and hasattr(_ferrocopg, "TransformerDispatch")
-    else None
-)
-
-
 class _BackendTransformer(AdaptTransformer):
     """Keep connection-free dumpers/loaders on the backend wire encoding."""
 
@@ -395,16 +388,6 @@ class _BackendTransformer(AdaptTransformer):
     _copy_dumpers: object | None = None
     _copy_text_config: tuple[bool, int | None, pq.Format] | None = None
     _native_row_codes: list[int] | None = None
-
-    def dump_sequence(
-        self, params: Sequence[Any], formats: Sequence[PyFormat]
-    ) -> Sequence[Buffer | None]:
-        if _transformer_dispatch is not None:
-            return cast(
-                "Sequence[Buffer | None]",
-                _transformer_dispatch.dump_sequence(self, params, formats),
-            )
-        return super().dump_sequence(params, formats)
 
     def _get_copy_text_config(self) -> tuple[bool, int | None, pq.Format]:
         from .types.numeric import IntDumper
@@ -458,8 +441,6 @@ class _BackendTransformer(AdaptTransformer):
         return self.dump_sequence(row, formats)
 
     def get_dumper(self, obj: Any, format: PyFormat) -> Any:
-        if _transformer_dispatch is not None:
-            return _transformer_dispatch.get_dumper(self, obj, format)
         dumper = super().get_dumper(obj, format)
         if isinstance(dumper, RecursiveDumper):
             dumper._tx = self
@@ -476,8 +457,6 @@ class _BackendTransformer(AdaptTransformer):
         return dumper
 
     def get_loader(self, oid: int, format: pq.Format) -> Any:
-        if _transformer_dispatch is not None:
-            return _transformer_dispatch.get_loader(self, oid, format)
         loader = super().get_loader(oid, format)
         if isinstance(loader, RecursiveLoader):
             loader._tx = self
