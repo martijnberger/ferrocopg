@@ -305,10 +305,12 @@ choosing another native fast path. Sparse diagnostics put the native prepared
 call near `34 us` inside a roughly `62 us` public query; isolated conversion
 cost is only about `3.77 us`. These instrumented measurements suggest broader
 wrapper/setup and fetch overhead, not proof that parameter binding alone can
-close the gap. Preserve reproducible scripts, raw samples, revision and wheel
-identity for the next comparison; local diagnostic scripts are not acceptance
-evidence. Installed regressions now cover cached dumper behavior after adapter
-registration, cached NULL OIDs, and left-to-right errors/callbacks. All 37
+close the gap. The checked-in `tools/phase5/query_profile.py` now measures public
+and phased queries across all three backends, with raw samples and installed
+implementation fingerprints. Preserve its reports and the tested wheel;
+diagnostics are not acceptance evidence. Installed regressions now cover cached
+dumper behavior after adapter registration, cached NULL OIDs, and left-to-right
+errors/callbacks. All 37
 installed checks pass against the restored `3a0bb3db` wheel. Preserve these
 regressions when evaluating any further binding shortcut.
 
@@ -2002,6 +2004,41 @@ fresh transformer sees them, and mixed parameters preserve left-to-right
 errors and custom dumper construction/callback counts. All 37 installed checks
 pass against the restored `3a0bb3db` wheel. This adds regression coverage, not
 a retained binding optimization or new performance acceptance evidence.
+
+#### Reproducible public-query diagnostics
+
+`tools/phase5/query_profile.py` now preserves the public and phased probe in
+the repository; usage and caveats are documented in
+`docs/ferrocopg-performance.md`. It selects the requested installed backend,
+checks every query result, alternates probe order, and records wall/CPU samples,
+environment metadata, and SHA-256 hashes of installed implementation files.
+It is explicitly separate from the acceptance harness. All 40 installed/harness
+checks pass, including three probe tests and the two new adaptation regressions.
+
+Six sequential local runs against the restored `3a0bb3db` Rust wheel and the
+pinned official comparators each recorded nine samples of 10,000 operations,
+after 1,000 warmups per probe. Public median wall/CPU times in microseconds:
+
+| Query | Rust | Python | C |
+| --- | --- | --- | --- |
+| Prepared | `59.184 / 37.909` | `45.650 / 32.607` | `31.964 / 17.133` |
+| Parameterized, preparation disabled | `63.726 / 36.792` | `48.258 / 30.102` | `36.259 / 16.699` |
+
+For the separate prepared phased probe, Rust/C cursor construction measured
+`3.586/1.465 us`, execute `49.961/29.555 us`, fetch `5.049/0.454 us`, and
+reference release `1.280/0.740 us`. The execution phase is the largest measured
+gap; fetch and cursor setup also remain material. Investigate the live execute
+path's conversion, native call, and post-execution bookkeeping before choosing
+the next optimization. Do not interpret these instrumented phases as an exact
+decomposition of the public timings or another retained performance change.
+
+Raw reports are `/tmp/phase5-query-diagnostic-{rust,python,c}-{prepared,parameterized}.json`.
+These are development evidence, not three complete passing benchmarks. The
+production implementation remains unchanged and performance acceptance remains
+open. Adaptation regression commit `a9c65458` is pushed on
+`martijn/phase5-query-diagnostics`; its lint run `35433180561` passes, while
+Tests `35433180544` is still running at this checkpoint (the package job passes).
+Do not attribute that CI run to later diagnostic-tool changes.
 
 Definition of done:
 

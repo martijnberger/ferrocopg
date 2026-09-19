@@ -55,6 +55,35 @@ than the Python median and no more than 1.25 times the C median. These are the
 roadmap's acceptance limits. A failure remains a release blocker unless an
 explicit release decision approves a documented exception.
 
+## Query diagnostics
+
+Use `tools/phase5/query_profile.py` to investigate small-query overhead without
+changing acceptance workloads. Run each backend in a separate process, using
+the same installed environment and DSN as the benchmark:
+
+```sh
+/tmp/phase5-env/bin/python tools/phase5/query_profile.py \
+  --backend rust --workload prepared --revision "$revision" \
+  --output /tmp/phase5-query-rust.json
+```
+
+Repeat with `--backend python` and `--backend c`, and with
+`--workload parameterized` to disable preparation. The command checks the
+selected implementation and query results, alternates public-query and
+instrumented cursor/execute/fetch/release samples, and records raw timings,
+CPU time, environment metadata, and hashes of installed implementation files.
+For official baselines, `--revision` identifies the comparison's fork revision;
+package versions and file hashes identify the installed comparator.
+
+The phased probe creates an explicit cursor, whereas the public probe calls
+`conn.execute()`. Timer overhead and different call paths mean phase medians
+are not an exact decomposition of public latency. Release means dropping the
+cursor reference, not an explicit `close()` call. These are diagnostics, not
+acceptance reports or wheel checksums. Preserve the scripts and reports with
+the tested revision and wheel; retain full benchmark and soak evidence
+separately. Run probes sequentially on an idle machine, never alongside builds,
+tests, or other benchmarks.
+
 ## Soak acceptance
 
 The soak runs connection churn, transactions and savepoint rollback,
