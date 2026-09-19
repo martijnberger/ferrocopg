@@ -59,11 +59,11 @@ acceptance has not passed. Full 30-minute-per-backend CI soaks passed on
 revisions `24b646e3`, `2ed94013`, `be46e180`, `cc7b60e2`, and `e7b008c2`;
 sustained validation of the final
 candidate remains required. The latest complete local benchmark, for the
-SQL-scanner working copy committed as `8561fa3d`, fails three workloads against
-C: prepared queries, transactions, and pool.
+row-drain working copy committed as `7c740a41`, fails five workloads against
+C: parameterized/prepared queries, namedtuple rows, transactions, and pool.
 Parameterized/prepared queries, transactions, and pool cycles miss Python parity.
 Passing individual row workloads does not close the complete performance gate.
-Both connection workloads pass this run but have missed parity in earlier runs.
+Plaintext connection setup also misses Python parity in this run; TLS passes.
 These are development measurements, not release acceptance.
 Phase 6 wheel-matrix validation and Phase 7 publication remain pending.
 The completed Phase 4 evidence below is a historical baseline, not validation
@@ -132,6 +132,21 @@ are mixed. The full local harness passes `4732/4736` synchronous cases and
 fails its strict gate on four pool/scheduler timing assertions. All four also
 fail under C/libpq. A large wall-clock gap in one backoff interval is retained
 in the raw report; do not describe this as a clean local validation run.
+
+The newer native row-drain slice `7c740a41` on `martijn/phase5-row-drain`
+collects buffered unprepared results in one runtime call instead of re-entering
+the runtime for every row. All 34 installed checks, 28 Rust backend unit tests,
+three focused vendored wait-loop tests, and `3525/3525` selected synchronous
+C-coexistence cases pass. Its full local harness passes `4736/4736` synchronous
+cases with zero failures or errors, satisfying the strict zero-regression gate.
+Experimental async remains separately `505/620`. Its
+[compatibility matrix](https://github.com/martijnberger/ferrocopg/actions/runs/35423769875)
+is in progress and lint passes. Its
+[Phase 5 workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35423782206)
+fails the exact-revision benchmark with four C/four Python misses; the full
+soak remains running. Its short local resource smoke passes. An unprepared bulk-row diagnostic improves
+in both orders, but single-row parameterized timings are nearly flat and the
+complete benchmark fails. The diagnostic does not replace any acceptance case.
 No final candidate has passed all acceptance gates.
 The acceptance status at this planning checkpoint is:
 
@@ -139,9 +154,9 @@ The acceptance status at this planning checkpoint is:
 | --- | --- | --- |
 | Synchronous API and package boundary | Implemented in Phase 4 | Revalidate after the Phase 5 optimizations |
 | Official synchronous pool | Implemented and regression-tested | Retain coverage in final benchmarks, soak, and matrix |
-| Performance | Not accepted; latest SQL-scanner slice misses three C/four Python limits locally | Continue measured optimization, then pass three complete candidate runs without combining passes across reports |
-| Sustained reliability | Latest full three-backend soaks pass at `cc7b60e2` and `e7b008c2`; current SQL-scanner resource smoke passes | Repeat 30 minutes per backend on the final candidate |
-| Latest compatibility validation | All 57 CI jobs pass at `8561fa3d`; 3,525/3,525 selected synchronous C-coexistence cases pass; full local harness is 4,732/4,736 | Retain the failed local report, wall-clock anomaly, and explicit C/libpq comparisons; revalidate after further optimization |
+| Performance | Not accepted; row drain misses five C/five Python limits locally and four C/four Python limits in CI | Continue measured optimization, then pass three complete candidate runs without combining passes across reports |
+| Sustained reliability | Latest full three-backend soaks pass at `cc7b60e2` and `e7b008c2`; row-drain resource smoke passes and its full CI soak is running | Repeat 30 minutes per backend on the final candidate |
+| Latest compatibility validation | All 57 CI jobs pass at `8561fa3d`; row drain passes 3,525/3,525 selected synchronous C-coexistence cases and 4,736/4,736 full local synchronous cases | Finish row-drain supported CI validation; retain earlier failed local reports and comparisons |
 | Release wheels and publication | Pending | Complete Phases 6 and 7 before publishing to PyPI |
 
 The implementation checkpoint is not a release candidate designation. Local
@@ -157,7 +172,8 @@ not mean the performance, reliability, packaging, or publication gates are done.
 Work in this order:
 
 1. Use the green SQL-scanner matrix at `8561fa3d` as the correctness
-   checkpoint. Preserve the completed loader/COPY soak artifacts separately
+   checkpoint and finish the row-drain revision's full validation. Preserve
+   the completed loader/COPY soak artifacts separately
    from later implementation revisions. Classify
    full-harness failures and retain explicit Python/C
    comparison coverage. Investigate the local pool timing failure independently
@@ -184,7 +200,8 @@ explicit decision.
 
 ### Next implementation slice
 
-Use `8561fa3d` as the measured, matrix-validated baseline for the next slice.
+Finish the pushed row-drain slice `7c740a41` against matrix-validated parent
+`8561fa3d` before choosing another implementation change.
 Retained optimizations include:
 
 - Fetch methods use static string casts instead of constructing typing objects
@@ -201,14 +218,19 @@ Retained optimizations include:
   callback counts, and factory exception timing.
 - Separator-free SQL skips the quote/comment scanner; SQL with semicolons and
   string subclasses retain the original scanner. No SQL parse cache is added.
+- Buffered unprepared rows drain in one runtime call. Streaming iteration stays
+  unchanged, and column metadata, final command counts, cancellation, and
+  errors remain covered by installed regressions.
 
-The latest complete benchmark passes text COPY narrowly and all three row
-workloads, but still fails prepared-query, transaction, and pool C limits plus
-four Python limits. These passes have varied between runs. The SQL-scanner
+The latest complete benchmark passes text COPY narrowly, but fails five C and
+five Python limits. These passes have varied between runs. The SQL-scanner
 slice's paired transaction gains are modest, not closure of that gap. Keep the
 failed local full harness visible despite green supported CI and a passing
 short resource smoke. Neither selected workload passes nor earlier sustained
-soaks establish final-candidate acceptance.
+soaks establish final-candidate acceptance. Row drain improves a separate
+unprepared bulk-result diagnostic, not the prepared bulk-row acceptance cases
+or the remaining single-row gaps. Do not change benchmark preparation policy
+to turn the diagnostic win into an apparent gate pass.
 
 After these slices, profile the remaining parameter adaptation, query setup,
 loader construction, and adaptation-context work shared by the failing
@@ -1685,6 +1707,75 @@ sample. Local downloads are under `/tmp/phase5-loader-ci-soak/` and
 validates the later factory or SQL-scanner code. Final-candidate sustained
 validation and three complete passing benchmarks remain outstanding.
 
+#### Buffered unprepared row collection
+
+Revision `7c740a41` adds `RowIter::collect_rows()` to the vendored synchronous
+driver and uses it for already-buffered unprepared results. Previously each
+row re-entered the runtime and installed a wait timer. The new method drains
+the row stream in one runtime call, leaving ordinary streaming iteration and
+prepared-query execution unchanged. The stream still supplies column metadata
+for empty results and the final command count after completion.
+
+The staged release wheel passes all 34 installed checks, including a new
+text/binary regression for 2,048 rows, empty results, DML counts, returning
+rows, and error recovery. Existing signal-handler and concurrent-close tests
+also pass. All 28 Rust backend unit tests and the three targeted vendored
+wait-loop tests pass. The standalone vendor suite's live tests were not
+validated against its separate database setup; they failed with socket
+permission errors in the sandbox. The temporary vendor lockfile was removed,
+and the workspace dependency lockfile is unchanged. Formatting and typing pass.
+
+The unfiltered C-coexistence selection passes `3525/3525` synchronous cases;
+six experimental async type-info failures remain separately classified.
+Reports are `/tmp/phase5-row-drain-c-types.xml` and its `-report.json` companion.
+No source-harness cases, baselines, manifests, or acceptance limits change.
+
+Paired parameterized medians are essentially flat:
+`67.71 -> 67.27` and `68.07 -> 67.89` microseconds. A separate public-API
+diagnostic with preparation disabled and 1,000 result rows improves from
+`455.74 -> 310.46` and `465.80 -> 309.49` microseconds, with CPU medians
+`318.37 -> 185.63` and `325.93 -> 185.20`. Measurements are serial in both
+orders with no overlapping builds/tests. Reports are
+`/tmp/phase5-{before-,}row-drain-{parameterized,unprepared-rows}-{a,b}.json`;
+the diagnostic script is `/tmp/phase5-unprepared-rows.py`. The standard bulk-row
+benchmarks normally prepare after warmup and do not exercise this optimization
+in steady state. Do not substitute the diagnostic for those unchanged cases.
+
+The complete `/tmp/phase5-row-drain-bench/report.json`, labeled
+`row-drain-working-copy`, fails five C limits: parameterized `1.473`, prepared
+`1.552`, namedtuple rows `1.277`, transactions `1.576`, and pool `1.923`.
+Plaintext connect `1.032`, parameterized `1.210`, prepared `1.279`, transactions
+`1.239`, and pool `1.360` miss Python parity. Text COPY's C ratio is `1.245606`,
+a narrow single-run pass only. These development reports are not a frozen
+candidate's three complete passing benchmark runs.
+
+The full unfiltered `/tmp/phase5-row-drain-full.xml` passes `4736/4736`
+synchronous cases with zero failures or errors. All synchronous families pass,
+including `167/167` pool cases, and its `-report.json` companion passes the
+strict zero-regression gate. Experimental async remains separate at `505/620`,
+with 104 failures and 11 errors. Preserve earlier timing failures and C/libpq
+reproductions; this one passing run does not establish that row drain fixed
+host timing variability, particularly the scheduler test with no connection.
+
+The exact-revision short resource smoke in `/tmp/phase5-row-drain-soak.json`
+passes after `60.32 s`, with 137 samples and zero surviving workload sessions.
+Cleanup records 615 driver objects, two threads, one observer socket, four
+descriptors, and 59,817,984 RSS bytes. This is not the sustained acceptance run.
+
+The CI benchmark at `7c740a41` in workflow `35423782206` fails four C limits:
+parameterized `1.390`, prepared `1.533`, text COPY `1.271`, and pool `1.318`.
+Parameterized `1.142`, prepared `1.207`, transactions `1.012`, and pool `1.057`
+miss Python parity. All three bulk-row cases pass both limits in this run, but
+passes cannot be combined with the local report or earlier revisions. The
+workflow publishes the raw artifact, downloaded under
+`/tmp/phase5-row-drain-ci-benchmark/`.
+
+Tests `35423769875` remains in progress; lint `35423769867` passes. Phase 5
+workflow `35423782206` has failed its benchmark while its full soak continues at revision
+`7c740a419503123b86f9fd6d5a9e98b7e296712c` for the full three-backend soak and
+benchmark. Earlier green matrices and sustained soaks do not validate this
+runtime change. Keep Phase 5 open until final-candidate acceptance is complete.
+
 Definition of done:
 
 - Sync pooling is documented and green.
@@ -1792,6 +1883,10 @@ the synchronous beta is established.
 1. Use `8561fa3d` as the latest complete CI correctness checkpoint: Tests
    `35413168117` passes all 57 jobs and lint passes. Its installed checks,
    selected synchronous coexistence coverage, and short resource smoke pass.
+   Finish row-drain revision `7c740a41`'s Tests `35423769875` and the soak in
+   Phase 5 `35423782206`; its benchmark already fails. The local resource
+   smoke, installed checks, selected synchronous coexistence coverage, and
+   all `4736/4736` full local synchronous cases pass.
    Retain its failed full local report (`4732/4736`), four C/libpq timing
    reproductions, and large wall-clock anomaly without waiving the strict gate.
    The older loader/COPY three-backend soaks now pass; keep their artifacts
@@ -1812,7 +1907,9 @@ the synchronous beta is established.
    has mixed latency evidence despite reducing typing work.
    The parameter-packing prototype is removed after flat paired comparisons.
    The factory and SQL-scanner slices remove measured work, but the latest
-   complete benchmark still misses three C and four Python limits.
+   complete row-drain benchmark still misses five C and five Python limits.
+   Row drain has a strong separate unprepared bulk-row diagnostic, but does
+   not close the single-row gaps or replace the standard prepared row cases.
    Use the layer diagnosis to investigate larger query/cursor-path costs rather
    than adding another isolated conversion helper without a measured gain.
    Keep each change independently tested and compare rebuilt release wheels
