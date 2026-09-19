@@ -51,7 +51,7 @@ The following decisions define the roadmap:
 
 ## Current State
 
-Planning checkpoint: 2026-09-19. CI statuses below are snapshots, not final
+Planning checkpoint: 2026-09-20. CI statuses below are snapshots, not final
 results for workflows that are still running.
 
 ### Decision summary
@@ -66,7 +66,19 @@ results for workflows that are still running.
   result-adaptation gaps. Do not expand into native async or a pool fork.
 - Keep upstream synchronization separate from the undecided upstreaming question.
 
-Latest investigation: dedicated-runner codegen experiment `35458601176` at
+Latest investigation: `0f4f9612` prototypes Rust-owned transformer state rather
+than the rejected dispatcher over Python-owned attributes. Registered adapters,
+callbacks, cache replacement, namespace isolation, and garbage collection remain
+required. The prototype passes 59 installed/accounting checks and selected
+source scopes of 3004 synchronous cases and 2998 C-coexistence synchronous cases.
+These are focused checks, not the complete compatibility matrix or performance
+acceptance. Compare exact baseline `9d160e8e` and the prototype on one dedicated
+runner in both orders before retaining it as an optimization. The comparison
+tooling labels each wheel and every measurement with its own revision; it does
+not relabel baseline measurements as candidate evidence. See the prototype
+section below for scope and validation.
+
+Previous investigation: dedicated-runner codegen experiment `35458601176` at
 `0cb289d7` produced complete, independently revalidated artifacts, although the
 workflow reached its 45-minute deadline and is terminal cancelled. ThinLTO with
 one codegen unit improved prepared and parameterized wall/CPU times in both
@@ -97,10 +109,11 @@ including a new COPY/status regression. These
 experiments do not close a performance gate; avoid repeating them without a
 different measured mechanism.
 
-Current candidate boundary: production code remains at notice-drain revision
-`e2651478`, with the ThinLTO release profile added in `9d160e8e`; later commits
-retain the added regressions and investigation evidence. The active branch
-remains `martijn/phase5-notice-lock`. Notice draining
+Current candidate boundary: the latest completed CI reliability checkpoint is
+`9d160e8e`, notice-drain production code plus the ThinLTO release profile.
+The working candidate adds the Rust-owned transformer prototype `0f4f9612`;
+that checkpoint's full validation does not cover the prototype. The active
+branch remains `martijn/phase5-notice-lock`. Notice draining
 passes its complete 57-job CI matrix and full three-backend soak, but not its
 benchmark or strict local compatibility gate. The discarded dispatcher's
 unfinished validation runs are cancelled rather than treated as acceptance.
@@ -3063,6 +3076,71 @@ rejected duplicate-COPY-preflight shortcut merely because they appear in this
 profile. Any new implementation still needs equal-length, both-order installed
 measurements on a dedicated runner before being retained as an optimization.
 
+#### Rust-owned transformer prototype
+
+`0f4f96129b9cc391c5cb90007a3cd3b8345254f0` moves transformer cache references,
+connection/context state, parameter metadata, and dumper/loader dispatch into
+`NativeTransformer`. This is distinct from the rejected `bb26926d` dispatcher:
+Rust now owns the mutable state instead of fetching every field through Python
+attribute lookups. Python exposes compatible attributes and retains the less
+frequent result helpers, encoding adaptation, recursive contexts, and custom
+literal behavior. Registered constructors, `get_key`, upgrades, dumps, and
+loads still execute; there is no builtin-only protocol shortcut.
+
+Rust borrows are released before Python callbacks. Loader construction reloads
+the destination cache after callbacks, while OID-dumper construction retains
+the captured cache as the Python implementation does. Row-dumper replacements
+are observed between fields, and virtual dumper/NULL dispatch remains intact.
+GC traversal visits every owned Python reference. Each Python package supplies
+its own adapter defaults and error classes; default adapters are resolved at
+construction rather than frozen when the module is imported.
+
+Two lifecycle regressions pass against both the unchanged installed parent
+wheel and the prototype. They exercise reentrant construction and dumping,
+OID-cache replacement, independent state, mutable default adapters, and NULL
+metadata. Existing callback replacement, override, context-cycle, custom type,
+encoding, and COPY tests also pass. The installed prototype was explicitly
+checked to inherit the native class rather than silently testing the pure
+Python fallback.
+
+Development validation (not full acceptance):
+
+- All 59 installed/package/accounting checks pass. The prototype development
+  wheel is `/tmp/ferrocopg-phase5-state-prototype-wheels/ferrocopg-0.1.0-cp314-cp314-macosx_11_0_arm64.whl`,
+  SHA-256 `8ee7a0cfe74df89016ef27d59711e76109c778c3992da21f9ad0d5198a39ac83`.
+- Selected source tests cover adaptation, bootstrap, preparation, COPY, cursors,
+  and all type modules: `3004/3004` synchronous cases pass. XML/report:
+  `/tmp/phase5-state-prototype-focused.xml` and
+  `/tmp/phase5-state-prototype-focused-report.json`.
+- The same selected scope with the C accelerator selected passes `2998/2998`
+  synchronous cases. XML/report: `/tmp/phase5-state-prototype-c-coexist.xml` and
+  `/tmp/phase5-state-prototype-c-coexist-report.json`.
+- Both selected runs retain six experimental async metadata failures, with
+  `9/15` async cases passing. Their pytest status is 1; the unchanged classified
+  reporter passes the selected synchronous scope, not the whole repository.
+- Cargo check, Rust formatting, Ruff, Python formatting, codespell, configured
+  mypy (239 files), and actionlint pass. No manifest or compatibility denominator
+  changes are needed because new regressions are in the installed-package suite.
+
+The optional Phase 5 workflow now accepts a full `comparison_baseline` SHA. It
+checks out that exact baseline separately and compares baseline/candidate wheels
+using their committed release settings, without inherited codegen overrides.
+Both are built and tested before any timing. Prepared and parameterized queries
+retain nine samples of 100,000 iterations after 10,000 warmups, with
+baseline/candidate/candidate/baseline ordering. Each raw query and complete
+eleven-workload report uses its actual wheel revision. New accounting checks
+reject ambiguous identities and mislabeled baseline measurements. Raw wheels,
+SHA-256 identities, source build configuration, and both reports remain retained.
+
+Normal acceptance commands, matrix, thresholds, duration, and artifact settings
+are structurally unchanged; only the opt-in diagnostic guard is extended. A
+diagnostic success does not mean either complete benchmark passed. The next
+action is one dedicated comparison against
+`9d160e8eefad188a2ad79c99c03c13c33645e27b`, plus the fresh compatibility matrix.
+Do not claim a gain, dispatch duplicates, or begin sustained candidate acceptance
+before inspecting this experiment. If the paired result is flat or mixed,
+reject the production prototype without rewriting published history.
+
 #### Phase 5 definition of done
 
 - Sync pooling is documented and green.
@@ -3186,8 +3264,9 @@ the synchronous beta is established.
    The completed local full harness has 28 synchronous timing failures; its
    seven-case reversed C control also fails. Keep the strict failed gate and
    do not rerun completed workflows merely to seek different benchmark ratios.
-   Use this completed reliability checkpoint for the broader query/adaptation
-   state investigation described above, not another rejected helper port.
+   Use this completed reliability checkpoint as the baseline for the
+   Rust-owned transformer prototype `0f4f9612`. Its focused checks pass;
+   exact-revision matrix and dedicated both-order measurements remain required.
    The notice-drain benchmark still fails four C/four Python comparisons in CI and five
    C/five Python comparisons locally. Preserve its failed local pool timing
    assertion and failed isolated C comparison; do not waive the strict gate.

@@ -7,6 +7,10 @@ on:
         description: 'Run a diagnostic default/ThinLTO comparison, NOT release acceptance'
         type: boolean
         default: false
+      comparison_baseline:
+        description: 'Full baseline commit SHA for a candidate comparison, NOT release acceptance'
+        type: string
+        default: ''
   schedule:
     - cron: '23 3 * * 1'
   push:
@@ -24,7 +28,7 @@ concurrency:
 
 jobs:
   installed-package:
-    if: ${{ !inputs.codegen_experiment }}
+    if: ${{ !inputs.codegen_experiment && !inputs.comparison_baseline }}
     runs-on: ubuntu-latest
     timeout-minutes: 130
     strategy:
@@ -93,7 +97,7 @@ jobs:
           if-no-files-found: error
 
   codegen-experiment:
-    if: ${{ inputs.codegen_experiment }}
+    if: ${{ inputs.codegen_experiment || inputs.comparison_baseline }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -101,6 +105,16 @@ jobs:
       RUSTUP_TOOLCHAIN: 1.94.1
     steps:
       - uses: actions/checkout@v6
+      - name: Validate candidate comparison identity
+        if: inputs.comparison_baseline
+        env:
+          BASELINE_REVISION: ${{ inputs.comparison_baseline }}
+        run: '[[ "$BASELINE_REVISION" =~ ^[0-9a-f]{40}$ ]]'
+      - uses: actions/checkout@v6
+        if: inputs.comparison_baseline
+        with:
+          ref: ${{ inputs.comparison_baseline }}
+          path: .phase5-baseline
       - uses: actions/setup-python@v6
         with:
           python-version: '3.14'
@@ -130,10 +144,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libpq-dev
           uv sync --locked --no-default-groups --group rust
-      - name: Compare codegen profiles on this runner (not acceptance)
+      - name: Compare experimental wheels on this runner (not acceptance)
+        env:
+          BASELINE_REVISION: ${{ inputs.comparison_baseline }}
         run: |
+          args=()
+          if [[ -n "$BASELINE_REVISION" ]]; then
+            args=(--baseline-source "$GITHUB_WORKSPACE/.phase5-baseline" --baseline-revision "$BASELINE_REVISION")
+          fi
           uv run --no-sync python tools/phase5/codegen_compare.py \
-            --revision "$GITHUB_SHA" --output phase5-codegen-results
+            --revision "$GITHUB_SHA" --output phase5-codegen-results "${args[@]}"
       - name: Collect server diagnostics
         if: always()
         run: docker logs phase5-postgres > phase5-codegen-postgres.log 2>&1
@@ -141,7 +161,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: phase5-codegen-experiment-${{ github.sha }}
+          name: phase5-${{ inputs.comparison_baseline && 'candidate' || 'codegen' }}-experiment-${{ github.sha }}
           retention-days: 90
           path: |
             phase5-codegen-results/

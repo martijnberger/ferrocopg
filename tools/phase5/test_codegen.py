@@ -1,9 +1,12 @@
 """Accounting checks for the optional, non-acceptance codegen experiment."""
 
+import io
 import json
 import os
+import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,7 +18,9 @@ from codegen_compare import (
     WORKLOADS,
     build_environment,
     compare_queries,
+    comparison_order,
     complete_measurement,
+    main,
     query_measurement,
 )
 from run import BACKENDS, compare
@@ -96,6 +101,7 @@ class CodegenExperimentTests(unittest.TestCase):
                     query_measurement(path, "revision", "prepared")
 
     def test_comparison_preserves_each_order_not_an_average(self):
+        self.assertEqual(comparison_order(list(PROFILES)), ORDER)
         self.assertEqual(
             ORDER, (("default", "a"), ("thin", "a"), ("thin", "b"), ("default", "b"))
         )
@@ -121,6 +127,71 @@ class CodegenExperimentTests(unittest.TestCase):
     def test_missing_pair_cannot_produce_a_summary(self):
         with self.assertRaises(FileNotFoundError):
             compare_queries(self.output, "revision")
+
+    def test_candidate_comparison_keeps_each_wheels_revision(self):
+        revisions = {"baseline": "parent", "candidate": "candidate"}
+        self.assertEqual(
+            comparison_order(list(revisions)),
+            (
+                ("baseline", "a"),
+                ("candidate", "a"),
+                ("candidate", "b"),
+                ("baseline", "b"),
+            ),
+        )
+        for profile, revision in revisions.items():
+            for workload in WORKLOADS:
+                for order in ("a", "b"):
+                    result = self.result(
+                        workload, 1.0 if profile == "baseline" else 0.9
+                    )
+                    result["metadata"]["revision"] = revision
+                    self.write(f"{profile}-{workload}-{order}.json", result)
+        report = compare_queries(self.output, "candidate", revisions)
+        self.assertEqual(report["variant_revisions"], revisions)
+        self.assertEqual(report["mode"], "candidate-experiment")
+        self.assertFalse(report["release_acceptance"])
+        for pair in report["pairs"].values():
+            self.assertAlmostEqual(pair["candidate_over_baseline"]["wall_us"], 0.9)
+        with self.assertRaisesRegex(ValueError, "invalid query measurement"):
+            compare_queries(
+                self.output, "candidate", dict.fromkeys(revisions, "candidate")
+            )
+
+    def test_candidate_profiles_use_their_committed_configuration(self):
+        with patch.dict(os.environ, {}, clear=True):
+            for name in ("baseline", "candidate"):
+                env = build_environment(
+                    name, self.output / name, {"baseline": {}, "candidate": {}}
+                )
+                self.assertFalse(
+                    any(key.startswith("CARGO_PROFILE_RELEASE_") for key in env)
+                )
+        for names in ([], ["one"], ["one", "one"], ["one", "two", "three"]):
+            with self.subTest(names=names), self.assertRaises(ValueError):
+                comparison_order(names)
+
+    def test_candidate_cli_rejects_incomplete_or_ambiguous_identity(self):
+        output = self.output / "not-created"
+        for args in (
+            ["--baseline-source", str(self.output)],
+            ["--baseline-revision", "b" * 40],
+            ["--baseline-source", str(self.output), "--baseline-revision", "main"],
+            ["--baseline-source", str(self.output), "--baseline-revision", "a" * 40],
+        ):
+            with (
+                self.subTest(args=args),
+                patch.object(
+                    sys,
+                    "argv",
+                    ["compare", "--output", str(output), "--revision", "a" * 40, *args],
+                ),
+                redirect_stderr(io.StringIO()),
+                self.assertRaises(SystemExit) as error,
+            ):
+                main()
+            self.assertEqual(error.exception.code, 2)
+            self.assertFalse(output.exists())
 
     def complete_report(self):
         results = []

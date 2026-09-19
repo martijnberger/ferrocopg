@@ -1,4 +1,4 @@
-"""Compare portable release profiles on one runner; not release acceptance."""
+"""Compare release profiles or exact candidates; never release acceptance."""
 
 from __future__ import annotations
 
@@ -8,11 +8,13 @@ import json
 import math
 import os
 import platform
+import re
 import signal
 import statistics
 import subprocess
 import sys
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
 
 from run import BACKENDS, compare
@@ -37,7 +39,9 @@ SAMPLES = 9
 WARMUP = 10000
 
 
-def build_environment(profile: str, target: Path) -> dict[str, str]:
+def build_environment(
+    profile: str, target: Path, profiles: dict[str, dict[str, str]] = PROFILES
+) -> dict[str, str]:
     env = dict(os.environ)
     # A caller's codegen overrides must not silently change the control build.
     overrides = [
@@ -52,8 +56,15 @@ def build_environment(profile: str, target: Path) -> dict[str, str]:
     ]
     if overrides:
         raise ValueError(f"remove inherited codegen overrides: {sorted(overrides)}")
-    env.update(PROFILES[profile], CARGO_TARGET_DIR=str(target))
+    env.update(profiles[profile], CARGO_TARGET_DIR=str(target))
     return env
+
+
+def comparison_order(names: Sequence[str]) -> tuple[tuple[str, str], ...]:
+    if len(names) != 2 or names[0] == names[1]:
+        raise ValueError("a comparison requires two distinct variants")
+    first, second = names
+    return ((first, "a"), (second, "a"), (second, "b"), (first, "b"))
 
 
 def query_measurement(path: Path, revision: str, workload: str) -> dict[str, float]:
@@ -78,26 +89,38 @@ def query_measurement(path: Path, revision: str, workload: str) -> dict[str, flo
     }
 
 
-def compare_queries(output: Path, revision: str) -> dict[str, object]:
+def compare_queries(
+    output: Path, revision: str, revisions: dict[str, str] | None = None
+) -> dict[str, object]:
+    revisions = (
+        revisions if revisions is not None else dict.fromkeys(PROFILES, revision)
+    )
+    comparison_order(list(revisions))
+    first, second = revisions
     pairs = {}
     for workload in WORKLOADS:
         for order in ("a", "b"):
             measurements = {
                 profile: query_measurement(
-                    output / f"{profile}-{workload}-{order}.json", revision, workload
+                    output / f"{profile}-{workload}-{order}.json",
+                    profile_revision,
+                    workload,
                 )
-                for profile in PROFILES
+                for profile, profile_revision in revisions.items()
             }
             pairs[f"{workload}-{order}"] = {
                 "measurements": measurements,
-                "thin_over_default": {
-                    key: measurements["thin"][key] / measurements["default"][key]
+                f"{second}_over_{first}": {
+                    key: measurements[second][key] / measurements[first][key]
                     for key in ("wall_us", "cpu_us")
                 },
             }
     return {
         "revision": revision,
-        "mode": "codegen-experiment",
+        "mode": "codegen-experiment"
+        if list(revisions) == list(PROFILES)
+        else "candidate-experiment",
+        "variant_revisions": revisions,
         "pairs": pairs,
         "release_acceptance": False,
     }
@@ -132,18 +155,51 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--revision", required=True)
+    parser.add_argument("--baseline-source", type=Path)
+    parser.add_argument("--baseline-revision")
     args = parser.parse_args()
+    if bool(args.baseline_source) != bool(args.baseline_revision):
+        parser.error("baseline source and revision must be supplied together")
+    profiles = PROFILES
+    sources = dict.fromkeys(profiles, ROOT)
+    revisions = dict.fromkeys(profiles, args.revision)
+    if args.baseline_source:
+        if not all(
+            re.fullmatch(r"[0-9a-f]{40}", rev)
+            for rev in (args.revision, args.baseline_revision)
+        ):
+            parser.error("candidate comparisons require full commit SHA-1 identities")
+        baseline = args.baseline_source.resolve()
+        if baseline == ROOT or args.baseline_revision == args.revision:
+            parser.error("baseline must be a separate checkout at a distinct revision")
+        profiles = {"baseline": {}, "candidate": {}}
+        sources = {"baseline": baseline, "candidate": ROOT}
+        revisions = {"baseline": args.baseline_revision, "candidate": args.revision}
+    order = comparison_order(list(profiles))
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     manifest: dict[str, object] = {
         "revision": args.revision,
-        "mode": "codegen-experiment",
+        "mode": "candidate-experiment"
+        if args.baseline_source
+        else "codegen-experiment",
         "release_acceptance": False,
         "status": "in_progress",
         "platform": platform.platform(),
         "python": sys.version,
-        "profiles": PROFILES,
-        "query_order": ORDER,
+        "profiles": profiles,
+        "variant_sources": {
+            profile: {
+                "root": str(source),
+                "revision": revisions[profile],
+                "cargo_manifest": (source / "Cargo.toml").read_text(),
+                "cargo_lock_sha256": hashlib.sha256(
+                    (source / "Cargo.lock").read_bytes()
+                ).hexdigest(),
+            }
+            for profile, source in sources.items()
+        },
+        "query_order": order,
         "query_configuration": {
             "warmup": WARMUP,
             "iterations": ITERATIONS,
@@ -217,17 +273,23 @@ def main() -> int:
                 ],
             )
             run("rust-version", ["rustc", "--version", "--verbose"])
-            run("dependencies", ["cargo", "fetch", "--locked"])
-            run(
-                "stage",
-                [
-                    sys.executable,
-                    str(ROOT / "tools/stage_ferrocopg.py"),
-                    str(build / "stage"),
-                ],
-            )
             wheels = {}
-            for profile in PROFILES:
+            for profile, source in sources.items():
+                run(
+                    f"dependencies-{profile}",
+                    ["cargo", "fetch", "--locked"],
+                    cwd=source,
+                )
+                stage = build / f"stage-{profile}"
+                run(
+                    f"stage-{profile}",
+                    [
+                        sys.executable,
+                        str(source / "tools/stage_ferrocopg.py"),
+                        str(stage),
+                    ],
+                    cwd=source,
+                )
                 wheel_dir = output / f"{profile}-wheel"
                 run(
                     f"build-{profile}",
@@ -242,8 +304,10 @@ def main() -> int:
                         "--out",
                         str(wheel_dir),
                     ],
-                    cwd=build / "stage",
-                    env=build_environment(profile, build / f"target-{profile}"),
+                    cwd=stage,
+                    env=build_environment(
+                        profile, build / f"target-{profile}", profiles
+                    ),
                 )
                 candidates = list(wheel_dir.glob("*.whl"))
                 if len(candidates) != 1:
@@ -251,6 +315,7 @@ def main() -> int:
                 wheels[profile] = candidates[0]
             manifest["wheels"] = {
                 profile: {
+                    "revision": revisions[profile],
                     "path": str(wheel.relative_to(output)),
                     "sha256": hashlib.sha256(wheel.read_bytes()).hexdigest(),
                 }
@@ -274,17 +339,17 @@ def main() -> int:
                 )
 
             # Finish all builds and validation before collecting any timings.
-            for profile in PROFILES:
+            for profile in profiles:
                 install(profile, f"check-{profile}")
                 run(
                     f"check-{profile}",
                     [python, "-m", "unittest", "discover", "-s", "tools/phase5", "-v"],
                 )
             run("processes-before-timing", ["ps", "-eo", "pid,ppid,pcpu,comm"])
-            for profile, order in ORDER:
-                install(profile, f"{profile}-{order}")
+            for profile, position in order:
+                install(profile, f"{profile}-{position}")
                 for workload in WORKLOADS:
-                    label = f"{profile}-{workload}-{order}"
+                    label = f"{profile}-{workload}-{position}"
                     run(
                         label,
                         [
@@ -303,14 +368,14 @@ def main() -> int:
                             "--samples",
                             str(SAMPLES),
                             "--revision",
-                            args.revision,
+                            revisions[profile],
                             "--output",
                             str(output / f"{label}.json"),
                         ],
                     )
-            summary = compare_queries(output, args.revision)
+            summary = compare_queries(output, args.revision, revisions)
             gates = {}
-            for profile in PROFILES:
+            for profile in profiles:
                 install(profile, f"complete-{profile}")
                 report_dir = output / f"complete-{profile}"
                 status = run(
@@ -324,14 +389,14 @@ def main() -> int:
                         "--samples",
                         "9",
                         "--revision",
-                        args.revision,
+                        revisions[profile],
                         "--output",
                         str(report_dir),
                     ],
                     allow_gate_failure=True,
                 )
                 gates[profile] = complete_measurement(
-                    report_dir / "report.json", args.revision, status
+                    report_dir / "report.json", revisions[profile], status
                 )
             run("processes-after-timing", ["ps", "-eo", "pid,ppid,pcpu,comm"])
             run("installed-packages", ["uv", "pip", "freeze", "--python", python])
