@@ -2214,6 +2214,39 @@ def test_backend_rlock_exposes_locked_state() -> None:
     assert not lock.locked()
 
 
+@pytest.mark.parametrize(
+    "query",
+    [
+        "",
+        " \t\r\n",
+        "select 42",
+        "  select 'quoted'  ",
+        'select "identifier"',
+        "select $tag$quoted$tag$",
+        "-- comment\nselect 42",
+        "/* outer /* inner */ */ select 42",
+        "-- comment only",
+        "select 'unterminated",
+        "select '\\'escaped'",
+        "select '\x00'",
+    ],
+)
+def test_split_extended_statements_without_separator(
+    query: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = importlib.import_module("psycopg._ferrocopg")
+
+    def unexpected_scan(*args):
+        raise AssertionError("separator-free SQL does not need quote scanning")
+
+    monkeypatch.setattr(module, "_skip_sql_quote", unexpected_scan)
+    monkeypatch.setattr(module, "_skip_sql_comment", unexpected_scan)
+    monkeypatch.setattr(module, "_skip_dollar_quote", unexpected_scan)
+    assert module._split_extended_statements(query) == (
+        [query.strip()] if query.strip() else []
+    )
+
+
 def test_split_extended_statements() -> None:
     module = importlib.import_module("psycopg._ferrocopg")
 

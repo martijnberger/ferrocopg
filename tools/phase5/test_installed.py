@@ -13,6 +13,29 @@ import weakref
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_statement_splitting_preserves_quotes_comments_and_empty_queries(self):
+        import ferrocopg
+
+        with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+            for query in ("select 42", "  select 42  ", "/* comment */ select 42"):
+                with conn.execute(query) as cur:
+                    self.assertEqual(cur.fetchone(), (42,))
+                    self.assertIsNone(cur.nextset())
+            with conn.execute(" \t\n") as cur:
+                self.assertEqual(
+                    cur.pgresult.status, ferrocopg.pq.ExecStatus.EMPTY_QUERY
+                )
+            with conn.execute(
+                "select ';'::text; /* outer ; /* inner ; */ */ "
+                "select $tag$semi;colon$tag$::text; -- trailing ;\nselect 43"
+            ) as cur:
+                self.assertEqual(cur.fetchone(), (";",))
+                self.assertTrue(cur.nextset())
+                self.assertEqual(cur.fetchone(), ("semi;colon",))
+                self.assertTrue(cur.nextset())
+                self.assertEqual(cur.fetchone(), (43,))
+                self.assertIsNone(cur.nextset())
+
     def test_native_rows_initialize_factories_without_fallback_wrappers(self):
         from unittest.mock import patch
 

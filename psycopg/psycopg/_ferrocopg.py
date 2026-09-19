@@ -1152,6 +1152,11 @@ def _coerce_native_params(params: Params | None) -> list[str | None] | None:
 
 def _split_extended_statements(query: str) -> list[str]:
     """Split top-level SQL statements without inspecting SQL values."""
+    # Without a separator, quotes and comments cannot change the split.
+    if type(query) is str and ";" not in query:
+        statement = query.strip()
+        return [statement] if statement else []
+
     statements: list[str] = []
     start = position = 0
     length = len(query)
