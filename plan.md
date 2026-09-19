@@ -70,7 +70,8 @@ Planning checkpoint: 2026-09-19.
 Phases 3 and 4 are complete. Phase 5 is the active release blocker: the
 installed-package benchmark and soak infrastructure exists, but performance
 acceptance has not passed. Full 30-minute-per-backend CI soaks passed on
-revisions `24b646e3`, `2ed94013`, `be46e180`, `cc7b60e2`, and `e7b008c2`;
+revisions `24b646e3`, `2ed94013`, `be46e180`, `cc7b60e2`, `e7b008c2`,
+`7c740a41`, and `3a0bb3db`;
 sustained validation of the final
 candidate remains required. The latest complete local benchmark, for the
 timeout-state fix `3a0bb3db`, fails six workloads against C: parameterized
@@ -85,6 +86,10 @@ The completed Phase 4 evidence below is a historical baseline, not validation
 of every subsequent performance change.
 
 Main remains at the green `4a132959` checkpoint. The latest complete green CI
+checkpoint is timeout-state revision `3a0bb3db`: its
+[compatibility workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35426404068)
+passes all 57 jobs, lint passes, and its full three-backend soak passes. Its
+benchmark still fails four C and four Python comparisons. The preceding
 checkpoint is row-drain revision `7c740a41`: its
 [compatibility workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35423769875)
 passes all 57 jobs and lint passes. The preceding checkpoint is `8561fa3d` on
@@ -162,13 +167,14 @@ Experimental async remains separately `505/620`. Its
 passes all 57 jobs and lint passes. Its
 [Phase 5 workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35423782206)
 fails the exact-revision benchmark with four C/four Python misses; the full
-soak remains running. Its short local resource smoke passes. An unprepared bulk-row diagnostic improves
+three-backend soak passes. Its short local resource smoke passes. An unprepared bulk-row diagnostic improves
 in both orders, but single-row parameterized timings are nearly flat and the
 complete benchmark fails. The diagnostic does not replace any acceptance case.
 No final candidate has passed all acceptance gates.
 The follow-up `3a0bb3db` fixes a disabled-timeout state bug discovered during
 query-path profiling. All 35 installed-package checks and all `4736/4736` local
-synchronous cases pass; supported CI validation is pending. This is a
+synchronous cases pass; all 57 supported CI jobs, lint, and the full
+three-backend soak now pass too. This is a
 correctness fix, not a claimed performance improvement. Both the metadata-only
 and query-classification-cache
 experiments were removed after inconsistent paired timing results; see the
@@ -179,9 +185,9 @@ The acceptance status at this planning checkpoint is:
 | --- | --- | --- |
 | Synchronous API and package boundary | Implemented in Phase 4 | Revalidate after the Phase 5 optimizations |
 | Official synchronous pool | Implemented and regression-tested | Retain coverage in final benchmarks, soak, and matrix |
-| Performance | Not accepted; timeout-state fix misses six C/four Python limits locally; row drain misses four C/four Python limits in CI | Continue measured optimization, then pass three complete candidate runs without combining passes across reports |
-| Sustained reliability | Latest completed three-backend soaks pass at `cc7b60e2` and `e7b008c2`; timeout-state resource smoke passes; row-drain full soak is running and timeout-state validation is dispatched | Repeat 30 minutes per backend on the final candidate |
-| Latest compatibility validation | All 57 CI jobs pass at `7c740a41`; timeout-state fix passes 35 installed checks and 4,736/4,736 full local synchronous cases | Finish timeout-state revision's supported CI validation; retain earlier failed local reports and comparisons |
+| Performance | Not accepted; timeout-state fix misses six C/four Python limits locally and four C/four Python limits in CI | Continue measured optimization, then pass three complete candidate runs without combining passes across reports |
+| Sustained reliability | Full three-backend soaks pass at `7c740a41` and `3a0bb3db`, with zero surviving sessions and no resource-budget failures | Repeat 30 minutes per backend after any further candidate changes; scheduled execution remains unverified |
+| Latest compatibility validation | All 57 CI jobs pass at `3a0bb3db`, alongside 35 installed checks and 4,736/4,736 full local synchronous cases | Preserve coverage and revalidate later optimizations; retain earlier failed local reports and comparisons |
 | Release wheels and publication | Pending | Complete Phases 6 and 7 before publishing to PyPI |
 
 The implementation checkpoint is not a release candidate designation. Local
@@ -196,8 +202,8 @@ not mean the performance, reliability, packaging, or publication gates are done.
 
 Work in this order:
 
-1. Use the green row-drain matrix at `7c740a41` as the correctness checkpoint,
-   finish its sustained soak, and validate the timeout-state fix separately. Preserve
+1. Use the green timeout-state matrix and full soak at `3a0bb3db` as the
+   correctness and reliability checkpoint. Preserve
    the completed loader/COPY soak artifacts separately
    from later implementation revisions. Classify
    full-harness failures and retain explicit Python/C
@@ -227,9 +233,9 @@ explicit decision.
 
 ### Next implementation slice
 
-Finish validating the pushed timeout-state fix `3a0bb3db` against the
-matrix-validated row-drain parent `7c740a41` before retaining another
-implementation change. The row-drain full soak is still running.
+Use the fully matrix- and soak-validated timeout-state fix `3a0bb3db` as the
+parent for the next measured implementation change. Neither it nor its
+row-drain parent passes performance acceptance.
 Retained optimizations include:
 
 - Fetch methods use static string casts instead of constructing typing objects
@@ -281,13 +287,25 @@ parameter descriptions was flat in one paired comparison and faster in the
 reverse order. A bounded cache of query state-effect flags was also flat or
 mixed across prepared and transaction comparisons. Both prototypes are removed;
 neither establishes a repeatable improvement or justifies wider caching.
-The next investigation should target the shared public/backend cursor and
-transformer setup seen in the refreshed prepared-query profile. Quantify the
-cost of duplicated initialization and synchronization before changing either
-layer. Preserve concrete cursor subclasses, metadata visibility after every
-operation, custom factories/loaders, callback and exception timing, and result
-lifetime. Do not reuse adapter contexts across cursors without proving their
-snapshot and invalidation semantics.
+Cursor construction was measured at about `1.7 us` per operation. Compact
+layouts increased retained cursor memory and slowed a prepared-query sample;
+immutable result metadata gave inconsistent paired query timings. Both
+experiments are removed. These constructor/container changes are not the next
+priority.
+
+Investigate a more substantial native parameter-binding and result-loader path,
+using the existing registered adapters and PostgreSQL query conversion contract.
+The hypothesis is to avoid constructing Python dumper/loader objects for
+verified built-in adapters, rather than moving only the final packing loop or
+cache lookup to Rust again. Measure the binding/transformer cost separately
+before implementing this fast path; a Rust rewrite alone is not evidence of
+benefit. Resolve actual registered classes from the correct adapter snapshot,
+preserve custom/stateful/recursive adapters through the existing path, and
+avoid running callbacks twice when falling back. Retain integer-width OID
+selection, NULL/text/binary behavior, encoding, public query metadata, and
+prepared invalidation. Do not share mutable transformer state across cursors.
+Preserve concrete cursor subclasses, metadata visibility after every operation,
+custom factories/loaders, callback and exception timing, and result lifetime.
 
 - Capture warmed parameterized/prepared profiles and a complete benchmark of
   the installed current wheel; keep the official Python/C baselines unchanged.
@@ -1815,10 +1833,13 @@ workflow publishes the raw artifact, downloaded under
 `/tmp/phase5-row-drain-ci-benchmark/`.
 
 Tests `35423769875` passes all 57 jobs; lint `35423769867` passes. Phase 5
-workflow `35423782206` has failed its benchmark while its full soak continues at revision
-`7c740a419503123b86f9fd6d5a9e98b7e296712c`. Earlier sustained soaks do not
-validate this runtime change. Keep Phase 5 open until final-candidate acceptance
-is complete.
+workflow `35423782206` fails its benchmark but passes the full three-backend
+soak at `7c740a419503123b86f9fd6d5a9e98b7e296712c`: Rust runs for
+`1800.665 s` with 1,615 samples, Python for `1800.640 s` with 1,102 samples,
+and C for `1801.074 s` with 1,642 samples. All workers report no failures and
+zero surviving workload sessions throughout. Raw artifacts are retained under
+`/tmp/phase5-row-drain-ci-soak/`. Keep Phase 5 open until final-candidate
+acceptance is complete.
 
 #### Rejected query prototypes and timeout-state fix
 
@@ -1878,10 +1899,10 @@ socket, four descriptors, and 66,961,408 RSS bytes. This does not satisfy the
 30-minute-per-backend acceptance gate.
 Its
 [Tests workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35426404068)
-is unfinished; its
+passes all 57 jobs; its
 [lint workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35426404053)
-passes. The earlier green row-drain matrix and still-running sustained soak
-do not validate the newer timeout-state change.
+passes. This is current-revision correctness evidence, separate from the
+performance acceptance failure.
 
 The complete `/tmp/phase5-timeout-state-bench/report.json` records revision
 `3a0bb3dbe58b72feca86280af1c5ff90d3873c79` and fails six C limits:
@@ -1893,8 +1914,43 @@ Prepared reuse passes C but not Python; that isolated result does not imply
 the timeout fix improved the query path. This is not a passing acceptance run.
 Its full benchmark and sustained-soak
 [workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35426660959)
-has been dispatched at the exact implementation revision, separately from the
-still-running row-drain soak.
+has completed at the exact implementation revision: benchmark fails, full
+three-backend soak passes. Rust runs for `1800.228 s` with 1,768 samples,
+Python for `1801.661 s` with 1,314 samples, and C for `1800.213 s` with 1,862
+samples. Every worker reports no failures and zero surviving workload sessions
+throughout. Rust cleanup records 630 driver objects, one thread, one observer
+socket, five descriptors, and 57,110,528 RSS bytes.
+
+The exact-revision CI benchmark fails C comparisons for parameterized queries
+`1.762`, prepared reuse `1.440`, tuple rows `1.294`, and pool `1.391`.
+Parameterized `1.176`, prepared `1.110`, transactions `1.098`, and pool `1.248`
+miss Python parity. Text COPY and namedtuple rows pass narrowly in this run;
+they failed locally. Both artifacts are under `/tmp/phase5-timeout-state-ci/`
+and published in the linked workflow. No scheduled Phase 5 execution is listed
+at this checkpoint; manual completion does not satisfy the scheduled-run gate.
+
+#### Rejected cursor-layout and result-container experiments
+
+With the validated `3a0bb3db` installed wheel, the development-only
+`/tmp/phase5-cursor-layout.py` measures median cursor construction at
+`1.723 us` over nine samples of 10,000 constructions. Retaining 10,000 cursors
+accounts for 17,606,376 traced bytes. Adding slots to backend cursor, context,
+transformer, result-cursor, and metadata-shim objects while preserving dynamic
+attributes and weak references measured `1.732 us` and 19,046,376 traced bytes.
+Its prepared-query sample also regressed: parent/candidate wall medians were
+`60.015/64.537 us` and CPU medians `38.634/40.958 us`. The layout prototype is
+removed, not retained as an allocation optimization.
+
+A separate prototype used immutable tuples to avoid recopying result/status
+sequences for single-result cursors. Prepared-query parent/candidate wall
+medians were `58.518/59.633 us` and `60.313/60.117 us`, with CPU medians
+`36.136/37.558 us` and `39.004/38.515 us`. The mixed comparison does not
+establish a repeatable benefit. This prototype and its implementation-specific
+test are removed too; the installed wheel is restored to `3a0bb3db`.
+Raw query samples are `/tmp/phase5-{before-,}slots-prepared-a.json` and
+`/tmp/phase5-{before-,}result-tuples-prepared-{a,b}.json`. These are local
+diagnostics, not complete benchmark or compatibility validation for either
+discarded prototype. No production code or acceptance rule changes remain.
 
 Definition of done:
 
@@ -2002,14 +2058,12 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Use `7c740a41` as the latest complete CI correctness checkpoint: Tests
-   `35423769875` passes all 57 jobs and lint passes. Finish its soak in
-   Phase 5 `35423782206`; its benchmark already fails. The local resource
-   smoke, installed checks, selected synchronous coexistence coverage, and
-   all `4736/4736` full local synchronous cases pass.
-   Validate the timeout-state follow-up `3a0bb3db` separately: its 35 installed
-   checks and `4736/4736` full local synchronous cases pass; supported CI is
-   unfinished.
+1. Use `3a0bb3db` as the latest complete correctness/reliability checkpoint:
+   Tests `35426404068` passes all 57 jobs, lint passes, and Phase 5
+   `35426660959` passes the full three-backend soak but fails its benchmark.
+   Its 35 installed checks, `3525/3525` selected synchronous C-coexistence cases,
+   and `4736/4736` full local synchronous cases pass. Preserve these artifacts
+   against this exact revision, not a later optimization.
    Retain the SQL-scanner revision's failed full local report (`4732/4736`),
    four C/libpq timing reproductions, and large wall-clock anomaly without
    waiving the strict gate.
@@ -2034,9 +2088,9 @@ the synchronous beta is established.
    complete timeout-state benchmark still misses six C and four Python limits.
    Row drain has a strong separate unprepared bulk-row diagnostic, but does
    not close the single-row gaps or replace the standard prepared row cases.
-   The metadata-only and query-effect cache prototypes are removed after
-   inconsistent paired comparisons. Quantify duplicated cursor initialization
-   and synchronization before deciding whether wider changes are justified.
+   The metadata-only, query-effect cache, compact-layout, and immutable-result
+   prototypes are removed after flat, mixed, or worse comparisons. Follow the
+   binding/transformer investigation above rather than repeating these slices.
    Do not add another isolated conversion helper without a measured gain.
    Keep each change independently tested and compare rebuilt release wheels
    against both official baselines on the same machine.
