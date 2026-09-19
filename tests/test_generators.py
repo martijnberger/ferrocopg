@@ -1,4 +1,5 @@
 import time
+import uuid
 from collections import deque
 from functools import partial
 from unittest.mock import Mock
@@ -46,16 +47,26 @@ def test_connect_operationalerror_pgconn(generators, dsn, monkeypatch):
 
 @pytest.mark.libpq(">= 17")
 def test_cancel(pgconn, conn, generators):
+    appname = f"psycopg-cancel-{uuid.uuid4().hex}"
+    assert (
+        pgconn.exec_(f"SET application_name = '{appname}'".encode()).status
+        == pq.ExecStatus.COMMAND_OK
+    )
     pgconn.send_query_params(b"SELECT pg_sleep($1)", [b"180"])
     # Poll fresh statistics for this backend, not a cached transaction snapshot.
     conn.autocommit = True
+    if conn.pgconn.parameter_status(b"crdb_version"):
+        query = (
+            "SELECT count(*) FROM crdb_internal.node_queries"
+            " WHERE application_name = %s AND phase = 'executing'"
+        )
+    else:
+        query = (
+            "SELECT count(*) FROM pg_stat_activity"
+            " WHERE application_name = %s AND state = 'active'"
+        )
     deadline = time.monotonic() + 10.0
-    while not conn.execute(
-        "SELECT count(*) FROM pg_stat_activity"
-        " WHERE pid = %s AND query = 'SELECT pg_sleep($1)'"
-        " AND state = 'active'",
-        (pgconn.backend_pid,),
-    ).fetchone()[0]:
+    while not conn.execute(query, (appname,)).fetchone()[0]:
         if time.monotonic() >= deadline:
             pytest.fail("cancellation test query did not become active")
         time.sleep(0.01)
@@ -74,34 +85,48 @@ def test_cancel(pgconn, conn, generators):
         pgconn.consume_input()
 
 
-@pytest.mark.parametrize("counts", [(1,), (0, 1), (0, 0, 1)])
-def test_cancel_waits_for_query_start(monkeypatch, counts):
+@pytest.mark.parametrize(
+    "crdb, counts", [(False, (1,)), (False, (0, 1)), (False, (0, 0, 1)), (True, (0, 1))]
+)
+def test_cancel_waits_for_query_start(monkeypatch, crdb, counts):
     class QueryStarted(Exception):
         pass
 
     pgconn = Mock(backend_pid=123)
+    pgconn.exec_.return_value.status = pq.ExecStatus.COMMAND_OK
     pgconn.cancel_conn.side_effect = QueryStarted
     conn = Mock()
+    conn.pgconn.parameter_status.return_value = b"CockroachDB" if crdb else None
     conn.execute.return_value.fetchone.side_effect = [(n,) for n in counts]
     sleep = Mock()
-    monkeypatch.setattr(time, "sleep", sleep)
+    clock = Mock(wraps=time)
+    clock.sleep = sleep
+    monkeypatch.setitem(globals(), "time", clock)
 
     with pytest.raises(QueryStarted):
         test_cancel(pgconn, conn, None)
 
     assert conn.execute.call_count == len(counts)
     assert conn.autocommit is True
-    assert conn.execute.call_args.args[1] == (123,)
-    assert "pid = %s" in conn.execute.call_args.args[0]
+    appname = conn.execute.call_args.args[1][0]
+    assert appname.startswith("psycopg-cancel-")
+    pgconn.exec_.assert_called_once_with(f"SET application_name = '{appname}'".encode())
+    query = conn.execute.call_args.args[0]
+    assert "application_name = %s" in query
+    assert ("crdb_internal.node_queries" if crdb else "pg_stat_activity") in query
+    assert ("phase = 'executing'" if crdb else "state = 'active'") in query
     assert sleep.call_count == len(counts) - 1
 
 
 def test_cancel_query_start_timeout(monkeypatch):
     pgconn = Mock(backend_pid=123)
+    pgconn.exec_.return_value.status = pq.ExecStatus.COMMAND_OK
     conn = Mock()
+    conn.pgconn.parameter_status.return_value = None
     conn.execute.return_value.fetchone.return_value = (0,)
-    clock = iter((0.0, 11.0))
-    monkeypatch.setattr(time, "monotonic", lambda: next(clock, 11.0))
+    clock = Mock(wraps=time)
+    clock.monotonic.side_effect = (0.0, 11.0)
+    monkeypatch.setitem(globals(), "time", clock)
 
     with pytest.raises(pytest.fail.Exception, match="query did not become active"):
         test_cancel(pgconn, conn, None)
