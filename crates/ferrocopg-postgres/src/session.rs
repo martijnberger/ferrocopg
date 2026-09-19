@@ -313,10 +313,7 @@ impl SyncNoTlsSession {
             .map_err(ProbeError::Query)?;
         let column_descriptions: Vec<_> = rows.columns().iter().map(statement_column).collect();
         let has_columns = !column_descriptions.is_empty();
-        let mut records = Vec::new();
-        while let Some(row) = rows.next().map_err(ProbeError::Query)? {
-            records.push(row);
-        }
+        let records = rows.collect_rows().map_err(ProbeError::Query)?;
         let rows_affected = rows.rows_affected().unwrap_or(records.len() as u64);
         let is_tuples = has_columns || !records.is_empty();
         let mut result = result_set_from_descriptions_rows(

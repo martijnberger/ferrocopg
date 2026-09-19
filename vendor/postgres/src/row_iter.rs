@@ -29,6 +29,20 @@ impl<'a> RowIter<'a> {
     pub fn columns(&self) -> &[Column] {
         self.it.columns()
     }
+
+    /// Collects the remaining rows in a single runtime call.
+    ///
+    /// After success, `rows_affected()` contains the final command count.
+    pub fn collect_rows(&mut self) -> Result<Vec<Row>, Error> {
+        let it = &mut self.it;
+        self.connection.block_on(async {
+            let mut rows = Vec::new();
+            while let Some(row) = it.next().await.transpose()? {
+                rows.push(row);
+            }
+            Ok(rows)
+        })
+    }
 }
 
 impl FallibleIterator for RowIter<'_> {

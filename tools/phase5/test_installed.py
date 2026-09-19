@@ -13,6 +13,47 @@ import weakref
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_unprepared_row_collection_keeps_metadata_counts_and_recovery(self):
+        import ferrocopg
+
+        for binary in (False, True):
+            with (
+                self.subTest(binary=binary),
+                ferrocopg.connect(
+                    os.environ["PHASE5_DSN"], autocommit=True, prepare_threshold=None
+                ) as conn,
+            ):
+                conn.execute("create temporary table collected_rows (id int)")
+                with conn.cursor(binary=binary) as cur:
+                    cur.execute(
+                        "select i as value from generate_series(1, %s) i", (2048,)
+                    )
+                    self.assertEqual(cur.rowcount, 2048)
+                    self.assertEqual(cur.description[0].name, "value")
+                    self.assertEqual(cur.fetchall(), [(i,) for i in range(1, 2049)])
+                    cur.execute("select %s::int as empty_value where false", (42,))
+                    self.assertEqual(cur.rowcount, 0)
+                    self.assertEqual(cur.description[0].type_code, 23)
+                    self.assertEqual(cur.fetchall(), [])
+                    cur.execute(
+                        "insert into collected_rows select i from generate_series(1, %s) i",
+                        (7,),
+                    )
+                    self.assertEqual(cur.rowcount, 7)
+                    self.assertIsNone(cur.description)
+                    cur.execute(
+                        "delete from collected_rows where id > %s returning id", (4,)
+                    )
+                    self.assertEqual(cur.rowcount, 3)
+                    self.assertEqual(sorted(cur.fetchall()), [(5,), (6,), (7,)])
+                    with self.assertRaises(ferrocopg.errors.DivisionByZero):
+                        cur.execute(
+                            "select 100 / (100 - i) from generate_series(1, %s) i",
+                            (150,),
+                        )
+                    cur.execute("select %s::int", (42,))
+                    self.assertEqual(cur.fetchone(), (42,))
+
     def test_statement_splitting_preserves_quotes_comments_and_empty_queries(self):
         import ferrocopg
 
