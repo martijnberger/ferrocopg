@@ -57,7 +57,8 @@ def test_cancel(pgconn, conn, generators):
     conn.autocommit = True
     if conn.pgconn.parameter_status(b"crdb_version"):
         query = (
-            "SELECT count(*) FROM crdb_internal.node_queries"
+            "WITH active_queries AS (SHOW LOCAL STATEMENTS)"
+            " SELECT count(*) FROM active_queries"
             " WHERE application_name = %s AND phase = 'executing'"
         )
     else:
@@ -113,7 +114,8 @@ def test_cancel_waits_for_query_start(monkeypatch, crdb, counts):
     pgconn.exec_.assert_called_once_with(f"SET application_name = '{appname}'".encode())
     query = conn.execute.call_args.args[0]
     assert "application_name = %s" in query
-    assert ("crdb_internal.node_queries" if crdb else "pg_stat_activity") in query
+    assert ("SHOW LOCAL STATEMENTS" if crdb else "pg_stat_activity") in query
+    assert "crdb_internal" not in query
     assert ("phase = 'executing'" if crdb else "state = 'active'") in query
     assert sleep.call_count == len(counts) - 1
 
