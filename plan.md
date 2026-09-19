@@ -58,7 +58,8 @@ installed-package benchmark and soak infrastructure exists, but performance
 acceptance has not passed. Full 30-minute-per-backend CI soaks passed on
 revisions `24b646e3`, `2ed94013`, and `be46e180`; sustained validation of the final
 candidate remains required. The latest complete local benchmark, for the
-final COPY-borrowing working copy, fails five workloads against C.
+row-factory initialization working copy committed as `c07e4c26`, fails four
+workloads against C: parameterized queries, transactions, text COPY, and pool.
 Parameterized/prepared queries, transactions, and pool cycles miss Python parity.
 Passing individual row workloads does not close the complete performance gate.
 Both connection workloads pass this run but have missed parity in earlier runs.
@@ -101,6 +102,19 @@ running at this checkpoint. Lint passes at `e7b008c2`. Its full local
 run passes `4720/4724` synchronous cases; all four pool/scheduler timing failures
 reproduce under C/libpq. The short resource smoke passes, but neither result
 satisfies final supported-matrix or sustained-soak acceptance.
+The latest implementation is `c07e4c26` on `martijn/phase5-factory-init`:
+native result paths initialize row factories without allocating a discarded
+fallback conversion closure. Its 32 installed checks and `3340/3340`
+synchronous C-coexistence cases pass. The complete local harness passes
+`4722/4724` synchronous cases; check-backoff and scheduler timing assertions
+still fail, so the strict zero-regression gate fails. Its
+[compatibility run](https://github.com/martijnberger/ferrocopg/actions/runs/35410499984)
+is incomplete; its
+[lint run](https://github.com/martijnberger/ferrocopg/actions/runs/35410500017)
+passes. Its 60-second resource smoke passes, but no full sustained soak is
+recorded for this revision. Both local timing failures also reproduce under
+C/libpq in a fresh comparison. The COPY and loader-resolution soaks still in progress do not
+validate the later factory change.
 No final candidate has passed all acceptance gates.
 The acceptance status at this planning checkpoint is:
 
@@ -108,9 +122,9 @@ The acceptance status at this planning checkpoint is:
 | --- | --- | --- |
 | Synchronous API and package boundary | Implemented in Phase 4 | Revalidate after the Phase 5 optimizations |
 | Official synchronous pool | Implemented and regression-tested | Retain coverage in final benchmarks, soak, and matrix |
-| Performance | Not accepted; COPY borrowing misses five C/four Python limits locally and three C/three Python limits in CI | Continue measured optimization, then pass three complete candidate runs without combining passes across reports |
+| Performance | Not accepted; latest factory slice misses four C/four Python limits locally | Continue measured optimization, then pass three complete candidate runs without combining passes across reports |
 | Sustained reliability | Three-backend soaks passed at `24b646e3`, `2ed94013`, and `be46e180` | Repeat 30 minutes per backend on the final candidate |
-| Latest compatibility validation | All 57 CI jobs pass at `2ec7e030`; COPY borrowing passes 3,281/3,281 synchronous C-coexistence cases and 4,720/4,724 in the full local harness | Finish COPY's supported CI validation; retain all four local timing failures and their C/libpq reproductions |
+| Latest compatibility validation | All 57 CI jobs pass at `2ec7e030`; factory slice passes 3,340/3,340 synchronous C-coexistence cases and 4,722/4,724 in the full local harness | Finish COPY and factory CI validation; retain failed local reports and distinguish earlier C/libpq comparisons from current-revision evidence |
 | Release wheels and publication | Pending | Complete Phases 6 and 7 before publishing to PyPI |
 
 The implementation checkpoint is not a release candidate designation. Local
@@ -126,15 +140,17 @@ not mean the performance, reliability, packaging, or publication gates are done.
 Work in this order:
 
 1. Use the green loader-resolution matrix at `2ec7e030` as the correctness
-   checkpoint and finish COPY revision `e7b008c2`'s matrix and soak. Classify
+   checkpoint and finish COPY revision `e7b008c2`'s matrix and soak, plus
+   factory revision `c07e4c26`'s matrix. Classify
    full-harness failures and retain explicit Python/C
    comparison coverage. Investigate the local pool timing failure independently
    of the performance work; neither an isolated pass nor a green Linux matrix
    erases a failed local full run. Let each candidate's CI finish rather than
    repeatedly superseding it with new pushes to the same bookmark.
-2. Finish the in-flight fetch-cast and COPY-borrowing validation before choosing
-   another optimization. Then prioritize shared small-query overhead and any
-   remaining bulk-row or COPY costs. Parameter borrowing removed allocations
+2. Finish the in-flight validation before choosing another optimization.
+   The factory slice removes unused closures but has modest, variable query
+   gains; it does not close the performance gap. Prioritize shared small-query
+   overhead and any remaining bulk-row or COPY costs. Parameter borrowing removed allocations
    but did not measurably improve the longer warmed query comparisons. Choose
    the next change from a fresh profile, not from an assumption that moving more code to
    Rust must be faster. Each slice needs a rebuilt installed wheel, regression
@@ -151,7 +167,8 @@ explicit decision.
 
 ### Next implementation slice
 
-Finish full validation of the two pushed slices before starting another:
+Finish validation of the pushed fetch, COPY, and factory slices before
+starting another:
 
 - Fetch methods use static string casts instead of constructing typing objects
   per call. Profiles confirm removal of that work, but paired query timings are
@@ -161,14 +178,22 @@ Finish full validation of the two pushed slices before starting another:
   without escapes are borrowed, and an iterator removes the intermediate field
   pointer list. Preserve mutable-input safety, bytes-subclass coercion, NULL,
   empty fields, escape handling, and custom-loader behavior.
+- Native result paths initialize row factories directly instead of allocating
+  a fallback conversion closure that is immediately discarded. Preserve eager
+  initialization for ordinary execution, lazy pipeline initialization, metadata,
+  callback counts, and factory exception timing.
 
 The final iterator refinement now passes the installed checks and improves text
 COPY in both paired measurement orders. All eleven workloads have been measured;
 text COPY still narrowly misses C parity's allowed margin, and the complete
-performance gate fails. The full local harness has four timing failures, also
-reproduced under C/libpq; the short resource smoke passes. Finish the supported
-compatibility matrix and sustained soak. Neither a targeted pass nor a parent
-revision's green CI validates the entire current candidate.
+performance gate fails. COPY's full local harness has four timing failures,
+also reproduced under C/libpq; its short resource smoke passes. The later
+factory slice has two local timing failures, both reproduced under C/libpq,
+and a passing resource smoke.
+Its paired prepared timings are effectively flat to modestly improved, while
+parameterized timings improve by varying amounts. Finish its supported matrix
+and retain the outstanding full-run failures. Neither a
+targeted pass nor a parent revision's green CI validates the current candidate.
 
 After these slices, profile the remaining parameter adaptation, query setup,
 loader construction, and adaptation-context work shared by the failing
@@ -1516,8 +1541,10 @@ and `62.49 -> 62.36`. CPU differences were similarly small. Both measurement
 orders used 1,000 warmups and nine samples of 1,000 queries without concurrent
 build or test workers. Reports are
 `/tmp/phase5-{before-,}query-pack-{prepared,parameterized}-{a,b}.json`.
-The source and isolated environment are restored to the COPY implementation;
-all 31 retained installed checks pass. No prototype fast path or test remains.
+After rejecting the prototype, the source and isolated environment were
+restored to the COPY implementation; all 31 retained installed checks passed.
+No prototype fast path or test remains. The factory slice below supersedes
+that installed-wheel checkpoint.
 
 A separate diagnostic on that restored wheel compares four execution layers
 using the same prepared calculation, rotating order over nine samples of 2,000
@@ -1529,6 +1556,59 @@ The lower layers deliberately omit public-API work: their timings are not
 acceptance workloads or permission to bypass that behavior. The diagnostic
 script and raw report are `/tmp/phase5-query-layers.py` and
 `/tmp/phase5-query-layers.json`; retain the unchanged public benchmark suite.
+
+#### Row-factory initialization follow-up
+
+Revision `c07e4c26` avoids constructing a discarded fallback conversion closure
+when native result loading only needs row-factory initialization. It retains
+ordinary execution's eager factory callbacks and pipeline execution's lazy
+initialization. The installed regression checks metadata across repeated
+queries, callback counts, native loading without the fallback wrapper, and
+factory exception identity and timing.
+
+The staged release wheel passes all 32 installed checks. The unfiltered
+C-coexistence selection passes `3340/3340` synchronous cases; six known
+experimental async type-info failures remain separately classified (`9/15`
+async). Reports are `/tmp/phase5-factory-init-c-types.xml` and its
+`-report.json` companion. Formatting, typing, spelling, and CI lint pass.
+
+Serial parent/candidate measurements in both orders use 1,000 warmups and
+nine samples of 1,000 queries. Prepared medians are `56.13 -> 56.07` and
+`57.85 -> 57.24` microseconds; parameterized medians are `65.48 -> 61.06`
+and `62.63 -> 61.99`. These are modest, variable development results, not a
+stable percentage improvement. Raw reports are
+`/tmp/phase5-{before-,}factory-init-{prepared,parameterized}-{a,b}.json`.
+
+The complete `/tmp/phase5-factory-init-bench/report.json`, labeled
+`factory-init-working-copy`, fails four C limits: parameterized `1.879`,
+transactions `1.641`, text COPY `1.262`, and pool `1.783`. Four workloads also
+miss Python parity: parameterized `1.325`, prepared `1.215`, transactions
+`1.335`, and pool `1.175`. All three row workloads pass in this run; that is
+not repeated final-candidate acceptance and must not be combined with passes
+from other reports.
+
+The completed full local harness in `/tmp/phase5-factory-init-full.xml` passes
+`4722/4724` synchronous cases, with two failures and no errors. Check-backoff
+and scheduler first intervals are `110.157` and `110.099 ms`, exceeding their
+unchanged `105` and `110 ms` upper bounds. All other synchronous families pass.
+The strict reporter fails its zero-regression gate; the classified report is
+`/tmp/phase5-factory-init-full-report.json`. Experimental async remains
+separate at `505/620`, with 104 failures and 11 errors. Both timing cases also
+fail in a fresh C/libpq comparison at `110.076` and `110.097 ms`; see
+`/tmp/phase5-factory-init-timing-c.xml`. This is supporting diagnosis of host
+timing sensitivity, not a waiver or a successful full-run validation.
+
+The installed Rust resource smoke runs `60.31` seconds with 147 samples and
+no reported failures or surviving workload sessions. Cleanup records 615 driver
+objects, two threads, one observer socket, four file descriptors, and
+65,732,608 RSS bytes. `/tmp/phase5-factory-init-soak.json` records the exact
+`c07e4c26` revision; it is not the required full three-backend soak.
+
+Tests workflow `35410499984` is incomplete at this checkpoint, while lint
+`35410500017` passes. No factory-revision sustained soak is recorded.
+The earlier COPY matrix and the loader/COPY soaks remain
+in flight. Keep their results attributed to their exact revisions; the final
+candidate still needs its own complete acceptance evidence.
 
 Definition of done:
 
@@ -1640,10 +1720,15 @@ the synchronous beta is established.
    Neither workflow validates the new COPY revision.
    Finish Tests `35408335346` and Phase 5 `35408378339` for the fetch/COPY
    follow-ups; COPY's benchmark already fails, with its raw artifact published.
-   Installed checks, unfiltered synchronous COPY/type/cursor
-   coexistence coverage, lint, and the short resource smoke pass. The full local
+   COPY's installed checks, unfiltered synchronous COPY/type/cursor
+   coexistence coverage, lint, and short resource smoke pass. Its full local
    harness has four timing failures, all reproduced under C/libpq; retain its
    failed strict report rather than treating the comparison as a waiver.
+   Finish factory revision `c07e4c26`'s Tests run `35410499984`.
+   Its resource smoke, lint, 32 installed checks, and `3340/3340` synchronous
+   coexistence cases pass, but the full local harness remains failed at
+   `4722/4724`. Investigate its check-backoff and scheduler failures without
+   borrowing a parent revision's validation or relaxing the zero-regression gate.
    Keep the two inline-offset local pool timing failures visible;
    do not attribute a parent revision's results to the new change. Preserve
    coverage of
@@ -1666,6 +1751,8 @@ the synchronous beta is established.
    effectively flat in the longer warmed comparisons, and fetch-cast removal
    has mixed latency evidence despite reducing typing work.
    The parameter-packing prototype is removed after flat paired comparisons.
+   The factory slice removes unused conversion closures, but its modest,
+   variable query gains leave four C and four Python benchmark limits unmet.
    Use the layer diagnosis to investigate larger query/cursor-path costs rather
    than adding another isolated conversion helper without a measured gain.
    Keep each change independently tested and compare rebuilt release wheels
