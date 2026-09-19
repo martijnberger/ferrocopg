@@ -75,18 +75,20 @@ revisions `24b646e3`, `2ed94013`, `be46e180`, `cc7b60e2`, `e7b008c2`,
 `7c740a41`, and `3a0bb3db`;
 sustained validation of the final
 candidate remains required. The latest complete local benchmark, for native
-wait-state reuse `0dcecac2`, fails six workloads against C: parameterized and
-prepared queries, namedtuple rows, transactions, text COPY, and pool.
+result projection `f237202b`, fails five workloads against C: parameterized and
+prepared queries, namedtuple rows, transactions, and pool.
 Parameterized/prepared queries, transactions, and pool cycles miss Python parity.
 Passing individual row workloads does not close the complete performance gate.
-The exact-revision CI benchmark also fails: four C and four Python comparisons
-miss their limits. Lint passes; compatibility validation and the full soak are
-unfinished. Both connection cases pass the local run; plaintext missed Python
-parity in an earlier row-drain run. Individual passes remain variable.
-These are development measurements, not release acceptance. The wait-state
-candidate passes 41 installed checks, 28 Rust backend unit tests, and
+Its lint passes; the CI benchmark, compatibility validation, and full soak
+are queued.
+The preceding wait-state revision `0dcecac2` fails six C/four Python limits
+locally and four C/four Python limits in CI; its lint passes, while its matrix
+and soak remain unfinished. Both connection cases and text COPY pass the
+new local run, but individual passes remain variable.
+These are development measurements, not release acceptance. The result-projection
+candidate passes 42 installed checks, 28 Rust backend unit tests, and
 `3525/3525` selected synchronous C-coexistence cases. Its full local harness
-passes `4734/4736` synchronous cases, failing two pool timing assertions;
+passes `4733/4736` synchronous cases, failing three pool/scheduler timing assertions;
 the strict zero-regression gate fails. Its supported matrix and full soak
 remain pending. Keep `3a0bb3db` as the last completed green checkpoint.
 Phase 6 wheel-matrix validation and Phase 7 publication remain pending.
@@ -193,9 +195,9 @@ The acceptance status at this planning checkpoint is:
 | --- | --- | --- |
 | Synchronous API and package boundary | Implemented in Phase 4 | Revalidate after the Phase 5 optimizations |
 | Official synchronous pool | Implemented and regression-tested | Retain coverage in final benchmarks, soak, and matrix |
-| Performance | Not accepted; wait-state candidate misses six C/four Python limits locally and four C/four Python limits in CI | Continue measured optimization, then pass three complete candidate runs without combining passes across reports |
+| Performance | Not accepted; result-projection candidate misses five C/four Python limits locally; its CI benchmark is queued | Continue measured optimization, then pass three complete candidate runs without combining passes across reports |
 | Sustained reliability | Full three-backend soaks pass at `7c740a41` and `3a0bb3db`, with zero surviving sessions and no resource-budget failures | Repeat 30 minutes per backend after any further candidate changes; scheduled execution remains unverified |
-| Latest compatibility validation | `3a0bb3db` remains the completed green checkpoint; wait-state candidate passes 41 installed checks but fails two local pool timing assertions, with CI pending | Finish candidate validation without waiving the strict gate; retain failed local reports and comparisons |
+| Latest compatibility validation | `3a0bb3db` remains the completed green checkpoint; result projection passes 42 installed checks but fails three local pool/scheduler timing assertions, all reproduced with C/libpq; CI is queued | Finish candidate validation without waiving the strict gate; retain failed local reports and comparisons |
 | Release wheels and publication | Pending | Complete Phases 6 and 7 before publishing to PyPI |
 
 The implementation checkpoint is not a release candidate designation. Local
@@ -249,25 +251,21 @@ complete benchmark still fails and full-harness/CI validation is not green.
 Finish its validation before treating it as a completed checkpoint; do not
 attribute the earlier soak to this candidate.
 
-The current working copy contains an uncommitted native `BackendPgResult`
-projection prototype. It replaces Python metadata-wrapper construction for
-buffered native results while retaining the Python shim for other result
-objects. It is not part of `0dcecac2`, a validated optimization, or a release
-candidate. Leave streaming and other result paths outside this experiment.
+Native `BackendPgResult` projection is now retained in `f237202b` on
+`martijn/phase5-native-pgresult`. It replaces Python metadata-wrapper
+construction for buffered native results while retaining the Python shim for
+other result objects. Streaming and other result paths are unchanged.
+Paired prepared-query wall and CPU times improve modestly in both orders;
+the focused metadata/lifetime regression passes on both parent and candidate.
+All 42 installed checks and `3525/3525` selected synchronous C-coexistence cases
+pass. Its full local strict gate and complete benchmark still fail. This is
+an incremental optimization, not a validated release candidate.
 
-The next implementation decision is whether to retain that prototype:
-
-1. Verify the rebuilt installed wheel and its test results, then compare it
-   with the unchanged wait-state wheel in both execution orders on an idle
-   machine. Record wall and CPU samples; do not overlap timing with builds or
-   tests.
-2. Before retaining it, add focused coverage for metadata indexing, encoding
-   snapshots, text/binary formats, NULL/empty values, command counts, cache
-   identity, and result lifetime after cursor and connection cleanup. Preserve
-   custom factories/loaders and fallback behavior; check native indexing safety.
-3. If paired timings are effectively flat or behavior cannot be preserved,
-   remove the prototype and record the result. If promising, run the complete
-   eleven-workload comparison and compatibility checks before promoting it.
+Finish this revision's matrix and sustained soak without superseding those
+runs. Use the current installed-wheel profile to select the next shared
+execute/fetch cost; do not assume more metadata work is the largest remaining
+opportunity. Each further slice still needs same-machine, both-order wall/CPU
+comparisons, behavior regressions, and a complete benchmark before promotion.
 
 Retained optimizations include:
 
@@ -289,8 +287,9 @@ Retained optimizations include:
   unchanged, and column metadata, final command counts, cancellation, and
   errors remain covered by installed regressions.
 
-The latest complete local benchmark at `0dcecac2` fails six C and four Python
-limits, including text COPY against C. The preceding row-drain CI benchmark
+The latest complete local benchmark at `f237202b` fails five C and four Python
+limits. Text COPY passes this run but failed the wait-state local comparison;
+do not call that gap reliably closed. The preceding row-drain CI benchmark
 fails four C and four Python limits. These passes have varied between
 runs. The SQL-scanner slice's paired transaction gains are modest, not closure
 of that gap. Keep the
@@ -333,8 +332,8 @@ found dumper-cache and exception-order incompatibilities. The prototype is
 removed and the validated `3a0bb3db` wheel restored. Do not treat this as a
 pending implementation to finish or a demonstrated end-to-end improvement.
 
-Live public-query measurements now support investigating result-wrapper setup;
-they do not establish that the current prototype is faster. Native batching of
+Live public-query measurements led to the retained result-wrapper slice;
+its paired gains do not close the shared-query gap. Native batching of
 loader construction was measured in both orders and removed as effectively
 flat. Do not repeat that approach without a different measured mechanism.
 Sparse diagnostics put the native prepared
@@ -2161,8 +2160,71 @@ Raw development samples are
 `/tmp/phase5-{before-,}loader-batch-prepared-{a,b}.json`, with the parent
 identified as `0dcecac25d33f3587d9dbf0e23762a68964dda6d`. These selected
 workload measurements are not complete benchmarks or durable release evidence.
-Do not attribute the parent's validation to the subsequent uncommitted
-result-projection prototype.
+Do not attribute the parent's validation to the subsequent result-projection
+implementation.
+
+#### Native buffered-result projection
+
+Revision `f237202b2dc7c8090c847c2bca487de97ef632dd`, pushed on
+`martijn/phase5-native-pgresult`, creates a frozen native projection of a
+buffered result instead of reading its counts/status through separate Python
+calls and allocating a Python metadata wrapper. It retains the owning native
+result, encoding snapshot, format, and command status without copying row
+buffers. Synthetic results retain the Python shim; streaming is unchanged.
+Column OIDs use the existing checked lookup.
+
+The installed regression covers UTF-8/Latin-1 metadata snapshots, cached
+projection identity, text/binary values, NULL/empty distinctions, invalid
+indices, zero-column tuples, command results, and retained raw access after
+cursor/session cleanup. All 42 installed/harness checks pass on parent and
+candidate; the rebuilt exact-commit release wheel also passes all 42. All
+28 Rust backend unit tests, formatting, lint, spellcheck, and adapter type
+checking pass.
+
+Prepared-query parent/prototype wall medians were `60.145/59.194 us` and, in
+reverse order, `60.075/59.077 us`. CPU medians were `38.743/37.817 us` and
+`38.684/37.610 us`. Raw samples are
+`/tmp/phase5-{before-,}native-pgresult-prepared-{a,b}.json`. These modest
+development gains precede the checked-OID lookup cleanup; the complete
+benchmark below uses the final committed wheel.
+
+The exact-revision local report `/tmp/phase5-native-pgresult-bench/report.json`
+fails C limits for parameterized queries (`1.368`), prepared queries (`1.685`),
+namedtuple rows (`1.298`), transactions (`1.588`), and pool (`1.784`). It misses
+Python parity for parameterized queries (`1.233`), prepared queries (`1.207`),
+transactions (`1.267`), and pool (`1.191`). Connection setup, tuple/dict rows,
+and both COPY cases pass both limits in this run only. These ratios compare
+against that run's baselines, not the paired parent measurements above.
+
+The full local harness `/tmp/phase5-native-pgresult-full.xml` and its classified
+`-report.json` pass `4733/4736` synchronous cases. Reconnect, check-backoff,
+and scheduler timing assertions fail; all three also fail with C/libpq in
+`/tmp/phase5-native-pgresult-c-pool-timing.xml`. The strict gate remains failed.
+Experimental async remains separately `505/620`. The C-coexistence report
+`/tmp/phase5-native-pgresult-c-types-report.json` passes `3525/3525` synchronous
+cases, with six experimental async failures.
+
+The 60-second resource smoke `/tmp/phase5-native-pgresult-soak.json` records
+`60.209 s`, 146 samples, no resource-budget failures, and zero workload
+sessions throughout. Cleanup records 615 driver objects, two threads, one
+observer socket, four descriptors, and 66,453,504 RSS bytes. It does not
+satisfy the 30-minute-per-backend sustained gate.
+
+Fresh installed prepared-query diagnostics record Rust/C public wall times
+`58.031/32.197 us` and CPU times `36.687/17.195 us`. Separate instrumented
+phases measure cursor creation `3.475/1.484 us`, execute `48.809/29.795 us`,
+fetch `5.086/0.455 us`, and release `1.288/0.736 us`. Raw samples and installed
+file fingerprints are in `/tmp/phase5-native-pgresult-query-profile-{rust,c}.json`.
+These are diagnostic measurements, not acceptance or a before/after comparison.
+The largest remaining gap is still execution, not metadata projection alone.
+Prioritize the native call/runtime boundary and Python query conversion/state
+bookkeeping, with fetch setup secondary; do not repeat rejected small helper
+ports without a new measured mechanism.
+
+Exact-revision lint `35436072268` passes. Tests `35436072292` and the full
+[benchmark/soak workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35436112828)
+are queued. Do not treat the parent's completed soaks as validation of this
+revision or the local temporary reports as durable final-candidate evidence.
 
 Definition of done:
 
@@ -2276,7 +2338,13 @@ the synchronous beta is established.
    Its 35 installed checks, `3525/3525` selected synchronous C-coexistence cases,
    and `4736/4736` full local synchronous cases pass. Preserve these artifacts
    against this exact revision, not a later optimization.
-   Finish exact-revision validation of wait-state candidate `0dcecac2` before
+   Finish exact-revision validation of result-projection candidate `f237202b`:
+   its full local strict gate fails on three timing assertions, all reproduced
+   under C/libpq, and its complete benchmark misses five C/four Python limits.
+   Its 42 installed checks, `3525/3525` C-coexistence cases, lint, and short
+   resource smoke pass; matrix and full soak are queued. Do not promote it as
+   a release candidate.
+   Also finish validation of preceding wait-state candidate `0dcecac2` before
    promoting it: its full local strict gate fails on two pool timing assertions,
    its local and CI performance comparisons fail, and its matrix/soak are
    unfinished. Lint passes. Preserve the completed CI benchmark artifact and
@@ -2302,7 +2370,7 @@ the synchronous beta is established.
    has mixed latency evidence despite reducing typing work.
    The parameter-packing prototype is removed after flat paired comparisons.
    The factory and SQL-scanner slices remove measured work, but the latest
-   complete wait-state benchmark still misses six C and four Python limits.
+   complete result-projection benchmark still misses five C and four Python limits.
    Row drain has a strong separate unprepared bulk-row diagnostic, but does
    not close the single-row gaps or replace the standard prepared row cases.
    The metadata-only, query-effect cache, compact-layout, and immutable-result
@@ -2313,8 +2381,8 @@ the synchronous beta is established.
    retain the new cache, NULL-OID, and callback-order regressions when evaluating
    another binding shortcut. Preserve diagnostic samples with revision/wheel identity.
    Loader batching is also removed after flat paired measurements. Evaluate
-   the uncommitted native result projection using the explicit retain-or-remove
-   steps above; do not count it as completed or validated work.
+   the retained native result projection using its exact-revision CI runs;
+   its modest paired gain does not establish final-candidate acceptance.
    Do not add another isolated conversion helper without a measured gain.
    Keep each change independently tested and compare rebuilt release wheels
    against both official baselines on the same machine.
