@@ -75,10 +75,12 @@ it is not release acceptance. Its experimental complete report passes eight of
 eleven workloads against both comparators, but parameterized queries,
 transactions, and pool still fail. The committed candidate `9d160e8e` passes
 54 exact-wheel installed checks and CI lint, but its separate CI benchmark
-passes only five of eleven workloads against both comparators. Its compatibility
-matrix, full local classified harness, and full soak are still running at this
-snapshot. Earlier loaded-machine timings remain excluded. See the codegen
-evidence below for identities and scope.
+passes only five of eleven workloads against both comparators. Its 57-job
+compatibility matrix and full three-backend soak now pass. The completed local
+classified harness passes `4713/4741` synchronous cases, with 28 timing-related
+failures; its strict zero-regression gate fails. Representative timing failures
+also reproduce with C/libpq in a reversed-order control. Earlier loaded-machine
+timings remain excluded. See the codegen evidence below for identities and scope.
 
 Previous investigation: native transformer dispatch `bb26926d` is rejected after
 mixed exact-revision timings in both short and longer warmed comparisons. Its
@@ -2978,10 +2980,11 @@ Cargo formatting, and actionlint pass.
 
 [Lint `35461783962`](https://github.com/martijnberger/ferrocopg/actions/runs/35461783962)
 passes. [Tests `35461783961`](https://github.com/martijnberger/ferrocopg/actions/runs/35461783961)
-has 12 completed jobs, 19 running, and 26 queued with no failed jobs at this
-snapshot; this is not a completed matrix.
+passes all 57 jobs, including all Rust jobs and the corrected CockroachDB-master
+cancellation test. This is a completed exact-revision compatibility matrix.
 [Phase 5 `35461824553`](https://github.com/martijnberger/ferrocopg/actions/runs/35461824553)
-has a failed completed benchmark and a full three-backend soak still running.
+is terminal failure overall: its benchmark fails and its full three-backend
+soak passes.
 The optional codegen experiment is correctly skipped in this acceptance run.
 
 Benchmark artifact `10590340808` contains all 33 successful workers and an
@@ -3012,11 +3015,50 @@ async failures. Its reporter correctly rejects exit status 2; there is no
 completed synchronous-coverage claim. Preserve
 `/tmp/phase5-thin-9d160-sync.xml` and
 `/tmp/phase5-thin-9d160-interrupted-report.json` as incomplete evidence.
-The replacement unfiltered harness is live and writes
-`/tmp/phase5-thin-9d160-full.xml`. Wait for its actual exit status before running
-the existing manifest/floor/zero-sync-regression reporter. Do not exclude
-`asyncio`-named synchronous fixtures or treat experimental async failures as
-new synchronous regressions.
+The replacement unfiltered harness completed with pytest status 1 in 945.27
+seconds. Raw XML is `/tmp/phase5-thin-9d160-full.xml`; the existing reporter's
+result is `/tmp/phase5-thin-9d160-full-report.json`. Synchronous coverage is
+`4713/4741` executed, total 5018, with 28 failures and no errors. The percentage
+floors pass but the zero-regression gate fails. Failures comprise 22 pool or
+scheduler cases, five notification cases, and one concurrency notification
+case. Experimental async is separately `505/620`, with 104 failures and 11
+errors; do not confuse those with supported synchronous coverage.
+
+Seven representative timing cases (the scheduler module, pool check-backoff,
+and notification timeout) passed in an initial C/libpq control. Rust then
+failed six of seven, and the reversed-order C/libpq control failed all seven,
+including its 100 ms scheduler deadline taking 195.154 ms and its 100 ms
+backoff taking 198.373 ms. Preserve all three results:
+`/tmp/phase5-thin-9d160-c-timing.xml`,
+`/tmp/phase5-thin-9d160-rust-timing.xml`, and
+`/tmp/phase5-thin-9d160-c-timing-b.xml`.
+This demonstrates local timing instability, not a waiver or a passing full
+local run. No tolerance, retry, manifest, or baseline was changed.
+
+Soak artifact `10591452282`, locally
+`/tmp/phase5-thin-9d160-ci-soak/phase5-results/report.json`, was independently
+checked against the existing resource-growth function. Rust/Python/C ran
+1800.038/1800.082/1800.047 seconds and collected 1701/1117/1710 post-warmup
+resource snapshots. Each exercised all eight scenarios, respectively
+34060/22380/34240 operations per scenario. All growth checks and worker verdicts
+pass; every backend ends with zero workload sessions. Rust cleanup is 630 driver
+objects, one thread, one observer socket, five file descriptors, and 56,909,824
+RSS bytes. This is full-duration reliability evidence for `9d160e8e`, not for
+future code changes, and does not close performance acceptance.
+
+A fresh instrumented 10,000-query installed-wheel profile is retained at
+`/tmp/phase5-thin-9d160-parameterized.pstats`. It records 2,310,001 calls in
+3.318 seconds. Query conversion accounts for 0.567 s cumulative, first-row
+transformer setup 0.259 s, and cursor construction 0.191 s. These overlapping,
+instrumented values are diagnostic, not unprofiled latency or acceptance.
+The next mechanism to investigate is broader query/adaptation state ownership
+and lifecycle, retaining actual registered constructors, callbacks, cache
+replacement, custom contexts, and error ordering. A native-owned transformer
+prototype must differ from the rejected dispatcher, which still repeatedly
+accessed Python-owned state. Do not repeat that dispatcher or the already
+rejected duplicate-COPY-preflight shortcut merely because they appear in this
+profile. Any new implementation still needs equal-length, both-order installed
+measurements on a dedicated runner before being retained as an optimization.
 
 #### Phase 5 definition of done
 
@@ -3135,11 +3177,14 @@ the synchronous beta is established.
    one CockroachDB-master internal-view restriction, corrected in `fa548322`.
    Validate the new release-profile candidate without replacing earlier
    failures with a different revision's passes.
-   Specifically, inspect the existing `9d160e8e` Tests run `35461783961`, full
-   soak in `35461824553`, and live unfiltered local harness. Its 54 installed
-   checks and lint pass, but its exact-revision CI benchmark fails four C and
-   three Python limits. No duplicate workflow or passing-acceptance claim is
-   warranted. Finish classification before the next optimization slice.
+   The `9d160e8e` Tests run `35461783961` now passes all 57 jobs and its full
+   soak in `35461824553` passes. Its 54 installed checks and lint also pass,
+   but its exact-revision CI benchmark fails four C and three Python limits.
+   The completed local full harness has 28 synchronous timing failures; its
+   seven-case reversed C control also fails. Keep the strict failed gate and
+   do not rerun completed workflows merely to seek different benchmark ratios.
+   Use this completed reliability checkpoint for the broader query/adaptation
+   state investigation described above, not another rejected helper port.
    The notice-drain benchmark still fails four C/four Python comparisons in CI and five
    C/five Python comparisons locally. Preserve its failed local pool timing
    assertion and failed isolated C comparison; do not waive the strict gate.
