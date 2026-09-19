@@ -13,6 +13,60 @@ import weakref
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_native_rows_initialize_factories_without_fallback_wrappers(self):
+        from unittest.mock import patch
+
+        import ferrocopg
+        from ferrocopg import _ferrocopg as adapter
+
+        factories = []
+        loaded = []
+
+        def factory(cur):
+            names = tuple(column.name for column in cur.description)
+            factories.append(names)
+
+            def row(values):
+                loaded.append(tuple(values))
+                return dict(zip(names, values))
+
+            return row
+
+        with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+            with (
+                conn.cursor(row_factory=factory) as cur,
+                patch.object(
+                    adapter.NoTlsCursorAdapter,
+                    "_make_row_for_result",
+                    side_effect=AssertionError(
+                        "native result allocated a fallback wrapper"
+                    ),
+                ),
+            ):
+                cur.execute("select %s::int as first", (41,))
+                self.assertEqual(factories, [("first",)])
+                self.assertEqual(loaded, [])
+                self.assertEqual(cur.fetchone(), {"first": 41})
+                cur.execute("select 42 as second")
+                self.assertEqual(factories, [("first",), ("second",)])
+                self.assertEqual(cur.fetchall(), [{"second": 42}])
+                with conn.pipeline():
+                    cur.execute("select 43 as third")
+                self.assertEqual(factories, [("first",), ("second",)])
+                self.assertEqual(cur.fetchone(), {"third": 43})
+                self.assertEqual(factories, [("first",), ("second",), ("third",)])
+                self.assertEqual(loaded, [(41,), (42,), (43,)])
+
+                error = ValueError("factory failed during execute")
+
+                def fail_factory(cur):
+                    raise error
+
+                with conn.cursor(row_factory=fail_factory) as failing:
+                    with self.assertRaises(ValueError) as caught:
+                        failing.execute("select 44 as fourth")
+                self.assertIs(caught.exception, error)
+
     def test_copy_parsers_preserve_mutable_snapshots_and_bytes_coercion(self):
         from types import SimpleNamespace
 

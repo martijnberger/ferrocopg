@@ -2149,7 +2149,7 @@ class NoTlsCursorAdapter:
                     raise translated from None
                 raise
         if self._row_factory not in _LEGACY_ROW_FACTORIES:
-            self._make_row_for_result(self._result)
+            self._init_row_factory(self._result)
         return self
 
     def executemany(
@@ -2466,7 +2466,7 @@ class NoTlsCursorAdapter:
         self._reset_result()
         self._result = result
         if self._row_factory not in _LEGACY_ROW_FACTORIES:
-            self._make_row_for_result(result)
+            self._init_row_factory(result)
 
     @staticmethod
     def _loaders_changed(
@@ -2477,6 +2477,13 @@ class NoTlsCursorAdapter:
             return
         self._result_transformer = None
         self._query_transformer = None
+
+    def _init_row_factory(self, result: BackendResultCursor) -> None:
+        # Native row loading needs the factory, not the fallback conversion closure.
+        if result.current_result is None:
+            raise e.ProgrammingError("no result available")
+        if self._make_row is None:
+            self._make_row = cast(RowMaker, self._row_factory(self))
 
     def _make_row_for_result(self, result: BackendResultCursor) -> RowMaker:
         current = result.current_result
