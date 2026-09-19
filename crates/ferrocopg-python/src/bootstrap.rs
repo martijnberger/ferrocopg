@@ -1,6 +1,6 @@
 use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict, PyList, PyTuple};
+use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 use pyo3::wrap_pyfunction;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
@@ -169,6 +169,67 @@ struct BackendResultSet {
     wire_format: u8,
 }
 
+#[pyclass(module = "ferrocopg_rust._ferrocopg", frozen)]
+struct BackendPgResult {
+    #[pyo3(get)]
+    _result: Py<BackendResultSet>,
+    #[pyo3(get)]
+    _encoding: String,
+    #[pyo3(get)]
+    _format: u8,
+    #[pyo3(get)]
+    status: u8,
+    #[pyo3(get)]
+    nfields: usize,
+    #[pyo3(get)]
+    ntuples: usize,
+    #[pyo3(get)]
+    command_status: Py<PyBytes>,
+}
+
+#[pymethods]
+impl BackendPgResult {
+    fn fname(&self, py: Python<'_>, index: isize) -> PyResult<Py<PyBytes>> {
+        let adjusted = if index < 0 {
+            self.nfields as isize + index
+        } else {
+            index
+        };
+        if adjusted < 0 || adjusted as usize >= self.nfields {
+            return Err(PyIndexError::new_err(index));
+        }
+        let result = self._result.borrow(py);
+        PyString::new(py, &result.columns[adjusted as usize])
+            .call_method1("encode", (&self._encoding,))?
+            .cast_into::<PyBytes>()
+            .map(Bound::unbind)
+            .map_err(Into::into)
+    }
+
+    fn fformat(&self, index: isize) -> PyResult<u8> {
+        if index < 0 || index as usize >= self.nfields {
+            return Err(PyIndexError::new_err(index));
+        }
+        Ok(self._format)
+    }
+
+    fn ftype(&self, py: Python<'_>, index: isize) -> PyResult<u32> {
+        if index < 0 || index as usize >= self.nfields {
+            return Ok(0);
+        }
+        self._result.borrow(py).column_oid(index as usize)
+    }
+
+    fn get_value(
+        &self,
+        py: Python<'_>,
+        row: usize,
+        column: usize,
+    ) -> PyResult<Option<Py<PyBytes>>> {
+        self._result.borrow(py).get_value(py, row, column)
+    }
+}
+
 fn load_result_row<'py>(
     py: Python<'py>,
     row: &ferrocopg_postgres::WireRow,
@@ -208,6 +269,29 @@ impl<'py> IntoPyObject<'py> for LoadedResultRow<'py> {
 
 #[pymethods]
 impl BackendResultSet {
+    fn as_pgresult(
+        slf: Py<Self>,
+        py: Python<'_>,
+        encoding: String,
+        format: u8,
+        command_status: Py<PyBytes>,
+    ) -> BackendPgResult {
+        let result = slf.borrow(py);
+        let status = if result.is_tuples { 2 } else { 1 };
+        let nfields = result.columns.len();
+        let ntuples = result.rows.len();
+        drop(result);
+        BackendPgResult {
+            _result: slf,
+            _encoding: encoding,
+            _format: format,
+            status,
+            nfields,
+            ntuples,
+            command_status,
+        }
+    }
+
     #[getter]
     fn column_count(&self) -> usize {
         self.columns.len()
@@ -1657,6 +1741,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<BackendNotification>()?;
     m.add_class::<BackendTextQueryResult>()?;
     m.add_class::<BackendResultSet>()?;
+    m.add_class::<BackendPgResult>()?;
     m.add_class::<BackendSimpleQueryMessage>()?;
     m.add_class::<BackendSimpleQueryResult>()?;
     m.add_class::<BackendExecuteResult>()?;

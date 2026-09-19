@@ -436,6 +436,76 @@ class InstalledPoolTests(unittest.TestCase):
                             else expected,
                         )
 
+    def test_pgresult_projection_preserves_metadata_snapshots_and_lifetime(self):
+        from ferrocopg import pq
+        from ferrocopg._ferrocopg import BackendResultCursor
+        from ferrocopg._rust import _ferrocopg as native
+
+        for binary in (False, True):
+            format = pq.Format.BINARY if binary else pq.Format.TEXT
+            session = native.connect_session(os.environ["PHASE5_DSN"])
+            try:
+                result = session.run_params_format(
+                    "select 42::int4 as \"value\u00e9\", NULL::text, ''::text",
+                    [],
+                    binary,
+                )
+                empty = session.run_params_format(
+                    "select from generate_series(1, 2)", [], binary
+                )
+                command = session.run_params_format("set timezone = 'UTC'", [], binary)
+            finally:
+                session.close()
+
+            cursor = BackendResultCursor(
+                [result, empty, command], ["SELECT 1", "SELECT 2", "SET"]
+            )
+            projections = cursor.pgresults("utf-8", format)
+            self.assertIs(cursor.pgresults("utf-8", format), projections)
+            projected, zero_columns, status = projections
+            self.assertIs(projected._result, result)
+            self.assertEqual(projected.fname(0), b"value\xc3\xa9")
+            self.assertEqual(projected.fname(-3), b"value\xc3\xa9")
+            self.assertEqual(projected.status, pq.ExecStatus.TUPLES_OK)
+            self.assertEqual((projected.nfields, projected.ntuples), (3, 1))
+            self.assertEqual(projected.command_status, b"SELECT 1")
+            self.assertEqual([projected.ftype(i) for i in range(3)], [23, 25, 25])
+            self.assertEqual([projected.fformat(i) for i in range(3)], [format] * 3)
+            for index in (-1, 3):
+                self.assertEqual(projected.ftype(index), 0)
+                with self.assertRaises(IndexError):
+                    projected.fformat(index)
+            for index in (-4, 3):
+                with self.assertRaises(IndexError):
+                    projected.fname(index)
+            for row, column in ((1, 0), (0, 3)):
+                with self.assertRaises(IndexError):
+                    projected.get_value(row, column)
+
+            latin = cursor.pgresults("iso8859-1", format)
+            self.assertIsNot(latin, projections)
+            self.assertEqual(latin[0].fname(0), b"value\xe9")
+            self.assertEqual(projected.fname(0), b"value\xc3\xa9")
+            self.assertEqual(zero_columns.status, pq.ExecStatus.TUPLES_OK)
+            self.assertEqual((zero_columns.nfields, zero_columns.ntuples), (0, 2))
+            self.assertEqual(zero_columns.command_status, b"SELECT 2")
+            self.assertEqual(status.status, pq.ExecStatus.COMMAND_OK)
+            self.assertEqual((status.nfields, status.ntuples), (0, 0))
+            self.assertEqual(status.command_status, b"SET")
+            for item in (zero_columns, status):
+                self.assertEqual(item.ftype(0), 0)
+                with self.assertRaises(IndexError):
+                    item.fname(0)
+                with self.assertRaises(IndexError):
+                    item.fformat(0)
+
+            del cursor, result, empty, command, projections, latin, session
+            gc.collect()
+            self.assertEqual(
+                [projected.get_value(0, i) for i in range(3)],
+                [struct.pack("!i", 42) if binary else b"42", None, b""],
+            )
+
     def test_bound_parameters_preserve_buffers_formats_and_prepared_recovery(self):
         import ferrocopg
         from ferrocopg._rust import _ferrocopg as native

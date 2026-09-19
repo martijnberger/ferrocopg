@@ -1554,15 +1554,21 @@ class BackendResultCursor:
     def pgresults(self, encoding: str, format: pq.Format) -> list[_BackendPgResultShim]:
         cache = self._pgresults_cache
         if cache is None or cache[0] != encoding or cache[1] != format:
-            results = [
-                _BackendPgResultShim(
-                    result,
-                    self._encodings[index] or encoding,
-                    format,
-                    self._statusmessages[index],
-                )
-                for index, result in enumerate(self._results)
-            ]
+            results = []
+            for index, result in enumerate(self._results):
+                wire_encoding = self._encodings[index] or encoding
+                statusmessage = self._statusmessages[index]
+                if factory := getattr(result, "as_pgresult", None):
+                    pgresult = factory(
+                        wire_encoding,
+                        format,
+                        (statusmessage or "").encode(wire_encoding),
+                    )
+                else:
+                    pgresult = _BackendPgResultShim(
+                        result, wire_encoding, format, statusmessage
+                    )
+                results.append(pgresult)
             self._pgresults_cache = (encoding, format, results)
             return results
         return cache[2]
