@@ -95,7 +95,7 @@ jobs:
   codegen-experiment:
     if: ${{ inputs.codegen_experiment }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       PHASE5_DSN: host=127.0.0.1 user=postgres password=password dbname=postgres sslmode=disable
       RUSTUP_TOOLCHAIN: 1.94.1

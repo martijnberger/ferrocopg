@@ -20,7 +20,11 @@ from workloads import BENCHMARKS
 
 ROOT = Path(__file__).resolve().parents[2]
 PROFILES = {
-    "default": {},
+    # Keep the original Cargo defaults as the control even if the project changes.
+    "default": {
+        "CARGO_PROFILE_RELEASE_LTO": "false",
+        "CARGO_PROFILE_RELEASE_CODEGEN_UNITS": "16",
+    },
     "thin": {
         "CARGO_PROFILE_RELEASE_LTO": "thin",
         "CARGO_PROFILE_RELEASE_CODEGEN_UNITS": "1",
@@ -276,6 +280,7 @@ def main() -> int:
                     f"check-{profile}",
                     [python, "-m", "unittest", "discover", "-s", "tools/phase5", "-v"],
                 )
+            run("processes-before-timing", ["ps", "-eo", "pid,ppid,pcpu,comm"])
             for profile, order in ORDER:
                 install(profile, f"{profile}-{order}")
                 for workload in WORKLOADS:
@@ -303,7 +308,6 @@ def main() -> int:
                             str(output / f"{label}.json"),
                         ],
                     )
-            run("processes-before-timing", ["ps", "-eo", "pid,ppid,pcpu,comm"])
             summary = compare_queries(output, args.revision)
             gates = {}
             for profile in PROFILES:

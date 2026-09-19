@@ -66,15 +66,16 @@ results for workflows that are still running.
   result-adaptation gaps. Do not expand into native async or a pool fork.
 - Keep upstream synchronization separate from the undecided upstreaming question.
 
-Latest investigation: codegen experiment `35458601176` is running on a dedicated
-CI runner at `0cb289d7`. It builds default and ThinLTO/one-codegen-unit wheels
-from identical source, validates both before timing, and records both query
-orders plus separate complete benchmark reports. It is explicitly not release
-acceptance. The earlier local wheels both pass 47 installed checks, but their
-loaded-machine timings remain excluded. Production still uses the default
-release profile; no optimization is promoted before repeatable results and full
-validation. The experiment tooling passes 54 installed/accounting checks and
-workflow validation. See the codegen evidence below for identities and scope.
+Latest investigation: dedicated-runner codegen experiment `35458601176` at
+`0cb289d7` produced complete, independently revalidated artifacts, although the
+workflow reached its 45-minute deadline and is terminal cancelled. ThinLTO with
+one codegen unit improved prepared and parameterized wall/CPU times in both
+orders. The workspace now uses this portable release profile as a candidate;
+it is not release acceptance. Its experimental complete report passes eight of
+eleven workloads against both comparators, but parameterized queries,
+transactions, and pool still fail. Fresh exact-revision wheel, compatibility,
+soak, and benchmark validation remain required. Earlier loaded-machine timings
+remain excluded. See the codegen evidence below for identities and scope.
 
 Previous investigation: native transformer dispatch `bb26926d` is rejected after
 mixed exact-revision timings in both short and longer warmed comparisons. Its
@@ -110,7 +111,12 @@ job passes; other failures remain recorded, including a synchronous pool timeout
 The run is superseded and terminal cancelled, not a complete passing matrix.
 Correction `339ef01f` uses each database's active-query view and accounts for all
 five added regressions without changing exclusions or thresholds. The combined
-revision `0cb289d7` has a fresh Tests run `35458580844`; full validation is pending.
+revision `0cb289d7` completed Tests `35458580844` with 56 successful jobs and one
+failure: CockroachDB master now denies direct access to `crdb_internal`.
+All eight Rust jobs and macOS C/3.13 pass; lint also passes. Correction `fa548322`
+uses the documented `SHOW LOCAL STATEMENTS` interface instead of internal tables.
+All six focused checks pass on both CockroachDB 24.3.36 and the same development
+version as CI; full validation of the corrected candidate is still pending.
 The product decisions and release gates remain unchanged. Further work should
 reuse the active development branch once its prior CI completes rather than
 creating a branch per optimization. Superseded-branch deletion awaits user
@@ -371,13 +377,11 @@ ordering. Earlier native binding and loader-batching experiments do not establis
 that porting another helper will improve the complete public query. The broader
 native transformer dispatcher is also rejected after mixed short and longer
 exact-revision comparisons. Its earlier prototype gains did not repeat reliably.
-Investigate a different measured mechanism next, such as release-codegen
-settings on identical production sources; the workspace currently uses Cargo's
-default release profile. Keep any such experiment separate from acceptance and
-retain it only after repeatable public-query evidence and full validation.
-The first two codegen wheels now build and pass installed checks, but controlled
-paired measurements still require an otherwise idle machine. Do not use the
-loaded-machine diagnostic below to promote or reject the profile setting.
+The dedicated-runner release-codegen comparison now shows consistent small-query
+gains in both orders. Validate the ThinLTO/one-codegen-unit candidate through the
+full gates before treating it as accepted. This reduces overhead but does not
+close the complete performance gate. Do not use the earlier loaded-machine
+diagnostic to promote or reject the profile setting.
 
 Do not repeat shared immutable adapter ownership flags: both-order timings were
 mixed, and the prototype broke pickling of an empty `AdaptersMap`. Adapter
@@ -2903,13 +2907,57 @@ and actionlint 1.7.12 pass. A structural comparison confirms the normal
 acceptance job is unchanged apart from its explicit experiment-mode guard.
 
 [Experiment `35458601176`](https://github.com/martijnberger/ferrocopg/actions/runs/35458601176)
-is in progress, preparing dependencies at this snapshot. It targets exactly
-`0cb289d7`; no result or profile benefit is claimed yet.
+is terminal cancelled at its 45-minute deadline, not a successful workflow.
+Artifact `10588838873` nevertheless contains all eight long-query measurements,
+both complete reports, both wheels, and a completed manifest. The logged final
+package inventory immediately precedes cancellation. Independent verification
+recomputed all four query comparisons and both complete verdicts from raw
+reports and verified both wheel SHA-256 identities. Each wheel passed all 54
+installed/accounting checks before timing. These are development measurements,
+not acceptance or a reason to relabel the cancelled run.
+
+Thin/default ratios (lower is better), preserving each order:
+
+| Workload | Order | Wall | Process CPU |
+| --- | --- | ---: | ---: |
+| Prepared | default then thin | 0.968638 | 0.945084 |
+| Prepared | thin then default | 0.975243 | 0.956321 |
+| Parameterized | default then thin | 0.983921 | 0.966739 |
+| Parameterized | thin then default | 0.971146 | 0.951116 |
+
+The default complete report passes seven of eleven workloads against both
+comparators; ThinLTO passes eight. ThinLTO still fails parameterized queries
+(Rust/Python `1.012090`, Rust/C `1.419057`), transactions (`1.002276`, `1.163193`),
+and pool (`1.069780`, `1.388898`). Short-run comparator variation is visible;
+do not infer a universal workload gain or combine these reports into a pass.
+The decision to try the release profile rests on the equal-length, both-order
+query measurements, not the count of short benchmark passes.
+
+Experimental Linux wheel SHA-256 identities:
+
+- Default: `79a9201609e5a2ac5a47a1097df59d27d0a21c6f34f16d099d6153f789501f81`.
+- ThinLTO: `f1b126dbd365a3a23faae2f80778c4eb445bce766926f210e25fae3374fb24a2`.
+
+The candidate adds only portable `lto = "thin"` and `codegen-units = 1` to
+the release profile, without host-specific CPU flags or behavior changes.
+The optional experiment now explicitly pins its control to Cargo's previous
+defaults (`lto = false`, 16 codegen units), so the candidate cannot silently
+change both sides. Its timeout increases to 60 minutes without changing any
+measurement lengths or acceptance settings. The process snapshot now precedes
+all query timing rather than only the complete reports.
+
 [Tests `35458580844`](https://github.com/martijnberger/ferrocopg/actions/runs/35458580844)
 and [Lint `35458580793`](https://github.com/martijnberger/ferrocopg/actions/runs/35458580793)
-validate the same revision separately. Inspect the completed experimental
-artifact before changing `Cargo.toml`; if results are mixed, retain the default
-profile. Even a repeatable gain still requires exact-revision full compatibility,
+completed separately: lint passes, Tests has 56 passes and one CockroachDB-master
+cancellation failure. Its new internal-table restriction was reproduced locally
+on `v26.4.0-alpha.2-613-g61382aad0bf`. Correction `fa548322` uses
+[the supported statement-monitoring interface](https://www.cockroachlabs.com/docs/stable/show-statements)
+without enabling unsafe internals, skipping coverage, or changing cancellation
+assertions. Six focused cases pass on that development version and on 24.3.36;
+the five existing mocked regressions and exact-count baselines are unchanged.
+Local XML: `/tmp/phase5-cancel-public-crdb-master.xml` and
+`/tmp/phase5-cancel-public-crdb24.xml`. These do not replace the full matrix.
+Even a repeatable codegen gain still requires exact-revision full compatibility,
 soak, and three complete passing acceptance runs of the final frozen wheel.
 
 #### Phase 5 definition of done
@@ -3025,8 +3073,10 @@ the synchronous beta is established.
    defect is corrected and locally tested in `f0c45f95`, but the CI error is
    not reproduced locally. That follow-up exposed CockroachDB readiness and
    denominator issues corrected in `339ef01f`; retain its separate pool timeout.
-   Validate the combined `0cb289d7` matrix `35458580844` without replacing
-   earlier failures with a different revision's passes.
+   The combined `0cb289d7` matrix `35458580844` completed with 56 passes and
+   one CockroachDB-master internal-view restriction, corrected in `fa548322`.
+   Validate the new release-profile candidate without replacing earlier
+   failures with a different revision's passes.
    The notice-drain benchmark still fails four C/four Python comparisons in CI and five
    C/five Python comparisons locally. Preserve its failed local pool timing
    assertion and failed isolated C comparison; do not waive the strict gate.
@@ -3071,10 +3121,11 @@ the synchronous beta is established.
    longer paired timings remain mixed and its full benchmark fails. The
    separate default/ThinLTO builds of restored `c28cd643` both pass all 47
    installed checks, but their loaded-machine diagnostics cannot establish a
-   performance benefit. Inspect dedicated-runner experiment `35458601176` on
-   `0cb289d7` for fresh equal-length, both-order results and both complete
-   benchmark reports before changing the release profile. Do not dispatch a
-   duplicate or treat this diagnostic job as release acceptance. The
+   performance benefit. Dedicated-runner experiment `35458601176` on
+   `0cb289d7` has complete raw measurements despite its terminal cancelled
+   workflow. Both query orders improve with ThinLTO, but both complete reports
+   fail. Validate the committed portable profile candidate next; do not rerun
+   the same diagnostic or treat it as release acceptance. The
    ownership-flag prototype is removed after
    mixed timings and a pickle regression. Do not revive it as unfinished work.
    The COPY-preflight and combined unprepared-runtime prototypes are also

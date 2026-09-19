@@ -9,6 +9,10 @@ rust-version = "1.94"
 license = "LGPL-3.0-only"
 authors = ["Daniele Varrazzo <daniele.varrazzo@gmail.com>"]
 
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
 [patch.crates-io]
 postgres = { path = "vendor/postgres" }
 tokio-postgres = { path = "vendor/tokio-postgres" }
