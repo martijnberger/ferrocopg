@@ -19,6 +19,7 @@ pub struct Connection {
     notice_callback: Arc<dyn Fn(DbError) + Sync + Send>,
     wait_callback: Option<Arc<dyn Fn() + Sync + Send>>,
     next_wait_check: Instant,
+    wait_timer: Option<Pin<Box<tokio::time::Sleep>>>,
 }
 
 impl Connection {
@@ -38,6 +39,7 @@ impl Connection {
             notice_callback,
             wait_callback: None,
             next_wait_check: Instant::now(),
+            wait_timer: None,
         }
     }
 
@@ -124,17 +126,18 @@ impl Connection {
             return self.runtime.block_on(future::poll_fn(poll));
         };
         let next_check = &mut self.next_wait_check;
+        let timer = self.wait_timer.get_or_insert_with(|| {
+            let _guard = self.runtime.enter();
+            Box::pin(tokio::time::sleep_until((*next_check).into()))
+        });
         loop {
-            let result = self.runtime.block_on(async {
-                let mut timer = pin!(tokio::time::sleep_until((*next_check).into()));
-                future::poll_fn(|cx| {
-                    if timer.as_mut().poll(cx).is_ready() {
-                        return Poll::Ready(None);
-                    }
-                    poll(cx).map(Some)
-                })
-                .await
-            });
+            timer.as_mut().reset((*next_check).into());
+            let result = self.runtime.block_on(future::poll_fn(|cx| {
+                if timer.as_mut().poll(cx).is_ready() {
+                    return Poll::Ready(None);
+                }
+                poll(cx).map(Some)
+            }));
             if let Some(result) = result {
                 return result;
             }
@@ -337,6 +340,89 @@ mod tests {
         assert_eq!(calls.load(Ordering::SeqCst), 2);
     }
 
+    #[test]
+    fn reused_wait_timer_honors_deadlines_and_callback_changes() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let seen = Arc::clone(&calls);
+        let mut connection = connection_with_error();
+        connection.runtime = Builder::new_current_thread().enable_time().build().unwrap();
+        connection.connection = Box::pin(stream::pending());
+        let callback: Arc<dyn Fn() + Sync + Send> = Arc::new(move || {
+            assert!(tokio::runtime::Handle::try_current().is_err());
+            seen.fetch_add(1, Ordering::SeqCst);
+        });
+        connection.set_wait_callback(Some(Arc::clone(&callback)));
+        connection.next_wait_check = Instant::now() - Duration::from_secs(1);
+        assert_eq!(connection.block_on(async { Ok(42) }).unwrap(), 42);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        let timer = std::ptr::from_ref(connection.wait_timer.as_ref().unwrap().as_ref().get_ref());
+
+        connection.set_wait_callback(None);
+        connection.next_wait_check = Instant::now() - Duration::from_secs(1);
+        assert_eq!(connection.block_on(async { Ok(43) }).unwrap(), 43);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+        connection.set_wait_callback(Some(callback));
+        connection.next_wait_check = Instant::now() + Duration::from_secs(60);
+        assert_eq!(connection.block_on(async { Ok(44) }).unwrap(), 44);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        connection.next_wait_check = Instant::now() - Duration::from_secs(1);
+        assert_eq!(connection.block_on(async { Ok(45) }).unwrap(), 45);
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            timer,
+            std::ptr::from_ref(connection.wait_timer.as_ref().unwrap().as_ref().get_ref())
+        );
+    }
+
+    #[test]
+    fn reused_wait_timer_recovers_from_errors_and_moves_between_threads() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let seen = Arc::clone(&calls);
+        let mut connection = connection_with_error();
+        connection.runtime = Builder::new_current_thread().enable_time().build().unwrap();
+        connection.connection = Box::pin(stream::pending());
+        connection.set_wait_callback(Some(Arc::new(move || {
+            assert!(tokio::runtime::Handle::try_current().is_err());
+            seen.fetch_add(1, Ordering::SeqCst);
+        })));
+        assert_eq!(connection.block_on(async { Ok(42) }).unwrap(), 42);
+
+        for expected_calls in 1..=3 {
+            let calls = Arc::clone(&calls);
+            connection = std::thread::spawn(move || {
+                connection.next_wait_check = Instant::now() + Duration::from_millis(1);
+                let result = connection.block_on(future::poll_fn(|_| {
+                    // Only the retained timer wakes this pending operation.
+                    if calls.load(Ordering::SeqCst) < expected_calls {
+                        Poll::Pending
+                    } else if expected_calls == 2 {
+                        Poll::Ready(Err("invalid-option=1"
+                            .parse::<tokio_postgres::Config>()
+                            .unwrap_err()))
+                    } else {
+                        Poll::Ready(Ok(42))
+                    }
+                }));
+                if expected_calls == 2 {
+                    assert!(result.is_err());
+                } else {
+                    assert_eq!(result.unwrap(), 42);
+                }
+                assert_eq!(calls.load(Ordering::SeqCst), expected_calls);
+                connection
+            })
+            .join()
+            .unwrap();
+        }
+
+        assert_eq!(connection.block_on(async { Ok(43) }).unwrap(), 43);
+    }
+
     fn connection_with_error() -> Connection {
         let error = "invalid-option=1"
             .parse::<tokio_postgres::Config>()
@@ -348,6 +434,7 @@ mod tests {
             notice_callback: Arc::new(|_| {}),
             wait_callback: None,
             next_wait_check: Instant::now(),
+            wait_timer: None,
         }
     }
 }
