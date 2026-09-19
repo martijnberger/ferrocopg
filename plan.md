@@ -66,7 +66,14 @@ results for workflows that are still running.
   result-adaptation gaps. Do not expand into native async or a pool fork.
 - Keep upstream synchronization separate from the undecided upstreaming question.
 
-Latest investigation: native transformer dispatch `bb26926d` is rejected after
+Latest investigation: default-release and ThinLTO/one-codegen-unit wheels built
+from identical `c28cd643` sources both pass all 47 installed checks. Timing
+comparisons are deferred because the machine has substantial unrelated CPU
+activity. The collected loaded-machine diagnostics are not acceptance evidence
+and do not justify changing the release profile. The default wheel is restored.
+See the release-codegen investigation below for build identities and exclusions.
+
+Previous investigation: native transformer dispatch `bb26926d` is rejected after
 mixed exact-revision timings in both short and longer warmed comparisons. Its
 production changes are reverted without rewriting published history. Keep the
 new callback-state, context-lifetime, and error-order regressions, but do not
@@ -87,6 +94,9 @@ evidence. The active branch remains `martijn/phase5-notice-lock`. Notice drainin
 passes its complete 57-job CI matrix and full three-backend soak, but not its
 benchmark or strict local compatibility gate. The discarded dispatcher's
 unfinished validation runs are cancelled rather than treated as acceptance.
+The restored revision's Tests run `35454687013` is still running, with a failed
+macOS C/Python 3.13 cancellation test; its lint passes. That new failure remains
+open and is not covered by the earlier notice-drain matrix's success.
 The product decisions and release gates remain unchanged. Further work should
 reuse the active development branch once its prior CI completes rather than
 creating a branch per optimization. Superseded-branch deletion awaits user
@@ -351,6 +361,9 @@ Investigate a different measured mechanism next, such as release-codegen
 settings on identical production sources; the workspace currently uses Cargo's
 default release profile. Keep any such experiment separate from acceptance and
 retain it only after repeatable public-query evidence and full validation.
+The first two codegen wheels now build and pass installed checks, but controlled
+paired measurements still require an otherwise idle machine. Do not use the
+loaded-machine diagnostic below to promote or reject the profile setting.
 
 Do not repeat shared immutable adapter ownership flags: both-order timings were
 mixed, and the prototype broke pickling of an empty `AdaptersMap`. Adapter
@@ -2709,6 +2722,54 @@ Both cancellations are confirmed terminal. Production directories `crates`,
 is rebuilt without the dispatcher, the isolated environment is restored to the
 exact notice-drain wheel, and all 47 retained installed checks pass.
 
+#### Release-codegen investigation: built, controlled timing pending
+
+Both wheels use source revision
+`c28cd643db70695af1c6d3175442fc6d3c5fdb9c`, Rust 1.94.1, CPython 3.14,
+the same staged Python package, and `maturin build --release --offline --locked`.
+The baseline uses the unchanged default Cargo release profile. The experiment
+sets only `CARGO_PROFILE_RELEASE_LTO=thin` and
+`CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1`, with a separate Cargo target directory.
+Neither build uses `target-cpu=native`; both retain the macOS 11 ARM64 wheel tag.
+No release-profile changes have been committed.
+
+- Default wheel: `/tmp/ferrocopg-phase5-codegen-default-c28-wheels/ferrocopg-0.1.0-cp314-cp314-macosx_11_0_arm64.whl`;
+  SHA-256 `8dd03f02d41e8e87de7ff4cebbdba73f2d55e4ca662e29990afe133ccaf26ab5`.
+- ThinLTO wheel: `/tmp/ferrocopg-phase5-codegen-thin-c28-wheels/ferrocopg-0.1.0-cp314-cp314-macosx_11_0_arm64.whl`;
+  SHA-256 `bcce0a43cc170782511ae3f4639129e5a6ce576135eddae7045d92bf1ead6b4d`.
+
+Each wheel passes all 47 installed-package checks against the local PostgreSQL
+15 test server. The isolated environment is restored to the default `c28cd643`
+wheel. The source extension and production files are unchanged.
+
+The process inventory showed substantial unrelated application activity before
+the first timing worker; another inventory confirmed activity afterwards.
+The ThinLTO diagnostic used nine samples of 100,000 iterations after 10,000
+warmups and measured `216.341 us` wall / `161.891 us` process CPU per prepared
+operation. A subsequent short default-build diagnostic used nine samples of
+10,000 iterations after 1,000 warmups and measured `216.220/162.876 us`.
+Both workers completed without functional failures. Raw results are
+`/tmp/phase5-codegen-thin-prepared-b.json` and
+`/tmp/phase5-codegen-default-loaded-prepared.json`.
+These runs have different sampling lengths, are not a both-order comparison,
+and were not collected on an idle machine. Exclude them from acceptance and
+from any claim of a repeatable profile benefit. The next timing step is a fresh
+equal-length, both-order comparison when the machine is otherwise idle, then
+the complete benchmark and full validation if a benefit repeats. These local
+files are development diagnostics, not durable release evidence.
+
+Restored-revision validation is separately incomplete:
+[Tests run `35454687013`](https://github.com/martijnberger/ferrocopg/actions/runs/35454687013)
+has 35 completed jobs at this snapshot, including a failure in macOS C/Python
+3.13; the other jobs are still queued or running. Job `105927782496` originally
+reports 5607 passed and one failed, `tests/test_generators.py::test_cancel`,
+against Homebrew PostgreSQL/libpq 18.6. The server closes the cancellation
+connection unexpectedly, and both workflow-provided retries fail too. The log
+explicitly selects the libpq/C path, not Rust, but that does not waive the matrix
+failure or establish its root cause. The local server/libpq is version 15 and
+cannot exercise this libpq-17-or-newer test. Keep the failure open; do not mark
+the restored revision green using `e2651478`'s earlier passing matrix.
+
 #### Phase 5 definition of done
 
 - Sync pooling is documented and green.
@@ -2817,6 +2878,9 @@ the synchronous beta is established.
 
 1. Use `e2651478` as the latest completed CI compatibility/reliability checkpoint:
    all 57 compatibility jobs, lint, and the full three-backend soak pass.
+   The restored `c28cd643` matrix is not green: its macOS C/Python 3.13
+   cancellation test fails and remaining jobs are unfinished. Diagnose that
+   exact failure without replacing it with the earlier passing matrix.
    Its benchmark still fails four C/four Python comparisons in CI and five
    C/five Python comparisons locally. Preserve its failed local pool timing
    assertion and failed isolated C comparison; do not waive the strict gate.
@@ -2859,6 +2923,10 @@ the synchronous beta is established.
    sustained soak now pass, without closing performance acceptance. Do not
    continue validation of discarded transformer dispatcher `bb26926d`; its
    longer paired timings remain mixed and its full benchmark fails. The
+   separate default/ThinLTO builds of restored `c28cd643` both pass all 47
+   installed checks, but their loaded-machine diagnostics cannot establish a
+   performance benefit. Run fresh equal-length, both-order comparisons on an
+   otherwise idle machine before changing the release profile. The
    ownership-flag prototype is removed after
    mixed timings and a pickle regression. Do not revive it as unfinished work.
    The COPY-preflight and combined unprepared-runtime prototypes are also
