@@ -415,6 +415,8 @@ struct BackendSyncNoTlsCancelHandle {
 #[pyclass(module = "ferrocopg_rust._ferrocopg")]
 struct BackendSyncNoTlsSession {
     inner: Arc<Mutex<ferrocopg_postgres::SyncNoTlsSession>>,
+    signal_error: Arc<Mutex<Option<PyErr>>>,
+    wait_callback: Arc<dyn Fn() + Sync + Send>,
     used_password: bool,
     backend_pid: Option<i32>,
     client_encoding: Option<String>,
@@ -425,8 +427,27 @@ impl BackendSyncNoTlsSession {
         let used_password = session.used_password();
         let backend_pid = session.backend_pid().ok();
         let client_encoding = session.parameter("client_encoding");
+        let signal_error = Arc::new(Mutex::new(None));
+        let signals = Arc::clone(&signal_error);
+        let cancel_handle = session.cancel_handle().ok();
+        let wait_callback = Arc::new(move || {
+            let mut signal = signals.lock().unwrap();
+            if signal.is_some() {
+                return;
+            }
+            if let Err(err) = Python::attach(|py| py.check_signals()) {
+                *signal = Some(err);
+                if let Some(handle) = cancel_handle.as_ref() {
+                    // The hook runs outside the query runtime. Drain the
+                    // cancelled operation before returning its Python error.
+                    let _ = handle.cancel_timeout(Duration::from_secs(1));
+                }
+            }
+        });
         Self {
             inner: Arc::new(Mutex::new(session)),
+            signal_error,
+            wait_callback,
             used_password,
             backend_pid,
             client_encoding,
@@ -715,33 +736,28 @@ where
         + Send
         + 'static,
 {
-    let signal_error = Arc::new(Mutex::new(None));
-    let signals = Arc::clone(&signal_error);
-    let result = py.detach(|| {
-        let mut inner = session.inner.lock().map_err(|_| {
-            BackendThreadError::Runtime("backend session mutex is poisoned".to_owned())
-        })?;
-        let cancel_handle = inner.cancel_handle().ok();
-        inner.set_wait_callback(Some(Arc::new(move || {
-            let mut signal = signals.lock().unwrap();
-            if signal.is_some() {
-                return;
+    let (result, signal_error) = py.detach(|| {
+        let mut inner = match session.inner.lock() {
+            Ok(inner) => inner,
+            Err(_) => {
+                return (
+                    Err(BackendThreadError::Runtime(
+                        "backend session mutex is poisoned".to_owned(),
+                    )),
+                    None,
+                );
             }
-            if let Err(err) = Python::attach(|py| py.check_signals()) {
-                *signal = Some(err);
-                if let Some(handle) = cancel_handle.as_ref() {
-                    // The wait hook runs outside the query runtime. Cancel
-                    // there, then drain the operation before raising in Python.
-                    let _ = handle.cancel_timeout(Duration::from_secs(1));
-                }
-            }
-        })));
+        };
+        inner.set_wait_callback(Some(Arc::clone(&session.wait_callback)));
         let result = f(&mut inner).map_err(BackendThreadError::Backend);
         inner.set_wait_callback(None);
-        result
+        // Transfer the error before unlocking: another operation must never
+        // consume or overwrite the exception from this operation.
+        let signal_error = session.signal_error.lock().unwrap().take();
+        (result, signal_error)
     });
 
-    if let Some(err) = signal_error.lock().unwrap().take() {
+    if let Some(err) = signal_error {
         return Err(err);
     }
 

@@ -731,6 +731,70 @@ with psycopg.connect(dsn, autocommit=True) as observer:
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     @unittest.skipIf(os.name == "nt", "requires POSIX signal delivery")
+    def test_native_signal_error_is_not_consumed_by_queued_operation(self):
+        code = """
+import os
+import signal
+import threading
+import time
+import psycopg
+from ferrocopg._rust import _ferrocopg as native
+
+class Interrupted(RuntimeError):
+    pass
+
+dsn = os.environ["PHASE5_DSN"]
+session = native.connect_session(dsn)
+pid = session.backend_pid()
+previous = signal.getsignal(signal.SIGINT)
+try:
+    with psycopg.connect(dsn, autocommit=True) as observer:
+        for iteration in range(3):
+            expected = Interrupted(iteration)
+            def interrupt(signum, frame):
+                raise expected
+            signal.signal(signal.SIGINT, interrupt)
+            results, failures = [], []
+            def queued_query():
+                try:
+                    deadline = time.monotonic() + 3
+                    while not observer.execute(
+                        "select state = 'active' and query like '%%pg_sleep%%' "
+                        "from pg_stat_activity where pid = %s", (pid,)
+                    ).fetchone()[0]:
+                        assert time.monotonic() < deadline, "query did not start"
+                        time.sleep(0.005)
+                    os.kill(os.getpid(), signal.SIGINT)
+                    result = session.run_params_format("select 42", [], False)
+                    results.append(result.get_value(0, 0))
+                except BaseException as exc:
+                    failures.append(exc)
+            worker = threading.Thread(target=queued_query, daemon=True)
+            worker.start()
+            try:
+                session.run_params_format("select pg_sleep(10)", [], False)
+            except Interrupted as caught:
+                assert caught is expected, "exception belonged to another operation"
+            else:
+                raise AssertionError("query was not interrupted")
+            worker.join(timeout=3)
+            assert not worker.is_alive(), "queued operation did not finish"
+            assert not failures, failures
+            assert results == [b"42"], results
+            assert session.run_params_format("select 43", [], False).get_value(0, 0) == b"43"
+finally:
+    signal.signal(signal.SIGINT, previous)
+    session.close()
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    @unittest.skipIf(os.name == "nt", "requires POSIX signal delivery")
     def test_signal_handler_can_query_another_connection_and_recover(self):
         code = """
 import os
