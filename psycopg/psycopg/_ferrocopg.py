@@ -4316,7 +4316,10 @@ class NoTlsConnectionAdapter:
             "select current_setting('idle_in_transaction_session_timeout')::text",
             [],
         ).fetchone()
-        value = str(row[0]).lower() if row else "0"
+        value = row[0] if row else "0"
+        if isinstance(value, bytes):
+            value = value.decode("ascii")
+        value = str(value).lower()
         self._idle_transaction_timeout_active = value not in {"0", "0ms"}
 
     def _translate_session_error(self, ex: e.Error) -> e.Error:

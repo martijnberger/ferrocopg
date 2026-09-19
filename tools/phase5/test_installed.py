@@ -13,6 +13,50 @@ import weakref
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_session_setting_changes_keep_encoding_and_timeout_state_live(self):
+        import ferrocopg
+
+        with (
+            ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as first,
+            ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as second,
+        ):
+            for conn in (first, second, first):
+                conn.execute("  SeT NaMeS 'LATIN1'")
+                self.assertEqual(conn.info.encoding, "iso8859-1")
+                self.assertEqual(
+                    conn.execute("select %s::text", ("value\u00e9",)).fetchone(),
+                    ("value\u00e9",),
+                )
+                conn.execute("reset client_encoding")
+                self.assertEqual(conn.info.encoding, "utf-8")
+                conn.execute("begin")
+                conn.execute("set local client_encoding = 'LATIN1'")
+                conn.execute("savepoint encoding_check")
+                conn.execute("set local client_encoding = 'UTF8'")
+                conn.execute("rollback to encoding_check")
+                self.assertEqual(conn.info.encoding, "iso8859-1")
+                conn.execute("rollback")
+                self.assertEqual(conn.info.encoding, "utf-8")
+                self.assertEqual(
+                    conn.info.transaction_status, ferrocopg.pq.TransactionStatus.IDLE
+                )
+                conn.execute("start transaction")
+                conn.execute("set local client_encoding = 'LATIN1'")
+                conn.execute("commit")
+                self.assertEqual(conn.info.encoding, "utf-8")
+                conn.execute("set idle_in_transaction_session_timeout = '10s'")
+                self.assertTrue(conn._idle_transaction_timeout_active)
+                conn.execute("set idle_in_transaction_session_timeout = 0")
+                self.assertFalse(conn._idle_transaction_timeout_active)
+
+            first.execute("begin")
+            second.execute("select pg_terminate_backend(%s)", (first.info.backend_pid,))
+            with self.assertRaises(ferrocopg.OperationalError) as raised:
+                first.execute("select 42")
+            self.assertNotIsInstance(
+                raised.exception, ferrocopg.errors.IdleInTransactionSessionTimeout
+            )
+
     def test_unprepared_row_collection_keeps_metadata_counts_and_recovery(self):
         import ferrocopg
 
