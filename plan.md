@@ -66,12 +66,15 @@ results for workflows that are still running.
   result-adaptation gaps. Do not expand into native async or a pool fork.
 - Keep upstream synchronization separate from the undecided upstreaming question.
 
-Latest investigation: default-release and ThinLTO/one-codegen-unit wheels built
-from identical `c28cd643` sources both pass all 47 installed checks. Timing
-comparisons are deferred because the machine has substantial unrelated CPU
-activity. The collected loaded-machine diagnostics are not acceptance evidence
-and do not justify changing the release profile. The default wheel is restored.
-See the release-codegen investigation below for build identities and exclusions.
+Latest investigation: codegen experiment `35458601176` is running on a dedicated
+CI runner at `0cb289d7`. It builds default and ThinLTO/one-codegen-unit wheels
+from identical source, validates both before timing, and records both query
+orders plus separate complete benchmark reports. It is explicitly not release
+acceptance. The earlier local wheels both pass 47 installed checks, but their
+loaded-machine timings remain excluded. Production still uses the default
+release profile; no optimization is promoted before repeatable results and full
+validation. The experiment tooling passes 54 installed/accounting checks and
+workflow validation. See the codegen evidence below for identities and scope.
 
 Previous investigation: native transformer dispatch `bb26926d` is rejected after
 mixed exact-revision timings in both short and longer warmed comparisons. Its
@@ -101,7 +104,13 @@ success. Follow-up `f0c45f95` fixes a demonstrated query-start wait defect in
 the cancellation test and passes focused local validation, including real
 C/Python libpq 18.6 cancellation. The original test also passes locally, so this
 does not establish that the CI cancellation error is resolved.
-The follow-up's lint `35456952592` passes; Tests `35456952578` is queued.
+The follow-up's lint passes, but Tests `35456952578` exposed a CockroachDB
+readiness regression and missing exact-count baseline updates. Its macOS C/3.13
+job passes; other failures remain recorded, including a synchronous pool timeout.
+The run is superseded and terminal cancelled, not a complete passing matrix.
+Correction `339ef01f` uses each database's active-query view and accounts for all
+five added regressions without changing exclusions or thresholds. The combined
+revision `0cb289d7` has a fresh Tests run `35458580844`; full validation is pending.
 The product decisions and release gates remain unchanged. Further work should
 reuse the active development branch once its prior CI completes rather than
 creating a branch per optimization. Superseded-branch deletion awaits user
@@ -2825,9 +2834,83 @@ These focused checks do not replace the full matrix or any performance gate.
 The correction is pushed on the existing development branch after the preceding
 matrix finished. [Lint `35456952592`](https://github.com/martijnberger/ferrocopg/actions/runs/35456952592)
 passes; [Tests `35456952578`](https://github.com/martijnberger/ferrocopg/actions/runs/35456952578)
-is queued at this snapshot. Both target
+was initially queued at this snapshot. Both target
 `f0c45f955da48dfa9deb766ce3ac494b1e3480d2`; neither is evidence for an
 uncommitted codegen configuration or a completed Phase 5 performance gate.
+
+The follow-up exposed two issues, corrected in `339ef01f`. CockroachDB 24.3.36
+returns no rows from `pg_stat_activity` during the sleeping query; its
+`crdb_internal.node_queries` view reports the executing query and application
+name. The test now sets a unique application name, waits for that session in
+the appropriate view, and retains the same cancellation/SQLSTATE assertions.
+It does not skip CockroachDB or replace readiness with a fixed sleep. Clock
+mocks are scoped to the test module rather than replacing process-global time.
+One extra CockroachDB selection regression brings the added case count to five.
+All eight denominator baselines increase only `sync.total` by five relative to
+the pre-regression suite; manifested and async counts, floors, and the zero
+synchronous regression budget are unchanged.
+
+Local verification of the correction:
+
+- PostgreSQL/libpq 18.6, Python 3.13.15: full generator module passes ten cases
+  with one trust-authentication skip through each of C and Python. Reports:
+  `/tmp/phase5-cancel-appname-c18.xml` and
+  `/tmp/phase5-cancel-appname-python18.xml`.
+- CockroachDB 24.3.36: all six selected cancellation cases pass through each of
+  C and Python/libpq 18.6. Reports: `/tmp/phase5-cancel-crdb-fixed.xml` and
+  `/tmp/phase5-cancel-appname-crdb-python.xml`. The disposable container and the
+  temporary PostgreSQL 18 server are stopped after verification.
+- Rust selection: all five added regressions pass; the actual raw-libpq case
+  keeps its existing exclusion. Ruff, formatting, and codespell pass.
+
+Preserve the superseded run's failures. `35456952578` ends cancelled after the
+replacement push, with 13 unfinished jobs cancelled and twelve recorded failed
+jobs, not 57 passing jobs. Its Python 3.14/PostgreSQL 18 artifact
+`10588109722` shows `4647/4647` executed synchronous cases passing, but an exact
+denominator mismatch of `4839` versus `4835` from the four originally added
+tests. The Python 3.11/PostgreSQL 14 report has the same four-case drift and a
+separate `test_dead_client[NullConnectionPool]` teardown error from a worker's
+`0.40 s` pool timeout. That error is not waived by correcting the denominator.
+Downloaded reports remain under `/tmp/phase5-cancel-wait-ci-py314-pg18` and
+`/tmp/phase5-cancel-wait-ci-py311-pg14`. The replacement matrix must validate the
+corrected revision; the original failed reports remain historical failures.
+
+#### Dedicated-runner codegen comparison
+
+`0cb289d77cddb123301eab4efae2940418705ec1` adds an opt-in
+`codegen_experiment=true` dispatch to the existing Phase 5 workflow. Normal
+dispatches, scheduled runs, and acceptance-job commands are unchanged. The
+experimental invocation runs only the diagnostic job, not the acceptance job;
+a green diagnostic workflow is not a passing benchmark/soak gate.
+
+`tools/phase5/codegen_compare.py` builds both release wheels offline after a
+locked dependency fetch, using separate Cargo targets and the same staged
+source. It rejects inherited codegen flags, hashes both wheels, retains build
+logs and configuration, and runs all installed checks on each wheel before
+collecting any timing. Prepared and parameterized queries each receive equal
+nine-sample, 100,000-iteration runs after 10,000 warmups in default/thin/thin/default
+order. Each pair's wall and process-CPU results remain separate. Complete
+eleven-workload reports for both profiles preserve all original gate failures;
+failed or missing workers cannot become a valid comparison. The script stops
+worker process groups on timeout and records failures before exiting.
+
+The experiment uploads raw reports, both wheels and SHA-256 identities, build
+logs, process snapshots, package versions, and server-image diagnostics with
+90-day retention. Seven accounting tests cover profile isolation, mismatched
+measurements, missing workers, retained gate failures, and per-order comparisons.
+All 54 installed/accounting checks pass locally; Ruff, formatting, codespell,
+and actionlint 1.7.12 pass. A structural comparison confirms the normal
+acceptance job is unchanged apart from its explicit experiment-mode guard.
+
+[Experiment `35458601176`](https://github.com/martijnberger/ferrocopg/actions/runs/35458601176)
+is in progress, preparing dependencies at this snapshot. It targets exactly
+`0cb289d7`; no result or profile benefit is claimed yet.
+[Tests `35458580844`](https://github.com/martijnberger/ferrocopg/actions/runs/35458580844)
+and [Lint `35458580793`](https://github.com/martijnberger/ferrocopg/actions/runs/35458580793)
+validate the same revision separately. Inspect the completed experimental
+artifact before changing `Cargo.toml`; if results are mixed, retain the default
+profile. Even a repeatable gain still requires exact-revision full compatibility,
+soak, and three complete passing acceptance runs of the final frozen wheel.
 
 #### Phase 5 definition of done
 
@@ -2940,9 +3023,11 @@ the synchronous beta is established.
    The restored `c28cd643` matrix completed with 56 passing jobs and a failed
    macOS C/Python 3.13 cancellation test. The demonstrated query-start wait
    defect is corrected and locally tested in `f0c45f95`, but the CI error is
-   not reproduced locally. Validate the follow-up matrix without replacing
-   the original failure with the earlier passing matrix.
-   Its benchmark still fails four C/four Python comparisons in CI and five
+   not reproduced locally. That follow-up exposed CockroachDB readiness and
+   denominator issues corrected in `339ef01f`; retain its separate pool timeout.
+   Validate the combined `0cb289d7` matrix `35458580844` without replacing
+   earlier failures with a different revision's passes.
+   The notice-drain benchmark still fails four C/four Python comparisons in CI and five
    C/five Python comparisons locally. Preserve its failed local pool timing
    assertion and failed isolated C comparison; do not waive the strict gate.
    Keep `3a0bb3db` as the earlier clean local/CI correctness checkpoint:
@@ -2986,8 +3071,10 @@ the synchronous beta is established.
    longer paired timings remain mixed and its full benchmark fails. The
    separate default/ThinLTO builds of restored `c28cd643` both pass all 47
    installed checks, but their loaded-machine diagnostics cannot establish a
-   performance benefit. Run fresh equal-length, both-order comparisons on an
-   otherwise idle machine before changing the release profile. The
+   performance benefit. Inspect dedicated-runner experiment `35458601176` on
+   `0cb289d7` for fresh equal-length, both-order results and both complete
+   benchmark reports before changing the release profile. Do not dispatch a
+   duplicate or treat this diagnostic job as release acceptance. The
    ownership-flag prototype is removed after
    mixed timings and a pickle regression. Do not revive it as unfinished work.
    The COPY-preflight and combined unprepared-runtime prototypes are also
