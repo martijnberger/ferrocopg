@@ -68,18 +68,20 @@ results for workflows that are still running.
 
 Latest investigation: narrower COPY preflight and a single-runtime-call buffered
 unprepared query were both tested in installed wheels and removed after mixed
-paired timings. Production code remains at `347ce908`. The restored wheel
-passes 43 installed checks, including a new COPY/status regression. These
+paired timings. The restored `347ce908` wheel passed 43 installed checks,
+including a new COPY/status regression. These
 experiments do not close a performance gate; avoid repeating them without a
 different measured mechanism.
 
-Current candidate boundary: wait-timer reuse is committed as `347ce908` on
-`martijn/phase5-wait-timer`; its parent's completed validation at `a7c145d2`
-does not validate the new timer. Its complete local benchmark and compatibility
-checks are recorded below; finish its own matrix and full soak before promoting
-it as a validated checkpoint. The adapter ownership-flag experiment was rejected
-and removed. Neither change alters
-the product decisions or release gates.
+Current candidate boundary: notice draining is committed as `e2651478` on
+`martijn/phase5-notice-lock`. It avoids an interpreter handoff when the session
+lock is immediately available, retaining the GIL-releasing wait when another
+thread owns the session. The parent's validation does not validate this change.
+Finish its exact-revision benchmark, matrix, and full soak before promotion.
+The product decisions and release gates remain unchanged. Further work should
+reuse the active development branch once its prior CI completes rather than
+creating a branch per optimization. Superseded-branch deletion awaits user
+confirmation; no branches have been deleted.
 
 ### Validation checkpoint
 
@@ -89,17 +91,22 @@ acceptance has not passed. Full 30-minute-per-backend CI soaks passed on
 revisions `24b646e3`, `2ed94013`, `be46e180`, `cc7b60e2`, `e7b008c2`,
 `7c740a41`, `3a0bb3db`, `0dcecac2`, `f237202b`, and `a7c145d2`;
 sustained validation of the final
-candidate remains required. The latest complete local benchmark, for wait-timer
-reuse `347ce908`, fails three workloads against C: parameterized queries,
-namedtuple rows, and pool. Parameterized/prepared queries and pool cycles miss
-Python parity. Transactions, both COPY cases, tuple/dict rows, and both connection
-cases pass both limits in this run, not yet in three complete passing runs.
+candidate remains required. The latest complete local benchmark, for notice-drain
+revision `e2651478`, fails five workloads against C: parameterized/prepared
+queries, transactions, text COPY, and pool. TLS connection, parameterized/prepared
+queries, transactions, and pool miss Python parity. Five of eleven workloads
+pass both limits locally; six pass both in CI. Neither report is a complete pass.
 Passing individual row workloads does not close the complete performance gate.
 The timer candidate passes 42 installed checks, 28 backend unit tests, ten
 wait-loop tests, and `3525/3525` C-coexistence cases. Its full local harness
 passes `4735/4736` synchronous cases, failing pool check-backoff; the isolated
 C/libpq comparison passes. Its CI lint passes, its benchmark fails two C/three
-Python comparisons, and its matrix and sustained soak remain unfinished.
+Python comparisons. Its 57-job matrix passes; its sustained soak remains unfinished.
+The newer notice-drain candidate passes 44 exact-wheel installed checks,
+`3525/3525` selected synchronous C-coexistence cases, and a 60-second resource
+smoke. Its full local strict harness still fails one pool timing assertion;
+its CI benchmark fails four C/four Python comparisons. Its compatibility matrix
+and full soak remain unfinished. See the notice-drain evidence below.
 The parent request-priming revision `a7c145d2` passes lint, all 57 CI
 compatibility jobs, and the full three-backend soak.
 That parent's CI benchmark fails four C and three Python comparisons; the different
@@ -353,9 +360,9 @@ Retained optimizations include:
   unchanged, and column metadata, final command counts, cancellation, and
   errors remain covered by installed regressions.
 
-The latest complete local benchmark at `347ce908` fails three C and three Python
-limits. Transactions and both COPY cases pass both limits in this run;
-namedtuple rows again miss C. Do not call any gap reliably closed based on one
+The latest complete local benchmark at `e2651478` fails five C and five Python
+limits. All three row cases pass both limits in this run, but transactions and
+text COPY miss C again. Do not call any gap reliably closed based on one
 complete run. The preceding row-drain CI benchmark
 fails four C and four Python limits. These passes have varied between
 runs. The SQL-scanner slice's paired transaction gains are modest, not closure
@@ -2431,8 +2438,7 @@ COPY (`0.648` / `1.243`), binary COPY, both connection cases, and tuple/dict
 rows pass both limits in this run. These remain variable workload passes, not
 three complete passing runs or durable release acceptance.
 
-Tests `35446094700` is unfinished, with 32 completed jobs and no failures at
-this snapshot. The full
+Tests `35446094700` passes all 57 jobs. The full
 [benchmark/soak workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35446115679)
 has failed its benchmark and is still running the soak; its head SHA is verified
 as `347ce908`.
@@ -2503,6 +2509,68 @@ The installed environment is restored to the exact `347ce908` wheel and all
 43 installed checks pass again. No full compatibility, benchmark, or soak
 acceptance is claimed for either rejected prototype. The timer candidate's
 original failed full reports and unfinished CI remain authoritative.
+
+#### Avoid idle notice-drain interpreter handoffs
+
+Revision `e2651478a243afafec1d7071990ce9d50e70d710`, pushed on
+`martijn/phase5-notice-lock`, uses a nonblocking session-lock attempt before
+draining buffered notices. The uncontended path does no I/O and retains the
+interpreter; contention still releases it while waiting so another query can
+check signals and finish. Notice conversion happens after the session guard is
+released. Notice order, error/closed-state behavior, and public callbacks remain
+unchanged; no result, adapter, or query-state cache is introduced.
+
+All 44 installed checks pass on both parent and prototype. The concurrency
+regression now drains notices while another thread is in `pg_sleep`, checking
+that it can finish without a GIL/session-lock deadlock. A new regression covers
+empty drains, ordered notices, notices before a server error, recovery, and
+closed sessions. Rust formatting, Python lint/formatting, and spellcheck pass.
+Exact-revision CI lint `35447875360` passes.
+
+Prepared-query parent/prototype wall medians were `50.538/50.262 us` and
+`50.312/49.877 us` in reverse order; CPU medians were `38.578/38.502 us` and
+`38.653/38.271 us`. Raw samples are
+`/tmp/phase5-{before-,}notice-lock-prepared-{a,b}.json`. These modest gains
+are development evidence, not performance acceptance or a claim to close the
+remaining query/pool gaps.
+
+The full local harness `/tmp/phase5-notice-lock-full.xml` and classified
+`-report.json` pass `4735/4736` supported synchronous cases. Only pool
+check-backoff fails: the first interval is `105.199 ms` against a `105 ms`
+upper bound. The fresh C/libpq comparison
+`/tmp/phase5-notice-lock-c-pool-timing.xml` also fails (`105.073 ms`). Keep
+both failures; the strict local zero-regression gate fails. Every other
+synchronous feature family passes; experimental async remains separately
+`505/620`.
+
+The exact-commit release wheel passes all 44 installed checks. The selected
+C-coexistence run `/tmp/phase5-notice-lock-c-types-report.json` passes
+`3525/3525` supported synchronous cases; six experimental async cases fail.
+The short resource smoke `/tmp/phase5-notice-lock-soak.json` passes after
+`60.187 s`, with zero remaining sessions, 615 driver objects, two threads,
+one socket, four file descriptors, and `66,535,424` bytes RSS after cleanup.
+This is not the required full-duration soak.
+
+The complete local benchmark `/tmp/phase5-notice-lock-bench/report.json` fails
+five C/five Python comparisons. Rust/Python and Rust/C ratios respectively are
+parameterized `1.016/1.548`, prepared `1.083/1.337`, transaction `1.048/1.293`,
+text COPY `0.664/1.271`, pool `1.034/1.523`, and TLS connection `1.151/0.987`.
+Plain connection, tuple/dict/namedtuple rows, and binary COPY pass both limits.
+
+The completed CI benchmark fails four C/four Python comparisons: parameterized
+`1.059/1.227`, prepared `1.286/1.519`, transaction `1.102/1.268`, text COPY
+`0.524/1.279`, and pool `1.104/1.365`. The other six workloads pass both limits.
+Raw CI evidence is in the workflow artifact and downloaded locally under
+`/tmp/phase5-notice-lock-ci-benchmark/phase5-results/`. Different failures
+between environments are not interchangeable passes or proof of regression
+from this small optimization; the complete performance gate remains failed.
+
+Tests `35447875424` remains queued with one completed job and no failures. The
+[benchmark/soak workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35447912739)
+has failed its benchmark and is still running its soak. Its head SHA is
+verified as `e2651478`.
+Earlier green matrices and sustained soaks do not establish this candidate's
+acceptance. Scheduled execution remains separately unverified.
 
 #### Phase 5 definition of done
 
@@ -2664,7 +2732,10 @@ the synchronous beta is established.
    has mixed latency evidence despite reducing typing work.
    The parameter-packing prototype is removed after flat paired comparisons.
    The factory and SQL-scanner slices remove measured work, but the latest
-   complete wait-timer benchmark still misses three C and three Python limits.
+   complete notice-drain benchmark still misses five C and five Python limits
+   locally and four C/four Python limits in CI. Keep this candidate's pending
+   compatibility and full-soak validation separate from the timer's now-green
+   57-job matrix and the notice candidate's passing short resource smoke.
    Row drain has a strong separate unprepared bulk-row diagnostic, but does
    not close the single-row gaps or replace the standard prepared row cases.
    The metadata-only, query-effect cache, compact-layout, and immutable-result
