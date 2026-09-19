@@ -13,6 +13,43 @@ import weakref
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_copy_preflight_preserves_transaction_and_result_status(self):
+        import ferrocopg
+        from ferrocopg import sql
+
+        class Query(str):
+            pass
+
+        with ferrocopg.connect(os.environ["PHASE5_DSN"]) as conn:
+            for query in (
+                "COPY (select 42) TO STDOUT",
+                " \t\nCoPy (select 42) TO STDOUT",
+                b"COPY (select 42) TO STDOUT",
+                sql.SQL("COPY (select {}) TO STDOUT").format(sql.Literal(42)),
+                Query("COPY (select 42) TO STDOUT"),
+            ):
+                with self.subTest(query=query):
+                    with self.assertRaisesRegex(
+                        ferrocopg.ProgrammingError, "use copy\\(\\) instead"
+                    ):
+                        conn.execute(query)
+                    self.assertEqual(
+                        conn.info.transaction_status,
+                        ferrocopg.pq.TransactionStatus.IDLE,
+                    )
+
+            cur = conn.execute("select %s::int as copycat", (42,))
+            self.assertEqual(cur.fetchone(), (42,))
+            self.assertEqual(cur.statusmessage, "SELECT 1")
+            conn.execute("create temporary table copy_preflight (n int)")
+            cur = conn.execute("insert into copy_preflight values (%s)", (42,))
+            self.assertEqual(cur.statusmessage, "INSERT 0 1")
+            self.assertEqual(cur.rowcount, 1)
+            with self.assertRaises(ferrocopg.errors.SyntaxError):
+                conn.execute("COPYCAT")
+            conn.rollback()
+            self.assertEqual(conn.execute("select 43").fetchone(), (43,))
+
     def test_transformer_dumper_cache_survives_registration(self):
         import ferrocopg
         from ferrocopg._ferrocopg import (
