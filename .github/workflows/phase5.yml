@@ -2,6 +2,11 @@ name: Phase 5 reliability and performance
 
 on:
   workflow_dispatch:
+    inputs:
+      codegen_experiment:
+        description: 'Run a diagnostic default/ThinLTO comparison, NOT release acceptance'
+        type: boolean
+        default: false
   schedule:
     - cron: '23 3 * * 1'
   push:
@@ -19,6 +24,7 @@ concurrency:
 
 jobs:
   installed-package:
+    if: ${{ !inputs.codegen_experiment }}
     runs-on: ubuntu-latest
     timeout-minutes: 130
     strategy:
@@ -84,4 +90,61 @@ jobs:
           path: |
             phase5-results/
             phase5-postgres.log
+          if-no-files-found: error
+
+  codegen-experiment:
+    if: ${{ inputs.codegen_experiment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PHASE5_DSN: host=127.0.0.1 user=postgres password=password dbname=postgres sslmode=disable
+      RUSTUP_TOOLCHAIN: 1.94.1
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Start the dedicated TLS-enabled PostgreSQL server
+        run: |
+          docker pull postgres:18
+          sh tools/ci/ci_make_ferrocopg_tls_certs.sh .ci-tls
+          postgres_uid=$(docker run --rm postgres:18 id -u postgres)
+          sudo chown "$postgres_uid" .ci-tls/server.key
+          docker run --rm -d --name phase5-postgres -p 5432:5432 \
+            -v "$PWD/.ci-tls:/tls:ro" -e POSTGRES_PASSWORD=password postgres:18 \
+            -c ssl=on -c ssl_cert_file=/tls/server.crt -c ssl_key_file=/tls/server.key
+          docker image inspect postgres:18 > phase5-codegen-server.json
+          for attempt in $(seq 1 60); do
+            if docker exec phase5-postgres pg_isready -U postgres; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs phase5-postgres
+          exit 1
+      - name: Prepare build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpq-dev
+          uv sync --locked --no-default-groups --group rust
+      - name: Compare codegen profiles on this runner (not acceptance)
+        run: |
+          uv run --no-sync python tools/phase5/codegen_compare.py \
+            --revision "$GITHUB_SHA" --output phase5-codegen-results
+      - name: Collect server diagnostics
+        if: always()
+        run: docker logs phase5-postgres > phase5-codegen-postgres.log 2>&1
+      - name: Publish experimental wheels, measurements, and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: phase5-codegen-experiment-${{ github.sha }}
+          retention-days: 90
+          path: |
+            phase5-codegen-results/
+            phase5-codegen-server.json
+            phase5-codegen-postgres.log
           if-no-files-found: error
