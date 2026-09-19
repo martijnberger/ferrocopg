@@ -233,6 +233,13 @@ jobs:
       - name: Run ferrocopg backend crate tests
         run: cargo test -p ferrocopg-postgres
 
+      - name: Run vendored synchronous wait-loop tests
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: >-
+          cargo test --manifest-path vendor/postgres/Cargo.toml
+          --lib connection::tests
+
       - name: Run ferrocopg Python extension crate tests
         run: cargo test -p ferrocopg-python --lib
 
