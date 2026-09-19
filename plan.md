@@ -73,9 +73,12 @@ one codegen unit improved prepared and parameterized wall/CPU times in both
 orders. The workspace now uses this portable release profile as a candidate;
 it is not release acceptance. Its experimental complete report passes eight of
 eleven workloads against both comparators, but parameterized queries,
-transactions, and pool still fail. Fresh exact-revision wheel, compatibility,
-soak, and benchmark validation remain required. Earlier loaded-machine timings
-remain excluded. See the codegen evidence below for identities and scope.
+transactions, and pool still fail. The committed candidate `9d160e8e` passes
+54 exact-wheel installed checks and CI lint, but its separate CI benchmark
+passes only five of eleven workloads against both comparators. Its compatibility
+matrix, full local classified harness, and full soak are still running at this
+snapshot. Earlier loaded-machine timings remain excluded. See the codegen
+evidence below for identities and scope.
 
 Previous investigation: native transformer dispatch `bb26926d` is rejected after
 mixed exact-revision timings in both short and longer warmed comparisons. Its
@@ -2960,6 +2963,61 @@ Local XML: `/tmp/phase5-cancel-public-crdb-master.xml` and
 Even a repeatable codegen gain still requires exact-revision full compatibility,
 soak, and three complete passing acceptance runs of the final frozen wheel.
 
+#### ThinLTO candidate validation
+
+Candidate `9d160e8eefad188a2ad79c99c03c13c33645e27b` includes the portable release
+profile and supported CockroachDB monitoring correction. It is pushed on the
+existing `martijn/phase5-notice-lock` bookmark; no branches were removed.
+
+The exact local installed wheel passes all 54 package/accounting checks:
+`/tmp/ferrocopg-phase5-thin-9d160-wheels/ferrocopg-0.1.0-cp314-cp314-macosx_11_0_arm64.whl`,
+SHA-256 `12fcab43f19755cc6e270abb4379662a6b30ab46c5e669570ca6d2f30e166e2d`.
+The source extension was separately rebuilt with that same committed release
+profile before starting compatibility validation. Ruff, formatting, codespell,
+Cargo formatting, and actionlint pass.
+
+[Lint `35461783962`](https://github.com/martijnberger/ferrocopg/actions/runs/35461783962)
+passes. [Tests `35461783961`](https://github.com/martijnberger/ferrocopg/actions/runs/35461783961)
+has 12 completed jobs, 19 running, and 26 queued with no failed jobs at this
+snapshot; this is not a completed matrix.
+[Phase 5 `35461824553`](https://github.com/martijnberger/ferrocopg/actions/runs/35461824553)
+has a failed completed benchmark and a full three-backend soak still running.
+The optional codegen experiment is correctly skipped in this acceptance run.
+
+Benchmark artifact `10590340808` contains all 33 successful workers and an
+independently recomputed failing verdict. Local copy:
+`/tmp/phase5-thin-9d160-ci-benchmark/phase5-results/report.json`.
+
+| Workload | Rust/Python | Rust/C | Both limits |
+| --- | ---: | ---: | --- |
+| Plain connection | 0.627879 | 0.625504 | pass |
+| TLS connection | 0.709335 | 0.722463 | pass |
+| Parameterized query | 1.089308 | 1.028750 | fail |
+| Prepared query | 0.980775 | 1.578555 | fail |
+| Tuple rows | 0.101441 | 1.242191 | pass |
+| Dict rows | 0.160474 | 1.111325 | pass |
+| Namedtuple rows | 0.130849 | 1.196336 | pass |
+| Transaction/savepoint | 1.371945 | 1.232241 | fail |
+| Text COPY | 0.614176 | 1.376014 | fail |
+| Binary COPY | 0.699388 | 1.583010 | fail |
+| Official sync pool | 1.285531 | 1.734783 | fail |
+
+Five of eleven workloads meet both limits, with four C and three Python misses.
+Do not combine this separate-run report with the experimental eight-of-eleven
+result or infer profile regressions from cross-run ratios alone. The paired
+long-query improvement remains limited evidence; Phase 5 acceptance still fails.
+
+The first local full-harness attempt was interrupted after early experimental
+async failures. Its reporter correctly rejects exit status 2; there is no
+completed synchronous-coverage claim. Preserve
+`/tmp/phase5-thin-9d160-sync.xml` and
+`/tmp/phase5-thin-9d160-interrupted-report.json` as incomplete evidence.
+The replacement unfiltered harness is live and writes
+`/tmp/phase5-thin-9d160-full.xml`. Wait for its actual exit status before running
+the existing manifest/floor/zero-sync-regression reporter. Do not exclude
+`asyncio`-named synchronous fixtures or treat experimental async failures as
+new synchronous regressions.
+
 #### Phase 5 definition of done
 
 - Sync pooling is documented and green.
@@ -3077,6 +3135,11 @@ the synchronous beta is established.
    one CockroachDB-master internal-view restriction, corrected in `fa548322`.
    Validate the new release-profile candidate without replacing earlier
    failures with a different revision's passes.
+   Specifically, inspect the existing `9d160e8e` Tests run `35461783961`, full
+   soak in `35461824553`, and live unfiltered local harness. Its 54 installed
+   checks and lint pass, but its exact-revision CI benchmark fails four C and
+   three Python limits. No duplicate workflow or passing-acceptance claim is
+   warranted. Finish classification before the next optimization slice.
    The notice-drain benchmark still fails four C/four Python comparisons in CI and five
    C/five Python comparisons locally. Preserve its failed local pool timing
    assertion and failed isolated C comparison; do not waive the strict gate.
