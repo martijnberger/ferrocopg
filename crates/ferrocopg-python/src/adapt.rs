@@ -6,6 +6,7 @@ use pyo3::prelude::*;
 use pyo3::pyclass::{PyTraverseError, PyVisit};
 use pyo3::types::{PyBytes, PyDict, PyInt, PyList, PyString, PyTuple};
 use pyo3::wrap_pyfunction;
+use std::borrow::Cow;
 use time::{Date, Duration, Month, OffsetDateTime, PrimitiveDateTime, Time, UtcOffset};
 use uuid::Uuid;
 
@@ -669,28 +670,27 @@ fn parse_row_text(
     data: &Bound<'_, PyAny>,
     tx: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
-    let raw = bytes_like_to_vec(py, data)?;
+    let raw = copy_row_bytes(py, data)?;
     let expected_fields = expected_field_count(tx).unwrap_or_default();
-    let mut fields = if expected_fields == 0 && raw == b"\n" {
+    let fields = if expected_fields == 0 && raw.as_ref() == b"\n" {
         Vec::new()
     } else {
-        raw.split(|byte| *byte == b'\t')
-            .map(|field| field.to_vec())
+        raw.strip_suffix(b"\n")
+            .unwrap_or(&raw)
+            .split(|byte| *byte == b'\t')
+            .map(|field| {
+                if field == br"\N" {
+                    None
+                } else if field.contains(&b'\\') {
+                    Some(Cow::Owned(unescape_text_field(field)))
+                } else {
+                    Some(Cow::Borrowed(field))
+                }
+            })
             .collect::<Vec<_>>()
     };
 
-    if let Some(last) = fields.last_mut() {
-        if last.last() == Some(&b'\n') {
-            last.pop();
-        }
-    }
-
-    let fields: Vec<_> = fields
-        .iter()
-        .map(|field| (field != br"\N").then(|| unescape_text_field(field)))
-        .collect();
-    let row: Vec<_> = fields.iter().map(Option::as_deref).collect();
-    load_copy_row(py, tx, &row)
+    load_copy_row(py, tx, fields.iter().map(Option::as_deref))
 }
 
 #[pyfunction]
@@ -699,7 +699,7 @@ fn parse_row_binary(
     data: &Bound<'_, PyAny>,
     tx: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
-    let data = bytes_like_to_vec(py, data)?;
+    let data = copy_row_bytes(py, data)?;
     if data.len() < 2 {
         return Err(PyErr::new::<PyValueError, _>(
             "COPY binary row is truncated",
@@ -743,7 +743,17 @@ fn parse_row_binary(
         pos += length;
     }
 
-    load_copy_row(py, tx, &row)
+    load_copy_row(py, tx, row.into_iter())
+}
+
+fn copy_row_bytes<'a>(py: Python<'_>, data: &'a Bound<'_, PyAny>) -> PyResult<Cow<'a, [u8]>> {
+    // Loader callbacks can mutate exporters. Borrow only exact immutable bytes;
+    // other inputs retain bytes() coercion and a snapshot before any callbacks.
+    if let Ok(data) = data.cast_exact::<PyBytes>() {
+        Ok(Cow::Borrowed(data.as_bytes()))
+    } else {
+        bytes_like_to_vec(py, data).map(Cow::Owned)
+    }
 }
 
 // Convert directly into PyO3's tuple storage, including cleanup on loader errors.
@@ -811,22 +821,23 @@ pub(crate) fn load_wire_value(
     loader.call1(py, (PyBytes::new(py, data),))
 }
 
-fn load_copy_row(
+fn load_copy_row<'a>(
     py: Python<'_>,
     tx: &Bound<'_, PyAny>,
-    row: &[Option<&[u8]>],
+    row: impl ExactSizeIterator<Item = Option<&'a [u8]>>,
 ) -> PyResult<Py<PyAny>> {
     if let Ok(plan) = tx.getattr("_copy_loaders") {
         if !plan.is_none() {
             let plan: PyRef<'_, CopyCodecPlan> = plan.extract()?;
             if plan.codes.len() == row.len() {
-                let values = row.iter().zip(&plan.codes).zip(&plan.callbacks).map(
-                    |((data, code), loader)| LoadedWireValue {
-                        data: *data,
-                        code: *code,
-                        loader,
-                    },
-                );
+                let values =
+                    row.zip(&plan.codes)
+                        .zip(&plan.callbacks)
+                        .map(|((data, code), loader)| LoadedWireValue {
+                            data,
+                            code: *code,
+                            loader,
+                        });
                 return Ok(PyTuple::new(py, values)?.into_any().unbind());
             }
         }

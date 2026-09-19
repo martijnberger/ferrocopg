@@ -13,6 +13,62 @@ import weakref
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_copy_parsers_preserve_mutable_snapshots_and_bytes_coercion(self):
+        from types import SimpleNamespace
+
+        from ferrocopg import _ferrocopg as adapter
+        from ferrocopg import pq
+        from ferrocopg._rust import _ferrocopg as native
+
+        for binary in (False, True):
+            payload = (
+                struct.pack("!hi", 2, 5) + b"first" + struct.pack("!i", 6) + b"second"
+                if binary
+                else b"first\tsecond\n"
+            )
+            parse = native.parse_row_binary if binary else native.parse_row_text
+            for use_view in (False, True):
+                buffer = bytearray(payload)
+                source = memoryview(buffer) if use_view else buffer
+
+                def mutate(data):
+                    if use_view:
+                        buffer[:] = b"x" * len(buffer)
+                    else:
+                        buffer.clear()
+                    return data
+
+                tx = SimpleNamespace(
+                    _nfields=2,
+                    _copy_loaders=native.CopyCodecPlan([0, 0], [mutate, bytes]),
+                )
+                self.assertEqual(parse(source, tx), (b"first", b"second"))
+
+            class CoercedBytes(bytes):
+                def __bytes__(self):
+                    return payload
+
+            tx = SimpleNamespace(
+                _nfields=2,
+                _copy_loaders=native.CopyCodecPlan([0, 0], [bytes, bytes]),
+            )
+            self.assertEqual(parse(CoercedBytes(b"ignored"), tx), (b"first", b"second"))
+
+        for payload, expected in (
+            (b"\n", ()),
+            (b"\n", ("",)),
+            (b"\t\n", ("", "")),
+            (b"value", ("value",)),
+            (b"", ("",)),
+            (b"a\t\\N\n", ("a", None)),
+            (b"\\\\N\t\\q\\123\\x41\\\n", ("\\N", "\\q\\123\\x41\\")),
+            (b"\\b\\t\\n\\v\\f\\r\\\\\n", ("\b\t\n\v\f\r\\",)),
+        ):
+            tx = adapter._BackendTransformer()
+            tx.set_loader_types([25] * len(expected), pq.Format.TEXT)
+            for source in (payload, bytearray(payload), memoryview(payload)):
+                self.assertEqual(native.parse_row_text(source, tx), expected)
+
     def test_native_loader_classification_keeps_context_and_custom_classes(self):
         import ferrocopg
         from ferrocopg import _ferrocopg as adapter
