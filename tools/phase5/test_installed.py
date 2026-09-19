@@ -108,6 +108,133 @@ class InstalledPoolTests(unittest.TestCase):
                     self.assertEqual(calls, [41])
                     calls.clear()
 
+    def test_transformer_dispatch_preserves_overrides_and_context_cycles(self):
+        import ferrocopg
+        from ferrocopg import _ferrocopg as adapter
+        from ferrocopg.adapt import Dumper, Loader, PyFormat
+
+        calls = []
+
+        def make_cycle():
+            tx = adapter._BackendTransformer()
+            tx._adapters = adapter._pure_python_adapters(tx.adapters)
+
+            class Value:
+                pass
+
+            class ContextDumper(Dumper):
+                oid = 23
+
+                def __init__(self, cls, context):
+                    super().__init__(cls, context)
+                    self.context = context
+                    calls.append("dumper init")
+
+                def dump(self, value):
+                    self_test.assertIs(self.context, tx)
+                    calls.append("dump")
+                    return b"42"
+
+            class ContextLoader(Loader):
+                def __init__(self, oid, context):
+                    super().__init__(oid, context)
+                    self.context = context
+                    calls.append("loader init")
+
+                def load(self, data):
+                    self_test.assertIs(self.context, tx)
+                    return int(data)
+
+            self_test = self
+            tx.adapters.register_dumper(Value, ContextDumper)
+            tx.adapters.register_loader(23, ContextLoader)
+            original = tx.get_dumper
+
+            def tracked(value, format):
+                calls.append("dispatch")
+                return original(value, format)
+
+            tx.get_dumper = tracked
+            self.assertEqual(
+                tx.dump_sequence((Value(), None, Value()), [PyFormat.AUTO] * 3),
+                [b"42", None, b"42"],
+            )
+            loader = tx.get_loader(23, ferrocopg.pq.Format.TEXT)
+            self.assertIs(tx.get_loader(23, ferrocopg.pq.Format.TEXT), loader)
+            self.assertEqual(loader.load(b"42"), 42)
+            return weakref.ref(tx), weakref.ref(loader)
+
+        refs = make_cycle()
+        self.assertEqual(
+            calls,
+            ["dispatch", "dumper init", "dump", "dispatch", "dump", "loader init"],
+        )
+        gc.collect()
+        self.assertTrue(all(ref() is None for ref in refs))
+
+        tx = adapter._BackendTransformer()
+        with self.assertRaises(ferrocopg.ProgrammingError) as raised:
+            tx.get_dumper(object(), PyFormat.AUTO)
+        self.assertTrue(raised.exception.__suppress_context__)
+        self.assertIsNone(raised.exception.__cause__)
+
+    def test_transformer_callbacks_can_replace_lookup_state(self):
+        import ferrocopg
+        from ferrocopg import _ferrocopg as adapter
+        from ferrocopg.adapt import Dumper, Loader, PyFormat
+
+        tx = adapter._BackendTransformer()
+        tx._adapters = adapter._pure_python_adapters(tx.adapters)
+        calls = []
+
+        class ResettingLoader(Loader):
+            def __init__(self, oid, context):
+                super().__init__(oid, context)
+                calls.append("init")
+                context._loaders = ({}, {})
+
+            def load(self, data):
+                return int(data)
+
+        tx.adapters.register_loader(23, ResettingLoader)
+        first = tx.get_loader(23, ferrocopg.pq.Format.TEXT)
+        self.assertIs(tx.get_loader(23, ferrocopg.pq.Format.TEXT), first)
+        self.assertEqual(calls, ["init"])
+
+        class FallbackMap:
+            def get_loader(self, oid, format):
+                self_test.assertEqual(oid, 0)
+                return ResettingLoader
+
+        class ReplacingMap:
+            def get_loader(self, oid, format):
+                self_test.assertEqual(oid, 987654)
+                tx._adapters = FallbackMap()
+                return None
+
+        self_test = self
+        tx._adapters = ReplacingMap()
+        self.assertEqual(
+            tx.get_loader(987654, ferrocopg.pq.Format.TEXT).load(b"42"), 42
+        )
+
+        class ReplacementDumper(Dumper):
+            def dump(self, obj):
+                return b"replacement"
+
+        class ReplacingDumper(Dumper):
+            def dump(self, obj):
+                tx._row_dumpers = [self, ReplacementDumper(int)]
+                return b"first"
+
+        tx._row_dumpers = [ReplacingDumper(int), ReplacementDumper(int)]
+        # A discarded second dumper makes stale row-dumper snapshots visible.
+        tx._row_dumpers[1].dump = lambda obj: b"discarded"
+        self.assertEqual(
+            tx.dump_sequence((1, 2), [PyFormat.AUTO] * 2),
+            [b"first", b"replacement"],
+        )
+
     def test_parameter_errors_preserve_left_to_right_callbacks(self):
         import ferrocopg
         from ferrocopg.adapt import Dumper
