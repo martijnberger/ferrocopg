@@ -235,6 +235,91 @@ class InstalledPoolTests(unittest.TestCase):
             [b"first", b"replacement"],
         )
 
+    def test_transformer_reentrant_callbacks_and_oid_cache_replacement(self):
+        from ferrocopg import _ferrocopg as adapter
+        from ferrocopg import pq
+        from ferrocopg.adapt import Dumper, PyFormat
+
+        tx = adapter._BackendTransformer()
+        tx._adapters = adapter._pure_python_adapters(tx.adapters)
+        tx._encoding = "utf-8"
+        events = []
+
+        class ReentrantDumper(Dumper):
+            oid = 23
+
+            def __init__(self, cls, context):
+                super().__init__(cls, context)
+                self.context = context
+                events.append(context.get_loader(23, pq.Format.TEXT).load(b"7"))
+
+            def get_key(self, value, format):
+                self_test.assertEqual(
+                    self.context.dump_sequence((None,), [PyFormat.AUTO]), [None]
+                )
+                return self.cls
+
+            def dump(self, value):
+                return b"42"
+
+        self_test = self
+        tx.adapters.register_dumper(int, ReentrantDumper)
+        self.assertEqual(tx.dump_sequence((42,), [PyFormat.AUTO]), [b"42"])
+        self.assertEqual(tx.types, (23,))
+        self.assertEqual(tx.formats, [pq.Format.TEXT])
+        self.assertEqual(events, [7])
+
+        class ResettingOidDumper(Dumper):
+            oid = 23
+
+            def __init__(self, cls, context):
+                super().__init__(cls, context)
+                context._oid_dumpers = ({}, {})
+
+            def dump(self, value):
+                return b"43"
+
+        tx.adapters.register_dumper(None, ResettingOidDumper)
+        first = tx.get_dumper_by_oid(23, pq.Format.TEXT)
+        # Unlike loader construction, Python retains the captured OID cache.
+        self.assertEqual(tx._oid_dumpers, ({}, {}))
+        self.assertIsNot(tx.get_dumper_by_oid(23, pq.Format.TEXT), first)
+        tx.set_dumper_types([23], pq.Format.TEXT)
+        self.assertEqual(tx.dump_sequence((1,), [PyFormat.TEXT]), [b"43"])
+
+    def test_transformer_defaults_and_independent_state(self):
+        from unittest.mock import patch
+
+        from ferrocopg import _ferrocopg as adapter
+        from ferrocopg import postgres, pq
+        from ferrocopg.adapt import AdaptersMap, PyFormat
+
+        adapters = AdaptersMap(postgres.adapters)
+        with patch.object(postgres, "adapters", adapters):
+            first = adapter._BackendTransformer()
+            second = adapter._BackendTransformer()
+        self.assertIs(first.adapters, adapters)
+        self.assertIsNone(first.connection)
+        self.assertIsNone(first.pgresult)
+        self.assertIsNone(first.types)
+        self.assertIsNone(first.formats)
+        self.assertEqual(first._none_oid, -1)
+        self.assertIs(first.from_context(first), first)
+        self.assertIsNot(first._dumpers, second._dumpers)
+        self.assertIsNot(first._loaders[0], second._loaders[0])
+        self.assertIsNot(first._loaders[1], second._loaders[1])
+        self.assertIsNot(first._row_loaders, second._row_loaders)
+        self.assertIsNot(first._oid_types, second._oid_types)
+        first._encoding = second._encoding = "utf-8"
+        first.set_loader_types([23, 25], pq.Format.TEXT)
+        self.assertEqual(first.load_sequence((b"42", None)), (42, None))
+        self.assertEqual(first.dump_sequence((), ()), [])
+        self.assertEqual(first.types, ())
+        self.assertEqual(first.formats, [])
+        first.dump_sequence((None,), [PyFormat.AUTO])
+        self.assertGreaterEqual(first._none_oid, 0)
+        self.assertEqual(second._none_oid, -1)
+
     def test_parameter_errors_preserve_left_to_right_callbacks(self):
         import ferrocopg
         from ferrocopg.adapt import Dumper
