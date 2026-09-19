@@ -94,9 +94,14 @@ evidence. The active branch remains `martijn/phase5-notice-lock`. Notice drainin
 passes its complete 57-job CI matrix and full three-backend soak, but not its
 benchmark or strict local compatibility gate. The discarded dispatcher's
 unfinished validation runs are cancelled rather than treated as acceptance.
-The restored revision's Tests run `35454687013` is still running, with a failed
-macOS C/Python 3.13 cancellation test; its lint passes. That new failure remains
-open and is not covered by the earlier notice-drain matrix's success.
+The restored revision's Tests run `35454687013` completed with 56 passing jobs
+and one failed macOS C/Python 3.13 cancellation test; its lint passes. That
+failure remains open and is not covered by the earlier notice-drain matrix's
+success. Follow-up `f0c45f95` fixes a demonstrated query-start wait defect in
+the cancellation test and passes focused local validation, including real
+C/Python libpq 18.6 cancellation. The original test also passes locally, so this
+does not establish that the CI cancellation error is resolved.
+The follow-up's lint `35456952592` passes; Tests `35456952578` is queued.
 The product decisions and release gates remain unchanged. Further work should
 reuse the active development branch once its prior CI completes rather than
 creating a branch per optimization. Superseded-branch deletion awaits user
@@ -2766,9 +2771,63 @@ reports 5607 passed and one failed, `tests/test_generators.py::test_cancel`,
 against Homebrew PostgreSQL/libpq 18.6. The server closes the cancellation
 connection unexpectedly, and both workflow-provided retries fail too. The log
 explicitly selects the libpq/C path, not Rust, but that does not waive the matrix
-failure or establish its root cause. The local server/libpq is version 15 and
-cannot exercise this libpq-17-or-newer test. Keep the failure open; do not mark
+failure or establish its root cause. The primary local server/libpq is version
+15 and cannot exercise this libpq-17-or-newer test; the temporary version-18
+follow-up below supplies separate targeted evidence. Keep the failure open;
+do not mark
 the restored revision green using `e2651478`'s earlier passing matrix.
+
+#### Cancellation-test setup correction and local reproduction
+
+The restored `c28cd643` matrix ultimately completed all 57 jobs: 56 passed and
+macOS C/Python 3.13 failed. The original CI cancellation error remains recorded.
+While investigating it, `f0c45f95` corrects a deterministic test setup defect:
+`fetchone()` returns a tuple, so even `(0,)` was truthy and the query-start wait
+never waited. The corrected test checks the scalar count, filters the target
+backend PID, uses autocommit for fresh statistics, and fails after ten seconds
+if the query never becomes active. The cancellation and SQLSTATE assertions
+are unchanged. Four new regressions fail before the fix and pass afterwards,
+covering immediate/delayed readiness and timeout without dispatching cancellation.
+No production Rust/Python implementation, manifest, gate, or retry policy changes.
+
+Focused validation:
+
+- Existing Python and C/libpq 15 paths: each generator-module run reports eight
+  passed and two skipped (trust authentication and the libpq-17+ test).
+- Rust test selection: four new regressions pass; six raw-libpq/authentication
+  cases remain skipped under their existing boundaries.
+- Isolated Python 3.13.15 with PostgreSQL/libpq 18.6: the full generator module
+  reports nine passed and one trust-authentication skip through each of C and
+  Python, including the actual cancellation case. JUnit evidence is
+  `/tmp/phase5-cancel-c18-fixed-preloaded.xml` and
+  `/tmp/phase5-cancel-python18-fixed.xml`.
+- Ruff, format checking, and codespell pass for the changed test file.
+
+The version-18 installation is built from the
+[official PostgreSQL 18.6 archive](https://ftp.postgresql.org/pub/source/v18.6/),
+verified against SHA-256
+`555610c24d53e4316da5b7d3fc25c279d96856d5e0e23ee308c328c5fa881d9f`.
+It uses SSL/GSS support under `/tmp/ferrocopg-pg18`, a separate cluster on port
+55436, and locked CI dependencies under `/tmp/ferrocopg-cancel-py313`.
+Both C build and runtime versions are verified as `180006`. An initial pytest
+attempt selected an unrelated old in-place C extension compiled against 14.22;
+its two failed reports are retained at `/tmp/phase5-cancel-c18-fixed.xml` and
+`/tmp/phase5-cancel-c18-fixed-isolated.xml`. Explicitly preloading the isolated
+extension before pytest avoids the repository's in-place-build preference;
+no existing extension files are removed or overwritten.
+
+The original committed cancellation test also passes against this temporary
+server, so the CI error is not reproduced and the setup correction must not be
+advertised as its verified root-cause fix. The local OS/compiler differ from
+the macOS-14 CI runner. The temporary server is stopped after validation, and
+the PostgreSQL 15 benchmark server and installed candidate wheel are unchanged.
+These focused checks do not replace the full matrix or any performance gate.
+The correction is pushed on the existing development branch after the preceding
+matrix finished. [Lint `35456952592`](https://github.com/martijnberger/ferrocopg/actions/runs/35456952592)
+passes; [Tests `35456952578`](https://github.com/martijnberger/ferrocopg/actions/runs/35456952578)
+is queued at this snapshot. Both target
+`f0c45f955da48dfa9deb766ce3ac494b1e3480d2`; neither is evidence for an
+uncommitted codegen configuration or a completed Phase 5 performance gate.
 
 #### Phase 5 definition of done
 
@@ -2878,9 +2937,11 @@ the synchronous beta is established.
 
 1. Use `e2651478` as the latest completed CI compatibility/reliability checkpoint:
    all 57 compatibility jobs, lint, and the full three-backend soak pass.
-   The restored `c28cd643` matrix is not green: its macOS C/Python 3.13
-   cancellation test fails and remaining jobs are unfinished. Diagnose that
-   exact failure without replacing it with the earlier passing matrix.
+   The restored `c28cd643` matrix completed with 56 passing jobs and a failed
+   macOS C/Python 3.13 cancellation test. The demonstrated query-start wait
+   defect is corrected and locally tested in `f0c45f95`, but the CI error is
+   not reproduced locally. Validate the follow-up matrix without replacing
+   the original failure with the earlier passing matrix.
    Its benchmark still fails four C/four Python comparisons in CI and five
    C/five Python comparisons locally. Preserve its failed local pool timing
    assertion and failed isolated C comparison; do not waive the strict gate.
