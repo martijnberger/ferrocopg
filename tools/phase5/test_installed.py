@@ -800,7 +800,7 @@ from ferrocopg._rust import _ferrocopg as native
 
 dsn = os.environ["PHASE5_DSN"]
 with psycopg.connect(dsn, autocommit=True) as observer:
-    for action in ("parameter", "close"):
+    for action in ("parameter", "drain_notices", "close"):
         session = native.connect_session(dsn)
         pid = session.backend_pid()
         errors = []
@@ -821,6 +821,8 @@ with psycopg.connect(dsn, autocommit=True) as observer:
                 time.sleep(0.005)
             if action == "parameter":
                 session.parameter("application_name")
+            elif action == "drain_notices":
+                assert session.drain_notices() == []
             else:
                 session.close()
             worker.join(timeout=2)
@@ -836,6 +838,42 @@ with psycopg.connect(dsn, autocommit=True) as observer:
             timeout=15,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_native_notice_drain_preserves_order_errors_and_closed_state(self):
+        import ferrocopg
+        from ferrocopg._rust import _ferrocopg as native
+
+        session = native.connect_session(os.environ["PHASE5_DSN"])
+        primary = ferrocopg.pq.DiagnosticField.MESSAGE_PRIMARY
+        try:
+            self.assertEqual(session.drain_notices(), [])
+            session.run_params_format(
+                "do $$ begin raise notice 'first'; raise notice 'second'; end $$",
+                [],
+                False,
+            )
+            self.assertEqual(
+                [notice[primary] for notice in session.drain_notices()],
+                [b"first", b"second"],
+            )
+            self.assertEqual(session.drain_notices(), [])
+            with self.assertRaises(ferrocopg.errors.RaiseException):
+                session.run_params_format(
+                    "do $$ begin raise notice 'before error'; "
+                    "raise exception 'failure'; end $$",
+                    [],
+                    False,
+                )
+            self.assertEqual(
+                [notice[primary] for notice in session.drain_notices()],
+                [b"before error"],
+            )
+            self.assertEqual(session.drain_notices(), [])
+            session.run_params_format("select 42", [], False)
+        finally:
+            session.close()
+        with self.assertRaises(ferrocopg.OperationalError):
+            session.drain_notices()
 
     @unittest.skipIf(os.name == "nt", "requires POSIX signal delivery")
     def test_native_signal_error_is_not_consumed_by_queued_operation(self):

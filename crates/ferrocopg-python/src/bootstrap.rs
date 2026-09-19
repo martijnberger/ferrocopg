@@ -1598,14 +1598,20 @@ impl BackendSyncNoTlsSession {
     }
 
     fn drain_notices(&self, py: Python<'_>) -> PyResult<Vec<Py<PyDict>>> {
-        // Release the GIL while acquiring the session lock so a concurrent
-        // query can check signals and finish its I/O.
-        let notices = py.detach(|| {
-            self.inner
-                .lock()
-                .map(|session| session.drain_notices())
-                .map_err(|_| backend_runtime_error("backend session mutex is poisoned"))
-        })?;
+        // Draining buffered notices does no I/O. Only release the GIL when
+        // waiting for a query which may need it to check signals and finish.
+        let notices = match self.inner.try_lock() {
+            Ok(session) => session.drain_notices(),
+            Err(TryLockError::WouldBlock) => py.detach(|| {
+                self.inner
+                    .lock()
+                    .map(|session| session.drain_notices())
+                    .map_err(|_| backend_runtime_error("backend session mutex is poisoned"))
+            })?,
+            Err(TryLockError::Poisoned(_)) => {
+                return Err(backend_runtime_error("backend session mutex is poisoned"));
+            }
+        };
         let notices = map_backend_result(py, notices)?;
         notices
             .iter()
