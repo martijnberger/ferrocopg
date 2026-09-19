@@ -293,17 +293,30 @@ immutable result metadata gave inconsistent paired query timings. Both
 experiments are removed. These constructor/container changes are not the next
 priority.
 
-Investigate a more substantial native parameter-binding and result-loader path,
-using the existing registered adapters and PostgreSQL query conversion contract.
-The hypothesis is to avoid constructing Python dumper/loader objects for
-verified built-in adapters, rather than moving only the final packing loop or
-cache lookup to Rust again. Measure the binding/transformer cost separately
-before implementing this fast path; a Rust rewrite alone is not evidence of
-benefit. Resolve actual registered classes from the correct adapter snapshot,
-preserve custom/stateful/recursive adapters through the existing path, and
-avoid running callbacks twice when falling back. Retain integer-width OID
-selection, NULL/text/binary behavior, encoding, public query metadata, and
-prepared invalidation. Do not share mutable transformer state across cursors.
+The broader built-in parameter-binding hypothesis has now been tested with a
+temporary native `BuiltinParamPlan`. Fresh conversion improved modestly in an
+offline diagnostic, but warmed transformer reuse slowed and code inspection
+found dumper-cache and exception-order incompatibilities. The prototype is
+removed and the validated `3a0bb3db` wheel restored. Do not treat this as a
+pending implementation to finish or a demonstrated end-to-end improvement.
+
+Next, measure the public query path in its real execution context before
+choosing another native fast path. Sparse diagnostics put the native prepared
+call near `34 us` inside a roughly `62 us` public query; isolated conversion
+cost is only about `3.77 us`. These instrumented measurements suggest broader
+wrapper/setup and fetch overhead, not proof that parameter binding alone can
+close the gap. Preserve reproducible scripts, raw samples, revision and wheel
+identity for the next comparison; local diagnostic scripts are not acceptance
+evidence. Installed regressions now cover cached dumper behavior after adapter
+registration, cached NULL OIDs, and left-to-right errors/callbacks. All 37
+installed checks pass against the restored `3a0bb3db` wheel. Preserve these
+regressions when evaluating any further binding shortcut.
+
+Resolve actual registered classes from the correct adapter snapshot, preserve
+custom/stateful/recursive adapters through the existing path, and avoid running
+callbacks twice when falling back. Retain integer-width OID selection,
+NULL/text/binary behavior, encoding, public query metadata, and prepared
+invalidation. Do not share mutable transformer state across cursors.
 Preserve concrete cursor subclasses, metadata visibility after every operation,
 custom factories/loaders, callback and exception timing, and result lifetime.
 
@@ -1952,6 +1965,44 @@ Raw query samples are `/tmp/phase5-{before-,}slots-prepared-a.json` and
 diagnostics, not complete benchmark or compatibility validation for either
 discarded prototype. No production code or acceptance rule changes remain.
 
+#### Rejected built-in parameter plan and live-query diagnostics
+
+A temporary native `BuiltinParamPlan` bypassed Python dumper construction for
+verified built-in adapters. In the offline binding diagnostic, parent/candidate
+median fresh dumping was `2.223/1.906 us` and complete parameter conversion was
+`3.770/3.450 us`. Reusing a warmed transformer regressed from `0.638` to
+`0.938 us`. These were not paired measurements in both orders or a complete
+eleven-workload benchmark.
+
+Code inspection also found that bypassing transformer dumper and NULL-OID
+caches could expose later registrations incorrectly. Preflighting later
+parameters could change which error is raised first. No compatibility claim
+is made for this prototype: it was removed, leaving no production-code change,
+and the installed wheel was restored to `3a0bb3db`.
+
+Subsequent diagnostics on the restored wheel measured the native prepared call
+at about `33.675 us` when invoked directly and `34.099 us` within a public
+query. Total direct/public wall medians were `35.213/61.861 us`, with CPU
+medians `13.598/40.353 us`. A separate sparse public-query probe measured
+cursor creation, execution, fetch, and release at approximately `3.644`,
+`50.021`, `5.105`, and `1.341 us`. This differs from isolated constructor
+timing; do not assume an offline microbenchmark explains the live query path.
+The probes include instrumentation overhead and do not establish a performance
+gain or a complete cost decomposition.
+
+Development scripts are `/tmp/phase5-binding-layers.py`,
+`/tmp/phase5-native-boundary.py`, and `/tmp/phase5-query-phases.py`. Their
+temporary location and diagnostic scope do not meet the durable release-report
+contract. Use these observations to select the next measured slice, not to
+claim that Phase 5 has passed or to weaken its thresholds.
+
+Two installed-wheel regressions now protect the semantics exposed by this
+experiment: cached dumpers/NULL OIDs remain stable after registrations while a
+fresh transformer sees them, and mixed parameters preserve left-to-right
+errors and custom dumper construction/callback counts. All 37 installed checks
+pass against the restored `3a0bb3db` wheel. This adds regression coverage, not
+a retained binding optimization or new performance acceptance evidence.
+
 Definition of done:
 
 - Sync pooling is documented and green.
@@ -2089,8 +2140,12 @@ the synchronous beta is established.
    Row drain has a strong separate unprepared bulk-row diagnostic, but does
    not close the single-row gaps or replace the standard prepared row cases.
    The metadata-only, query-effect cache, compact-layout, and immutable-result
-   prototypes are removed after flat, mixed, or worse comparisons. Follow the
-   binding/transformer investigation above rather than repeating these slices.
+   prototypes are removed after flat, mixed, or worse comparisons. The broader
+   built-in parameter plan is also removed: modest offline fresh-conversion
+   gains do not justify slower transformer reuse or cache/error-order changes.
+   Follow the live-query investigation above rather than repeating these slices;
+   retain the new cache, NULL-OID, and callback-order regressions when evaluating
+   another binding shortcut. Preserve diagnostic samples with revision/wheel identity.
    Do not add another isolated conversion helper without a measured gain.
    Keep each change independently tested and compare rebuilt release wheels
    against both official baselines on the same machine.

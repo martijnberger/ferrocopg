@@ -13,6 +13,103 @@ import weakref
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_transformer_dumper_cache_survives_registration(self):
+        import ferrocopg
+        from ferrocopg._ferrocopg import (
+            _AdaptContext,
+            _BackendTransformer,
+            _pure_python_adapters,
+        )
+        from ferrocopg.adapt import Dumper, PyFormat
+
+        calls = []
+
+        class ReplacementDumper(Dumper):
+            oid = 25
+
+            def dump(self, value):
+                calls.append(value)
+                return b"replacement"
+
+        with ferrocopg.connect(os.environ["PHASE5_DSN"]) as conn:
+            for fmt in (PyFormat.AUTO, PyFormat.TEXT, PyFormat.BINARY):
+                with self.subTest(format=fmt):
+                    tx = _BackendTransformer(
+                        _AdaptContext(conn, _pure_python_adapters(conn.adapters))
+                    )
+                    tx._encoding = conn.info.encoding
+                    original = tx.dump_sequence((41, None), (fmt, fmt))
+                    original_types, original_formats = tx.types, tx.formats
+                    original_dumper = tx.get_dumper(41, fmt)
+                    ReplacementDumper.format = (
+                        ferrocopg.pq.Format.BINARY
+                        if fmt == PyFormat.BINARY
+                        else ferrocopg.pq.Format.TEXT
+                    )
+                    tx.adapters.register_dumper(int, ReplacementDumper)
+                    tx.adapters.register_dumper(type(None), ReplacementDumper)
+                    # NULL OIDs are resolved using the text registration.
+                    if fmt == PyFormat.BINARY:
+
+                        class TextNoneDumper(ReplacementDumper):
+                            format = ferrocopg.pq.Format.TEXT
+
+                        tx.adapters.register_dumper(type(None), TextNoneDumper)
+                    self.assertEqual(tx.dump_sequence((41, None), (fmt, fmt)), original)
+                    self.assertEqual(tx.types, original_types)
+                    self.assertEqual(tx.formats, original_formats)
+                    self.assertIs(tx.get_dumper(41, fmt), original_dumper)
+                    self.assertEqual(calls, [])
+
+                    fresh = _BackendTransformer(tx)
+                    fresh._encoding = tx.encoding
+                    self.assertEqual(
+                        fresh.dump_sequence((41, None), (fmt, fmt)),
+                        [b"replacement", None],
+                    )
+                    self.assertEqual(fresh.types, (25, 25))
+                    self.assertEqual(calls, [41])
+                    calls.clear()
+
+    def test_parameter_errors_preserve_left_to_right_callbacks(self):
+        import ferrocopg
+        from ferrocopg.adapt import Dumper
+
+        calls = []
+
+        class Value:
+            pass
+
+        class ValueDumper(Dumper):
+            oid = 25
+
+            def __init__(self, cls, context):
+                super().__init__(cls, context)
+                calls.append("init")
+
+            def dump(self, value):
+                calls.append("dump")
+                return b"custom"
+
+        with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+            conn.adapters.register_dumper(Value, ValueDumper)
+            for later in (Value(), object()):
+                with self.subTest(later=type(later)):
+                    with self.assertRaises(ferrocopg.DataError):
+                        conn.execute("select %s::text, %s::text", ("bad\x00", later))
+                    self.assertEqual(calls, [])
+            with self.assertRaises(ferrocopg.DataError):
+                conn.execute("select %s::text, %s::text", (Value(), "bad\x00"))
+            self.assertEqual(calls, ["init", "dump"])
+            calls.clear()
+            self.assertEqual(
+                conn.execute(
+                    "select %s::text, %s::text", (Value(), Value())
+                ).fetchone(),
+                ("custom", "custom"),
+            )
+            self.assertEqual(calls, ["init", "dump", "dump"])
+
     def test_session_setting_changes_keep_encoding_and_timeout_state_live(self):
         import ferrocopg
 
