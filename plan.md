@@ -66,40 +66,63 @@ results for workflows that are still running.
   result-adaptation gaps. Do not expand into native async or a pool fork.
 - Keep upstream synchronization separate from the undecided upstreaming question.
 
+Current candidate boundary: wait-timer reuse is committed as `347ce908` on
+`martijn/phase5-wait-timer`; its parent's completed validation at `a7c145d2`
+does not validate the new timer. Its complete local benchmark and compatibility
+checks are recorded below; finish its own matrix and full soak before promoting
+it as a validated checkpoint. The adapter ownership-flag experiment was rejected
+and removed. Neither change alters
+the product decisions or release gates.
+
 ### Validation checkpoint
 
 Phases 3 and 4 are complete. Phase 5 is the active release blocker: the
 installed-package benchmark and soak infrastructure exists, but performance
 acceptance has not passed. Full 30-minute-per-backend CI soaks passed on
 revisions `24b646e3`, `2ed94013`, `be46e180`, `cc7b60e2`, `e7b008c2`,
-`7c740a41`, and `3a0bb3db`;
+`7c740a41`, `3a0bb3db`, `0dcecac2`, `f237202b`, and `a7c145d2`;
 sustained validation of the final
-candidate remains required. The latest complete local benchmark, for native
-request priming `a7c145d2`, fails three workloads against C: parameterized
-queries, text COPY, and pool. Parameterized/prepared queries and pool cycles
-miss Python parity. Transactions and all three row-factory workloads pass both
-limits in this run, not yet in three complete passing candidate runs.
+candidate remains required. The latest complete local benchmark, for wait-timer
+reuse `347ce908`, fails three workloads against C: parameterized queries,
+namedtuple rows, and pool. Parameterized/prepared queries and pool cycles miss
+Python parity. Transactions, both COPY cases, tuple/dict rows, and both connection
+cases pass both limits in this run, not yet in three complete passing runs.
 Passing individual row workloads does not close the complete performance gate.
-Its lint passes; the CI benchmark, compatibility validation, and full soak
-are queued.
+The timer candidate passes 42 installed checks, 28 backend unit tests, ten
+wait-loop tests, and `3525/3525` C-coexistence cases. Its full local harness
+passes `4735/4736` synchronous cases, failing pool check-backoff; the isolated
+C/libpq comparison passes. Its CI lint passes, its benchmark fails two C/three
+Python comparisons, and its matrix and sustained soak remain unfinished.
+The parent request-priming revision `a7c145d2` passes lint, all 57 CI
+compatibility jobs, and the full three-backend soak.
+That parent's CI benchmark fails four C and three Python comparisons; the different
+local and CI workload failures must not be combined into a passing report.
 The preceding wait-state revision `0dcecac2` fails six C/four Python limits
-locally and four C/four Python limits in CI; its lint passes, while its matrix
-and soak remain unfinished. The intervening result-projection revision
+locally and four C/four Python limits in CI; its lint, all 57 compatibility jobs,
+and full soak pass. The intervening result-projection revision
 `f237202b` misses five C/four Python limits locally. Individual passes remain
-variable; text COPY passed that run but fails the new one.
+variable; text COPY passed that run but failed the request-priming local run.
+Its 57-job matrix and full soak also pass, while its CI benchmark fails.
 These are development measurements, not release acceptance. The request-priming
 candidate passes 42 installed checks, 28 Rust backend unit tests, eight focused
 vendored wait-loop tests, and
 `3525/3525` selected synchronous C-coexistence cases. Its full local harness
 passes `4732/4736` synchronous cases, failing four pool/scheduler timing assertions;
-the strict zero-regression gate fails. Its supported matrix and full soak
-remain pending. Keep `3a0bb3db` as the last completed green checkpoint.
+the strict local zero-regression gate fails. Request priming `a7c145d2` is now
+the latest completed green CI compatibility/reliability checkpoint;
+`3a0bb3db` remains the earlier checkpoint with a clean full local synchronous
+harness as well. Neither is performance-accepted.
 Phase 6 wheel-matrix validation and Phase 7 publication remain pending.
 The completed Phase 4 evidence below is a historical baseline, not validation
 of every subsequent performance change.
 
 Main remains at the green `4a132959` checkpoint. The latest complete green CI
-checkpoint is timeout-state revision `3a0bb3db`: its
+compatibility/reliability checkpoint is request-priming revision `a7c145d2`:
+its [compatibility workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35436987638)
+passes all 57 jobs, lint passes, and its
+[full three-backend soak](https://github.com/martijnberger/ferrocopg/actions/runs/35437051190)
+passes. Its benchmark and strict local harness still fail. The earlier
+timeout-state revision `3a0bb3db` remains a fully green correctness checkpoint: its
 [compatibility workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35426404068)
 passes all 57 jobs, lint passes, and its full three-backend soak passes. Its
 benchmark still fails four C and four Python comparisons. The preceding
@@ -198,9 +221,9 @@ The acceptance status at this planning checkpoint is:
 | --- | --- | --- |
 | Synchronous API and package boundary | Implemented in Phase 4 | Revalidate after the Phase 5 optimizations |
 | Official synchronous pool | Implemented and regression-tested | Retain coverage in final benchmarks, soak, and matrix |
-| Performance | Not accepted; request-priming candidate misses three C/three Python limits locally; its CI benchmark is queued | Continue measured optimization, then pass three complete candidate runs without combining passes across reports |
-| Sustained reliability | Full three-backend soaks pass at `7c740a41` and `3a0bb3db`, with zero surviving sessions and no resource-budget failures | Repeat 30 minutes per backend after any further candidate changes; scheduled execution remains unverified |
-| Latest compatibility validation | `3a0bb3db` remains the completed green checkpoint; request priming passes 42 installed checks but fails four local pool/scheduler timing assertions, all reproduced with C/libpq; CI is queued | Finish candidate validation without waiving the strict gate; retain failed local reports and comparisons |
+| Performance | Not accepted; timer reuse misses three C/three Python limits locally and two C/three Python limits in CI | Continue measured optimization, then pass three complete candidate runs without combining passes across reports |
+| Sustained reliability | Full three-backend soak passes at `a7c145d2`, with zero surviving sessions and no resource-budget failures | Repeat 30 minutes per backend after any further candidate changes; scheduled execution remains unverified |
+| Latest compatibility validation | Timer reuse passes 42 installed checks and 3525 C-coexistence cases but fails one local pool timing assertion; its matrix is unfinished | Complete exact-revision validation without waiving the strict gate; retain failed local reports and comparisons |
 | Release wheels and publication | Pending | Complete Phases 6 and 7 before publishing to PyPI |
 
 The implementation checkpoint is not a release candidate designation. Local
@@ -215,8 +238,9 @@ not mean the performance, reliability, packaging, or publication gates are done.
 
 Work in this order:
 
-1. Use the green timeout-state matrix and full soak at `3a0bb3db` as the
-   correctness and reliability checkpoint. Preserve
+1. Use the green request-priming CI matrix and full soak at `a7c145d2` as the
+   latest CI checkpoint, retaining its failed local harness and the earlier
+   fully green local/CI checkpoint at `3a0bb3db`. Preserve
    the completed loader/COPY soak artifacts separately
    from later implementation revisions. Classify
    full-harness failures and retain explicit Python/C
@@ -250,9 +274,9 @@ Keep the fully matrix- and soak-validated timeout-state fix `3a0bb3db` as the
 completed checkpoint. The later candidate `0dcecac2` reuses native signal-wait
 state per session and transfers each operation's exception before releasing
 the session lock. Paired prepared-query timings improve modestly, but its
-complete benchmark still fails and full-harness/CI validation is not green.
-Finish its validation before treating it as a completed checkpoint; do not
-attribute the earlier soak to this candidate.
+complete benchmark and local full-harness strict gate still fail. Its own
+57-job CI matrix and full soak now pass; do not attribute those results to a
+later implementation.
 
 Native `BackendPgResult` projection is now retained in `f237202b` on
 `martijn/phase5-native-pgresult`. It replaces Python metadata-wrapper
@@ -273,11 +297,26 @@ orders; CPU gains are smaller. Its full benchmark still fails three C/three
 Python limits, and four local timing assertions reproduce with C/libpq.
 The eight focused wait-loop tests now run in every Rust CI lane.
 
-Finish each revision's matrix and sustained soak without superseding those
-runs. Use the new installed-wheel profile to select the next shared
+The three committed wait-state/result-projection/request-priming revisions now
+have passing CI matrices and full soaks, but all fail performance acceptance.
+Use the new installed-wheel profile to select the next shared
 execute/fetch cost; do not assume more metadata work is the largest remaining
 opportunity. Each further slice still needs same-machine, both-order wall/CPU
 comparisons, behavior regressions, and a complete benchmark before promotion.
+
+The retained timer slice reuses the synchronous connection's wait timer.
+Both prepared-query orders improve modestly (about 1-2% wall and CPU),
+and ten focused wait-loop tests plus 42 installed checks pass. The complete
+benchmark and strict local compatibility gate still fail; finish CI matrix and
+soak validation before promotion. Preserve signal-check deadlines, callbacks
+outside Tokio, cancellation and recovery, notification ordering, and connection
+use across threads. Return to the measured query/setup and first-row adaptation
+gaps rather than expanding the timer rewrite without a new measured mechanism.
+
+Do not repeat shared immutable adapter ownership flags: both-order timings were
+mixed, and the prototype broke pickling of an empty `AdaptersMap`. Adapter
+copy-on-write and serialization behavior remain part of the compatibility
+constraints, not costs to remove by changing behavior.
 
 Retained optimizations include:
 
@@ -299,9 +338,9 @@ Retained optimizations include:
   unchanged, and column metadata, final command counts, cancellation, and
   errors remain covered by installed regressions.
 
-The latest complete local benchmark at `a7c145d2` fails three C and three Python
-limits. Transactions and all row-factory cases pass both limits in this run;
-text COPY again misses C. Do not call any gap reliably closed based on one
+The latest complete local benchmark at `347ce908` fails three C and three Python
+limits. Transactions and both COPY cases pass both limits in this run;
+namedtuple rows again miss C. Do not call any gap reliably closed based on one
 complete run. The preceding row-drain CI benchmark
 fails four C and four Python limits. These passes have varied between
 runs. The SQL-scanner slice's paired transaction gains are modest, not closure
@@ -2141,12 +2180,11 @@ The 60-second resource smoke `/tmp/phase5-wait-state-soak.json` records
 Cleanup records 615 driver objects, two threads, one observer socket, four
 descriptors, and 66,486,272 RSS bytes. This is not full-duration soak evidence.
 
-Exact-revision lint `35434124339` passes. Tests `35434124284` is unfinished;
-14 jobs have completed with no failures at this snapshot, not a green full
-matrix. The full benchmark/soak
+Exact-revision lint `35434124339` passes. Tests `35434124284` passes all 57 jobs.
+The full benchmark/soak
 [workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35434146166)
-has completed its benchmark with an acceptance failure; the soak is still
-running. All 41 installed/harness checks pass in the benchmark job.
+has completed its benchmark with an acceptance failure and passes its full
+three-backend soak. All 41 installed/harness checks pass in the benchmark job.
 
 The CI benchmark misses C limits for prepared queries (`1.516`), tuple rows
 (`1.264`), text COPY (`1.632`), and pool (`1.426`). It misses Python parity for
@@ -2156,7 +2194,7 @@ to the local ratios above. The
 [benchmark artifact](https://github.com/martijnberger/ferrocopg/actions/runs/35434146166/artifacts/10581167962)
 preserves the exact-revision reports. Neither complete run passes acceptance.
 
-No completed candidate soak or green full matrix is claimed. Scheduled
+These passes do not close performance acceptance. Scheduled
 execution remains unverified; the workflow exists on default branch `main`,
 but GitHub still lists no scheduled run at this checkpoint.
 
@@ -2235,10 +2273,12 @@ Prioritize the native call/runtime boundary and Python query conversion/state
 bookkeeping, with fetch setup secondary; do not repeat rejected small helper
 ports without a new measured mechanism.
 
-Exact-revision lint `35436072268` passes. Tests `35436072292` and the full
+Exact-revision lint `35436072268` passes. Tests `35436072292` passes all 57 jobs.
+The full
 [benchmark/soak workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35436112828)
-are queued. Do not treat the parent's completed soaks as validation of this
-revision or the local temporary reports as durable final-candidate evidence.
+passes its full soak but fails its benchmark. Do not treat these results as
+validation of later revisions or temporary local reports as durable
+final-candidate evidence.
 
 #### Prime operations before driving the connection
 
@@ -2301,12 +2341,114 @@ encoding, and result lifetimes. Do not assume another native wait-loop change
 is the best next slice. These diagnostics are not acceptance and must not be
 combined with the complete benchmark's ratios.
 
-Exact-revision lint `35436987606` passes. Tests `35436987638` and the full
+Exact-revision lint `35436987606` passes. Tests `35436987638` passes all 57 jobs.
+The full
 [benchmark/soak workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35437051190)
-are queued. This candidate has no completed supported matrix or sustained soak
-yet; earlier checkpoints and temporary local reports do not establish those gates.
+passes its three-backend soak but fails the benchmark. Each backend runs for
+at least 1,800 seconds, records no resource-budget failures, and leaves zero
+workload sessions. The
+[soak artifact](https://github.com/martijnberger/ferrocopg/actions/runs/35437051190/artifacts/10583643802)
+and [benchmark artifact](https://github.com/martijnberger/ferrocopg/actions/runs/35437051190/artifacts/10582448249)
+identify exact revision `a7c145d2`. CI misses C limits for parameterized queries
+(`1.828`), tuple rows (`1.296`), text COPY (`1.289`), and binary COPY (`1.935`);
+it misses Python parity for parameterized queries (`1.216`), transactions
+(`1.029`), and pool (`1.019`). Prepared queries pass both limits in CI, not in
+the local complete run. These are distinct failed reports, not interchangeable
+workload passes. Scheduled execution is still unverified.
 
-Definition of done:
+#### Rejected adapter ownership flags
+
+A temporary prototype shared immutable ownership flags between adapter maps
+instead of constructing per-map dictionaries and lists. Prepared-query
+parent/prototype wall medians were `48.808/49.621 us`; the clean reverse-order
+pair was `47.964/47.384 us`. CPU medians were `36.640/37.044 us` and
+`35.717/35.199 us`, respectively. The measurements do not show a repeatable
+improvement. The prototype also made an empty `AdaptersMap` unpicklable
+(`TypeError` for `mappingproxy`), while the parent round trip passes.
+The source changes were removed and the parent wheel restored before the next
+experiment. Do not retain this approach as a pending optimization.
+
+Raw development samples are
+`/tmp/phase5-{before-,}adapter-flags-prepared-a.json`,
+`/tmp/phase5-before-adapter-flags-prepared-b.json`, and
+`/tmp/phase5-adapter-flags-prepared-clean-b.json`.
+Exclude `/tmp/phase5-adapter-flags-prepared-b.json`: a diagnostic overlapped
+that run, so only the clean replacement is used above.
+
+#### Reuse the synchronous wait timer
+
+Revision `347ce9086cb7af5ac809b1bf73fe4cf6e20c38c4`, pushed on
+`martijn/phase5-wait-timer`, retains one pinned Tokio `Sleep` per synchronous
+connection and resets its deadline rather than constructing it for each wait. The intended
+saving is timer initialization and registration work, not elimination of a
+per-query heap allocation: the previous timer was pinned on the stack.
+The implementation adds coverage for deadline changes, disabling and re-enabling
+callbacks, timer reuse, and callbacks remaining outside the runtime.
+
+Installed-wheel prepared-query pairs record parent/prototype wall medians
+`50.585/50.067 us` and `50.839/49.881 us` in reverse order. CPU medians are
+`37.886/37.415 us` and `38.101/37.373 us`, with no worker failures. Raw samples
+are `/tmp/phase5-{before-,}wait-timer-prepared-{a,b}.json`.
+The prototype reports are labeled
+`wait-timer-prototype`, not a committed candidate revision. This small,
+both-order gain is development evidence, not performance acceptance.
+
+All 42 installed checks, 28 backend unit tests, and ten focused wait-loop tests
+pass. The new tests cover deadline/callback changes and timer-driven pending operations across
+successive threads, including recovery after an operation error. Rust formatting
+passes, including CI lint `35446094834`. The full local harness
+`/tmp/phase5-wait-timer-full.xml` and classified
+`-report.json` pass `4735/4736` synchronous cases. Only pool check-backoff fails:
+the first interval is `105.153 ms` against a `105 ms` upper bound. Every other
+synchronous feature family passes; experimental async remains separately
+`505/620`. The isolated C/libpq comparison
+`/tmp/phase5-wait-timer-c-pool-timing.xml` passes. Earlier C reproductions do not
+turn this run into a pass, and the strict zero-regression gate remains failed.
+The selected C-coexistence run `/tmp/phase5-wait-timer-c-types-report.json`
+passes `3525/3525` synchronous cases; six experimental async cases fail.
+
+The rebuilt exact-commit wheel also passes all 42 installed checks. Its complete
+local benchmark `/tmp/phase5-wait-timer-bench/report.json` misses C limits for
+parameterized queries (`1.540`), namedtuple rows (`1.298`), and pool (`1.657`).
+It misses Python parity for parameterized queries (`1.087`), prepared queries
+(`1.013`), and pool (`1.189`). Transactions (`0.984` Python / `1.244` C), text
+COPY (`0.648` / `1.243`), binary COPY, both connection cases, and tuple/dict
+rows pass both limits in this run. These remain variable workload passes, not
+three complete passing runs or durable release acceptance.
+
+Tests `35446094700` is unfinished, with five completed jobs and no failures at
+this snapshot. The full
+[benchmark/soak workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35446115679)
+has failed its benchmark and is still running the soak; its head SHA is verified
+as `347ce908`.
+The parent's passing checks do not validate this candidate.
+
+The [CI benchmark artifact](https://github.com/martijnberger/ferrocopg/actions/runs/35446115679/artifacts/10584654228)
+misses C limits for parameterized (`1.473`) and prepared (`1.413`) queries,
+and Python parity for parameterized (`1.038`), prepared (`1.034`), and pool
+(`1.020`). All other comparisons pass in this report, with text COPY (`1.248`
+C) and pool (`1.244` C) close to the limit. The local namedtuple/pool C failures
+and the CI prepared C failure remain separate evidence. No full run passes.
+
+The local resource smoke `/tmp/phase5-wait-timer-soak.json` records `60.350 s`,
+no resource-budget failures, and zero surviving workload sessions. Cleanup
+records 615 driver objects, two threads, one observer socket, four descriptors,
+and 66,535,424 RSS bytes. This is not the 30-minute-per-backend sustained gate.
+
+Fresh parameterized-query diagnostics record Rust/C public wall times
+`57.613/38.775 us` and CPU times `39.218/18.032 us`. The separate instrumented
+phases measure cursor creation `3.542/1.538 us`, execute `47.335/36.159 us`,
+fetch `5.352/0.473 us`, and release `1.359/0.847 us`. Raw reports are
+`/tmp/phase5-wait-timer-parameterized-profile-{rust,c}.json`, marked as
+non-acceptance evidence and carrying installed implementation fingerprints.
+The approximately `11.2 us` execute gap is the next profiling priority, with
+first-row setup (`4.9 us` gap) second. Inspect query conversion and native
+unprepared execution boundaries before proposing another isolated helper or
+timer change. Preserve registered adapters, protocol/metadata semantics,
+signal handling, and callback ordering; neither profile justifies bypassing
+those contracts.
+
+#### Phase 5 definition of done
 
 - Sync pooling is documented and green.
 - Full-duration soaks pass the documented resource budgets without hangs;
@@ -2412,29 +2554,23 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Use `3a0bb3db` as the latest complete correctness/reliability checkpoint:
+1. Use `a7c145d2` as the latest completed CI compatibility/reliability checkpoint:
+   all 57 compatibility jobs, lint, and the full three-backend soak pass.
+   Its benchmark still fails four C/three Python comparisons in CI and three
+   C/three Python comparisons locally. Preserve the four failed local timing
+   assertions and their C/libpq reproductions; do not waive the strict gate.
+   Keep `3a0bb3db` as the earlier clean local/CI correctness checkpoint:
    Tests `35426404068` passes all 57 jobs, lint passes, and Phase 5
    `35426660959` passes the full three-backend soak but fails its benchmark.
    Its 35 installed checks, `3525/3525` selected synchronous C-coexistence cases,
    and `4736/4736` full local synchronous cases pass. Preserve these artifacts
    against this exact revision, not a later optimization.
-   Finish exact-revision validation of request-priming candidate `a7c145d2`:
-   its full local strict gate fails on four timing assertions, all reproduced
-   under C/libpq, and its complete benchmark misses three C/three Python limits.
-   Its 42 installed checks, eight wait-loop tests, 28 backend unit tests,
-   `3525/3525` C-coexistence cases, lint, and short resource smoke pass; matrix
-   and sustained soak are queued. Do not promote it as a release candidate.
-   Also finish validation of preceding result-projection candidate `f237202b`:
-   its full local strict gate fails on three timing assertions, all reproduced
-   under C/libpq, and its complete benchmark misses five C/four Python limits.
-   Its 42 installed checks, `3525/3525` C-coexistence cases, lint, and short
-   resource smoke pass; matrix and full soak are queued. Do not promote it as
-   a release candidate.
-   Also finish validation of preceding wait-state candidate `0dcecac2` before
-   promoting it: its full local strict gate fails on two pool timing assertions,
-   its local and CI performance comparisons fail, and its matrix/soak are
-   unfinished. Lint passes. Preserve the completed CI benchmark artifact and
-   let the existing matrix and soak finish; do not dispatch duplicate runs.
+   Request priming also passes 42 installed checks, eight wait-loop tests,
+   28 backend unit tests, and `3525/3525` C-coexistence cases. Do not promote
+   it as a release candidate. Preceding result-projection `f237202b` and
+   wait-state `0dcecac2` also have passing 57-job matrices, lint, and full soaks,
+   but retain failed local strict gates and failed performance comparisons.
+   Keep their exact-revision artifacts; no duplicate dispatch is needed.
    Retain the SQL-scanner revision's failed full local report (`4732/4736`),
    four C/libpq timing reproductions, and large wall-clock anomaly without
    waiving the strict gate.
@@ -2449,9 +2585,18 @@ the synchronous beta is established.
    names when claiming synchronous coverage.
 2. Reduce shared small-query overhead first: parameter adaptation, query setup,
    single-row result loading, and Python/Rust crossings affect parameterized
-   queries, prepared reuse, transactions, and pool cycles. The post-priming
-   diagnostic now shows a roughly `6.3 us` execute gap and `4.5 us` fetch gap
-   against C; prioritize query/adaptation work and first-row setup accordingly.
+   queries, prepared reuse, transactions, and pool cycles. The post-timer
+   parameterized diagnostic shows a roughly `11.2 us` execute gap and `4.9 us`
+   fetch gap against C; prioritize query/adaptation work and native unprepared
+   execution boundaries, then first-row setup. The earlier prepared diagnostic
+   measured gaps of `6.3 us` and `4.5 us`; do not mix the two workloads.
+   Wait-timer reuse `347ce908` improves prepared wall/CPU timings modestly in
+   both orders but its complete local benchmark still fails three C/three Python
+   limits. It passes ten focused tests, 28 backend unit tests, 42 installed
+   checks, and 3525 synchronous C-coexistence cases; the full local strict gate
+   fails on one pool timing assertion. Finish its exact-revision matrix and
+   sustained soak before promotion. The ownership-flag prototype is removed after
+   mixed timings and a pickle regression. Do not revive it as unfinished work.
    Profile the current
    direct-execution path rather than optimizing the removed worker handoff.
    Follow the next implementation slice above; parameter borrowing alone was
@@ -2459,7 +2604,7 @@ the synchronous beta is established.
    has mixed latency evidence despite reducing typing work.
    The parameter-packing prototype is removed after flat paired comparisons.
    The factory and SQL-scanner slices remove measured work, but the latest
-   complete request-priming benchmark still misses three C and three Python limits.
+   complete wait-timer benchmark still misses three C and three Python limits.
    Row drain has a strong separate unprepared bulk-row diagnostic, but does
    not close the single-row gaps or replace the standard prepared row cases.
    The metadata-only, query-effect cache, compact-layout, and immutable-result
