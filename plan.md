@@ -2572,6 +2572,34 @@ verified as `e2651478`.
 Earlier green matrices and sustained soaks do not establish this candidate's
 acceptance. Scheduled execution remains separately unverified.
 
+#### Rejected portal-description experiment
+
+On the notice-drain baseline, the unprepared typed-query path sends Parse,
+Bind, Describe-statement, Execute, and Sync, then discards ParameterDescription.
+A prototype replaced Describe-statement with Describe-portal. PostgreSQL's
+[extended-protocol documentation](https://www.postgresql.org/docs/15/protocol-flow.html)
+allows the latter after Bind and specifies row metadata without the extra
+parameter-description response. No preparation policy or result handling was
+otherwise changed.
+
+All 45 installed checks pass on the baseline and prototype. The added regression
+covers inferred parameter OIDs, a newly created enum requiring type lookup,
+text/binary row metadata and values, and recovery after Parse, Bind, and Execute
+errors. That coverage is retained independently of the optimization.
+
+The prototype does not improve paired public parameterized-query timings.
+Parent/prototype wall medians are `54.257/54.553 us` in the first order and
+`50.707/54.835 us` in reverse order. CPU medians are `37.082/37.157 us` and
+`34.977/37.521 us`. Each report contains nine 10,000-query samples after 1,000
+warmups; raw evidence is `/tmp/phase5-{before-,}portal-describe-parameterized-{a,b}.json`.
+These are development measurements, not acceptance evidence or proof of the
+cause of the larger second-order difference.
+
+The protocol change is removed, and the isolated environment is restored to the
+exact `e2651478` wheel. Do not repeat this message-level shortcut as unfinished
+work. The remaining execution and first-row gaps require broader query/adaptation
+lifecycle investigation, not a claim that fewer wire messages alone close them.
+
 #### Phase 5 definition of done
 
 - Sync pooling is documented and green.

@@ -232,6 +232,56 @@ class InstalledPoolTests(unittest.TestCase):
                     cur.execute("select %s::int", (42,))
                     self.assertEqual(cur.fetchone(), (42,))
 
+    def test_unprepared_description_preserves_inference_and_error_recovery(self):
+        import ferrocopg
+        from ferrocopg._rust import _ferrocopg as native
+
+        session = native.connect_session(os.environ["PHASE5_DSN"])
+        try:
+            session.run_params_format(
+                "create temporary table portal_rows (id int)", [], False
+            )
+            session.run_params_format(
+                "create type pg_temp.portal_mood as enum ('ready')", [], False
+            )
+            for binary in (False, True):
+                with self.subTest(binary=binary):
+                    result = session.run_params_format(
+                        "select $1::int4 as number, $2::pg_temp.portal_mood as mood",
+                        [(0, False, b"42"), (0, False, b"ready")],
+                        binary,
+                    )
+                    self.assertEqual(result.column_name(0), "number")
+                    self.assertEqual(result.column_oid(0), 23)
+                    self.assertEqual(result.column_name(1), "mood")
+                    self.assertGreater(result.column_oid(1), 16383)
+                    self.assertEqual(
+                        result.get_value(0, 0), b"\x00\x00\x00*" if binary else b"42"
+                    )
+                    self.assertEqual(result.get_value(0, 1), b"ready")
+                    for query, values, error in (
+                        ("select from where", [], ferrocopg.errors.SyntaxError),
+                        (
+                            "select $1::int4",
+                            [(0, False, b"invalid")],
+                            ferrocopg.errors.InvalidTextRepresentation,
+                        ),
+                        (
+                            "select 1 / $1::int4",
+                            [(0, False, b"0")],
+                            ferrocopg.errors.DivisionByZero,
+                        ),
+                    ):
+                        with self.assertRaises(error):
+                            session.run_params_format(query, values, binary)
+                        recovered = session.run_params_format(
+                            "select $1::int4", [(0, False, b"42")], binary
+                        )
+                        self.assertEqual(recovered.column_oids, [23])
+                        self.assertEqual(recovered.row_count, 1)
+        finally:
+            session.close()
+
     def test_statement_splitting_preserves_quotes_comments_and_empty_queries(self):
         import ferrocopg
 
