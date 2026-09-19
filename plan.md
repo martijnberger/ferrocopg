@@ -13,8 +13,8 @@ import ferrocopg as psycopg
 ```
 
 The first product goal is a synchronous, Rust-default `0.1.0` beta. The
-source tree should switch its synchronous default to Rust immediately so
-ordinary development exposes backend gaps. Publishing to PyPI remains blocked
+source tree already defaults synchronous connections to Rust so ordinary
+development exposes backend gaps. Publishing to PyPI remains blocked
 until the release gates in this document pass.
 
 Upstreaming is deliberately undecided. It is not a prerequisite for building,
@@ -52,6 +52,20 @@ The following decisions define the roadmap:
 ## Current State
 
 Planning checkpoint: 2026-09-19.
+
+### Decision summary
+
+- Preserve Psycopg's proven Python-facing behavior while replacing its backend
+  with Rust; this is not a new public database API.
+- Keep the existing synchronous Rust default and explicit fallback contract.
+  Changing the development default does not authorize a PyPI release.
+- Treat Phases 3 and 4 as completed implementation milestones, Phase 5 as
+  incomplete acceptance work, and Phases 6 and 7 as pending release work.
+- Prioritize measured shared small-query overhead, then remaining COPY and
+  result-adaptation gaps. Do not expand into native async or a pool fork.
+- Keep upstream synchronization separate from the undecided upstreaming question.
+
+### Validation checkpoint
 
 Phases 3 and 4 are complete. Phase 5 is the active release blocker: the
 installed-package benchmark and soak infrastructure exists, but performance
@@ -141,7 +155,8 @@ C-coexistence cases pass. Its full local harness passes `4736/4736` synchronous
 cases with zero failures or errors, satisfying the strict zero-regression gate.
 Experimental async remains separately `505/620`. Its
 [compatibility matrix](https://github.com/martijnberger/ferrocopg/actions/runs/35423769875)
-is in progress and lint passes. Its
+is unfinished: 14 of 57 jobs have completed, with no failed jobs reported at
+this check; this is not a green matrix. Lint passes. Its
 [Phase 5 workflow](https://github.com/martijnberger/ferrocopg/actions/runs/35423782206)
 fails the exact-revision benchmark with four C/four Python misses; the full
 soak remains running. Its short local resource smoke passes. An unprepared bulk-row diagnostic improves
@@ -183,7 +198,9 @@ Work in this order:
 2. Profile the remaining shared query path before choosing another optimization.
    The factory and SQL-scanner slices remove measured work but do not close
    the performance gap. Prioritize shared small-query overhead and any remaining
-   bulk-row or COPY costs. Parameter borrowing removed allocations
+   COPY costs. Revisit bulk-row paths when the complete comparison identifies
+   a remaining failure, rather than extending the separate unprepared-row
+   diagnostic. Parameter borrowing removed allocations
    but did not measurably improve the longer warmed query comparisons. Choose
    the next change from a fresh profile, not from an assumption that moving more code to
    Rust must be faster. Each slice needs a rebuilt installed wheel, regression
@@ -222,12 +239,15 @@ Retained optimizations include:
   unchanged, and column metadata, final command counts, cancellation, and
   errors remain covered by installed regressions.
 
-The latest complete benchmark passes text COPY narrowly, but fails five C and
-five Python limits. These passes have varied between runs. The SQL-scanner
-slice's paired transaction gains are modest, not closure of that gap. Keep the
-failed local full harness visible despite green supported CI and a passing
-short resource smoke. Neither selected workload passes nor earlier sustained
-soaks establish final-candidate acceptance. Row drain improves a separate
+The latest complete local benchmark passes text COPY narrowly, but fails five C
+and five Python limits. The exact-revision CI benchmark fails four C and four
+Python limits, including text COPY against C. These passes have varied between
+runs. The SQL-scanner slice's paired transaction gains are modest, not closure
+of that gap. Keep the
+earlier SQL-scanner local full-harness failure visible separately from the
+row-drain revision's passing local synchronous suite. Neither selected workload
+passes nor earlier sustained soaks establish final-candidate acceptance.
+Row drain improves a separate
 unprepared bulk-result diagnostic, not the prepared bulk-row acceptance cases
 or the remaining single-row gaps. Do not change benchmark preparation policy
 to turn the diagnostic win into an apparent gate pass.
@@ -244,6 +264,16 @@ effectively flat. Do not reintroduce it just because it moves a loop to Rust.
 Layer measurements below point toward the broader query/cursor adapter path;
 any consolidation must retain custom adapters, public cursor behavior, error
 translation, signal handling, and notice/notification delivery.
+
+The first concrete investigation is prepared-query metadata construction.
+`result_set_from_statement_rows()` in
+`crates/ferrocopg-postgres/src/session.rs` currently builds a complete
+`StatementDescription` and immediately discards its parameter descriptions.
+Measure whether avoiding that unused work matters before considering wider
+metadata sharing or query/cursor changes. This is an unimplemented hypothesis,
+not a promised speedup or an accepted design. Any metadata-sharing approach
+must preserve prepared-statement invalidation, empty-result metadata, custom
+loaders, and result lifetime after connection close.
 
 - Capture warmed parameterized/prepared profiles and a complete benchmark of
   the installed current wheel; keep the official Python/C baselines unchanged.
@@ -1782,7 +1812,9 @@ Definition of done:
 - Full-duration soaks pass the documented resource budgets without hangs;
   short smoke runs do not satisfy this gate.
 - At least three complete benchmark runs meet both limits for every workload:
-  Rust/Python median duration <= `1.0` and Rust/C <= `1.25`.
+  Rust/Python median duration <= `1.0` and Rust/C <= `1.25`, using the same
+  frozen candidate wheel on the same otherwise idle machine. Do not combine
+  passing workloads from different runs or revisions.
 - Published evidence identifies the tested source revision, installed packages,
   machine/server configuration, raw samples, and any failures.
 - The supported synchronous compatibility and package-boundary gates remain
@@ -1887,8 +1919,9 @@ the synchronous beta is established.
    Phase 5 `35423782206`; its benchmark already fails. The local resource
    smoke, installed checks, selected synchronous coexistence coverage, and
    all `4736/4736` full local synchronous cases pass.
-   Retain its failed full local report (`4732/4736`), four C/libpq timing
-   reproductions, and large wall-clock anomaly without waiving the strict gate.
+   Retain the SQL-scanner revision's failed full local report (`4732/4736`),
+   four C/libpq timing reproductions, and large wall-clock anomaly without
+   waiving the strict gate.
    The older loader/COPY three-backend soaks now pass; keep their artifacts
    tied to `cc7b60e2` and `e7b008c2`, not the later factory/scanner changes.
    Preserve factory CI's original random DNS-order failure despite the newer
@@ -1910,11 +1943,13 @@ the synchronous beta is established.
    complete row-drain benchmark still misses five C and five Python limits.
    Row drain has a strong separate unprepared bulk-row diagnostic, but does
    not close the single-row gaps or replace the standard prepared row cases.
-   Use the layer diagnosis to investigate larger query/cursor-path costs rather
-   than adding another isolated conversion helper without a measured gain.
+   Start with the prepared-metadata investigation described above, then use
+   fresh profiles to decide whether wider query/cursor changes are justified.
+   Do not add another isolated conversion helper without a measured gain.
    Keep each change independently tested and compare rebuilt release wheels
    against both official baselines on the same machine.
-3. Address bulk result loading and text COPY as separate measured slices.
+3. Address remaining text COPY failures next; revisit bulk result loading when
+   complete comparisons show it is still a blocker. Use separate measured slices.
    The temporary-vector and redundant tuple-factory costs have been removed
    locally; inline offsets and COPY borrowing now have green supported matrices.
    Modest paired gains and narrowly passing tuple or text COPY runs do not
