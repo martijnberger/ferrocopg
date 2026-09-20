@@ -353,7 +353,7 @@ class FerrocopgAsyncCursor:
 
     def nextset(self) -> bool | None:
         # Result navigation is synchronous in the public async cursor API too.
-        return self._cursor.nextset()
+        return cast(bool | None, self._cursor.nextset())
 
     async def scroll(self, value: int, mode: str = "relative") -> None:
         await self.connection._run(self._cursor.scroll, value, mode)
