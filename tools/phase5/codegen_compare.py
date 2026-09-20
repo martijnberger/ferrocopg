@@ -37,6 +37,90 @@ ORDER = (("default", "a"), ("thin", "a"), ("thin", "b"), ("default", "b"))
 ITERATIONS = 100000
 SAMPLES = 9
 WARMUP = 10000
+INTEGRATION_CASES = ("public-fresh", "public-reused")
+INTEGRATION_WORKLOADS = ("constant", "parameterized")
+INTEGRATION_ITERATIONS = 5000
+
+
+def compare_integration(output: Path, revisions: dict[str, str]) -> dict[str, object]:
+    """Check all raw cursor controls before reporting either measurement order."""
+    comparison_order(list(revisions))
+    first, second = revisions
+    fingerprints = {}
+    environment = None
+    pairs = {}
+    for case in INTEGRATION_CASES:
+        for workload in INTEGRATION_WORKLOADS:
+            for position in ("a", "b"):
+                measurements = {}
+                for variant, revision in revisions.items():
+                    path = (
+                        output
+                        / f"integration-{variant}-{case}-{workload}-{position}.json"
+                    )
+                    result = json.loads(path.read_text())
+                    samples = result["samples"]
+                    if (
+                        result["mode"] != "integration-diagnostic"
+                        or result["acceptance_evidence"] is not False
+                        or result["backend"] != "rust"
+                        or result["case"] != case
+                        or result["workload"] != workload
+                        or result["metadata"]["revision"] != revision
+                        or result["iterations"] != INTEGRATION_ITERATIONS
+                        or result["warmup"] != 1000
+                        or result["binary"] is not True
+                        or result["prepared"] is not True
+                        or result["profile"] is not None
+                        or len(samples) != SAMPLES
+                        or any(
+                            not math.isfinite(row[key]) or row[key] <= 0
+                            for row in samples
+                            for key in ("wall_us", "cpu_us")
+                        )
+                    ):
+                        raise ValueError(f"invalid integration measurement: {path}")
+                    medians = {
+                        key: statistics.median(row[key] for row in samples)
+                        for key in ("wall_us", "cpu_us")
+                    }
+                    if result["medians_us"] != medians:
+                        raise ValueError(f"inconsistent integration medians: {path}")
+                    files = result["installed_file_sha256"]["ferrocopg"]
+                    if (
+                        not files
+                        or any(
+                            not re.fullmatch(r"[0-9a-f]{64}", value)
+                            for value in files.values()
+                        )
+                        or fingerprints.setdefault(variant, files) != files
+                    ):
+                        raise ValueError(
+                            f"changed or missing integration fingerprint: {path}"
+                        )
+                    identity = {
+                        key: result["metadata"][key]
+                        for key in (
+                            "python",
+                            "platform",
+                            "machine",
+                            "server",
+                            "server_settings",
+                        )
+                    }
+                    if environment is None:
+                        environment = identity
+                    elif environment != identity:
+                        raise ValueError(f"changed integration environment: {path}")
+                    measurements[variant] = medians
+                pairs[f"{case}-{workload}-{position}"] = {
+                    "measurements": measurements,
+                    f"{second}_over_{first}": {
+                        key: measurements[second][key] / measurements[first][key]
+                        for key in ("wall_us", "cpu_us")
+                    },
+                }
+    return {"release_acceptance": False, "variant_revisions": revisions, "pairs": pairs}
 
 
 def build_environment(
@@ -205,6 +289,15 @@ def main() -> int:
             "iterations": ITERATIONS,
             "samples": SAMPLES,
         },
+        "integration_configuration": {
+            "cases": INTEGRATION_CASES,
+            "workloads": INTEGRATION_WORKLOADS,
+            "iterations": INTEGRATION_ITERATIONS,
+            "samples": SAMPLES,
+            "warmup": 1000,
+        }
+        if args.baseline_source
+        else None,
         "cargo_manifest": (ROOT / "Cargo.toml").read_text(),
         "cargo_lock_sha256": hashlib.sha256(
             (ROOT / "Cargo.lock").read_bytes()
@@ -373,7 +466,34 @@ def main() -> int:
                             str(output / f"{label}.json"),
                         ],
                     )
+                if args.baseline_source:
+                    for case in INTEGRATION_CASES:
+                        for workload in INTEGRATION_WORKLOADS:
+                            label = (
+                                f"integration-{profile}-{case}-{workload}-{position}"
+                            )
+                            run(
+                                label,
+                                [
+                                    python,
+                                    str(ROOT / "tools/phase5/integration_profile.py"),
+                                    "--case",
+                                    case,
+                                    "--workload",
+                                    workload,
+                                    "--iterations",
+                                    str(INTEGRATION_ITERATIONS),
+                                    "--samples",
+                                    str(SAMPLES),
+                                    "--revision",
+                                    revisions[profile],
+                                    "--output",
+                                    str(output / f"{label}.json"),
+                                ],
+                            )
             summary = compare_queries(output, args.revision, revisions)
+            if args.baseline_source:
+                summary["integration"] = compare_integration(output, revisions)
             gates = {}
             for profile in profiles:
                 install(profile, f"complete-{profile}")

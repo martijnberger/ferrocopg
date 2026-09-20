@@ -48,39 +48,22 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
         *,
         row_factory: AsyncRowFactory[Row] | None = None,
     ):
-        super().__init__(connection)
-        self._row_factory = row_factory or connection.row_factory
         if False:  # ASYNC
             if getattr(connection, "_is_ferrocopg", False):
                 from ._ferrocopg import NoTlsCursorAdapter
 
+                self._conn = connection
+                self._pgconn = connection.pgconn
                 self._ferrocopg_cursor = NoTlsCursorAdapter(
                     cast(Any, connection),
-                    row_factory=cast(Any, self._row_factory),
+                    row_factory=cast(Any, row_factory or connection.row_factory),
                     query_cls=self._query_cls,
-                    adapters=self._adapters,
                     owner=self,
                 )
-
-    if False:  # ASYNC
-
-        def _sync_ferrocopg_cursor(self) -> None:
-            if self._ferrocopg_cursor is not None:
-                if not hasattr(self, "_format"):
-                    self.format = self._ferrocopg_cursor.format
-                self._results = cast(Any, self._ferrocopg_cursor.pgresults)
-                result = self._ferrocopg_cursor._result
-                self._iresult = result._index if result is not None else 0
-                if self._ferrocopg_cursor._stream_result is not None:
-                    self.pgresult = self._ferrocopg_cursor.pgresult
-                else:
-                    self.pgresult = (
-                        self._results[self._iresult] if self._results else None
-                    )
-                self._closed = self._ferrocopg_cursor.closed
-                self._query = self._ferrocopg_cursor._query
-                if self._ferrocopg_cursor._make_row is not None:
-                    self._make_row = self._ferrocopg_cursor._make_row
+                self.pgresult = None
+                return
+        super().__init__(connection)
+        self._row_factory = row_factory or connection.row_factory
 
     async def __aenter__(self) -> Self:
         return self
@@ -100,7 +83,6 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
         if False:  # ASYNC
             if self._ferrocopg_cursor is not None:
                 self._ferrocopg_cursor.close()
-                self._sync_ferrocopg_cursor()
             else:
                 self._close()
         else:
@@ -116,11 +98,11 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
 
     @row_factory.setter
     def row_factory(self, row_factory: AsyncRowFactory[Row]) -> None:
-        self._row_factory = row_factory
         if False:  # ASYNC
             if self._ferrocopg_cursor is not None:
                 self._ferrocopg_cursor.row_factory = row_factory
                 return
+        self._row_factory = row_factory
         if self.pgresult:
             self._make_row = row_factory(self)
 
@@ -159,13 +141,9 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
         """
         if False:  # ASYNC
             if self._ferrocopg_cursor is not None:
-                self._ferrocopg_cursor.format = self.format
-                try:
-                    self._ferrocopg_cursor.execute(
-                        query, params, prepare=prepare, binary=binary
-                    )
-                finally:
-                    self._sync_ferrocopg_cursor()
+                self._ferrocopg_cursor.execute(
+                    query, params, prepare=prepare, binary=binary
+                )
                 return self
 
         try:
@@ -188,7 +166,6 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
                 self._ferrocopg_cursor.executemany(
                     query, list(params_seq), returning=returning
                 )
-                self._sync_ferrocopg_cursor()
                 return
 
         try:
@@ -232,19 +209,14 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
         """
         if False:  # ASYNC
             if self._ferrocopg_cursor is not None:
-                self._ferrocopg_cursor.format = self.format
                 stream = cast(
                     Iterator[Row],
                     self._ferrocopg_cursor.stream(
                         query, params, binary=binary, size=size
                     ),
                 )
-                try:
-                    for row in stream:
-                        self._sync_ferrocopg_cursor()
-                        yield row
-                finally:
-                    self._sync_ferrocopg_cursor()
+                for row in stream:
+                    yield row
                 return
 
         if self._pgconn.pipeline_status:
@@ -293,7 +265,6 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
         if False:  # ASYNC
             if self._ferrocopg_cursor is not None:
                 for _ in self._ferrocopg_cursor.results():
-                    self._sync_ferrocopg_cursor()
                     yield self
                 return
 
@@ -323,7 +294,6 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
         if False:  # ASYNC
             if self._ferrocopg_cursor is not None:
                 self._ferrocopg_cursor.set_result(index)
-                self._sync_ferrocopg_cursor()
                 return self
 
         if not -len(self._results) <= index < len(self._results):
@@ -347,7 +317,6 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
         if False:  # ASYNC
             if self._ferrocopg_cursor is not None:
                 row = self._ferrocopg_cursor.fetchone()
-                self._sync_ferrocopg_cursor()
                 return cast("Row | None", row)
 
         await self._fetch_pipeline()
@@ -368,8 +337,7 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
         """
         if False:  # ASYNC
             if self._ferrocopg_cursor is not None:
-                rows = self._ferrocopg_cursor.fetchmany(size or self.arraysize)
-                self._sync_ferrocopg_cursor()
+                rows = self._ferrocopg_cursor.fetchmany(size)
                 return cast("list[Row]", rows)
 
         await self._fetch_pipeline()
@@ -392,7 +360,6 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
         if False:  # ASYNC
             if self._ferrocopg_cursor is not None:
                 rows = self._ferrocopg_cursor.fetchall()
-                self._sync_ferrocopg_cursor()
                 return cast("list[Row]", rows)
 
         await self._fetch_pipeline()
@@ -408,7 +375,6 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
         if False:  # ASYNC
             if self._ferrocopg_cursor is not None:
                 row = next(self._ferrocopg_cursor)
-                self._sync_ferrocopg_cursor()
                 return cast(Row, row)
 
         await self._fetch_pipeline()
@@ -433,7 +399,6 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
         if False:  # ASYNC
             if self._ferrocopg_cursor is not None:
                 self._ferrocopg_cursor.scroll(value, mode)
-                self._sync_ferrocopg_cursor()
                 return
 
         await self._fetch_pipeline()
@@ -455,9 +420,7 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
                 with self._ferrocopg_cursor.copy(
                     statement, params, writer=writer
                 ) as copy:
-                    self._sync_ferrocopg_cursor()
                     yield cast(AsyncCopy, copy)
-                self._sync_ferrocopg_cursor()
                 return
 
         try:

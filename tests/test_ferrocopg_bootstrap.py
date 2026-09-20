@@ -2753,7 +2753,7 @@ def test_backend_result_metadata_does_not_materialize_rows(is_tuples: bool) -> N
         adapters=psycopg.adapters, pgconn=SimpleNamespace(_encoding="utf-8")
     )
     cur = module.NoTlsCursorAdapter(conn)
-    cur._result = module.BackendResultCursor([result])
+    cur._set_result(module.BackendResultCursor([result]))
     assert cur.rownumber == (0 if is_tuples else None)
     assert cur.description == ([] if is_tuples else None)
 

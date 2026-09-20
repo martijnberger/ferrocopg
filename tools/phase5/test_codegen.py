@@ -11,12 +11,16 @@ from pathlib import Path
 from unittest.mock import patch
 
 from codegen_compare import (
+    INTEGRATION_CASES,
+    INTEGRATION_ITERATIONS,
+    INTEGRATION_WORKLOADS,
     ITERATIONS,
     ORDER,
     PROFILES,
     SAMPLES,
     WORKLOADS,
     build_environment,
+    compare_integration,
     compare_queries,
     comparison_order,
     complete_measurement,
@@ -127,6 +131,114 @@ class CodegenExperimentTests(unittest.TestCase):
     def test_missing_pair_cannot_produce_a_summary(self):
         with self.assertRaises(FileNotFoundError):
             compare_queries(self.output, "revision")
+
+    def integration_controls(self):
+        revisions = {"baseline": "parent", "candidate": "candidate"}
+        for variant, revision in revisions.items():
+            for case in INTEGRATION_CASES:
+                for workload in INTEGRATION_WORKLOADS:
+                    for position in ("a", "b"):
+                        duration = (
+                            1.0
+                            if variant == "baseline"
+                            else (0.9 if position == "a" else 1.1)
+                        )
+                        medians = {"wall_us": duration, "cpu_us": duration / 2}
+                        result = {
+                            "mode": "integration-diagnostic",
+                            "acceptance_evidence": False,
+                            "backend": "rust",
+                            "case": case,
+                            "workload": workload,
+                            "metadata": {
+                                "revision": revision,
+                                "python": "3.14",
+                                "platform": "test",
+                                "machine": "test",
+                                "server": "test",
+                                "server_settings": {},
+                            },
+                            "iterations": INTEGRATION_ITERATIONS,
+                            "warmup": 1000,
+                            "binary": True,
+                            "prepared": True,
+                            "profile": None,
+                            "samples": [medians] * SAMPLES,
+                            "medians_us": medians,
+                            "installed_file_sha256": {
+                                "ferrocopg": {"driver.py": "a" * 64}
+                            },
+                        }
+                        self.write(
+                            f"integration-{variant}-{case}-{workload}-{position}.json",
+                            result,
+                        )
+        return revisions
+
+    def test_integration_comparison_preserves_both_orders(self):
+        result = compare_integration(self.output, self.integration_controls())
+        self.assertFalse(result["release_acceptance"])
+        self.assertEqual(len(result["pairs"]), 8)
+        for name, pair in result["pairs"].items():
+            ratio = 0.9 if name.endswith("-a") else 1.1
+            self.assertAlmostEqual(pair["candidate_over_baseline"]["wall_us"], ratio)
+            self.assertAlmostEqual(pair["candidate_over_baseline"]["cpu_us"], ratio)
+
+    def test_integration_comparison_rejects_invalid_scope_or_samples(self):
+        for field, value in (
+            ("mode", "integration-profile"),
+            ("acceptance_evidence", True),
+            ("backend", "c"),
+            ("case", "adapter-fresh"),
+            ("workload", "wrong"),
+            ("iterations", 1),
+            ("warmup", 1),
+            ("binary", False),
+            ("prepared", False),
+            ("profile", "trace"),
+            ("samples", []),
+            ("samples", [{"wall_us": float("nan"), "cpu_us": 1}] * SAMPLES),
+            ("medians_us", {"wall_us": 2, "cpu_us": 1}),
+            ("installed_file_sha256", {"ferrocopg": {}}),
+        ):
+            with self.subTest(field=field, value=value):
+                revisions = self.integration_controls()
+                path = (
+                    self.output / "integration-candidate-public-fresh-constant-a.json"
+                )
+                result = json.loads(path.read_text())
+                result[field] = value
+                path.write_text(json.dumps(result))
+                with self.assertRaises(ValueError):
+                    compare_integration(self.output, revisions)
+
+    def test_integration_comparison_rejects_changed_build_or_environment(self):
+        for field, value in (
+            ("installed_file_sha256", {"ferrocopg": {"driver.py": "b" * 64}}),
+            ("revision", "wrong"),
+            ("server", "different"),
+        ):
+            with self.subTest(field=field):
+                revisions = self.integration_controls()
+                path = (
+                    self.output / "integration-candidate-public-fresh-constant-b.json"
+                )
+                result = json.loads(path.read_text())
+                target = (
+                    result if field == "installed_file_sha256" else result["metadata"]
+                )
+                target[field] = value
+                path.write_text(json.dumps(result))
+                with self.assertRaises(ValueError):
+                    compare_integration(self.output, revisions)
+
+    def test_integration_comparison_requires_all_controls(self):
+        revisions = self.integration_controls()
+        (
+            self.output / "integration-baseline-public-reused-parameterized-b.json"
+        ).unlink()
+        with self.assertRaises(FileNotFoundError):
+            compare_integration(self.output, revisions)
 
     def test_candidate_comparison_keeps_each_wheels_revision(self):
         revisions = {"baseline": "parent", "candidate": "candidate"}

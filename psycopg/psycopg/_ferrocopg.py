@@ -1962,7 +1962,7 @@ class NoTlsSessionAdapter:
 
 
 class NoTlsCursorAdapter:
-    """Experimental cursor-like bridge over the ferrocopg session adapter."""
+    """Authoritative execution state for a Rust-backed public cursor."""
 
     def __init__(
         self,
@@ -1976,6 +1976,10 @@ class NoTlsCursorAdapter:
         self._conn = conn
         self._owner = ref(owner) if owner is not None else None
         self._result: BackendResultCursor | None = None
+        self._pgresult: _BackendPgResultShim | None = None
+        self._pgresults: list[_BackendPgResultShim] = []
+        self._result_encoding = conn.pgconn._encoding
+        self._result_format = pq.Format.TEXT
         self._closed = False
         self._row_factory = row_factory
         self._adapters = (
@@ -1992,7 +1996,6 @@ class NoTlsCursorAdapter:
         self._pipeline_autosync = False
         self._rowcount_override: int | None = None
         self._statusmessage_override: str | None = None
-        self._rownumber: int | None = 0
         self._query: PostgresQuery | PostgresClientQuery | None = None
         self._query_cls = query_cls
         self.format = pq.Format.TEXT
@@ -2027,24 +2030,46 @@ class NoTlsCursorAdapter:
 
     @property
     def pgresult(self) -> _BackendPgResultShim | None:
-        if self._stream_result is not None:
-            return _BackendPgResultShim(
-                self._stream_result, self._encoding, self.format
-            )
-        result = self._result
-        if result is None:
-            return None
-        current = result.current_result
-        if current is None:
-            return None
-        return result.pgresults(self._encoding, self.format)[result._index]
+        return self._pgresult
+
+    @pgresult.setter
+    def pgresult(self, value: _BackendPgResultShim | None) -> None:
+        self._pgresult = value
 
     @property
     def pgresults(self) -> list[_BackendPgResultShim]:
+        return self._pgresults
+
+    def _set_result(
+        self, result: BackendResultCursor | None, *, encoding: str | None = None
+    ) -> None:
+        self._result = result
+        self._result_encoding = self._encoding if encoding is None else encoding
+        self._result_format = self.format
+        self._pgresults = (
+            result.pgresults(self._result_encoding, self._result_format)
+            if result is not None
+            else []
+        )
+        self._publish_result()
+
+    def _publish_result(self) -> None:
         result = self._result
-        if result is None:
-            return []
-        return result.pgresults(self._encoding, self.format)
+        pgresult: _BackendPgResultShim | None
+        if self._stream_result is not None:
+            pgresult = _BackendPgResultShim(
+                self._stream_result, self._result_encoding, self._result_format
+            )
+        else:
+            pgresult = (
+                self._pgresults[result._index]
+                if result is not None and result.current_result is not None
+                else None
+            )
+        self._pgresult = pgresult
+        # Publish only on result transitions, including subclass descriptor hooks.
+        if self._owner is not None and (owner := self._owner()) is not None:
+            owner.pgresult = pgresult
 
     @property
     def rowcount(self) -> int:
@@ -2067,7 +2092,7 @@ class NoTlsCursorAdapter:
             return None
         if not _result_is_tuples(current):
             return None
-        return self._rownumber
+        return result._pos
 
     @property
     def description(self) -> list[BackendColumn] | None:
@@ -2100,10 +2125,10 @@ class NoTlsCursorAdapter:
 
     def close(self) -> None:
         self._closed = True
-        self._result = None
         self._result_transformer = None
         self._query_transformer = None
         self._stream_result = None
+        self._set_result(None)
 
     def copy(
         self,
@@ -2149,7 +2174,7 @@ class NoTlsCursorAdapter:
             return self
         with self._conn.lock:
             try:
-                self._result = self._conn._execute(
+                result = self._conn._execute(
                     query,
                     params,
                     prepare=prepare,
@@ -2158,11 +2183,13 @@ class NoTlsCursorAdapter:
                     result_format=self.format,
                     cursor_state=self,
                 )
+                encoding = self._encoding
             except e.Error as ex:
                 translated = self._conn._translate_session_error(ex)
                 if translated is not ex:
                     raise translated from None
                 raise
+        self._set_result(result, encoding=encoding)
         if self._row_factory not in _LEGACY_ROW_FACTORIES:
             self._init_row_factory(self._result)
         return self
@@ -2211,7 +2238,7 @@ class NoTlsCursorAdapter:
             raise
 
         if returning:
-            self._result = BackendResultCursor(results, statuses, encodings)
+            self._set_result(BackendResultCursor(results, statuses, encodings))
             if not results:
                 self._rowcount_override = 0
             elif self._row_factory not in _LEGACY_ROW_FACTORIES:
@@ -2250,7 +2277,6 @@ class NoTlsCursorAdapter:
                 self._conn._check_closed()
                 if (row := result.fetchone()) is None:
                     break
-                self._rownumber = (self._rownumber or 0) + 1
                 self._stream_result = _SyntheticResult(
                     columns=current.columns,
                     column_descriptions=getattr(current, "column_descriptions", None),
@@ -2259,9 +2285,11 @@ class NoTlsCursorAdapter:
                     is_tuples=True,
                     wire_format=getattr(current, "wire_format", None),
                 )
+                self._publish_result()
                 yield self._make_row_for_result(result)(row)
         finally:
             self._stream_result = None
+            self._publish_result()
 
     def fetchone(self) -> object | None:
         row = self._fetchone_row()
@@ -2282,7 +2310,6 @@ class NoTlsCursorAdapter:
             if start >= current.row_count:  # type: ignore[attr-defined]
                 return _NO_ROW
             result._pos += 1
-            self._rownumber = (self._rownumber or 0) + 1
             tx = self._native_result_transformer(current)
             return load_row(
                 start, tx._native_row_codes, tx._row_loaders, self._make_row
@@ -2290,7 +2317,6 @@ class NoTlsCursorAdapter:
         row = result.fetchone()
         if row is None:
             return _NO_ROW
-        self._rownumber = (self._rownumber or 0) + 1
         return self._make_row_for_result(result)(row)
 
     def fetchall(self) -> list[object]:
@@ -2299,7 +2325,6 @@ class NoTlsCursorAdapter:
         if (native_rows := self._fetch_native_rows(result)) is not None:
             return native_rows
         rows = result.fetchall()
-        self._rownumber = (self._rownumber or 0) + len(rows)
         make_row = self._make_row_for_result(result)
         return [make_row(row) for row in rows]
 
@@ -2317,7 +2342,6 @@ class NoTlsCursorAdapter:
         end = current.row_count  # type: ignore[attr-defined]
         start = result._pos
         result._pos = end
-        self._rownumber = (self._rownumber or 0) + end - start
         rows = load_rows(
             start, end, tx._native_row_codes, tx._row_loaders, self._make_row
         )
@@ -2352,7 +2376,6 @@ class NoTlsCursorAdapter:
             row = result.fetchone()
             if row is None:
                 break
-            self._rownumber = (self._rownumber or 0) + 1
             rows.append(self._make_row_for_result(result)(row))
         return rows
 
@@ -2361,7 +2384,7 @@ class NoTlsCursorAdapter:
         current = result.current_result
         assert current is not None
         if mode == "relative":
-            newpos = (self._rownumber or 0) + value
+            newpos = result._pos + value
         elif mode == "absolute":
             newpos = value
         else:
@@ -2369,7 +2392,6 @@ class NoTlsCursorAdapter:
         if not 0 <= newpos < _result_length(current):
             raise IndexError("position out of bound")
         result._pos = newpos
-        self._rownumber = newpos
 
     def nextset(self) -> bool | None:
         if self._result is None:
@@ -2379,7 +2401,7 @@ class NoTlsCursorAdapter:
         if rv:
             self._make_row = None
             self._result_transformer = None
-            self._rownumber = 0
+            self._publish_result()
             if self._row_factory not in _LEGACY_ROW_FACTORIES:
                 self._init_row_factory(result)
         return rv
@@ -2393,7 +2415,7 @@ class NoTlsCursorAdapter:
         result.set_result(index)
         self._make_row = None
         self._result_transformer = None
-        self._rownumber = 0
+        self._publish_result()
         if self._row_factory not in _LEGACY_ROW_FACTORIES:
             self._init_row_factory(result)
         return self
@@ -2473,19 +2495,18 @@ class NoTlsCursorAdapter:
             )
 
     def _reset_result(self) -> None:
-        self._result = None
         self._make_row = None
         self._result_transformer = None
         self._query_transformer = None
         self._stream_result = None
         self._rowcount_override = None
         self._statusmessage_override = None
-        self._rownumber = 0
+        self._set_result(None)
 
     def _adopt_result(self, result: BackendResultCursor) -> None:
         """Load a result produced directly by the backend session."""
         self._reset_result()
-        self._result = result
+        self._set_result(result)
         if self._row_factory not in _LEGACY_ROW_FACTORIES:
             self._init_row_factory(result)
 
@@ -2499,9 +2520,9 @@ class NoTlsCursorAdapter:
         self._result_transformer = None
         self._query_transformer = None
 
-    def _init_row_factory(self, result: BackendResultCursor) -> None:
+    def _init_row_factory(self, result: BackendResultCursor | None) -> None:
         # Native row loading needs the factory, not the fallback conversion closure.
-        if result.current_result is None:
+        if result is None or result.current_result is None:
             raise e.ProgrammingError("no result available")
         if self._make_row is None:
             self._make_row = self._make_row_maker()
@@ -2512,8 +2533,6 @@ class NoTlsCursorAdapter:
         owner = self._owner()
         if owner is None:
             raise e.InterfaceError("the cursor is no longer available")
-        # Callbacks see the public cursor, including the result just selected.
-        owner._sync_ferrocopg_cursor()
         return cast(RowMaker, self._row_factory(owner))
 
     def _make_row_for_result(self, result: BackendResultCursor) -> RowMaker:
@@ -2648,6 +2667,7 @@ class NoTlsServerCursorAdapter(NoTlsCursorAdapter):
         self._scrollable = scrollable
         self._withhold = withhold
         self._factory_name = factory_name
+        self._default_format = pq.Format.TEXT
         self._declared = False
         self._descriptions: list[_StatementColumnLike] = []
         self._pos = 0
@@ -2691,8 +2711,13 @@ class NoTlsServerCursorAdapter(NoTlsCursorAdapter):
             )
         if self._declared:
             self._close_server_cursor()
-        if binary is not None:
-            self.format = pq.Format.BINARY if binary else pq.Format.TEXT
+        self.format = (
+            self._default_format
+            if binary is None
+            else pq.Format.BINARY
+            if binary
+            else pq.Format.TEXT
+        )
 
         query_text, converted = self._conn._convert_query_params(
             query, params, adapters=self.adapters, cursor_state=self
@@ -2723,7 +2748,7 @@ class NoTlsServerCursorAdapter(NoTlsCursorAdapter):
                 query=declaration.encode(self._encoding), params=query_params
             ),
         )
-        self._result = result
+        self._set_result(result)
         self._declared = True
         self._pos = 0
         self._iter_rows = None
@@ -2816,7 +2841,7 @@ class NoTlsServerCursorAdapter(NoTlsCursorAdapter):
             is_tuples=True,
             wire_format=self.format,
         )
-        self._result = BackendResultCursor([result], [None])
+        self._set_result(BackendResultCursor([result], [None]))
         self._make_row = None
         self._result_transformer = None
         if self._row_factory not in _LEGACY_ROW_FACTORIES:
@@ -2826,6 +2851,7 @@ class NoTlsServerCursorAdapter(NoTlsCursorAdapter):
         self._check_closed()
         self._conn._check_closed()
         if not self._descriptions:
+            self.format = self._default_format
             self._describe_server_cursor()
 
     def _fetch_server_rows(
@@ -2851,8 +2877,7 @@ class NoTlsServerCursorAdapter(NoTlsCursorAdapter):
             [result],
             [pgresult.command_status.decode(self._encoding) or None],
         )
-        self._result = result_cursor
-        self._rownumber = 0
+        self._set_result(result_cursor)
         loaded_rows: list[object] = super().fetchall()
         if advance:
             self._pos += len(loaded_rows)
@@ -3069,7 +3094,7 @@ class NoTlsCopyAdapter:
                     self.connection._transaction_failed = (
                         self.connection._in_transaction
                     )
-                    self._cursor._result = None
+                    self._cursor._set_result(None)
 
             if self._queued_writer and self.writer is not None:
                 setattr(self.writer, "_worker", None)
@@ -3079,7 +3104,7 @@ class NoTlsCopyAdapter:
                     finish(exc)
         except BaseException:
             self.connection._transaction_failed = self.connection._in_transaction
-            self._cursor._result = None
+            self._cursor._set_result(None)
             raise
         finally:
             self._release_lock()
@@ -3119,7 +3144,7 @@ class NoTlsCopyAdapter:
             raise e.ProgrammingError("read() is only available during COPY TO STDOUT")
         if self._read_error is not None:
             self.connection._transaction_failed = self.connection._in_transaction
-            self._cursor._result = None
+            self._cursor._set_result(None)
             raise self._read_error
         if self._read_pos >= len(self._read_blocks):
             return b""
@@ -3179,8 +3204,7 @@ class NoTlsCopyAdapter:
             is_tuples=False,
         )
         result.statusmessage = f"COPY {rowcount}"
-        self._cursor._result = BackendResultCursor([result])
-        self._cursor._rownumber = None
+        self._cursor._set_result(BackendResultCursor([result]))
 
     def _release_lock(self) -> None:
         if self._lock_acquired:
@@ -3417,8 +3441,7 @@ class NoTlsPipelineAdapter:
             for (_query, cursor, _params, _prepare, _plan), result in zip(
                 queued, results, strict=True
             ):
-                cursor._result = _backend_cursor_adapter(result)._result
-                cursor._rownumber = 0
+                cursor._set_result(_backend_cursor_adapter(result)._result)
             return
         first_error: e.Error | None = None
         self._syncing = True
@@ -3428,16 +3451,17 @@ class NoTlsPipelineAdapter:
                     cursor._pipeline_error = e.PipelineAborted("pipeline aborted")
                     continue
                 try:
-                    cursor._result = self._conn._execute(
-                        query,
-                        params,
-                        prepare=prepare,
-                        adapters=cursor.adapters,
-                        result_format=cursor.format,
-                        cursor_state=cursor,
-                        prepared_plan=plan,
+                    cursor._set_result(
+                        self._conn._execute(
+                            query,
+                            params,
+                            prepare=prepare,
+                            adapters=cursor.adapters,
+                            result_format=cursor.format,
+                            cursor_state=cursor,
+                            prepared_plan=plan,
+                        )
                     )
-                    cursor._rownumber = 0
                 except e.Error as ex:
                     cursor._pipeline_error = ex
                     first_error = ex
@@ -3783,7 +3807,7 @@ class NoTlsConnectionAdapter:
             row_factory = self.row_factory
         for result in self._session.execute_pipeline_simple(queries):
             cur = self.cursor(row_factory=row_factory)
-            _backend_cursor_adapter(cur)._result = result
+            _backend_cursor_adapter(cur)._set_result(result)
             cursors.append(cur)
         return cursors
 

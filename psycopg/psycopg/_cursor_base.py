@@ -46,8 +46,8 @@ ACTIVE = pq.TransactionStatus.ACTIVE
 
 class BaseCursor(Generic[ConnectionType, Row]):
     __slots__ = """
-        _conn format _adapters arraysize _closed _results pgresult _pos
-        _iresult _rowcount _query _tx _last_query _row_factory _make_row
+        _conn _format_value _adapters _arraysize_value _closed _results_value
+        _pgresult_value _pos _iresult _rowcount _query_value _tx _last_query _row_factory _make_row
         _pgconn _execmany_returning _statusmessage _ferrocopg_cursor
         __weakref__
         """.split()
@@ -74,13 +74,12 @@ class BaseCursor(Generic[ConnectionType, Row]):
         )
 
     def _reset(self, reset_query: bool = True) -> None:
-        self._results: list[PGresult] = []
-        self.pgresult: PGresult | None = None
+        self._results = []
+        self.pgresult = None
         self._pos = 0
         self._iresult = 0
         self._rowcount = -1
         self._statusmessage: bytes | None = None
-        self._query: PostgresQuery | None
         # None if executemany() not executing, True/False according to returning state
         self._execmany_returning: bool | None = None
         if reset_query:
@@ -89,13 +88,75 @@ class BaseCursor(Generic[ConnectionType, Row]):
     def __repr__(self) -> str:
         cls = f"{self.__class__.__module__}.{self.__class__.__qualname__}"
         info = connection_summary(self._pgconn)
-        if self._closed:
+        if self.closed:
             status = "closed"
         elif self.pgresult:
             status = pq.ExecStatus(self.pgresult.status).name
         else:
             status = "no result"
         return f"<{cls} [{status}] {info} at 0x{id(self):x}>"
+
+    @property
+    def format(self) -> pq.Format:
+        if self._ferrocopg_cursor is not None:
+            return cast(pq.Format, self._ferrocopg_cursor.format)
+        return self._format_value
+
+    @format.setter
+    def format(self, value: pq.Format) -> None:
+        if self._ferrocopg_cursor is not None:
+            self._ferrocopg_cursor.format = value
+        else:
+            self._format_value = value
+
+    @property
+    def arraysize(self) -> int:
+        if self._ferrocopg_cursor is not None:
+            return cast(int, self._ferrocopg_cursor.arraysize)
+        return self._arraysize_value
+
+    @arraysize.setter
+    def arraysize(self, value: int) -> None:
+        if self._ferrocopg_cursor is not None:
+            self._ferrocopg_cursor.arraysize = value
+        else:
+            self._arraysize_value = value
+
+    @property
+    def pgresult(self) -> PGresult | None:
+        if self._ferrocopg_cursor is not None:
+            return cast("PGresult | None", self._ferrocopg_cursor.pgresult)
+        return self._pgresult_value
+
+    @pgresult.setter
+    def pgresult(self, value: PGresult | None) -> None:
+        if self._ferrocopg_cursor is not None:
+            self._ferrocopg_cursor.pgresult = value
+        else:
+            self._pgresult_value = value
+
+    @property
+    def _results(self) -> list[PGresult]:
+        if self._ferrocopg_cursor is not None:
+            return cast("list[PGresult]", self._ferrocopg_cursor.pgresults)
+        return self._results_value
+
+    @_results.setter
+    def _results(self, value: list[PGresult]) -> None:
+        self._results_value = value
+
+    @property
+    def _query(self) -> PostgresQuery | None:
+        if self._ferrocopg_cursor is not None:
+            return cast(PostgresQuery | None, self._ferrocopg_cursor._query)
+        return self._query_value
+
+    @_query.setter
+    def _query(self, value: PostgresQuery | None) -> None:
+        if self._ferrocopg_cursor is not None:
+            self._ferrocopg_cursor._query = value
+        else:
+            self._query_value = value
 
     @property
     def connection(self) -> ConnectionType:
@@ -181,9 +242,7 @@ class BaseCursor(Generic[ConnectionType, Row]):
         methods `!fetch*()` will operate on.
         """
         if self._ferrocopg_cursor is not None:
-            rv = self._ferrocopg_cursor.nextset()
-            self.pgresult = self._ferrocopg_cursor.pgresult
-            return cast(bool | None, rv)
+            return cast(bool | None, self._ferrocopg_cursor.nextset())
 
         if self._iresult < len(self._results) - 1:
             self._select_current_result(self._iresult + 1)

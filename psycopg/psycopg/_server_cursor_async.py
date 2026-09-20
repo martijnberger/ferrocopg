@@ -59,14 +59,12 @@ class AsyncServerCursor(
         scrollable: bool | None = None,
         withhold: bool = False,
     ):
-        AsyncCursor.__init__(
-            self, connection, row_factory=row_factory or connection.row_factory
-        )
-        ServerCursorMixin.__init__(self, name, scrollable, withhold)
         if False:  # ASYNC
             if getattr(connection, "_is_ferrocopg", False):
                 from ._ferrocopg import NoTlsServerCursorAdapter
 
+                self._conn = connection
+                self._pgconn = connection.pgconn
                 self._ferrocopg_cursor = NoTlsServerCursorAdapter(
                     cast(Any, connection),
                     name,
@@ -77,6 +75,13 @@ class AsyncServerCursor(
                     query_cls=self._query_cls,
                     owner=self,
                 )
+                ServerCursorMixin.__init__(self, name, scrollable, withhold)
+                self.pgresult = None
+                return
+        AsyncCursor.__init__(
+            self, connection, row_factory=row_factory or connection.row_factory
+        )
+        ServerCursorMixin.__init__(self, name, scrollable, withhold)
 
     async def close(self) -> None:
         """
@@ -85,7 +90,6 @@ class AsyncServerCursor(
         if False:  # ASYNC
             if self._ferrocopg_cursor is not None:
                 self._ferrocopg_cursor.close()
-                self._sync_ferrocopg_cursor()
                 return
 
         async with self._conn.lock:
@@ -110,9 +114,7 @@ class AsyncServerCursor(
             raise TypeError(f"keyword not supported: {list(kwargs)[0]}")
         if False:  # ASYNC
             if self._ferrocopg_cursor is not None:
-                self._ferrocopg_cursor.format = self.format
                 self._ferrocopg_cursor.execute(query, params, binary=binary)
-                self._sync_ferrocopg_cursor()
                 return self
 
         if self._pgconn.pipeline_status:
@@ -138,7 +140,6 @@ class AsyncServerCursor(
         if False:  # ASYNC
             if self._ferrocopg_cursor is not None:
                 row = self._ferrocopg_cursor.fetchone()
-                self._sync_ferrocopg_cursor()
                 return cast(Row | None, row)
 
         async with self._conn.lock:
@@ -153,7 +154,6 @@ class AsyncServerCursor(
         if False:  # ASYNC
             if self._ferrocopg_cursor is not None:
                 rows = self._ferrocopg_cursor.fetchmany(size)
-                self._sync_ferrocopg_cursor()
                 return cast(list[Row], rows)
 
         if not size:
@@ -167,7 +167,6 @@ class AsyncServerCursor(
         if False:  # ASYNC
             if self._ferrocopg_cursor is not None:
                 rows = self._ferrocopg_cursor.fetchall()
-                self._sync_ferrocopg_cursor()
                 return cast(list[Row], rows)
 
         async with self._conn.lock:
@@ -183,7 +182,6 @@ class AsyncServerCursor(
             if self._ferrocopg_cursor is not None:
                 self._ferrocopg_cursor.itersize = self.itersize
                 row = next(self._ferrocopg_cursor)
-                self._sync_ferrocopg_cursor()
                 return cast(Row, row)
 
         # Fetch a new page if we never fetched any, or we are at the end of
@@ -207,7 +205,6 @@ class AsyncServerCursor(
         if False:  # ASYNC
             if self._ferrocopg_cursor is not None:
                 self._ferrocopg_cursor.scroll(value, mode)
-                self._sync_ferrocopg_cursor()
                 return
 
         async with self._conn.lock:

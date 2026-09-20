@@ -1418,6 +1418,17 @@ Preserve `/tmp/phase5-public-cursor-context-v2.xml`, its `-report.json`, and
 `/tmp/phase5-public-owner-{c,rust}-timing.xml`; no tolerance or manifest was
 changed. Experimental native async remains outside the supported sync gate.
 
+Single-owner prototype hypothesis: removing duplicate BaseCursor initialization
+and all after-fetch state copying should reduce fresh and reused query CPU/wall
+cost without changing the native client. The execution state owns format,
+arraysize, adapters, query, results, position, and lifecycle; public metadata is
+captured at result adoption, with subclass hooks only on result transitions.
+Server default format remains distinct from the active result format. Compare
+against the corrected `8919d7d9` baseline in both orders, including all four
+fresh/reused constant/parameterized controls and all eleven complete workloads.
+Reject flat/mixed performance-only results. This is still a prototype, not an
+accepted final candidate; the three-run/soak/compatibility gates remain required.
+
 - [ ] Keep the public Connection/Cursor surface but replace the second cursor-like
   adapter and after-execute/after-fetch state copying with one authoritative
   execution state: active result, result index, row position, and lifecycle.

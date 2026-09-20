@@ -13,7 +13,7 @@ def test_tuple_row(conn):
     row = cur.execute("select 1 as a").fetchone()
     assert row == (1,)
     assert type(row) is tuple
-    assert cur._make_row is tuple
+    assert cur.row_factory(cur) is tuple
 
 
 def test_dict_row(conn):

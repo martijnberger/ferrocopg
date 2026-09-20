@@ -70,6 +70,19 @@ class ServerCursorMixin(BaseCursor[ConnectionType, Row]):
         return self._name
 
     @property
+    def format(self) -> pq.Format:
+        if self._ferrocopg_cursor is not None:
+            return cast(pq.Format, self._ferrocopg_cursor._default_format)
+        return self._format_value
+
+    @format.setter
+    def format(self, value: pq.Format) -> None:
+        if self._ferrocopg_cursor is not None:
+            self._ferrocopg_cursor._default_format = value
+        else:
+            self._format_value = value
+
+    @property
     def scrollable(self) -> bool | None:
         """
         Whether the cursor is scrollable or not.

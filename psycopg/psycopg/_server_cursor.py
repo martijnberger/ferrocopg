@@ -57,13 +57,11 @@ class ServerCursor(ServerCursorMixin["Connection[Any]", Row], Cursor[Row]):
         scrollable: bool | None = None,
         withhold: bool = False,
     ):
-        Cursor.__init__(
-            self, connection, row_factory=row_factory or connection.row_factory
-        )
-        ServerCursorMixin.__init__(self, name, scrollable, withhold)
         if getattr(connection, "_is_ferrocopg", False):
             from ._ferrocopg import NoTlsServerCursorAdapter
 
+            self._conn = connection
+            self._pgconn = connection.pgconn
             self._ferrocopg_cursor = NoTlsServerCursorAdapter(
                 cast(Any, connection),
                 name,
@@ -74,6 +72,13 @@ class ServerCursor(ServerCursorMixin["Connection[Any]", Row], Cursor[Row]):
                 query_cls=self._query_cls,
                 owner=self,
             )
+            ServerCursorMixin.__init__(self, name, scrollable, withhold)
+            self.pgresult = None
+            return
+        Cursor.__init__(
+            self, connection, row_factory=row_factory or connection.row_factory
+        )
+        ServerCursorMixin.__init__(self, name, scrollable, withhold)
 
     def close(self) -> None:
         """
@@ -81,7 +86,6 @@ class ServerCursor(ServerCursorMixin["Connection[Any]", Row], Cursor[Row]):
         """
         if self._ferrocopg_cursor is not None:
             self._ferrocopg_cursor.close()
-            self._sync_ferrocopg_cursor()
             return
 
         with self._conn.lock:
@@ -105,9 +109,7 @@ class ServerCursor(ServerCursorMixin["Connection[Any]", Row], Cursor[Row]):
         if kwargs:
             raise TypeError(f"keyword not supported: {list(kwargs)[0]}")
         if self._ferrocopg_cursor is not None:
-            self._ferrocopg_cursor.format = self.format
             self._ferrocopg_cursor.execute(query, params, binary=binary)
-            self._sync_ferrocopg_cursor()
             return self
 
         if self._pgconn.pipeline_status:
@@ -132,7 +134,6 @@ class ServerCursor(ServerCursorMixin["Connection[Any]", Row], Cursor[Row]):
     def fetchone(self) -> Row | None:
         if self._ferrocopg_cursor is not None:
             row = self._ferrocopg_cursor.fetchone()
-            self._sync_ferrocopg_cursor()
             return cast(Row | None, row)
 
         with self._conn.lock:
@@ -146,7 +147,6 @@ class ServerCursor(ServerCursorMixin["Connection[Any]", Row], Cursor[Row]):
     def fetchmany(self, size: int = 0) -> list[Row]:
         if self._ferrocopg_cursor is not None:
             rows = self._ferrocopg_cursor.fetchmany(size)
-            self._sync_ferrocopg_cursor()
             return cast(list[Row], rows)
 
         if not size:
@@ -159,7 +159,6 @@ class ServerCursor(ServerCursorMixin["Connection[Any]", Row], Cursor[Row]):
     def fetchall(self) -> list[Row]:
         if self._ferrocopg_cursor is not None:
             rows = self._ferrocopg_cursor.fetchall()
-            self._sync_ferrocopg_cursor()
             return cast(list[Row], rows)
 
         with self._conn.lock:
@@ -174,7 +173,6 @@ class ServerCursor(ServerCursorMixin["Connection[Any]", Row], Cursor[Row]):
         if self._ferrocopg_cursor is not None:
             self._ferrocopg_cursor.itersize = self.itersize
             row = next(self._ferrocopg_cursor)
-            self._sync_ferrocopg_cursor()
             return cast(Row, row)
 
         # Fetch a new page if we never fetched any, or we are at the end of
@@ -198,7 +196,6 @@ class ServerCursor(ServerCursorMixin["Connection[Any]", Row], Cursor[Row]):
     def scroll(self, value: int, mode: str = "relative") -> None:
         if self._ferrocopg_cursor is not None:
             self._ferrocopg_cursor.scroll(value, mode)
-            self._sync_ferrocopg_cursor()
             return
 
         with self._conn.lock:
