@@ -646,12 +646,72 @@ observed costs from recoverable work.
 Compatibility run `35511889731` is now terminal success. The diagnostic tooling
 is published at `8955d0a66b16d01ea90c683f58ee6f18b9ead0f2` and dispatched once as
 [attribution run 35519527974](https://github.com/martijnberger/ferrocopg/actions/runs/35519527974).
-The attribution job is queued at this checkpoint, while acceptance and codegen
-jobs are correctly skipped. Follow this run without redispatching. Production
+The attribution job is terminal success, while acceptance and codegen
+jobs were correctly skipped. Do not redispatch completed measurements. Production
 Python/Rust sources and Cargo settings remain identical to frozen `7bbc14eb`;
 this tooling-only successor also starts Tests `35519509151` and Lint
-`35519509127`. A green diagnostic workflow alone will not close 5B: audit its
-raw reports and publish the measured bottleneck table and remaining limitations.
+`35519509127`, both now terminal success (all 57 Tests jobs pass).
+
+### Dedicated Linux results: initial independent audit
+
+[The recomputed report](performance/2026-09-20-dedicated-attribution.json) and
+[raw text/report archive](performance/2026-09-20-dedicated-attribution.json.gz)
+preserve both measurement orders without selecting favorable samples. Artifact
+`10607809668` contains 1,246 hashed result files: all 288 workload workers, 66
+protocol workers, and 16 native/public layer measurements validate. Worker
+identities, environment and installed-code hashes agree; medians, all cProfile
+function records, allocation totals/site accounting, syscall summaries, and
+protocol-operation summaries independently recompute. The wheel SHA-256 is
+`67b794d451200e66402860d2aad64855190de485ab5ce03dba22758de0568220`.
+All 102 installed/harness tests passed before timing. The archive retains the
+original reports and verification source; binary captures/profiles, probes,
+wheel, and full PostgreSQL log remain in the linked CI artifact with recorded
+hashes. This diagnostic is not another acceptance run.
+
+Runner: Linux x86-64, four logical/two physical CPUs, Python 3.14.7,
+PostgreSQL 18.6, official Psycopg/C 3.3.2 and pool 3.3.0. No process exceeds 5%
+CPU in the pre-run snapshot; post-run docker-proxy is 11.8%. These snapshots do
+not prove continuous idleness. Absolute timings must not be compared directly
+with the earlier macOS probe.
+
+| Matched layer (us/query) | Forward | Reverse |
+| --- | ---: | ---: |
+| Native libpq | 81.81 | 81.56 |
+| Vendored Rust client | 83.96 | 82.77 |
+| Rust session | 84.01 | 84.47 |
+| Direct PyO3 binding | 88.74 | 89.40 |
+| Full official Python | 140.27 | 141.02 |
+| Full official C | 110.33 | 109.97 |
+| Full ferrocopg | 149.09 | 147.48 |
+
+The native-client gap is only 1.2-2.2 us in this matched binary constant-query
+probe, while the full API gap to C is 37.5-38.8 us. This corroborates prioritizing
+integration over replacing the native client; differences between independent
+paths are not additive costs or entirely recoverable work.
+
+The separate public workloads use text results and include parameter adaptation.
+Parameterized Rust/C is 1.400 in both orders, with Rust CPU 97.5-98.5 us versus
+C 50.9-51.7 us. Prepared Rust/C is 1.404/1.375, with CPU 94.1/92.9 us versus
+C 49.6/50.8 us. Tuple rows are 1.297/1.272, dictionary rows 1.141/1.125,
+namedtuple rows 1.177/1.198, transactions 1.200/1.214, text COPY 1.224/1.217,
+and binary COPY 1.059/1.033. Both connection workloads beat C in both orders.
+Pool is 1.297/1.549: retain the unfavorable reverse result rather than presenting
+this diagnostic as an all-workload gate pass or replacing the frozen acceptance.
+The pipeline/error/recovery workload is 2.640/2.464 times C, and both protocol
+orders repeat Rust's 10/12/10 completed cycles versus C/Python's 3/3/3. These
+cycles alone are not general network RTTs; the ordered flow and source explain
+the separate serialization opportunity.
+
+The allocation audit found a Linux-specific interpretation gap. All totals are
+consistent, but the conservative observer-effect classifier recognizes zero
+profile-created frames because Linux exposes four allocation helpers before
+`_PyFrame_MakeAndSetFrameObject`. The saved eight-frame stack still ends in
+`PyEval_GetFrame -> call_profile_func`, so zero recognized frames must not be
+read as zero profiler overhead. Correct this bounded classification, preserve
+the original categories, and reanalyze the captured sites without rerunning
+timings. The full bottleneck table, remaining plan-reuse dispositions, explicit
+next optimization/deferral decision, and direct GIL/poll/wakeup coverage remain
+outstanding; syscall counts do not close those requirements by themselves.
 
 ### Allocation observer effect
 

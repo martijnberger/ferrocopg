@@ -176,9 +176,12 @@ search for tiny transport optimizations.
    and its raw XML/report archive. Lint `35511889747` passes.
    Attribution tooling is now published at `8955d0a6`; diagnostic workflow
    `35519527974` is dispatched for that exact revision. Only its attribution
-   job is queued; acceptance/codegen jobs are skipped. Follow this handle, not
-   another dispatch. Successor Tests `35519509151` and Lint `35519509127`
-   validate the tooling/documentation revision. Production Python/Rust sources
+   job has completed successfully; acceptance/codegen jobs were skipped. The
+   independent audit verifies 1,246 result files, 288 workload workers, 66
+   protocol workers, and all 16 layer measurements. Preserve the dedicated
+   attribution report/archive; do not redispatch completed measurements.
+   Successor Tests `35519509151` (all 57 jobs) and Lint `35519509127` also pass.
+   Production Python/Rust sources
    and Cargo settings remain identical to `7bbc14eb`.
    Do not restart live handles
    or push over active Tests just to publish evidence-only commits.
@@ -1455,8 +1458,8 @@ combinations: scalar queries show one cycle; the parameterized Rust pipeline
 serializes its batch, corroborated by `NoTlsPipelineAdapter.sync()`; COPY adds
 prepare/close traffic. Preserve the raw streams and operation-boundary caveats
 in `2026-09-20-protocol-diagnostic.json` and its compressed archive. The dedicated
-Linux run, cross-order replication, and resulting bottleneck table remain
-outstanding. Prioritize scalar cost attribution and evaluate genuine native
+Linux run and cross-order replication now pass independent accounting; the
+resulting bottleneck table remains outstanding. Prioritize scalar cost attribution and evaluate genuine native
 parameterized batching as a separate throughput opportunity, not a substitute
 for the scalar-query targets.
 Allocation interpretation also needs the recorded observer-effect control:
@@ -1468,10 +1471,13 @@ statistics identities are checked, and all sites remain available in artifacts.
 Preserve `2026-09-20-allocation-observer-effect.json` and its raw-capture archive;
 do not optimize a profiler-created allocation as if it were ordinary driver work.
 See the parity report's dedicated-attribution section. Tests `35511889731`
-are terminal success. Published attribution revision `8955d0a6` is now running
-through diagnostic workflow `35519527974` (queued at dispatch). Follow that
-handle and preserve all raw artifacts; do not redispatch it because of queue
-delay. Successor Tests `35519509151` and Lint `35519509127` are separate checks.
+are terminal success. Published attribution revision `8955d0a6` completed
+diagnostic workflow `35519527974`; its report/archive independently validate all
+workers and identities. Successor Tests `35519509151` and Lint `35519509127`
+also pass. Do not rerun completed measurements. Correct the Linux allocation
+observer classification using captured stacks before interpreting those counts,
+then finish the bottleneck table, remaining dispositions, and instrumentation
+coverage audit. Direct GIL/poll/wakeup coverage is not supplied by strace totals.
 The acceptance benchmark and soak `35511989284` are already terminal success
 and independently audited; do not restart them.
 
@@ -1481,7 +1487,10 @@ and independently audited; do not restart them.
 - [x] Record the initial cost model and prioritize integration work over transport
   replacement. The report is in `docs/ferrocopg-parity.md`.
 - [ ] Reproduce the affected comparisons on an idle runner. Separate synchronous
-  one-query latency from pipelined/concurrent throughput.
+  one-query latency from pipelined/concurrent throughput. Dedicated run
+  `35519527974` preserves both orders and before/after process snapshots;
+  continuous host idleness is not established by snapshots alone. Keep the
+  requirement open pending the final measurement-quality assessment.
 - If a native-client floor becomes a suspected blocker, compare direct Tokio and
   pristine pinned upstream with vendored crates before blaming upstream. This is
   a conditional investigation, not a blocker for integration prototypes. Do not
@@ -1492,6 +1501,10 @@ and independently audited; do not restart them.
   round trips in separate instrumented runs; do not time profiled runs as normal.
 - [ ] Repeat in both orders on an idle machine and preserve raw measurements.
   Break down small-query, multi-row, COPY, transaction, and pool costs separately.
+  Dedicated-run small-query, multi-row, COPY, transaction, pool, and pipeline results are in
+  `2026-09-20-dedicated-attribution.json` and its raw-report archive, with the
+  process-snapshot limitations above. Preserve pool's reverse-order C ratio
+  `1.549`; this diagnostic is not an all-workload acceptance pass.
   A constant, parameter-free SELECT is only the first isolation probe.
 - [ ] Publish a bottleneck table: measured cost, confidence/limitations, ownership
   layer, expected recoverable fraction, and the next discriminating experiment.
