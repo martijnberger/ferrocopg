@@ -286,7 +286,7 @@ supported compatibility matrix, and scheduled-run evidence are still required.
 
 ### Compatibility follow-up to the frozen prototype
 
-The first five available artifacts from Tests `35506169516` explain an exact
+All eight Rust artifacts from Tests `35506169516` explain an exact
 inventory drift introduced by the public-callback controls in `8919d7d9`:
 two common-cursor tests each expand across three cursor classes, and one server
 test expands across two classes. This adds eight supported synchronous cases.
@@ -294,10 +294,12 @@ Their async counterparts add two counted server cases and six cases covered by
 the existing experimental-async manifest. No exclusions were added. Accordingly,
 the committed inventory increases `sync.total` by eight, `async.total` by two,
 and `async.manifested` by six for every matrix key; `sync.manifested` stays 249.
-The downloaded Python 3.11/PostgreSQL 14, 16, 17; Python 3.12/PostgreSQL 16; and
-Python 3.14/PostgreSQL 18 JUnit reports independently confirm this exact delta.
+The downloaded Python 3.11/PostgreSQL 14-18, Python 3.12/PostgreSQL 16,
+Python 3.13/PostgreSQL 17, and Python 3.14/PostgreSQL 18 JUnit reports independently
+confirm this exact delta. The [original matrix counts](performance/2026-09-20-single-owner-compatibility.json)
+retain each report's outcomes and exact source revision.
 
-Reclassifying these unchanged reports with the corrected inventory passes four
+Reclassifying these unchanged reports with the corrected inventory passes seven
 keys. Python 3.11/PostgreSQL 14 still fails the strict zero-regression gate:
 `test_preserves_autocommit[asyncio-pipeline=on-False]` receives two unraisable
 warnings from previously created `FerrocopgAsyncCursor.nextset` coroutines.
@@ -309,7 +311,71 @@ and `None` outcomes. This does not expand supported native-async scope or change
 the frozen `10f83f98` performance comparison. The old failing report remains
 failed; the follow-up still needs its own compatibility run.
 
+The fix is checkpointed in `775299eb`, with its dynamic delegation return cast
+corrected in `87de5ef3`. Configured mypy passes all 239 source files. Two existing
+server-cursor navigation cases, two mocked/live facade cases, and all 17 harness
+tests pass. The first full follow-up run is preserved at
+`/tmp/phase5-compat-successor-775299eb.xml`: its command omitted the virtualenv
+from `PATH`, so typing-test subprocesses could not find `mypy`. It also preceded
+the return-cast correction. Do not use that run as acceptance or silently
+discard it. The corrected `87de5ef3` full run uses an explicit virtualenv `PATH`
+and passes 4,746/4,749 supported synchronous cases, with zero sync errors. Its
+three timing failures are pool `test_check_backoff` (105.192 ms versus a 105 ms
+ceiling), notification `test_notify` (25.443 s versus 0.5 s expected), and
+`test_wait_r_no_linux[wait_poll-1-NONE-2]` (9.231 s versus under 2.4 s required).
+The full strict gate remains failed. Artifacts are
+`/tmp/phase5-compat-successor-typed.xml`, its `.log`, and its `-report.json`.
+Isolated C and Rust controls each pass notification/poll and fail pool backoff;
+retain `/tmp/phase5-successor-{c,rust}-timing.xml`. These controls do not replace
+the full run or prove its extreme delays were driver-independent.
+
 ## Next experiments and decision rules
+
+### Execution-plan prototype boundary
+
+Source inspection after the single-owner prototype narrows 5C.2. Placeholder
+parsing already uses `_query2pg`'s bounded `lru_cache`; adding another SQL parser
+cache does not address the observed repeated setup. For 10,000 fresh executions,
+both captured candidate profiles construct 20,000 adapter maps and 10,000
+transformers. Each constructs 10,000 result-loader bindings. Parameterized
+execution additionally resolves dumpers, validates parameter ordering, and
+materializes bound values for every call. These are call counts, not additive
+latency estimates: profiled cumulative times overlap and include instrumentation.
+
+The next bounded hypothesis is to reuse **immutable adaptation decisions** across
+fresh cursors on a connection, with separate per-execution callback state. A
+reused-cursor-only optimization cannot explain away the fresh-cursor gap.
+
+| Component | Reusable content | State that must remain execution-local |
+| --- | --- | --- |
+| SQL layout | Existing parsed placeholders, requested formats, name ordering | Parameter values, errors, dumped bytes, value-sensitive OIDs |
+| Adapter schema | Pure class resolution from an adapter snapshot | Dumper/loader instances, recursive contexts, constructor side effects |
+| Result layout | Column OIDs, wire format, supported native decoding decisions | Callback bindings, row maker, result ownership and position |
+| Preparation | No new statement ownership in this prototype | Existing prepared manager, statement IDs, eviction and transaction state |
+
+Before caching adapter schemas, establish snapshot/invalidation controls:
+`AdaptersMap` has loader-registration callbacks but no general registration
+generation. Copy-on-write children are independent of later parent changes;
+invalidating every child on a connection registration would be incorrect too.
+Mutable type-registry contents, encoding, loader replacement after execute,
+unknown-OID fallback, and C/pure adapter coexistence also need coverage.
+Do not hold a connection, cursor, result, or arbitrary bound callback in a
+connection-lifetime plan. Bound cache capacity and verify collection after close.
+
+The installed-package contract test now checks independent contexts for fresh
+cursors, a pre-existing cursor's snapshot after connection-level registration,
+and cursor-local loader replacement after execution without affecting siblings.
+It passes on both frozen Rust wheels and the official C comparator. The
+single-owner wheel passes all 79 Phase 5 checks including this new control.
+No cache implementation or performance improvement is claimed by these tests.
+
+Reuse must not bypass registered constructors or change callback order just to
+make a builtin benchmark fast. Existing direct-transformer tests include
+reentrant cache replacement and mutable defaults; preserve their observable
+callback behavior, while allowing a different internal execution layout.
+Use the existing four fresh/reused controls in both orders and all eleven
+workloads. Reject a second parse cache or another generic native-transformer
+port without new evidence; neither removes the repeated lifetime/setup work.
 
 1. Reproduce the initial layer and integration comparisons on an otherwise idle
    dedicated runner, retaining both orders. Prioritize the integration gap now

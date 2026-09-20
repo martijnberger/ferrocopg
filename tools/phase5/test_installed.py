@@ -1,6 +1,7 @@
 """Live regression tests for the staged wheel and official pool package."""
 
 import gc
+import importlib
 import os
 import struct
 import subprocess
@@ -13,6 +14,65 @@ import weakref
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_execution_plan_adapter_snapshots_and_callback_lifetimes(self):
+        import ferrocopg
+
+        import psycopg
+
+        for driver in (ferrocopg, psycopg):
+            with self.subTest(driver=driver.__name__):
+                Loader = importlib.import_module(f"{driver.__name__}.adapt").Loader
+                contexts = []
+                events = []
+
+                class TaggedLoader(Loader):
+                    format = driver.pq.Format.BINARY
+
+                    def __init__(self, oid, context):
+                        super().__init__(oid, context)
+                        contexts.append(context)
+                        events.append("init")
+
+                    def load(self, data):
+                        events.append("load")
+                        return ("connection", int.from_bytes(data, "big", signed=True))
+
+                class CursorLoader(TaggedLoader):
+                    def load(self, data):
+                        events.append("cursor load")
+                        return ("cursor", int.from_bytes(data, "big", signed=True))
+
+                with driver.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+                    before = conn.cursor(binary=True)
+                    conn.adapters.register_loader(23, TaggedLoader)
+                    first = conn.cursor(binary=True)
+                    second = conn.cursor(binary=True)
+
+                    before.execute("select 42::int4")
+                    self.assertEqual(before.fetchone(), (42,))
+                    self.assertEqual(events, [])
+
+                    first.execute("select 43::int4")
+                    self.assertEqual(first.fetchone(), (("connection", 43),))
+                    second.execute("select 44::int4")
+                    self.assertEqual(second.fetchone(), (("connection", 44),))
+                    self.assertEqual(events, ["init", "load", "init", "load"])
+                    self.assertIsNot(contexts[0], contexts[1])
+                    self.assertIs(contexts[0].connection, conn)
+                    self.assertIs(contexts[1].connection, conn)
+
+                    first.execute("select 45::int4")
+                    first.adapters.register_loader(23, CursorLoader)
+                    self.assertEqual(first.fetchone(), (("cursor", 45),))
+                    second.execute("select 46::int4")
+                    self.assertEqual(second.fetchone(), (("connection", 46),))
+                    before.execute("select 47::int4")
+                    self.assertEqual(before.fetchone(), (47,))
+
+                    before.close()
+                    first.close()
+                    second.close()
+
     def test_cursor_result_projection_identity_and_lifetime(self):
         import ferrocopg
 

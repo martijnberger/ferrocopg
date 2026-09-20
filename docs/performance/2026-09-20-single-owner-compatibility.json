@@ -1,0 +1,295 @@
+{
+  "source_revision": "10f83f989544308698e56b4e2d72497ca762310a",
+  "workflow_url": "https://github.com/martijnberger/ferrocopg/actions/runs/35506169516",
+  "scope": "original frozen prototype compatibility reports; not successor validation",
+  "reports": [
+    {
+      "baseline_key": "py3.11-pg14",
+      "pytest_status": 1,
+      "scopes": {
+        "async": {
+          "errors": 7,
+          "executed": 504,
+          "failed": 81,
+          "manifested": 772,
+          "passed": 416,
+          "rate": 0.8253968253968254,
+          "skipped": 109,
+          "total": 613
+        },
+        "overall": {
+          "errors": 8,
+          "executed": 4988,
+          "failed": 81,
+          "manifested": 1021,
+          "passed": 4899,
+          "rate": 0.9821571772253408,
+          "skipped": 438,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 1,
+          "executed": 4484,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4483,
+          "rate": 0.9997769848349688,
+          "skipped": 329,
+          "total": 4813
+        }
+      }
+    },
+    {
+      "baseline_key": "py3.11-pg15",
+      "pytest_status": 1,
+      "scopes": {
+        "async": {
+          "errors": 11,
+          "executed": 594,
+          "failed": 97,
+          "manifested": 772,
+          "passed": 486,
+          "rate": 0.8181818181818182,
+          "skipped": 19,
+          "total": 613
+        },
+        "overall": {
+          "errors": 11,
+          "executed": 5217,
+          "failed": 97,
+          "manifested": 1021,
+          "passed": 5109,
+          "rate": 0.9792984473835538,
+          "skipped": 209,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 190,
+          "total": 4813
+        }
+      }
+    },
+    {
+      "baseline_key": "py3.11-pg16",
+      "pytest_status": 1,
+      "scopes": {
+        "async": {
+          "errors": 11,
+          "executed": 594,
+          "failed": 97,
+          "manifested": 772,
+          "passed": 486,
+          "rate": 0.8181818181818182,
+          "skipped": 19,
+          "total": 613
+        },
+        "overall": {
+          "errors": 11,
+          "executed": 5217,
+          "failed": 97,
+          "manifested": 1021,
+          "passed": 5109,
+          "rate": 0.9792984473835538,
+          "skipped": 209,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 190,
+          "total": 4813
+        }
+      }
+    },
+    {
+      "baseline_key": "py3.11-pg17",
+      "pytest_status": 1,
+      "scopes": {
+        "async": {
+          "errors": 11,
+          "executed": 594,
+          "failed": 97,
+          "manifested": 772,
+          "passed": 486,
+          "rate": 0.8181818181818182,
+          "skipped": 19,
+          "total": 613
+        },
+        "overall": {
+          "errors": 11,
+          "executed": 5217,
+          "failed": 97,
+          "manifested": 1021,
+          "passed": 5109,
+          "rate": 0.9792984473835538,
+          "skipped": 209,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 190,
+          "total": 4813
+        }
+      }
+    },
+    {
+      "baseline_key": "py3.11-pg18",
+      "pytest_status": 1,
+      "scopes": {
+        "async": {
+          "errors": 11,
+          "executed": 594,
+          "failed": 97,
+          "manifested": 772,
+          "passed": 486,
+          "rate": 0.8181818181818182,
+          "skipped": 19,
+          "total": 613
+        },
+        "overall": {
+          "errors": 11,
+          "executed": 5217,
+          "failed": 97,
+          "manifested": 1021,
+          "passed": 5109,
+          "rate": 0.9792984473835538,
+          "skipped": 209,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 190,
+          "total": 4813
+        }
+      }
+    },
+    {
+      "baseline_key": "py3.12-pg16",
+      "pytest_status": 1,
+      "scopes": {
+        "async": {
+          "errors": 12,
+          "executed": 594,
+          "failed": 96,
+          "manifested": 772,
+          "passed": 486,
+          "rate": 0.8181818181818182,
+          "skipped": 19,
+          "total": 613
+        },
+        "overall": {
+          "errors": 12,
+          "executed": 5217,
+          "failed": 96,
+          "manifested": 1021,
+          "passed": 5109,
+          "rate": 0.9792984473835538,
+          "skipped": 209,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 190,
+          "total": 4813
+        }
+      }
+    },
+    {
+      "baseline_key": "py3.13-pg17",
+      "pytest_status": 1,
+      "scopes": {
+        "async": {
+          "errors": 11,
+          "executed": 594,
+          "failed": 97,
+          "manifested": 772,
+          "passed": 486,
+          "rate": 0.8181818181818182,
+          "skipped": 19,
+          "total": 613
+        },
+        "overall": {
+          "errors": 11,
+          "executed": 5217,
+          "failed": 97,
+          "manifested": 1021,
+          "passed": 5109,
+          "rate": 0.9792984473835538,
+          "skipped": 209,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 190,
+          "total": 4813
+        }
+      }
+    },
+    {
+      "baseline_key": "py3.14-pg18",
+      "pytest_status": 1,
+      "scopes": {
+        "async": {
+          "errors": 11,
+          "executed": 625,
+          "failed": 103,
+          "manifested": 772,
+          "passed": 511,
+          "rate": 0.8176,
+          "skipped": 23,
+          "total": 648
+        },
+        "overall": {
+          "errors": 11,
+          "executed": 5281,
+          "failed": 103,
+          "manifested": 1021,
+          "passed": 5167,
+          "rate": 0.978413179322098,
+          "skipped": 215,
+          "total": 5496
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4656,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4656,
+          "rate": 1.0,
+          "skipped": 192,
+          "total": 4848
+        }
+      }
+    }
+  ]
+}
