@@ -71,9 +71,10 @@ than the rejected dispatcher over Python-owned attributes. Registered adapters,
 callbacks, cache replacement, namespace isolation, and garbage collection remain
 required. The prototype passes 59 installed/accounting checks and selected
 source scopes of 3004 synchronous cases and 2998 C-coexistence synchronous cases.
-These are focused checks, not the complete compatibility matrix or performance
-acceptance. Compare exact baseline `9d160e8e` and the prototype on one dedicated
-runner in both orders before retaining it as an optimization. The comparison
+The combined revision `8f14895d` also passes its complete 57-job CI matrix and
+lint. Dedicated comparison `35477922181` is live against baseline `9d160e8e`;
+performance and sustained candidate acceptance remain unproven. Inspect that
+same runner's both-order results before retaining this as an optimization. The comparison
 tooling labels each wheel and every measurement with its own revision; it does
 not relabel baseline measurements as candidate evidence. See the prototype
 section below for scope and validation.
@@ -3135,10 +3136,23 @@ SHA-256 identities, source build configuration, and both reports remain retained
 Normal acceptance commands, matrix, thresholds, duration, and artifact settings
 are structurally unchanged; only the opt-in diagnostic guard is extended. A
 diagnostic success does not mean either complete benchmark passed. The next
-action is one dedicated comparison against
-`9d160e8eefad188a2ad79c99c03c13c33645e27b`, plus the fresh compatibility matrix.
-Do not claim a gain, dispatch duplicates, or begin sustained candidate acceptance
-before inspecting this experiment. If the paired result is flat or mixed,
+comparison uses baseline `9d160e8eefad188a2ad79c99c03c13c33645e27b` and combined
+candidate `8f14895d2e14d900d626b9fb5f21aa43254968f1`.
+[Tests `35475568681`](https://github.com/martijnberger/ferrocopg/actions/runs/35475568681)
+passes all 57 jobs; [Lint `35475568678`](https://github.com/martijnberger/ferrocopg/actions/runs/35475568678)
+also passes. These do not cover full-duration prototype reliability or its
+performance acceptance.
+
+[Comparison `35477922181`](https://github.com/martijnberger/ferrocopg/actions/runs/35477922181)
+was dispatched once and confirmed live at 2026-09-20 00:21 UTC, running the
+experimental comparison step. The normal acceptance job is correctly skipped
+for this explicit diagnostic invocation. Expected artifact:
+`phase5-candidate-experiment-8f14895d2e14d900d626b9fb5f21aa43254968f1`.
+No local benchmark or profiler is running alongside it. The next action is to
+inspect this existing run and independently verify its manifest, wheel hashes,
+each revision-labeled pair, and both complete reports. Do not claim a gain,
+dispatch duplicates, or begin sustained candidate acceptance before inspecting
+this experiment. If the paired result is flat or mixed,
 reject the production prototype without rewriting published history.
 
 #### Phase 5 definition of done
@@ -3265,8 +3279,10 @@ the synchronous beta is established.
    seven-case reversed C control also fails. Keep the strict failed gate and
    do not rerun completed workflows merely to seek different benchmark ratios.
    Use this completed reliability checkpoint as the baseline for the
-   Rust-owned transformer prototype `0f4f9612`. Its focused checks pass;
-   exact-revision matrix and dedicated both-order measurements remain required.
+   Rust-owned transformer prototype `0f4f9612`. The combined `8f14895d` matrix
+   now passes all 57 jobs and lint. Dedicated both-order comparison `35477922181`
+   is live; inspect that run rather than dispatching another. Its performance
+   and full-duration candidate reliability are still unproven.
    The notice-drain benchmark still fails four C/four Python comparisons in CI and five
    C/five Python comparisons locally. Preserve its failed local pool timing
    assertion and failed isolated C comparison; do not waive the strict gate.
