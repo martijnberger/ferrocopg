@@ -230,6 +230,60 @@ optimization: until state ownership is consolidated, publishing metadata before
 the callback still requires synchronization. Use the corrected behavior as the
 control for 5C.1; do not claim gains from skipping or changing callbacks.
 
+### Single-owner prototype: 10f83f98
+
+The first prototype removes the mirrored BaseCursor initialization and the
+after-execute/after-fetch synchronization method. One execution state owns the
+query, adapter map, result handles, configured format, arraysize, and lifecycle;
+normal cursor row position comes directly from its current result. Metadata is
+captured at result adoption, not lazily after connection settings may change.
+Server cursor default format and active execution format are distinct. Public
+factory identity and subclass metadata descriptors remain supported.
+
+Compare it with the corrected callback baseline `8919d7d9`, not the earlier
+incorrect callback context. Both installed wheels pass all 78 Phase 5 tests and
+contain the same native extension bytes (SHA-256
+`81ecf7f6bd0e809c0849b38b4d9fb67026ef3904fca2a7a6e87766784d726dab`).
+The final targeted Rust suite passes 748 cases; C cursor controls pass 501.
+These checks are not a full final compatibility-matrix verdict.
+
+The full final local run passes 4,748/4,749 supported synchronous cases. Its
+only synchronous failure is the unchanged pool `test_check_backoff` timing
+assertion, previously reproduced with C too. The strict gate therefore still
+fails; no tolerance or manifest was changed. Raw local artifacts are
+`/tmp/phase5-single-owner-final-full.xml`, its `-report.json`, and its `.log`.
+The supported remote matrix remains pending; experimental native async failures
+are classified separately rather than treated as supported-backend regressions.
+
+[Raw integration measurements and profile summaries](performance/2026-09-20-single-owner-integration.json)
+preserve 1,000 warmup operations, nine samples of 5,000 operations, both orders,
+installed file fingerprints, and machine/server metadata. This Mac was **not
+idle**. Ratios below are prototype/baseline; smaller is better, and a/b are
+opposite variant orders, not two opportunities to select the better result.
+
+| Prepared binary control | Wall a / b | CPU a / b |
+| --- | ---: | ---: |
+| Fresh cursor, constant | 0.990 / 0.869 | 0.975 / 0.903 |
+| Fresh cursor, parameterized | 0.960 / 0.972 | 0.944 / 0.968 |
+| Reused cursor, constant | 0.989 / 0.999 | 0.995 / 0.997 |
+| Reused cursor, parameterized | 0.979 / 1.000 | 0.985 / 0.992 |
+
+The fresh parameterized improvement is modest (2.8-4.0% wall); reused controls
+are near-flat. The large constant-query order difference limits confidence.
+Separate 10,000-operation profiles remove all 30,000 synchronization calls but
+add 20,000 result-adoption/publication events. Total calls decrease from
+1,940,001 to 1,850,001 for constant queries and 2,340,001 to 2,250,001 for
+parameterized queries. Query conversion, execution bookkeeping, and loader
+setup remain substantial. Profile durations are not query latency evidence.
+
+**Disposition: pending, not accepted or rejected.** Dedicated comparison
+[35506310291](https://github.com/martijnberger/ferrocopg/actions/runs/35506310291)
+has started for this exact prototype and baseline. It includes both-order
+fresh/reused controls, the longer prepared/parameterized controls, and all eleven
+workloads. Do not infer a beta-gate pass from this local diagnostic or replace
+that run with duplicate dispatches. A final three-run gate, full soak,
+supported compatibility matrix, and scheduled-run evidence are still required.
+
 ## Next experiments and decision rules
 
 1. Reproduce the initial layer and integration comparisons on an otherwise idle

@@ -120,15 +120,17 @@ investigations and the superseded action list are evidence, not instructions
 to repeat discarded experiments. Resume implementation, not another open-ended
 search for tiny transport optimizations.
 
-1. Read `docs/ferrocopg-parity.md` and the recorded integration diagnostic.
-   Preserve the current investigation tools and uncommitted work. `main` contains
-   consolidated production candidate `7c1a644a`; the new integration design is
-   not implemented yet. Inspect current working-copy and remote state with `jj`
-   before making a new implementation checkpoint; never rewrite published work.
-2. Establish Python-visible contract tests and reproduce the affected query
-   controls on an idle machine. Then implement **5C.1 single-owner cursor/result
-   state** as the first independently reviewable prototype. Do not require a
-   pristine-Tokio investigation before addressing the measured integration gap.
+1. Read `docs/ferrocopg-parity.md` and its recorded integration diagnostics.
+   `main` contains consolidated production candidate `7c1a644a`; the first
+   single-owner prototype is frozen at `10f83f98`, against corrected callback
+   baseline `8919d7d9`. Preserve the implementation and evidence checkpoints.
+   Inspect current state with `jj`; never rewrite published work.
+2. Follow dedicated comparison `35506310291` and compatibility run
+   `35506169516` for that prototype. Public-contract tests are established and
+   local diagnostics are recorded; do not restart 5C.1 from scratch or repeat
+   unchanged runs to select favorable samples. Validate both-order controls and
+   all eleven workloads before deciding retention. Do not require a pristine
+   Tokio investigation before addressing the measured integration gap.
 3. Measure wall and CPU costs against the unchanged control in both orders.
    Keep a prototype only with preserved public behavior and a repeatable benefit;
    reject flat/mixed performance-only changes. Architectural simplifications
@@ -1428,6 +1430,30 @@ against the corrected `8919d7d9` baseline in both orders, including all four
 fresh/reused constant/parameterized controls and all eleven complete workloads.
 Reject flat/mixed performance-only results. This is still a prototype, not an
 accepted final candidate; the three-run/soak/compatibility gates remain required.
+
+Prototype `10f83f98` is now frozen and pushed. Local non-idle controls against
+`8919d7d9` show 2.8-4.0% better fresh parameterized wall time, but reused controls
+are near-flat. This is not sufficient retention or acceptance evidence. Raw
+samples/profiles are in `docs/performance/2026-09-20-single-owner-integration.json`;
+see the parity report for all ratios and limitations. Dedicated comparison
+workflow `35506310291` has started for these exact revisions and now includes the
+fresh/reused controls. Follow that handle; do not redispatch it merely because
+the queue or runner is slow. Final targeted Rust coverage is 748 passing cases, the two
+installed wheels pass 78 Phase 5 checks each, and C cursor controls pass 501.
+The earlier full prototype run had only an obsolete private `_make_row` assertion
+as a synchronous failure; it was replaced with the public factory contract.
+That failed full run is preserved, not relabeled as a passing final gate.
+
+The final frozen prototype full run also remains a failed strict gate:
+`/tmp/phase5-single-owner-final-full.xml` and its `-report.json` record
+4,748/4,749 supported synchronous cases passing, with only the unchanged
+`test_check_backoff` timing assertion failing. All cursor, type/metadata,
+pipeline, COPY, transaction, and concurrency families pass. The earlier C
+control reproduces this timing failure, but it is not waived. Remote Lint for
+`10f83f98` passes; the supported compatibility matrix is still pending. Keep
+local evidence-only commits until that matrix finishes: the current `docs/*`
+push exclusion does not cover nested evidence and another push would cancel
+the exact-candidate matrix. This does not block local investigation or commits.
 
 - [ ] Keep the public Connection/Cursor surface but replace the second cursor-like
   adapter and after-execute/after-fetch state copying with one authoritative
@@ -3664,12 +3690,12 @@ the synchronous beta is established.
 1. Follow the resume instructions above. The existing `7c1a644a` CI checkpoint
    is terminal: its full soak passes, but the three-run benchmark fails despite
    runs 2/3 passing. Keep its evidence separate from any new integration candidate.
-2. Extend the public-contract baseline and establish idle-runner controls, then implement
-   5C.1 single-owner cursor/result state. Preserve custom callbacks, subclassing,
-   metadata snapshots, resource lifetime, cancellation, and error ordering;
-   private Cython/adapter layout is not a constraint.
-3. Measure that prototype independently in both orders, then all eleven
-   workloads. Proceed to 5C.2 reusable plans and conditionally 5C.3 server-reported
+2. Finish evaluating the frozen 5C.1 prototype `10f83f98` using the specific
+   comparison and compatibility handles in the resume instructions. Preserve
+   custom callbacks, subclassing, metadata snapshots, resource lifetime,
+   cancellation, and error ordering; private adapter layout is not a constraint.
+3. Decide retention from both-order controls and all eleven workloads, not the
+   modest local speedup alone. Proceed to 5C.2 reusable plans and conditionally 5C.3 server-reported
    outcomes according to the remaining profile, not as one unreviewable rewrite.
    Direct Tokio/pristine upstream controls are needed only if a native-client
    floor becomes a suspected blocker.
