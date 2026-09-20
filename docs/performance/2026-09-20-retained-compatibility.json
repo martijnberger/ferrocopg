@@ -1,0 +1,2265 @@
+{
+  "revision": "8eddc2ecd97a384c23765c75df7dfd40788f083f",
+  "workflow": "https://github.com/martijnberger/ferrocopg/actions/runs/35508454735",
+  "status": "success",
+  "all_57_jobs_passed": true,
+  "independently_recomputed": true,
+  "reports": [
+    {
+      "baseline_key": "py3.11-pg14",
+      "families": {
+        "async": {
+          "concurrency-cancel": {
+            "errors": 0,
+            "executed": 49,
+            "failed": 4,
+            "manifested": 7,
+            "passed": 45,
+            "rate": 0.9183673469387755,
+            "skipped": 4,
+            "total": 53
+          },
+          "connections": {
+            "errors": 0,
+            "executed": 106,
+            "failed": 14,
+            "manifested": 18,
+            "passed": 92,
+            "rate": 0.8679245283018868,
+            "skipped": 11,
+            "total": 117
+          },
+          "copy": {
+            "errors": 5,
+            "executed": 112,
+            "failed": 2,
+            "manifested": 0,
+            "passed": 105,
+            "rate": 0.9375,
+            "skipped": 0,
+            "total": 112
+          },
+          "crdb": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 32,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "cursors": {
+            "errors": 2,
+            "executed": 112,
+            "failed": 14,
+            "manifested": 478,
+            "passed": 96,
+            "rate": 0.8571428571428571,
+            "skipped": 0,
+            "total": 112
+          },
+          "notifications": {
+            "errors": 0,
+            "executed": 15,
+            "failed": 2,
+            "manifested": 0,
+            "passed": 13,
+            "rate": 0.8666666666666667,
+            "skipped": 0,
+            "total": 15
+          },
+          "other": {
+            "errors": 0,
+            "executed": 2,
+            "failed": 0,
+            "manifested": 18,
+            "passed": 2,
+            "rate": 1.0,
+            "skipped": 10,
+            "total": 12
+          },
+          "pipeline": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 45,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "pool": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 174,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "prepared": {
+            "errors": 0,
+            "executed": 33,
+            "failed": 17,
+            "manifested": 0,
+            "passed": 16,
+            "rate": 0.48484848484848486,
+            "skipped": 0,
+            "total": 33
+          },
+          "transactions": {
+            "errors": 0,
+            "executed": 22,
+            "failed": 1,
+            "manifested": 0,
+            "passed": 21,
+            "rate": 0.9545454545454546,
+            "skipped": 84,
+            "total": 106
+          },
+          "types-metadata": {
+            "errors": 0,
+            "executed": 53,
+            "failed": 25,
+            "manifested": 0,
+            "passed": 28,
+            "rate": 0.5283018867924528,
+            "skipped": 0,
+            "total": 53
+          }
+        },
+        "sync": {
+          "concurrency-cancel": {
+            "errors": 0,
+            "executed": 171,
+            "failed": 0,
+            "manifested": 41,
+            "passed": 171,
+            "rate": 1.0,
+            "skipped": 61,
+            "total": 232
+          },
+          "connections": {
+            "errors": 0,
+            "executed": 184,
+            "failed": 0,
+            "manifested": 17,
+            "passed": 184,
+            "rate": 1.0,
+            "skipped": 12,
+            "total": 196
+          },
+          "copy": {
+            "errors": 0,
+            "executed": 111,
+            "failed": 0,
+            "manifested": 9,
+            "passed": 111,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 111
+          },
+          "crdb": {
+            "errors": 0,
+            "executed": 9,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 9,
+            "rate": 1.0,
+            "skipped": 41,
+            "total": 50
+          },
+          "cursors": {
+            "errors": 0,
+            "executed": 576,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 576,
+            "rate": 1.0,
+            "skipped": 14,
+            "total": 590
+          },
+          "notifications": {
+            "errors": 0,
+            "executed": 15,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 15,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 15
+          },
+          "other": {
+            "errors": 0,
+            "executed": 684,
+            "failed": 0,
+            "manifested": 168,
+            "passed": 684,
+            "rate": 1.0,
+            "skipped": 34,
+            "total": 718
+          },
+          "pipeline": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 10,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 40,
+            "total": 40
+          },
+          "pool": {
+            "errors": 0,
+            "executed": 167,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 167,
+            "rate": 1.0,
+            "skipped": 2,
+            "total": 169
+          },
+          "prepared": {
+            "errors": 0,
+            "executed": 32,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 32,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 32
+          },
+          "transactions": {
+            "errors": 0,
+            "executed": 21,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 21,
+            "rate": 1.0,
+            "skipped": 84,
+            "total": 105
+          },
+          "types-metadata": {
+            "errors": 0,
+            "executed": 2513,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 2513,
+            "rate": 1.0,
+            "skipped": 42,
+            "total": 2555
+          }
+        }
+      },
+      "pytest_status": 1,
+      "scopes": {
+        "async": {
+          "errors": 7,
+          "executed": 504,
+          "failed": 79,
+          "manifested": 772,
+          "passed": 418,
+          "rate": 0.8293650793650794,
+          "skipped": 109,
+          "total": 613
+        },
+        "overall": {
+          "errors": 7,
+          "executed": 4987,
+          "failed": 79,
+          "manifested": 1021,
+          "passed": 4901,
+          "rate": 0.9827551634249048,
+          "skipped": 439,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4483,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4483,
+          "rate": 1.0,
+          "skipped": 330,
+          "total": 4813
+        }
+      }
+    },
+    {
+      "baseline_key": "py3.11-pg15",
+      "families": {
+        "async": {
+          "concurrency-cancel": {
+            "errors": 0,
+            "executed": 49,
+            "failed": 4,
+            "manifested": 7,
+            "passed": 45,
+            "rate": 0.9183673469387755,
+            "skipped": 4,
+            "total": 53
+          },
+          "connections": {
+            "errors": 0,
+            "executed": 114,
+            "failed": 15,
+            "manifested": 18,
+            "passed": 99,
+            "rate": 0.868421052631579,
+            "skipped": 3,
+            "total": 117
+          },
+          "copy": {
+            "errors": 5,
+            "executed": 112,
+            "failed": 2,
+            "manifested": 0,
+            "passed": 105,
+            "rate": 0.9375,
+            "skipped": 0,
+            "total": 112
+          },
+          "crdb": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 32,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "cursors": {
+            "errors": 2,
+            "executed": 112,
+            "failed": 14,
+            "manifested": 478,
+            "passed": 96,
+            "rate": 0.8571428571428571,
+            "skipped": 0,
+            "total": 112
+          },
+          "notifications": {
+            "errors": 0,
+            "executed": 15,
+            "failed": 2,
+            "manifested": 0,
+            "passed": 13,
+            "rate": 0.8666666666666667,
+            "skipped": 0,
+            "total": 15
+          },
+          "other": {
+            "errors": 0,
+            "executed": 2,
+            "failed": 0,
+            "manifested": 18,
+            "passed": 2,
+            "rate": 1.0,
+            "skipped": 10,
+            "total": 12
+          },
+          "pipeline": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 45,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "pool": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 174,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "prepared": {
+            "errors": 0,
+            "executed": 33,
+            "failed": 17,
+            "manifested": 0,
+            "passed": 16,
+            "rate": 0.48484848484848486,
+            "skipped": 0,
+            "total": 33
+          },
+          "transactions": {
+            "errors": 4,
+            "executed": 104,
+            "failed": 16,
+            "manifested": 0,
+            "passed": 84,
+            "rate": 0.8076923076923077,
+            "skipped": 2,
+            "total": 106
+          },
+          "types-metadata": {
+            "errors": 0,
+            "executed": 53,
+            "failed": 25,
+            "manifested": 0,
+            "passed": 28,
+            "rate": 0.5283018867924528,
+            "skipped": 0,
+            "total": 53
+          }
+        },
+        "sync": {
+          "concurrency-cancel": {
+            "errors": 0,
+            "executed": 171,
+            "failed": 0,
+            "manifested": 41,
+            "passed": 171,
+            "rate": 1.0,
+            "skipped": 61,
+            "total": 232
+          },
+          "connections": {
+            "errors": 0,
+            "executed": 193,
+            "failed": 0,
+            "manifested": 17,
+            "passed": 193,
+            "rate": 1.0,
+            "skipped": 3,
+            "total": 196
+          },
+          "copy": {
+            "errors": 0,
+            "executed": 111,
+            "failed": 0,
+            "manifested": 9,
+            "passed": 111,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 111
+          },
+          "crdb": {
+            "errors": 0,
+            "executed": 9,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 9,
+            "rate": 1.0,
+            "skipped": 41,
+            "total": 50
+          },
+          "cursors": {
+            "errors": 0,
+            "executed": 582,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 582,
+            "rate": 1.0,
+            "skipped": 8,
+            "total": 590
+          },
+          "notifications": {
+            "errors": 0,
+            "executed": 15,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 15,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 15
+          },
+          "other": {
+            "errors": 0,
+            "executed": 684,
+            "failed": 0,
+            "manifested": 168,
+            "passed": 684,
+            "rate": 1.0,
+            "skipped": 34,
+            "total": 718
+          },
+          "pipeline": {
+            "errors": 0,
+            "executed": 40,
+            "failed": 0,
+            "manifested": 10,
+            "passed": 40,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 40
+          },
+          "pool": {
+            "errors": 0,
+            "executed": 167,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 167,
+            "rate": 1.0,
+            "skipped": 2,
+            "total": 169
+          },
+          "prepared": {
+            "errors": 0,
+            "executed": 32,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 32,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 32
+          },
+          "transactions": {
+            "errors": 0,
+            "executed": 102,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 102,
+            "rate": 1.0,
+            "skipped": 3,
+            "total": 105
+          },
+          "types-metadata": {
+            "errors": 0,
+            "executed": 2517,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 2517,
+            "rate": 1.0,
+            "skipped": 38,
+            "total": 2555
+          }
+        }
+      },
+      "pytest_status": 1,
+      "scopes": {
+        "async": {
+          "errors": 11,
+          "executed": 594,
+          "failed": 95,
+          "manifested": 772,
+          "passed": 488,
+          "rate": 0.8215488215488216,
+          "skipped": 19,
+          "total": 613
+        },
+        "overall": {
+          "errors": 11,
+          "executed": 5217,
+          "failed": 95,
+          "manifested": 1021,
+          "passed": 5111,
+          "rate": 0.9796818094690435,
+          "skipped": 209,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 190,
+          "total": 4813
+        }
+      }
+    },
+    {
+      "baseline_key": "py3.11-pg16",
+      "families": {
+        "async": {
+          "concurrency-cancel": {
+            "errors": 0,
+            "executed": 49,
+            "failed": 4,
+            "manifested": 7,
+            "passed": 45,
+            "rate": 0.9183673469387755,
+            "skipped": 4,
+            "total": 53
+          },
+          "connections": {
+            "errors": 0,
+            "executed": 114,
+            "failed": 15,
+            "manifested": 18,
+            "passed": 99,
+            "rate": 0.868421052631579,
+            "skipped": 3,
+            "total": 117
+          },
+          "copy": {
+            "errors": 5,
+            "executed": 112,
+            "failed": 2,
+            "manifested": 0,
+            "passed": 105,
+            "rate": 0.9375,
+            "skipped": 0,
+            "total": 112
+          },
+          "crdb": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 32,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "cursors": {
+            "errors": 2,
+            "executed": 112,
+            "failed": 14,
+            "manifested": 478,
+            "passed": 96,
+            "rate": 0.8571428571428571,
+            "skipped": 0,
+            "total": 112
+          },
+          "notifications": {
+            "errors": 0,
+            "executed": 15,
+            "failed": 2,
+            "manifested": 0,
+            "passed": 13,
+            "rate": 0.8666666666666667,
+            "skipped": 0,
+            "total": 15
+          },
+          "other": {
+            "errors": 0,
+            "executed": 2,
+            "failed": 0,
+            "manifested": 18,
+            "passed": 2,
+            "rate": 1.0,
+            "skipped": 10,
+            "total": 12
+          },
+          "pipeline": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 45,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "pool": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 174,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "prepared": {
+            "errors": 0,
+            "executed": 33,
+            "failed": 17,
+            "manifested": 0,
+            "passed": 16,
+            "rate": 0.48484848484848486,
+            "skipped": 0,
+            "total": 33
+          },
+          "transactions": {
+            "errors": 4,
+            "executed": 104,
+            "failed": 16,
+            "manifested": 0,
+            "passed": 84,
+            "rate": 0.8076923076923077,
+            "skipped": 2,
+            "total": 106
+          },
+          "types-metadata": {
+            "errors": 0,
+            "executed": 53,
+            "failed": 25,
+            "manifested": 0,
+            "passed": 28,
+            "rate": 0.5283018867924528,
+            "skipped": 0,
+            "total": 53
+          }
+        },
+        "sync": {
+          "concurrency-cancel": {
+            "errors": 0,
+            "executed": 171,
+            "failed": 0,
+            "manifested": 41,
+            "passed": 171,
+            "rate": 1.0,
+            "skipped": 61,
+            "total": 232
+          },
+          "connections": {
+            "errors": 0,
+            "executed": 193,
+            "failed": 0,
+            "manifested": 17,
+            "passed": 193,
+            "rate": 1.0,
+            "skipped": 3,
+            "total": 196
+          },
+          "copy": {
+            "errors": 0,
+            "executed": 111,
+            "failed": 0,
+            "manifested": 9,
+            "passed": 111,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 111
+          },
+          "crdb": {
+            "errors": 0,
+            "executed": 9,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 9,
+            "rate": 1.0,
+            "skipped": 41,
+            "total": 50
+          },
+          "cursors": {
+            "errors": 0,
+            "executed": 582,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 582,
+            "rate": 1.0,
+            "skipped": 8,
+            "total": 590
+          },
+          "notifications": {
+            "errors": 0,
+            "executed": 15,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 15,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 15
+          },
+          "other": {
+            "errors": 0,
+            "executed": 684,
+            "failed": 0,
+            "manifested": 168,
+            "passed": 684,
+            "rate": 1.0,
+            "skipped": 34,
+            "total": 718
+          },
+          "pipeline": {
+            "errors": 0,
+            "executed": 40,
+            "failed": 0,
+            "manifested": 10,
+            "passed": 40,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 40
+          },
+          "pool": {
+            "errors": 0,
+            "executed": 167,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 167,
+            "rate": 1.0,
+            "skipped": 2,
+            "total": 169
+          },
+          "prepared": {
+            "errors": 0,
+            "executed": 32,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 32,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 32
+          },
+          "transactions": {
+            "errors": 0,
+            "executed": 102,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 102,
+            "rate": 1.0,
+            "skipped": 3,
+            "total": 105
+          },
+          "types-metadata": {
+            "errors": 0,
+            "executed": 2517,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 2517,
+            "rate": 1.0,
+            "skipped": 38,
+            "total": 2555
+          }
+        }
+      },
+      "pytest_status": 1,
+      "scopes": {
+        "async": {
+          "errors": 11,
+          "executed": 594,
+          "failed": 95,
+          "manifested": 772,
+          "passed": 488,
+          "rate": 0.8215488215488216,
+          "skipped": 19,
+          "total": 613
+        },
+        "overall": {
+          "errors": 11,
+          "executed": 5217,
+          "failed": 95,
+          "manifested": 1021,
+          "passed": 5111,
+          "rate": 0.9796818094690435,
+          "skipped": 209,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 190,
+          "total": 4813
+        }
+      }
+    },
+    {
+      "baseline_key": "py3.11-pg17",
+      "families": {
+        "async": {
+          "concurrency-cancel": {
+            "errors": 0,
+            "executed": 49,
+            "failed": 4,
+            "manifested": 7,
+            "passed": 45,
+            "rate": 0.9183673469387755,
+            "skipped": 4,
+            "total": 53
+          },
+          "connections": {
+            "errors": 0,
+            "executed": 114,
+            "failed": 15,
+            "manifested": 18,
+            "passed": 99,
+            "rate": 0.868421052631579,
+            "skipped": 3,
+            "total": 117
+          },
+          "copy": {
+            "errors": 5,
+            "executed": 112,
+            "failed": 2,
+            "manifested": 0,
+            "passed": 105,
+            "rate": 0.9375,
+            "skipped": 0,
+            "total": 112
+          },
+          "crdb": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 32,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "cursors": {
+            "errors": 2,
+            "executed": 112,
+            "failed": 14,
+            "manifested": 478,
+            "passed": 96,
+            "rate": 0.8571428571428571,
+            "skipped": 0,
+            "total": 112
+          },
+          "notifications": {
+            "errors": 0,
+            "executed": 15,
+            "failed": 2,
+            "manifested": 0,
+            "passed": 13,
+            "rate": 0.8666666666666667,
+            "skipped": 0,
+            "total": 15
+          },
+          "other": {
+            "errors": 0,
+            "executed": 2,
+            "failed": 0,
+            "manifested": 18,
+            "passed": 2,
+            "rate": 1.0,
+            "skipped": 10,
+            "total": 12
+          },
+          "pipeline": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 45,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "pool": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 174,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "prepared": {
+            "errors": 0,
+            "executed": 33,
+            "failed": 17,
+            "manifested": 0,
+            "passed": 16,
+            "rate": 0.48484848484848486,
+            "skipped": 0,
+            "total": 33
+          },
+          "transactions": {
+            "errors": 4,
+            "executed": 104,
+            "failed": 16,
+            "manifested": 0,
+            "passed": 84,
+            "rate": 0.8076923076923077,
+            "skipped": 2,
+            "total": 106
+          },
+          "types-metadata": {
+            "errors": 0,
+            "executed": 53,
+            "failed": 25,
+            "manifested": 0,
+            "passed": 28,
+            "rate": 0.5283018867924528,
+            "skipped": 0,
+            "total": 53
+          }
+        },
+        "sync": {
+          "concurrency-cancel": {
+            "errors": 0,
+            "executed": 171,
+            "failed": 0,
+            "manifested": 41,
+            "passed": 171,
+            "rate": 1.0,
+            "skipped": 61,
+            "total": 232
+          },
+          "connections": {
+            "errors": 0,
+            "executed": 193,
+            "failed": 0,
+            "manifested": 17,
+            "passed": 193,
+            "rate": 1.0,
+            "skipped": 3,
+            "total": 196
+          },
+          "copy": {
+            "errors": 0,
+            "executed": 111,
+            "failed": 0,
+            "manifested": 9,
+            "passed": 111,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 111
+          },
+          "crdb": {
+            "errors": 0,
+            "executed": 9,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 9,
+            "rate": 1.0,
+            "skipped": 41,
+            "total": 50
+          },
+          "cursors": {
+            "errors": 0,
+            "executed": 582,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 582,
+            "rate": 1.0,
+            "skipped": 8,
+            "total": 590
+          },
+          "notifications": {
+            "errors": 0,
+            "executed": 15,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 15,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 15
+          },
+          "other": {
+            "errors": 0,
+            "executed": 684,
+            "failed": 0,
+            "manifested": 168,
+            "passed": 684,
+            "rate": 1.0,
+            "skipped": 34,
+            "total": 718
+          },
+          "pipeline": {
+            "errors": 0,
+            "executed": 40,
+            "failed": 0,
+            "manifested": 10,
+            "passed": 40,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 40
+          },
+          "pool": {
+            "errors": 0,
+            "executed": 167,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 167,
+            "rate": 1.0,
+            "skipped": 2,
+            "total": 169
+          },
+          "prepared": {
+            "errors": 0,
+            "executed": 32,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 32,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 32
+          },
+          "transactions": {
+            "errors": 0,
+            "executed": 102,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 102,
+            "rate": 1.0,
+            "skipped": 3,
+            "total": 105
+          },
+          "types-metadata": {
+            "errors": 0,
+            "executed": 2517,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 2517,
+            "rate": 1.0,
+            "skipped": 38,
+            "total": 2555
+          }
+        }
+      },
+      "pytest_status": 1,
+      "scopes": {
+        "async": {
+          "errors": 11,
+          "executed": 594,
+          "failed": 95,
+          "manifested": 772,
+          "passed": 488,
+          "rate": 0.8215488215488216,
+          "skipped": 19,
+          "total": 613
+        },
+        "overall": {
+          "errors": 11,
+          "executed": 5217,
+          "failed": 95,
+          "manifested": 1021,
+          "passed": 5111,
+          "rate": 0.9796818094690435,
+          "skipped": 209,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 190,
+          "total": 4813
+        }
+      }
+    },
+    {
+      "baseline_key": "py3.11-pg18",
+      "families": {
+        "async": {
+          "concurrency-cancel": {
+            "errors": 0,
+            "executed": 49,
+            "failed": 4,
+            "manifested": 7,
+            "passed": 45,
+            "rate": 0.9183673469387755,
+            "skipped": 4,
+            "total": 53
+          },
+          "connections": {
+            "errors": 0,
+            "executed": 114,
+            "failed": 15,
+            "manifested": 18,
+            "passed": 99,
+            "rate": 0.868421052631579,
+            "skipped": 3,
+            "total": 117
+          },
+          "copy": {
+            "errors": 5,
+            "executed": 112,
+            "failed": 2,
+            "manifested": 0,
+            "passed": 105,
+            "rate": 0.9375,
+            "skipped": 0,
+            "total": 112
+          },
+          "crdb": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 32,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "cursors": {
+            "errors": 2,
+            "executed": 112,
+            "failed": 14,
+            "manifested": 478,
+            "passed": 96,
+            "rate": 0.8571428571428571,
+            "skipped": 0,
+            "total": 112
+          },
+          "notifications": {
+            "errors": 0,
+            "executed": 15,
+            "failed": 2,
+            "manifested": 0,
+            "passed": 13,
+            "rate": 0.8666666666666667,
+            "skipped": 0,
+            "total": 15
+          },
+          "other": {
+            "errors": 0,
+            "executed": 2,
+            "failed": 0,
+            "manifested": 18,
+            "passed": 2,
+            "rate": 1.0,
+            "skipped": 10,
+            "total": 12
+          },
+          "pipeline": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 45,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "pool": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 174,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "prepared": {
+            "errors": 0,
+            "executed": 33,
+            "failed": 17,
+            "manifested": 0,
+            "passed": 16,
+            "rate": 0.48484848484848486,
+            "skipped": 0,
+            "total": 33
+          },
+          "transactions": {
+            "errors": 4,
+            "executed": 104,
+            "failed": 16,
+            "manifested": 0,
+            "passed": 84,
+            "rate": 0.8076923076923077,
+            "skipped": 2,
+            "total": 106
+          },
+          "types-metadata": {
+            "errors": 0,
+            "executed": 53,
+            "failed": 25,
+            "manifested": 0,
+            "passed": 28,
+            "rate": 0.5283018867924528,
+            "skipped": 0,
+            "total": 53
+          }
+        },
+        "sync": {
+          "concurrency-cancel": {
+            "errors": 0,
+            "executed": 171,
+            "failed": 0,
+            "manifested": 41,
+            "passed": 171,
+            "rate": 1.0,
+            "skipped": 61,
+            "total": 232
+          },
+          "connections": {
+            "errors": 0,
+            "executed": 193,
+            "failed": 0,
+            "manifested": 17,
+            "passed": 193,
+            "rate": 1.0,
+            "skipped": 3,
+            "total": 196
+          },
+          "copy": {
+            "errors": 0,
+            "executed": 111,
+            "failed": 0,
+            "manifested": 9,
+            "passed": 111,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 111
+          },
+          "crdb": {
+            "errors": 0,
+            "executed": 9,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 9,
+            "rate": 1.0,
+            "skipped": 41,
+            "total": 50
+          },
+          "cursors": {
+            "errors": 0,
+            "executed": 582,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 582,
+            "rate": 1.0,
+            "skipped": 8,
+            "total": 590
+          },
+          "notifications": {
+            "errors": 0,
+            "executed": 15,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 15,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 15
+          },
+          "other": {
+            "errors": 0,
+            "executed": 684,
+            "failed": 0,
+            "manifested": 168,
+            "passed": 684,
+            "rate": 1.0,
+            "skipped": 34,
+            "total": 718
+          },
+          "pipeline": {
+            "errors": 0,
+            "executed": 40,
+            "failed": 0,
+            "manifested": 10,
+            "passed": 40,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 40
+          },
+          "pool": {
+            "errors": 0,
+            "executed": 167,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 167,
+            "rate": 1.0,
+            "skipped": 2,
+            "total": 169
+          },
+          "prepared": {
+            "errors": 0,
+            "executed": 32,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 32,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 32
+          },
+          "transactions": {
+            "errors": 0,
+            "executed": 102,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 102,
+            "rate": 1.0,
+            "skipped": 3,
+            "total": 105
+          },
+          "types-metadata": {
+            "errors": 0,
+            "executed": 2517,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 2517,
+            "rate": 1.0,
+            "skipped": 38,
+            "total": 2555
+          }
+        }
+      },
+      "pytest_status": 1,
+      "scopes": {
+        "async": {
+          "errors": 11,
+          "executed": 594,
+          "failed": 95,
+          "manifested": 772,
+          "passed": 488,
+          "rate": 0.8215488215488216,
+          "skipped": 19,
+          "total": 613
+        },
+        "overall": {
+          "errors": 11,
+          "executed": 5217,
+          "failed": 95,
+          "manifested": 1021,
+          "passed": 5111,
+          "rate": 0.9796818094690435,
+          "skipped": 209,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 190,
+          "total": 4813
+        }
+      }
+    },
+    {
+      "baseline_key": "py3.12-pg16",
+      "families": {
+        "async": {
+          "concurrency-cancel": {
+            "errors": 0,
+            "executed": 49,
+            "failed": 4,
+            "manifested": 7,
+            "passed": 45,
+            "rate": 0.9183673469387755,
+            "skipped": 4,
+            "total": 53
+          },
+          "connections": {
+            "errors": 0,
+            "executed": 114,
+            "failed": 15,
+            "manifested": 18,
+            "passed": 99,
+            "rate": 0.868421052631579,
+            "skipped": 3,
+            "total": 117
+          },
+          "copy": {
+            "errors": 5,
+            "executed": 112,
+            "failed": 2,
+            "manifested": 0,
+            "passed": 105,
+            "rate": 0.9375,
+            "skipped": 0,
+            "total": 112
+          },
+          "crdb": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 32,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "cursors": {
+            "errors": 2,
+            "executed": 112,
+            "failed": 13,
+            "manifested": 478,
+            "passed": 97,
+            "rate": 0.8660714285714286,
+            "skipped": 0,
+            "total": 112
+          },
+          "notifications": {
+            "errors": 0,
+            "executed": 15,
+            "failed": 2,
+            "manifested": 0,
+            "passed": 13,
+            "rate": 0.8666666666666667,
+            "skipped": 0,
+            "total": 15
+          },
+          "other": {
+            "errors": 0,
+            "executed": 2,
+            "failed": 0,
+            "manifested": 18,
+            "passed": 2,
+            "rate": 1.0,
+            "skipped": 10,
+            "total": 12
+          },
+          "pipeline": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 45,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "pool": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 174,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "prepared": {
+            "errors": 0,
+            "executed": 33,
+            "failed": 17,
+            "manifested": 0,
+            "passed": 16,
+            "rate": 0.48484848484848486,
+            "skipped": 0,
+            "total": 33
+          },
+          "transactions": {
+            "errors": 4,
+            "executed": 104,
+            "failed": 16,
+            "manifested": 0,
+            "passed": 84,
+            "rate": 0.8076923076923077,
+            "skipped": 2,
+            "total": 106
+          },
+          "types-metadata": {
+            "errors": 0,
+            "executed": 53,
+            "failed": 25,
+            "manifested": 0,
+            "passed": 28,
+            "rate": 0.5283018867924528,
+            "skipped": 0,
+            "total": 53
+          }
+        },
+        "sync": {
+          "concurrency-cancel": {
+            "errors": 0,
+            "executed": 171,
+            "failed": 0,
+            "manifested": 41,
+            "passed": 171,
+            "rate": 1.0,
+            "skipped": 61,
+            "total": 232
+          },
+          "connections": {
+            "errors": 0,
+            "executed": 193,
+            "failed": 0,
+            "manifested": 17,
+            "passed": 193,
+            "rate": 1.0,
+            "skipped": 3,
+            "total": 196
+          },
+          "copy": {
+            "errors": 0,
+            "executed": 111,
+            "failed": 0,
+            "manifested": 9,
+            "passed": 111,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 111
+          },
+          "crdb": {
+            "errors": 0,
+            "executed": 9,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 9,
+            "rate": 1.0,
+            "skipped": 41,
+            "total": 50
+          },
+          "cursors": {
+            "errors": 0,
+            "executed": 582,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 582,
+            "rate": 1.0,
+            "skipped": 8,
+            "total": 590
+          },
+          "notifications": {
+            "errors": 0,
+            "executed": 15,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 15,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 15
+          },
+          "other": {
+            "errors": 0,
+            "executed": 684,
+            "failed": 0,
+            "manifested": 168,
+            "passed": 684,
+            "rate": 1.0,
+            "skipped": 34,
+            "total": 718
+          },
+          "pipeline": {
+            "errors": 0,
+            "executed": 40,
+            "failed": 0,
+            "manifested": 10,
+            "passed": 40,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 40
+          },
+          "pool": {
+            "errors": 0,
+            "executed": 167,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 167,
+            "rate": 1.0,
+            "skipped": 2,
+            "total": 169
+          },
+          "prepared": {
+            "errors": 0,
+            "executed": 32,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 32,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 32
+          },
+          "transactions": {
+            "errors": 0,
+            "executed": 102,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 102,
+            "rate": 1.0,
+            "skipped": 3,
+            "total": 105
+          },
+          "types-metadata": {
+            "errors": 0,
+            "executed": 2517,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 2517,
+            "rate": 1.0,
+            "skipped": 38,
+            "total": 2555
+          }
+        }
+      },
+      "pytest_status": 1,
+      "scopes": {
+        "async": {
+          "errors": 11,
+          "executed": 594,
+          "failed": 94,
+          "manifested": 772,
+          "passed": 489,
+          "rate": 0.8232323232323232,
+          "skipped": 19,
+          "total": 613
+        },
+        "overall": {
+          "errors": 11,
+          "executed": 5217,
+          "failed": 94,
+          "manifested": 1021,
+          "passed": 5112,
+          "rate": 0.9798734905117884,
+          "skipped": 209,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 190,
+          "total": 4813
+        }
+      }
+    },
+    {
+      "baseline_key": "py3.13-pg17",
+      "families": {
+        "async": {
+          "concurrency-cancel": {
+            "errors": 0,
+            "executed": 49,
+            "failed": 4,
+            "manifested": 7,
+            "passed": 45,
+            "rate": 0.9183673469387755,
+            "skipped": 4,
+            "total": 53
+          },
+          "connections": {
+            "errors": 0,
+            "executed": 114,
+            "failed": 15,
+            "manifested": 18,
+            "passed": 99,
+            "rate": 0.868421052631579,
+            "skipped": 3,
+            "total": 117
+          },
+          "copy": {
+            "errors": 5,
+            "executed": 112,
+            "failed": 2,
+            "manifested": 0,
+            "passed": 105,
+            "rate": 0.9375,
+            "skipped": 0,
+            "total": 112
+          },
+          "crdb": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 32,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "cursors": {
+            "errors": 2,
+            "executed": 112,
+            "failed": 14,
+            "manifested": 478,
+            "passed": 96,
+            "rate": 0.8571428571428571,
+            "skipped": 0,
+            "total": 112
+          },
+          "notifications": {
+            "errors": 0,
+            "executed": 15,
+            "failed": 2,
+            "manifested": 0,
+            "passed": 13,
+            "rate": 0.8666666666666667,
+            "skipped": 0,
+            "total": 15
+          },
+          "other": {
+            "errors": 0,
+            "executed": 2,
+            "failed": 0,
+            "manifested": 18,
+            "passed": 2,
+            "rate": 1.0,
+            "skipped": 10,
+            "total": 12
+          },
+          "pipeline": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 45,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "pool": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 174,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "prepared": {
+            "errors": 0,
+            "executed": 33,
+            "failed": 17,
+            "manifested": 0,
+            "passed": 16,
+            "rate": 0.48484848484848486,
+            "skipped": 0,
+            "total": 33
+          },
+          "transactions": {
+            "errors": 4,
+            "executed": 104,
+            "failed": 16,
+            "manifested": 0,
+            "passed": 84,
+            "rate": 0.8076923076923077,
+            "skipped": 2,
+            "total": 106
+          },
+          "types-metadata": {
+            "errors": 0,
+            "executed": 53,
+            "failed": 25,
+            "manifested": 0,
+            "passed": 28,
+            "rate": 0.5283018867924528,
+            "skipped": 0,
+            "total": 53
+          }
+        },
+        "sync": {
+          "concurrency-cancel": {
+            "errors": 0,
+            "executed": 171,
+            "failed": 0,
+            "manifested": 41,
+            "passed": 171,
+            "rate": 1.0,
+            "skipped": 61,
+            "total": 232
+          },
+          "connections": {
+            "errors": 0,
+            "executed": 193,
+            "failed": 0,
+            "manifested": 17,
+            "passed": 193,
+            "rate": 1.0,
+            "skipped": 3,
+            "total": 196
+          },
+          "copy": {
+            "errors": 0,
+            "executed": 111,
+            "failed": 0,
+            "manifested": 9,
+            "passed": 111,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 111
+          },
+          "crdb": {
+            "errors": 0,
+            "executed": 9,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 9,
+            "rate": 1.0,
+            "skipped": 41,
+            "total": 50
+          },
+          "cursors": {
+            "errors": 0,
+            "executed": 582,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 582,
+            "rate": 1.0,
+            "skipped": 8,
+            "total": 590
+          },
+          "notifications": {
+            "errors": 0,
+            "executed": 15,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 15,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 15
+          },
+          "other": {
+            "errors": 0,
+            "executed": 684,
+            "failed": 0,
+            "manifested": 168,
+            "passed": 684,
+            "rate": 1.0,
+            "skipped": 34,
+            "total": 718
+          },
+          "pipeline": {
+            "errors": 0,
+            "executed": 40,
+            "failed": 0,
+            "manifested": 10,
+            "passed": 40,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 40
+          },
+          "pool": {
+            "errors": 0,
+            "executed": 167,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 167,
+            "rate": 1.0,
+            "skipped": 2,
+            "total": 169
+          },
+          "prepared": {
+            "errors": 0,
+            "executed": 32,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 32,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 32
+          },
+          "transactions": {
+            "errors": 0,
+            "executed": 102,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 102,
+            "rate": 1.0,
+            "skipped": 3,
+            "total": 105
+          },
+          "types-metadata": {
+            "errors": 0,
+            "executed": 2517,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 2517,
+            "rate": 1.0,
+            "skipped": 38,
+            "total": 2555
+          }
+        }
+      },
+      "pytest_status": 1,
+      "scopes": {
+        "async": {
+          "errors": 11,
+          "executed": 594,
+          "failed": 95,
+          "manifested": 772,
+          "passed": 488,
+          "rate": 0.8215488215488216,
+          "skipped": 19,
+          "total": 613
+        },
+        "overall": {
+          "errors": 11,
+          "executed": 5217,
+          "failed": 95,
+          "manifested": 1021,
+          "passed": 5111,
+          "rate": 0.9796818094690435,
+          "skipped": 209,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 190,
+          "total": 4813
+        }
+      }
+    },
+    {
+      "baseline_key": "py3.14-pg18",
+      "families": {
+        "async": {
+          "concurrency-cancel": {
+            "errors": 0,
+            "executed": 49,
+            "failed": 4,
+            "manifested": 7,
+            "passed": 45,
+            "rate": 0.9183673469387755,
+            "skipped": 4,
+            "total": 53
+          },
+          "connections": {
+            "errors": 0,
+            "executed": 114,
+            "failed": 15,
+            "manifested": 18,
+            "passed": 99,
+            "rate": 0.868421052631579,
+            "skipped": 3,
+            "total": 117
+          },
+          "copy": {
+            "errors": 5,
+            "executed": 112,
+            "failed": 2,
+            "manifested": 0,
+            "passed": 105,
+            "rate": 0.9375,
+            "skipped": 0,
+            "total": 112
+          },
+          "crdb": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 32,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "cursors": {
+            "errors": 2,
+            "executed": 112,
+            "failed": 14,
+            "manifested": 478,
+            "passed": 96,
+            "rate": 0.8571428571428571,
+            "skipped": 0,
+            "total": 112
+          },
+          "notifications": {
+            "errors": 0,
+            "executed": 15,
+            "failed": 2,
+            "manifested": 0,
+            "passed": 13,
+            "rate": 0.8666666666666667,
+            "skipped": 0,
+            "total": 15
+          },
+          "other": {
+            "errors": 0,
+            "executed": 33,
+            "failed": 6,
+            "manifested": 18,
+            "passed": 27,
+            "rate": 0.8181818181818182,
+            "skipped": 14,
+            "total": 47
+          },
+          "pipeline": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 45,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "pool": {
+            "errors": 0,
+            "executed": 0,
+            "failed": 0,
+            "manifested": 174,
+            "passed": 0,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 0
+          },
+          "prepared": {
+            "errors": 0,
+            "executed": 33,
+            "failed": 17,
+            "manifested": 0,
+            "passed": 16,
+            "rate": 0.48484848484848486,
+            "skipped": 0,
+            "total": 33
+          },
+          "transactions": {
+            "errors": 4,
+            "executed": 104,
+            "failed": 16,
+            "manifested": 0,
+            "passed": 84,
+            "rate": 0.8076923076923077,
+            "skipped": 2,
+            "total": 106
+          },
+          "types-metadata": {
+            "errors": 0,
+            "executed": 53,
+            "failed": 25,
+            "manifested": 0,
+            "passed": 28,
+            "rate": 0.5283018867924528,
+            "skipped": 0,
+            "total": 53
+          }
+        },
+        "sync": {
+          "concurrency-cancel": {
+            "errors": 0,
+            "executed": 170,
+            "failed": 0,
+            "manifested": 41,
+            "passed": 170,
+            "rate": 1.0,
+            "skipped": 62,
+            "total": 232
+          },
+          "connections": {
+            "errors": 0,
+            "executed": 193,
+            "failed": 0,
+            "manifested": 17,
+            "passed": 193,
+            "rate": 1.0,
+            "skipped": 3,
+            "total": 196
+          },
+          "copy": {
+            "errors": 0,
+            "executed": 111,
+            "failed": 0,
+            "manifested": 9,
+            "passed": 111,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 111
+          },
+          "crdb": {
+            "errors": 0,
+            "executed": 9,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 9,
+            "rate": 1.0,
+            "skipped": 41,
+            "total": 50
+          },
+          "cursors": {
+            "errors": 0,
+            "executed": 582,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 582,
+            "rate": 1.0,
+            "skipped": 8,
+            "total": 590
+          },
+          "notifications": {
+            "errors": 0,
+            "executed": 15,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 15,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 15
+          },
+          "other": {
+            "errors": 0,
+            "executed": 718,
+            "failed": 0,
+            "manifested": 168,
+            "passed": 718,
+            "rate": 1.0,
+            "skipped": 35,
+            "total": 753
+          },
+          "pipeline": {
+            "errors": 0,
+            "executed": 40,
+            "failed": 0,
+            "manifested": 10,
+            "passed": 40,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 40
+          },
+          "pool": {
+            "errors": 0,
+            "executed": 167,
+            "failed": 0,
+            "manifested": 0,
+            "passed": 167,
+            "rate": 1.0,
+            "skipped": 2,
+            "total": 169
+          },
+          "prepared": {
+            "errors": 0,
+            "executed": 32,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 32,
+            "rate": 1.0,
+            "skipped": 0,
+            "total": 32
+          },
+          "transactions": {
+            "errors": 0,
+            "executed": 102,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 102,
+            "rate": 1.0,
+            "skipped": 3,
+            "total": 105
+          },
+          "types-metadata": {
+            "errors": 0,
+            "executed": 2517,
+            "failed": 0,
+            "manifested": 1,
+            "passed": 2517,
+            "rate": 1.0,
+            "skipped": 38,
+            "total": 2555
+          }
+        }
+      },
+      "pytest_status": 1,
+      "scopes": {
+        "async": {
+          "errors": 11,
+          "executed": 625,
+          "failed": 101,
+          "manifested": 772,
+          "passed": 513,
+          "rate": 0.8208,
+          "skipped": 23,
+          "total": 648
+        },
+        "overall": {
+          "errors": 11,
+          "executed": 5281,
+          "failed": 101,
+          "manifested": 1021,
+          "passed": 5169,
+          "rate": 0.978791895474342,
+          "skipped": 215,
+          "total": 5496
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4656,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4656,
+          "rate": 1.0,
+          "skipped": 192,
+          "total": 4848
+        }
+      }
+    }
+  ]
+}

@@ -129,7 +129,10 @@ search for tiny transport optimizations.
    `35506169516` for that prototype. Both are terminal: the comparison completed
    and supports retaining 5C.1 as a development foundation; the original matrix
    failed the stale inventory and one async-warning leak. The pushed follow-up
-   `8eddc2ec` is under Tests `35508454735`; its Lint `35508454729` passes.
+   `8eddc2ec` passes all 57 jobs in Tests `35508454735`, including all eight
+   Rust matrix keys; Lint `35508454729` also passes. Independently recomputed
+   strict classifiers match every uploaded report, with zero supported sync
+   failures/errors. See `2026-09-20-retained-compatibility.json`.
    Public-contract tests are established and
    local diagnostics are recorded; do not restart 5C.1 from scratch or repeat
    unchanged runs to select favorable samples. Its both-order controls and all
@@ -137,7 +140,7 @@ search for tiny transport optimizations.
    Tokio investigation before addressing the measured integration gap.
    Compatibility follow-ups `775299eb` / `87de5ef3` correct the new-test inventory
    and experimental async `nextset()` warning leak. Preserve those checkpoints;
-   they are now published; follow their successor CI without cancelling it.
+   they are now published and their successor matrix is terminal successful.
    Their local full run still fails three timing assertions; details and controls
    are in the parity report. Do not relabel the frozen comparison as testing them.
 3. Measure wall and CPU costs against the unchanged control in both orders.
@@ -1574,6 +1577,16 @@ next, with an opportunity budget before implementing it.
   whether reuse removes the repeated transformer/loader setup found in profiles.
 
 **5C.3 Server-reported execution outcomes (third, conditional prototype)**
+
+Opportunity control: `integration_profile.py --bookkeeping omit-helper-bodies`
+replaces only the three post-execution helper bodies for the script's fixed
+autocommit UTF-8 SELECT workloads. It preserves the three calls and all other
+execution machinery, restores methods before connection cleanup, and refuses
+non-idle/non-UTF-8 connections. This is deliberately an incomplete diagnostic,
+not a compatible candidate or acceptance evidence. Measure normal/omitted in
+both orders before choosing the scope of a native outcome implementation.
+Profiled cumulative times of these non-overlapping helpers total about 3.6% of
+the parameterized profile; instrumentation cannot establish unprofiled savings.
 
 - [ ] Return owned results together with command/transaction status, setting
   changes, and ordered notices from the native boundary where supported.
@@ -3786,7 +3799,9 @@ the synchronous beta is established.
 1. Follow the resume instructions above. The existing `7c1a644a` CI checkpoint
    is terminal: its full soak passes, but the three-run benchmark fails despite
    runs 2/3 passing. Keep its evidence separate from any new integration candidate.
-2. Follow compatibility Tests `35508454735` for published `8eddc2ec`. Dedicated
+2. Compatibility Tests `35508454735` for published `8eddc2ec` pass all 57 jobs;
+   all eight strict Rust reports independently recompute without regressions.
+   Preserve this exact-revision evidence. Dedicated
    comparison `35506310291` supports retaining single-owner state; its complete
    reports pass the beta limits but do not satisfy three-run acceptance. Preserve
    custom callbacks, subclassing, metadata snapshots, resource lifetime,

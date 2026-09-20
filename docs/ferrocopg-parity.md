@@ -355,6 +355,20 @@ Isolated C and Rust controls each pass notification/poll and fail pool backoff;
 retain `/tmp/phase5-successor-{c,rust}-timing.xml`. These controls do not replace
 the full run or prove its extreme delays were driver-independent.
 
+The published successor `8eddc2ec` now passes all 57 jobs in
+[Tests 35508454735](https://github.com/martijnberger/ferrocopg/actions/runs/35508454735),
+including all eight Rust matrix entries. All downloaded JUnit reports were
+independently reclassified with the unchanged strict zero-regression gate,
+manifest, floors, and exact-count baselines; each exactly matches its uploaded
+JSON report. Supported synchronous passes are 4,483 on Python 3.11/PG14,
+4,623 on each of the six intermediate keys, and 4,656 on Python 3.14/PG18,
+with zero supported synchronous failures or errors throughout. Experimental
+native-async failures remain separately visible. [Recomputed reports](performance/2026-09-20-retained-compatibility.json)
+record the exact revision and all scopes. Lint `35508454729` also passes.
+This establishes compatibility of the retained runtime, not three performance
+passes, a new soak, or scheduled-run evidence. The failed local runs above
+remain failed and are not replaced retroactively.
+
 ## Next experiments and decision rules
 
 ### Execution-plan prototype boundary
