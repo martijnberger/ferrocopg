@@ -707,9 +707,19 @@ consistent, but the conservative observer-effect classifier recognizes zero
 profile-created frames because Linux exposes four allocation helpers before
 `_PyFrame_MakeAndSetFrameObject`. The saved eight-frame stack still ends in
 `PyEval_GetFrame -> call_profile_func`, so zero recognized frames must not be
-read as zero profiler overhead. Correct this bounded classification, preserve
-the original categories, and reanalyze the captured sites without rerunning
-timings. The full bottleneck table, remaining plan-reuse dispositions, explicit
+read as zero profiler overhead. A bounded follow-up now recognizes only the
+exact observed eight-frame Linux path; tests reject each single-frame
+substitution. All 103 installed/accounting tests pass. The
+[corrected classification report](performance/2026-09-20-linux-allocation-reclassification.json)
+reanalyzes all 72 captured site reports without rerunning any measurements,
+preserving original categories, input hashes, and every canonical total. Both
+orders now identify 144,000 Rust prepared-query profiling-frame events
+(32,680,000 bytes) out of 281,117 total events; C identifies 46,000 of 100,043,
+and Python 111,000 of 241,134. These match the earlier macOS smoke counts.
+Events are not subtracted, and other instrumented sites are not ordinary
+allocation estimates. The original dedicated-run files remain unchanged.
+
+The full bottleneck table, remaining plan-reuse dispositions, explicit
 next optimization/deferral decision, and direct GIL/poll/wakeup coverage remain
 outstanding; syscall counts do not close those requirements by themselves.
 

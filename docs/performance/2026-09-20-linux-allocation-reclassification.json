@@ -1,0 +1,3254 @@
+{
+  "mode": "allocation-reclassification",
+  "acceptance_evidence": false,
+  "source_revision": "8955d0a66b16d01ea90c683f58ee6f18b9ead0f2",
+  "analyzer_sha256": "b8467e5c7fb0891752c432edcc184633552b5d52cb06156fa38b664105da2add",
+  "method": "Reclassify all captured native site stacks using the corrected exact Linux profiling-frame path; independently validate every unchanged canonical total. Original reports and categories remain in the dedicated attribution archive.",
+  "reports": [
+    {
+      "source": "allocations-forward-c-connect_plain.allocation-sites.json",
+      "source_sha256": "75b024d22ae47e955271134fcab342474ad044ef99cc33a00b0ff755a80b551a",
+      "capture_sha256": "42d98195e55ccc105c133c514c7559cbd5dd132b99f2c13d8b235cd6c7acb419",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 354639,
+          "bytes": 22781296
+        },
+        "unresolved_native_site": {
+          "allocations": 177860,
+          "bytes": 20303220
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 5600,
+          "bytes": 1474080
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 349039,
+          "bytes": 21307216
+        },
+        "unresolved_native_site": {
+          "allocations": 177860,
+          "bytes": 20303220
+        }
+      },
+      "changed_sites": 104,
+      "total_num_allocations": 532499,
+      "total_bytes_allocated": 43084516
+    },
+    {
+      "source": "allocations-forward-c-connect_tls.allocation-sites.json",
+      "source_sha256": "51d3f1d7f820af4dc06694a0541e5854f510a57124be7a291036b230184bc5d8",
+      "capture_sha256": "4a3fe04dbfb7be920cc01a134353c3d1d800449902cd284349f068ae9d19c2dc",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 392580,
+          "bytes": 25649344
+        },
+        "unresolved_native_site": {
+          "allocations": 182340,
+          "bytes": 24004680
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 7240,
+          "bytes": 1859200
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 385340,
+          "bytes": 23790144
+        },
+        "unresolved_native_site": {
+          "allocations": 182340,
+          "bytes": 24004680
+        }
+      },
+      "changed_sites": 106,
+      "total_num_allocations": 574920,
+      "total_bytes_allocated": 49654024
+    },
+    {
+      "source": "allocations-forward-c-copy_binary.allocation-sites.json",
+      "source_sha256": "6902112c4eefb43125f4379819e4fcf1bab971600131f974ab03fe91f876021f",
+      "capture_sha256": "0c2a4f8c4e9a0215cd5a18e6740fed0961d5622210ffa9269953c02c3fb1a3bc",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 608098,
+          "bytes": 91425344
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 81920
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 163460,
+          "bytes": 37253440
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 444638,
+          "bytes": 54171904
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 81920
+        }
+      },
+      "changed_sites": 86,
+      "total_num_allocations": 608138,
+      "total_bytes_allocated": 91507264
+    },
+    {
+      "source": "allocations-forward-c-copy_text.allocation-sites.json",
+      "source_sha256": "5144d46398bbfacfb2c213501bc563f1e6e612bab1b2867aed9af90ecbf6a6a3",
+      "capture_sha256": "bb2a3c3059b5429bb875709a4a2d0053b5b39df14d546088c0d550e86a402af9",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 607778,
+          "bytes": 88958204
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 81920
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 163280,
+          "bytes": 37053120
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 444498,
+          "bytes": 51905084
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 81920
+        }
+      },
+      "changed_sites": 84,
+      "total_num_allocations": 607818,
+      "total_bytes_allocated": 89040124
+    },
+    {
+      "source": "allocations-forward-c-parameterized.allocation-sites.json",
+      "source_sha256": "2d899c8fe721641426379abafdf9d8c75361c6909e88943aa21ace9cb4450085",
+      "capture_sha256": "952ef53afd1d1fe71f2e46a8c54b91573dd86e28eb77a35fa1823cc472fc5553",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 98042,
+          "bytes": 15404224
+        },
+        "unresolved_native_site": {
+          "allocations": 2000,
+          "bytes": 3072000
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 44000,
+          "bytes": 10336000
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 54042,
+          "bytes": 5068224
+        },
+        "unresolved_native_site": {
+          "allocations": 2000,
+          "bytes": 3072000
+        }
+      },
+      "changed_sites": 41,
+      "total_num_allocations": 100042,
+      "total_bytes_allocated": 18476224
+    },
+    {
+      "source": "allocations-forward-c-pipeline.allocation-sites.json",
+      "source_sha256": "084407ea8b86021619be90481cd49df1fb558a1892d51d3237f45a9e83eb4dc8",
+      "capture_sha256": "a2066d02c0e003e188f3d1d673d23b22c48a54f862b7a17f85f42754f5a39ffa",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 23327,
+          "bytes": 3761616
+        },
+        "unresolved_native_site": {
+          "allocations": 420,
+          "bytes": 675840
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 10140,
+          "bytes": 2339840
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 13187,
+          "bytes": 1421776
+        },
+        "unresolved_native_site": {
+          "allocations": 420,
+          "bytes": 675840
+        }
+      },
+      "changed_sites": 76,
+      "total_num_allocations": 23747,
+      "total_bytes_allocated": 4437456
+    },
+    {
+      "source": "allocations-forward-c-pool.allocation-sites.json",
+      "source_sha256": "45d5879ae106d477040a3d76326f801a33387e7ea7abbb302d416e7ef8e48c9e",
+      "capture_sha256": "fa1af8ca88701f38a00fb078bbd9c47f447f6df82c71c5a952c8a1488d704336",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 3109,
+          "bytes": 538842
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 61440
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 1642,
+          "bytes": 386288
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 1467,
+          "bytes": 152554
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 61440
+        }
+      },
+      "changed_sites": 74,
+      "total_num_allocations": 3149,
+      "total_bytes_allocated": 600282
+    },
+    {
+      "source": "allocations-forward-c-prepared.allocation-sites.json",
+      "source_sha256": "38cf645164a9ba1db13d7f17b983e80288e5b358e62f0ce5e5e264916d0b7996",
+      "capture_sha256": "80e665105e8979f82de9b86051c330ad48e3128c6a600c3103f5ece4230081cf",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 98043,
+          "bytes": 15757352
+        },
+        "unresolved_native_site": {
+          "allocations": 2000,
+          "bytes": 3072000
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 46000,
+          "bytes": 10712000
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 52043,
+          "bytes": 5045352
+        },
+        "unresolved_native_site": {
+          "allocations": 2000,
+          "bytes": 3072000
+        }
+      },
+      "changed_sites": 43,
+      "total_num_allocations": 100043,
+      "total_bytes_allocated": 18829352
+    },
+    {
+      "source": "allocations-forward-c-rows_dict.allocation-sites.json",
+      "source_sha256": "339cd3a3e2a2db8a0c0e2cba0f9a4b0287931d899570db480ac198ca9b4a4852",
+      "capture_sha256": "43b879dded3a5c66fca25ebcf6e87be6dde4005d606db7139ecc7148471dd443",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 113890,
+          "bytes": 11302947
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 21000,
+          "bytes": 4872160
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 92890,
+          "bytes": 6430787
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "changed_sites": 48,
+      "total_num_allocations": 114450,
+      "total_bytes_allocated": 12593187
+    },
+    {
+      "source": "allocations-forward-c-rows_namedtuple.allocation-sites.json",
+      "source_sha256": "c31f0971209e7008cf74b4b46bb3b003ab7b592014e626e76dbea1e7e67d4d8f",
+      "capture_sha256": "cd9b476c73d742249a8119dffe6b3f3b2061fc64c3398105ca114bf105271fa2",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 75373,
+          "bytes": 8921647
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 21000,
+          "bytes": 5832320
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 54373,
+          "bytes": 3089327
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "changed_sites": 47,
+      "total_num_allocations": 75933,
+      "total_bytes_allocated": 10211887
+    },
+    {
+      "source": "allocations-forward-c-rows_tuple.allocation-sites.json",
+      "source_sha256": "edad4ece5f4f8cf04cfbb41f2874c418a69922b73918b9f8de2a9ae348b30df6",
+      "capture_sha256": "91f2c060cccf66f99b7316996a081fe4b4f566b13c9660890069e7e3ae482cb8",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 36057,
+          "bytes": 1912051
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 940,
+          "bytes": 218720
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 35117,
+          "bytes": 1693331
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "changed_sites": 44,
+      "total_num_allocations": 36617,
+      "total_bytes_allocated": 3202291
+    },
+    {
+      "source": "allocations-forward-c-transaction.allocation-sites.json",
+      "source_sha256": "a5edcd6e914b4c421132b3740551011a2a8ab2317ce0a58e97855827f05a6ce9",
+      "capture_sha256": "5ddb37d7227059093684eac7ecfb286d164c1ac549b1202a5fd1e82520a4042e",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 11510,
+          "bytes": 1844492
+        },
+        "unresolved_native_site": {
+          "allocations": 160,
+          "bytes": 164380
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 5060,
+          "bytes": 1147840
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 6450,
+          "bytes": 696652
+        },
+        "unresolved_native_site": {
+          "allocations": 160,
+          "bytes": 164380
+        }
+      },
+      "changed_sites": 102,
+      "total_num_allocations": 11670,
+      "total_bytes_allocated": 2008872
+    },
+    {
+      "source": "allocations-forward-python-connect_plain.allocation-sites.json",
+      "source_sha256": "f0c05d5c7664923e2e3fdeba0fde08543bbf069a205e13aa8e9192a1dc04127c",
+      "capture_sha256": "d5536f7e864ea5a4c09d3d34ec889a844bf79927bcaad1202f5e6b3a205bac79",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 364689,
+          "bytes": 24242356
+        },
+        "unresolved_native_site": {
+          "allocations": 177860,
+          "bytes": 20303220
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 7460,
+          "bytes": 1875680
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 357229,
+          "bytes": 22366676
+        },
+        "unresolved_native_site": {
+          "allocations": 177860,
+          "bytes": 20303220
+        }
+      },
+      "changed_sites": 163,
+      "total_num_allocations": 542549,
+      "total_bytes_allocated": 44545576
+    },
+    {
+      "source": "allocations-forward-python-connect_tls.allocation-sites.json",
+      "source_sha256": "d77d119ad8628b1a5a75257f96ceea9604c7a6a945cdf0d31a5421e701272959",
+      "capture_sha256": "ac656a35554d13afed3be401be693a956ddb52e5642252a75e6be7cad7013f6a",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 405150,
+          "bytes": 27474652
+        },
+        "unresolved_native_site": {
+          "allocations": 182340,
+          "bytes": 24004680
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 10420,
+          "bytes": 2540000
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 394730,
+          "bytes": 24934652
+        },
+        "unresolved_native_site": {
+          "allocations": 182340,
+          "bytes": 24004680
+        }
+      },
+      "changed_sites": 165,
+      "total_num_allocations": 587490,
+      "total_bytes_allocated": 51479332
+    },
+    {
+      "source": "allocations-forward-python-copy_binary.allocation-sites.json",
+      "source_sha256": "569b733b16e0d7ae643b6ef9c69475ef020b0595034a759f88257fefad47d961",
+      "capture_sha256": "db5e89844f512293446521d9fe2d5f0576cbd393b962f4f91df0143aa68c522d",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 1296734,
+          "bytes": 181898740
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 81920
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 447760,
+          "bytes": 104899360
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 848974,
+          "bytes": 76999380
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 81920
+        }
+      },
+      "changed_sites": 154,
+      "total_num_allocations": 1296774,
+      "total_bytes_allocated": 181980660
+    },
+    {
+      "source": "allocations-forward-python-copy_text.allocation-sites.json",
+      "source_sha256": "c2b14369f52d3b33f946a67de20603d6f25bff3ac8821b3b297ea67e0198d01b",
+      "capture_sha256": "5351bcf4ec9653c94fd5653f1223fe010283cb35889cba86bb8c4731e4ea0b29",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 1716357,
+          "bytes": 208753596
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 81920
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 567880,
+          "bytes": 132918560
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 1148477,
+          "bytes": 75835036
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 81920
+        }
+      },
+      "changed_sites": 156,
+      "total_num_allocations": 1716397,
+      "total_bytes_allocated": 208835516
+    },
+    {
+      "source": "allocations-forward-python-parameterized.allocation-sites.json",
+      "source_sha256": "c4de333eb35f77f30a88cd5d3b9f5df8c5d8a5383538b4c1900c2efd9a8fa51b",
+      "capture_sha256": "5de6d7f3216e1ab8a18deb1509f80c4d1338ddc92ca3818dedfbd130810905cb",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 240155,
+          "bytes": 37761142
+        },
+        "unresolved_native_site": {
+          "allocations": 2000,
+          "bytes": 3072000
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 109000,
+          "bytes": 24544000
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 131155,
+          "bytes": 13217142
+        },
+        "unresolved_native_site": {
+          "allocations": 2000,
+          "bytes": 3072000
+        }
+      },
+      "changed_sites": 97,
+      "total_num_allocations": 242155,
+      "total_bytes_allocated": 40833142
+    },
+    {
+      "source": "allocations-forward-python-pipeline.allocation-sites.json",
+      "source_sha256": "82eaf7f252da7677b4c7aeb3b9e97c1de6cb48e31595ae4f8b4f92e9149c096e",
+      "capture_sha256": "ea3ffcd5b91b6ac14652efdbf63107189010540fef65d5ea32cb2b9645184c5b",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 50767,
+          "bytes": 8105611
+        },
+        "unresolved_native_site": {
+          "allocations": 420,
+          "bytes": 675840
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 23348,
+          "bytes": 5230944
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 27419,
+          "bytes": 2874667
+        },
+        "unresolved_native_site": {
+          "allocations": 420,
+          "bytes": 675840
+        }
+      },
+      "changed_sites": 153,
+      "total_num_allocations": 51187,
+      "total_bytes_allocated": 8781451
+    },
+    {
+      "source": "allocations-forward-python-pool.allocation-sites.json",
+      "source_sha256": "880ec65d6c3f4b2c20bf5029ac48ffdfecd25f936f034991030b6136e98c246d",
+      "capture_sha256": "950ac987c562e21dc2d1a5cabacb676e747a4282a05f60a7639c918dd1fd9708",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 6376,
+          "bytes": 1061696
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 61440
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 3148,
+          "bytes": 714448
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 3228,
+          "bytes": 347248
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 61440
+        }
+      },
+      "changed_sites": 138,
+      "total_num_allocations": 6416,
+      "total_bytes_allocated": 1123136
+    },
+    {
+      "source": "allocations-forward-python-prepared.allocation-sites.json",
+      "source_sha256": "0a7b69830db132941fc5168951e751a9efe060e9979a32328099255b64fb366f",
+      "capture_sha256": "017c7d99c3e8fe925f212c4a2f09bbebde55aa01c8d1dbb4d4ea3e512213a5e8",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 239134,
+          "bytes": 37854887
+        },
+        "unresolved_native_site": {
+          "allocations": 2000,
+          "bytes": 3072000
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 111000,
+          "bytes": 24912000
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 128134,
+          "bytes": 12942887
+        },
+        "unresolved_native_site": {
+          "allocations": 2000,
+          "bytes": 3072000
+        }
+      },
+      "changed_sites": 99,
+      "total_num_allocations": 241134,
+      "total_bytes_allocated": 40926887
+    },
+    {
+      "source": "allocations-forward-python-rows_dict.allocation-sites.json",
+      "source_sha256": "7875735176846a32eabafb41eaab789bbd32b4785ffc119c7fa8fa5d66017677",
+      "capture_sha256": "c9f5a9a39b47dcaadfefd6e8d489e28fe052a2e07c543d3a01f804b2d48690a2",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 678015,
+          "bytes": 79037713
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 142730,
+          "bytes": 32285600
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 535285,
+          "bytes": 46752113
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "changed_sites": 110,
+      "total_num_allocations": 678575,
+      "total_bytes_allocated": 80327953
+    },
+    {
+      "source": "allocations-forward-python-rows_namedtuple.allocation-sites.json",
+      "source_sha256": "ea399c640a1deb007a6e68662d03daa727d706bdbe229fab8352f2099d45ac36",
+      "capture_sha256": "6c7635870333139117e836b900d728c2f4aaab59af2dcc0eab6c3735174e4690",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 639508,
+          "bytes": 76657517
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 142732,
+          "bytes": 33246176
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 496776,
+          "bytes": 43411341
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "changed_sites": 109,
+      "total_num_allocations": 640068,
+      "total_bytes_allocated": 77947757
+    },
+    {
+      "source": "allocations-forward-python-rows_tuple.allocation-sites.json",
+      "source_sha256": "b3a03a46e30318eeb9bc95f33f958cd8d51b70a03c36afacc05a0181487042ab",
+      "capture_sha256": "b3315b0c86204f3cb3e22ebd03fbbb86f4762d4a5d0114d3670334401ae40d71",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 599866,
+          "bytes": 69599009
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 122518,
+          "bytes": 27600544
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 477348,
+          "bytes": 41998465
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "changed_sites": 102,
+      "total_num_allocations": 600426,
+      "total_bytes_allocated": 70889249
+    },
+    {
+      "source": "allocations-forward-python-transaction.allocation-sites.json",
+      "source_sha256": "7dfea8c4f0613fa2fe5f5f8383d85bce5eff1d9aab523d95a44cd9969bfa547d",
+      "capture_sha256": "0d962f61bbb4bba1355d953b378ee4795309b9bb3255e54b34406cc92bf99750",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 23732,
+          "bytes": 3786524
+        },
+        "unresolved_native_site": {
+          "allocations": 160,
+          "bytes": 164380
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 11420,
+          "bytes": 2497280
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 12312,
+          "bytes": 1289244
+        },
+        "unresolved_native_site": {
+          "allocations": 160,
+          "bytes": 164380
+        }
+      },
+      "changed_sites": 159,
+      "total_num_allocations": 23892,
+      "total_bytes_allocated": 3950904
+    },
+    {
+      "source": "allocations-forward-rust-connect_plain.allocation-sites.json",
+      "source_sha256": "573ccf34cc44dc8a59222ec2f7e168aa6068dfc2a07ffe2ac4ccdea01f8a5b06",
+      "capture_sha256": "4ac44ec73cd8a0f1bd1f001a974b1c34d0b68536a68f6005927046fe35d291a7",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 20186,
+          "bytes": 3805128
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 5400,
+          "bytes": 1248640
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 14786,
+          "bytes": 2556488
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 186,
+      "total_num_allocations": 20186,
+      "total_bytes_allocated": 3805128
+    },
+    {
+      "source": "allocations-forward-rust-connect_tls.allocation-sites.json",
+      "source_sha256": "a3d8e86a4279eb709dcefb2aba3ca6d7c3e82cf0174a75c59d9a5ef130fd1ec2",
+      "capture_sha256": "9e42b9844b8ce725a49855a8f83894867b4a5f54d34a0a8ef2eaf19e277cb36a",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 28768,
+          "bytes": 5902956
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 8000,
+          "bytes": 1832640
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 20768,
+          "bytes": 4070316
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 191,
+      "total_num_allocations": 28768,
+      "total_bytes_allocated": 5902956
+    },
+    {
+      "source": "allocations-forward-rust-copy_binary.allocation-sites.json",
+      "source_sha256": "6e6b03e82d05084ba0d0a4ed9e19ae030dd26f8c5274cab599d66709857765d9",
+      "capture_sha256": "de64e52b646e7520965224b3b3c048b21e024e14479c3a9bbd5b72bc05d45510",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 516128,
+          "bytes": 51310252
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 106940,
+          "bytes": 24919360
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 409188,
+          "bytes": 26390892
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 175,
+      "total_num_allocations": 516128,
+      "total_bytes_allocated": 51310252
+    },
+    {
+      "source": "allocations-forward-rust-copy_text.allocation-sites.json",
+      "source_sha256": "e450823684c8667843cb28a190922eba6e0f4ed5a229a01f111d7feed716d8f8",
+      "capture_sha256": "00a3469eaff4d147689b74677109ece9b50db8acc1b41a019daab96b9f897f5d",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 735100,
+          "bytes": 61876456
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 106400,
+          "bytes": 24636800
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 628700,
+          "bytes": 37239656
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 165,
+      "total_num_allocations": 735100,
+      "total_bytes_allocated": 61876456
+    },
+    {
+      "source": "allocations-forward-rust-parameterized.allocation-sites.json",
+      "source_sha256": "fe68f08dede64ada7053697aefc807be856a3e493e4a589e81253026e6241aad",
+      "capture_sha256": "148b3ff826abc7c157eb6b049f9eb3f34766d2d288254cc441f5b8ed30782697",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 294152,
+          "bytes": 42774019
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 143000,
+          "bytes": 32536000
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 151152,
+          "bytes": 10238019
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 119,
+      "total_num_allocations": 294152,
+      "total_bytes_allocated": 42774019
+    },
+    {
+      "source": "allocations-forward-rust-pipeline.allocation-sites.json",
+      "source_sha256": "1e12b610a329b05093f024fca9c676f5af212e6844e946e1b1be85fc7d9290ec",
+      "capture_sha256": "dfc8b85fba52d3ca6747f4614b34a6fbf420e6480968aefcf86546aa360a51f1",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 71297,
+          "bytes": 10099148
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 33680,
+          "bytes": 7662592
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 37617,
+          "bytes": 2436556
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 180,
+      "total_num_allocations": 71297,
+      "total_bytes_allocated": 10099148
+    },
+    {
+      "source": "allocations-forward-rust-pool.allocation-sites.json",
+      "source_sha256": "8ceea8dbd48f3133493d941a50ade860c02e4b21c2e40d1fc58db90de569ac41",
+      "capture_sha256": "ba2988fb8a973c60f38e00f34a07062b170e7e71c96fd4b30160f510a504a102",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 7070,
+          "bytes": 1102878
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 3916,
+          "bytes": 882336
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 3154,
+          "bytes": 220542
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 158,
+      "total_num_allocations": 7070,
+      "total_bytes_allocated": 1102878
+    },
+    {
+      "source": "allocations-forward-rust-prepared.allocation-sites.json",
+      "source_sha256": "0a58c330e462b208897afb0ecd3993d9496bd216b2d8205add32398088571f01",
+      "capture_sha256": "a3c985fd73b33619c0727e43808c6618505e2ebc9376286cc822a773b3ed6f00",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 281117,
+          "bytes": 41283595
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 144000,
+          "bytes": 32680000
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 137117,
+          "bytes": 8603595
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 121,
+      "total_num_allocations": 281117,
+      "total_bytes_allocated": 41283595
+    },
+    {
+      "source": "allocations-forward-rust-rows_dict.allocation-sites.json",
+      "source_sha256": "8a2f035c1cdb40dae3da074ddfb55cff9f0f4534e96f76439c8e03b5677c132e",
+      "capture_sha256": "f133a76779df80da3cc23d240c1fc3cc49e9600730910a67755ba37e62c5286b",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 118828,
+          "bytes": 20292763
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 23340,
+          "bytes": 5394080
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 95488,
+          "bytes": 14898683
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 133,
+      "total_num_allocations": 118828,
+      "total_bytes_allocated": 20292763
+    },
+    {
+      "source": "allocations-forward-rust-rows_namedtuple.allocation-sites.json",
+      "source_sha256": "e3c1d2708802a7137881523e224481ff28dd450aaf4f7d60b22c9c7b5def82d0",
+      "capture_sha256": "6ede44d259d779577d6477ef93af44ef1f54f744b21215f1c0313061ebf6aef0",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 80344,
+          "bytes": 18026775
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 23340,
+          "bytes": 6353920
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 57004,
+          "bytes": 11672855
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 132,
+      "total_num_allocations": 80344,
+      "total_bytes_allocated": 18026775
+    },
+    {
+      "source": "allocations-forward-rust-rows_tuple.allocation-sites.json",
+      "source_sha256": "65301b09a277ef060df2c7f15a29e95e324cceb8545ed70e66b158d0015cbcf0",
+      "capture_sha256": "832769fbac65b644f3a13ad14c562c94504601c61bde49c91f8f270e4d2070ad",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 40855,
+          "bytes": 10902399
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 3220,
+          "bytes": 728640
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 37635,
+          "bytes": 10173759
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 128,
+      "total_num_allocations": 40855,
+      "total_bytes_allocated": 10902399
+    },
+    {
+      "source": "allocations-forward-rust-transaction.allocation-sites.json",
+      "source_sha256": "ee4047ba34bdfa5af71b17e907f3e0bd35f0c3852ddd39d9e06778a8cc28057e",
+      "capture_sha256": "4226c697904e3167b691082eb7160991b1f6dff4573fba77176e6618b21a622f",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 21134,
+          "bytes": 3001531
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 9800,
+          "bytes": 2231040
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 11334,
+          "bytes": 770491
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 163,
+      "total_num_allocations": 21134,
+      "total_bytes_allocated": 3001531
+    },
+    {
+      "source": "allocations-reverse-c-connect_plain.allocation-sites.json",
+      "source_sha256": "fd48ad0581d1d1b2475a5f103cee4ce22b5a160459797e0e50e8a1777c8468ad",
+      "capture_sha256": "107def44b02a1be393a714605d50c2f4405537ab947a74dd1007ab0f40839205",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 354639,
+          "bytes": 22781296
+        },
+        "unresolved_native_site": {
+          "allocations": 177860,
+          "bytes": 20303220
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 5600,
+          "bytes": 1474080
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 349039,
+          "bytes": 21307216
+        },
+        "unresolved_native_site": {
+          "allocations": 177860,
+          "bytes": 20303220
+        }
+      },
+      "changed_sites": 104,
+      "total_num_allocations": 532499,
+      "total_bytes_allocated": 43084516
+    },
+    {
+      "source": "allocations-reverse-c-connect_tls.allocation-sites.json",
+      "source_sha256": "7276b3a55070957964e7d790a97020461f180da944a1dbb20bfe50604836118b",
+      "capture_sha256": "58456afddc92cf768e3d072ffb48512260d47638a2be7649637968f669274096",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 392580,
+          "bytes": 25649344
+        },
+        "unresolved_native_site": {
+          "allocations": 182340,
+          "bytes": 24004680
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 7240,
+          "bytes": 1859200
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 385340,
+          "bytes": 23790144
+        },
+        "unresolved_native_site": {
+          "allocations": 182340,
+          "bytes": 24004680
+        }
+      },
+      "changed_sites": 106,
+      "total_num_allocations": 574920,
+      "total_bytes_allocated": 49654024
+    },
+    {
+      "source": "allocations-reverse-c-copy_binary.allocation-sites.json",
+      "source_sha256": "d31ad57721e373f4dca6a6d14a691d745f7deb0166f9f8c262c7fd92321d7acc",
+      "capture_sha256": "4c1522e5009ef9e48f968b986ce227f096c72fc1d0d84422d23e10ebde9bf54b",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 608098,
+          "bytes": 91425344
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 81920
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 163460,
+          "bytes": 37253440
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 444638,
+          "bytes": 54171904
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 81920
+        }
+      },
+      "changed_sites": 86,
+      "total_num_allocations": 608138,
+      "total_bytes_allocated": 91507264
+    },
+    {
+      "source": "allocations-reverse-c-copy_text.allocation-sites.json",
+      "source_sha256": "d35fd3fc0e6b670dfbd993a9488f8d56bc2b73e953bf8076ad4c85d4543c80ac",
+      "capture_sha256": "3569951376b2776ba850ce44e1e83c5bf6fbdfc93e52079525ac1260b325da0e",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 607778,
+          "bytes": 88958204
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 81920
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 163280,
+          "bytes": 37053120
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 444498,
+          "bytes": 51905084
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 81920
+        }
+      },
+      "changed_sites": 84,
+      "total_num_allocations": 607818,
+      "total_bytes_allocated": 89040124
+    },
+    {
+      "source": "allocations-reverse-c-parameterized.allocation-sites.json",
+      "source_sha256": "3c99fc883e3daee3694ca9175ab19380edf92744b60a2d217d4bb3951374785a",
+      "capture_sha256": "c752cb211e5fda8e6cf2579518478c344e7887008585a653d3be609b38ce3cca",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 98042,
+          "bytes": 15404224
+        },
+        "unresolved_native_site": {
+          "allocations": 2000,
+          "bytes": 3072000
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 44000,
+          "bytes": 10336000
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 54042,
+          "bytes": 5068224
+        },
+        "unresolved_native_site": {
+          "allocations": 2000,
+          "bytes": 3072000
+        }
+      },
+      "changed_sites": 41,
+      "total_num_allocations": 100042,
+      "total_bytes_allocated": 18476224
+    },
+    {
+      "source": "allocations-reverse-c-pipeline.allocation-sites.json",
+      "source_sha256": "a55f99cffa261c9099c5eef9057c93a125db542ba5662661c7b75f145bcc9b2c",
+      "capture_sha256": "f1a9f86d09f3ece988a4a18330bd21425a39c4deb534a7371f83796e276d951f",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 23328,
+          "bytes": 3761712
+        },
+        "unresolved_native_site": {
+          "allocations": 420,
+          "bytes": 675840
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 10140,
+          "bytes": 2339840
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 13188,
+          "bytes": 1421872
+        },
+        "unresolved_native_site": {
+          "allocations": 420,
+          "bytes": 675840
+        }
+      },
+      "changed_sites": 76,
+      "total_num_allocations": 23748,
+      "total_bytes_allocated": 4437552
+    },
+    {
+      "source": "allocations-reverse-c-pool.allocation-sites.json",
+      "source_sha256": "8b3a331ab592cd714eae22e66d72ba68408348e0886711964f3d1b2b4897ca53",
+      "capture_sha256": "10acb54917b8853736b03d6bdc9a98d9a06b9c51daf3d1bf3107931330d601e5",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 3109,
+          "bytes": 538842
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 61440
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 1642,
+          "bytes": 386288
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 1467,
+          "bytes": 152554
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 61440
+        }
+      },
+      "changed_sites": 74,
+      "total_num_allocations": 3149,
+      "total_bytes_allocated": 600282
+    },
+    {
+      "source": "allocations-reverse-c-prepared.allocation-sites.json",
+      "source_sha256": "02f2272343d8e403a85e3a94b195add8f64f3e427c11328db9de93ab4cd66394",
+      "capture_sha256": "a3292f75a549d6d4fa6ac01176c2df55910de78befeaf304b0b11855660d5c7b",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 98043,
+          "bytes": 15757352
+        },
+        "unresolved_native_site": {
+          "allocations": 2000,
+          "bytes": 3072000
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 46000,
+          "bytes": 10712000
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 52043,
+          "bytes": 5045352
+        },
+        "unresolved_native_site": {
+          "allocations": 2000,
+          "bytes": 3072000
+        }
+      },
+      "changed_sites": 43,
+      "total_num_allocations": 100043,
+      "total_bytes_allocated": 18829352
+    },
+    {
+      "source": "allocations-reverse-c-rows_dict.allocation-sites.json",
+      "source_sha256": "b25d3ab91d19f5fd0b118b95232f99789d65eafaba48f55c1afe980ff1117f71",
+      "capture_sha256": "33f8fec9ddbd80cd44a7781edbdde7a61bf8e1f2481e0eb8dce95195c9b04682",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 113890,
+          "bytes": 11302947
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 21000,
+          "bytes": 4872160
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 92890,
+          "bytes": 6430787
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "changed_sites": 48,
+      "total_num_allocations": 114450,
+      "total_bytes_allocated": 12593187
+    },
+    {
+      "source": "allocations-reverse-c-rows_namedtuple.allocation-sites.json",
+      "source_sha256": "3573c44229add6a8e16d40a71de5cfa8f7348afeda83fe81fceac7a4f3ff3b91",
+      "capture_sha256": "a6a697db495711fb20dc863ed987a2ec6082620ba3acd26cadb2de8c53386d1c",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 75373,
+          "bytes": 8921647
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 21000,
+          "bytes": 5832320
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 54373,
+          "bytes": 3089327
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "changed_sites": 47,
+      "total_num_allocations": 75933,
+      "total_bytes_allocated": 10211887
+    },
+    {
+      "source": "allocations-reverse-c-rows_tuple.allocation-sites.json",
+      "source_sha256": "2a71bba1862297f2930badbaf3c2461cc28ecea1230f516a92cb30a13d8fd1f7",
+      "capture_sha256": "61573cb57c07f1c9368249502d784f0b2c0ed4bad1abbb52d01906beded3b044",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 36057,
+          "bytes": 1912051
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 940,
+          "bytes": 218720
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 35117,
+          "bytes": 1693331
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "changed_sites": 44,
+      "total_num_allocations": 36617,
+      "total_bytes_allocated": 3202291
+    },
+    {
+      "source": "allocations-reverse-c-transaction.allocation-sites.json",
+      "source_sha256": "ea71b54cfd0aef38c90f05077a044a09507ebc225faa26cd98cdf397c1fbcf8c",
+      "capture_sha256": "c9495c6a4d06d301b97b35b2cb18f0bf631fa81be354a6b92915a53bc2f23fd0",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 11510,
+          "bytes": 1844492
+        },
+        "unresolved_native_site": {
+          "allocations": 160,
+          "bytes": 164380
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 5060,
+          "bytes": 1147840
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 6450,
+          "bytes": 696652
+        },
+        "unresolved_native_site": {
+          "allocations": 160,
+          "bytes": 164380
+        }
+      },
+      "changed_sites": 102,
+      "total_num_allocations": 11670,
+      "total_bytes_allocated": 2008872
+    },
+    {
+      "source": "allocations-reverse-python-connect_plain.allocation-sites.json",
+      "source_sha256": "8b47628554649cb7b360c65ad954fb580b3505889e6e13fa212eefaa3ac25e2a",
+      "capture_sha256": "34bd5e68ca61af25b3ce108620110b42b733f62e2500396ef810597a580bae2a",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 364688,
+          "bytes": 24209540
+        },
+        "unresolved_native_site": {
+          "allocations": 177860,
+          "bytes": 20303220
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 7460,
+          "bytes": 1875680
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 357228,
+          "bytes": 22333860
+        },
+        "unresolved_native_site": {
+          "allocations": 177860,
+          "bytes": 20303220
+        }
+      },
+      "changed_sites": 163,
+      "total_num_allocations": 542548,
+      "total_bytes_allocated": 44512760
+    },
+    {
+      "source": "allocations-reverse-python-connect_tls.allocation-sites.json",
+      "source_sha256": "d527ed9a7663b131e9568f7844b9ece43a38e1bded103e593e61d4ee9cc143bd",
+      "capture_sha256": "f10a068531b337e3b7d8c3b60e4e5aa00dc4d21653314250e74597f26eda8a21",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 405150,
+          "bytes": 27474652
+        },
+        "unresolved_native_site": {
+          "allocations": 182340,
+          "bytes": 24004680
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 10420,
+          "bytes": 2540000
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 394730,
+          "bytes": 24934652
+        },
+        "unresolved_native_site": {
+          "allocations": 182340,
+          "bytes": 24004680
+        }
+      },
+      "changed_sites": 165,
+      "total_num_allocations": 587490,
+      "total_bytes_allocated": 51479332
+    },
+    {
+      "source": "allocations-reverse-python-copy_binary.allocation-sites.json",
+      "source_sha256": "a7798d0a5718def4a8caf8aee8b54e5896d795ff156183c5e5d6148ee9ac4d89",
+      "capture_sha256": "dfa14a4702b9fbbdd93826df8631069d841b220af49c00f61ff2ca1a719411c6",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 1296734,
+          "bytes": 181898740
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 81920
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 447760,
+          "bytes": 104899360
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 848974,
+          "bytes": 76999380
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 81920
+        }
+      },
+      "changed_sites": 154,
+      "total_num_allocations": 1296774,
+      "total_bytes_allocated": 181980660
+    },
+    {
+      "source": "allocations-reverse-python-copy_text.allocation-sites.json",
+      "source_sha256": "d020d4437c046fb8467aad0785ac4c7d1bebed30c719eb1988c83ed3682134b1",
+      "capture_sha256": "2d82f705b0556d9c0bc18cabf478c76f9d526002164dbfa1f5b897fd6145aaea",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 1716357,
+          "bytes": 208753596
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 81920
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 567880,
+          "bytes": 132918560
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 1148477,
+          "bytes": 75835036
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 81920
+        }
+      },
+      "changed_sites": 156,
+      "total_num_allocations": 1716397,
+      "total_bytes_allocated": 208835516
+    },
+    {
+      "source": "allocations-reverse-python-parameterized.allocation-sites.json",
+      "source_sha256": "7b8adb1ea2841cc8979f7e7c83e47b17b38197b9b569623192619f7860dbd5b4",
+      "capture_sha256": "fb06ddd4533260e162a8c6a6d8101758894863507240ddfbd7e1e94116cedbd6",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 240155,
+          "bytes": 37761142
+        },
+        "unresolved_native_site": {
+          "allocations": 2000,
+          "bytes": 3072000
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 109000,
+          "bytes": 24544000
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 131155,
+          "bytes": 13217142
+        },
+        "unresolved_native_site": {
+          "allocations": 2000,
+          "bytes": 3072000
+        }
+      },
+      "changed_sites": 97,
+      "total_num_allocations": 242155,
+      "total_bytes_allocated": 40833142
+    },
+    {
+      "source": "allocations-reverse-python-pipeline.allocation-sites.json",
+      "source_sha256": "99f762b86a360f02f7e31c98cd8de5b6826109a9f9aeaac1bbe6da85fd0649b6",
+      "capture_sha256": "c260781d79b7299ea6a9bf8c06559d817ffd5b4e46d4cc5989bd9bf8ffa0e06d",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 50761,
+          "bytes": 8104987
+        },
+        "unresolved_native_site": {
+          "allocations": 420,
+          "bytes": 675840
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 23346,
+          "bytes": 5230528
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 27415,
+          "bytes": 2874459
+        },
+        "unresolved_native_site": {
+          "allocations": 420,
+          "bytes": 675840
+        }
+      },
+      "changed_sites": 153,
+      "total_num_allocations": 51181,
+      "total_bytes_allocated": 8780827
+    },
+    {
+      "source": "allocations-reverse-python-pool.allocation-sites.json",
+      "source_sha256": "cb03772b40612a09326099831729e31ca315b461116955cb06bf73b25092142a",
+      "capture_sha256": "3f216e8ec7c90eac5163d8273664ff2f65966365d10de14daaebe9e9f7a0835e",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 6376,
+          "bytes": 1061696
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 61440
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 3148,
+          "bytes": 714448
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 3228,
+          "bytes": 347248
+        },
+        "unresolved_native_site": {
+          "allocations": 40,
+          "bytes": 61440
+        }
+      },
+      "changed_sites": 138,
+      "total_num_allocations": 6416,
+      "total_bytes_allocated": 1123136
+    },
+    {
+      "source": "allocations-reverse-python-prepared.allocation-sites.json",
+      "source_sha256": "82a340822bf4762710d0216876cd134b46f3c4df54d088f66b3cdfff6a3eaa61",
+      "capture_sha256": "33973963c3f25f022b5a6292faed443bddb1e43637841778ed89f5d5ba480d97",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 239134,
+          "bytes": 37854887
+        },
+        "unresolved_native_site": {
+          "allocations": 2000,
+          "bytes": 3072000
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 111000,
+          "bytes": 24912000
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 128134,
+          "bytes": 12942887
+        },
+        "unresolved_native_site": {
+          "allocations": 2000,
+          "bytes": 3072000
+        }
+      },
+      "changed_sites": 99,
+      "total_num_allocations": 241134,
+      "total_bytes_allocated": 40926887
+    },
+    {
+      "source": "allocations-reverse-python-rows_dict.allocation-sites.json",
+      "source_sha256": "73436151dcd54bdd499c9b00f11019397054f7134609ad582cef26e92f0d357a",
+      "capture_sha256": "a059f4769e48bb50852d3420095e5a1648031f4846db97da404dbcb0d3234702",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 677973,
+          "bytes": 79033345
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 142716,
+          "bytes": 32282688
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 535257,
+          "bytes": 46750657
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "changed_sites": 110,
+      "total_num_allocations": 678533,
+      "total_bytes_allocated": 80323585
+    },
+    {
+      "source": "allocations-reverse-python-rows_namedtuple.allocation-sites.json",
+      "source_sha256": "c6c4987aeed54d2c2221749a295183f39a9b5224d54d5d1cf4c3a1a1e9621cd6",
+      "capture_sha256": "d3ff1833cf8af99eaad203e928eccf2d805c7f00ce73ae95141d18ad6ce84d46",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 639502,
+          "bytes": 76656893
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 142730,
+          "bytes": 33245760
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 496772,
+          "bytes": 43411133
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "changed_sites": 109,
+      "total_num_allocations": 640062,
+      "total_bytes_allocated": 77947133
+    },
+    {
+      "source": "allocations-reverse-python-rows_tuple.allocation-sites.json",
+      "source_sha256": "e0b1d8e1d767ebe874b9578a451cdff674bc1aaead2aa8ff27447bf4b3f72e6e",
+      "capture_sha256": "0a5888b84d8f1037a831831a602ce93f5e8d35543981eb20fcddf5216df50d1c",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 599836,
+          "bytes": 69595889
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 122508,
+          "bytes": 27598464
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 477328,
+          "bytes": 41997425
+        },
+        "unresolved_native_site": {
+          "allocations": 560,
+          "bytes": 1290240
+        }
+      },
+      "changed_sites": 102,
+      "total_num_allocations": 600396,
+      "total_bytes_allocated": 70886129
+    },
+    {
+      "source": "allocations-reverse-python-transaction.allocation-sites.json",
+      "source_sha256": "5c729f91e8c62a18751e09bb7bdb0f4fe743e7dda5f6aad48aa873ec3ab2f27b",
+      "capture_sha256": "c0abf398704e6a7581bb2ebfe07e6b75a09c1a3f793d2e4a0aee08fcee8e2665",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 23750,
+          "bytes": 3788396
+        },
+        "unresolved_native_site": {
+          "allocations": 160,
+          "bytes": 164380
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 11426,
+          "bytes": 2498528
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 12324,
+          "bytes": 1289868
+        },
+        "unresolved_native_site": {
+          "allocations": 160,
+          "bytes": 164380
+        }
+      },
+      "changed_sites": 159,
+      "total_num_allocations": 23910,
+      "total_bytes_allocated": 3952776
+    },
+    {
+      "source": "allocations-reverse-rust-connect_plain.allocation-sites.json",
+      "source_sha256": "81c9c209595b2f9b0de562ccf3b44f0fd89cc128caf87ae3fc86d25f3b6c395a",
+      "capture_sha256": "15b885c49b79b22d384177b32b116ec63af4891696c8494c1ff8fe699b367a40",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 20259,
+          "bytes": 3809656
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 5400,
+          "bytes": 1248640
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 14859,
+          "bytes": 2561016
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 186,
+      "total_num_allocations": 20259,
+      "total_bytes_allocated": 3809656
+    },
+    {
+      "source": "allocations-reverse-rust-connect_tls.allocation-sites.json",
+      "source_sha256": "a34196f085b71d6ebefcc0b3e40df8027e2e48d52fa8dc9a91423cccfa331c67",
+      "capture_sha256": "e1a62e84243e6df02142ea2e6d968a2b112cfa8560115f18ac830618700390a5",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 28767,
+          "bytes": 5902163
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 8000,
+          "bytes": 1832640
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 20767,
+          "bytes": 4069523
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 191,
+      "total_num_allocations": 28767,
+      "total_bytes_allocated": 5902163
+    },
+    {
+      "source": "allocations-reverse-rust-copy_binary.allocation-sites.json",
+      "source_sha256": "d179911386c1fa6a186b8ef271954a48e45386d26a711d08e50a663dbf609953",
+      "capture_sha256": "cc32fedff39fc322736077de288ee99616aee0e34e0d43129e213cd3b1ae9438",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 516126,
+          "bytes": 51302020
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 106940,
+          "bytes": 24919360
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 409186,
+          "bytes": 26382660
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 175,
+      "total_num_allocations": 516126,
+      "total_bytes_allocated": 51302020
+    },
+    {
+      "source": "allocations-reverse-rust-copy_text.allocation-sites.json",
+      "source_sha256": "6b25f9cd484babfbe69037ed85fc7d1723ce3e1d57d8d54fba5a072143c60c26",
+      "capture_sha256": "b9d5532d8d59b2dcc9a067919ed3d03bc8dd2e1b44e2948068205f6c332c9097",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 735100,
+          "bytes": 61876456
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 106400,
+          "bytes": 24636800
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 628700,
+          "bytes": 37239656
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 165,
+      "total_num_allocations": 735100,
+      "total_bytes_allocated": 61876456
+    },
+    {
+      "source": "allocations-reverse-rust-parameterized.allocation-sites.json",
+      "source_sha256": "07b30fab4384de8bf3aa29fca7774082a7df642191c70e47a832e635feaa2f29",
+      "capture_sha256": "f37b2aa251a06ce3d0b1854e89f3090647fb53e20e09fa1475cf206ac045a75e",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 294152,
+          "bytes": 42774019
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 143000,
+          "bytes": 32536000
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 151152,
+          "bytes": 10238019
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 119,
+      "total_num_allocations": 294152,
+      "total_bytes_allocated": 42774019
+    },
+    {
+      "source": "allocations-reverse-rust-pipeline.allocation-sites.json",
+      "source_sha256": "b2c6a98c6ef6a998ac914fc1ff2d7702b7b39630af1b811363ad28319abbf25f",
+      "capture_sha256": "065a7f79007eeb70ead8160a463343aacec26b521e0b03546dca5508ece7750d",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 71297,
+          "bytes": 10099148
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 33680,
+          "bytes": 7662592
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 37617,
+          "bytes": 2436556
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 180,
+      "total_num_allocations": 71297,
+      "total_bytes_allocated": 10099148
+    },
+    {
+      "source": "allocations-reverse-rust-pool.allocation-sites.json",
+      "source_sha256": "9b347c950ae29d50f2dfee4c3448587f63f77a2e03b2f47d0f679ec83a653a89",
+      "capture_sha256": "51ce96261e4d3ac89e714e0713864361caa191113ad940a9628d7912d84eaed6",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 7070,
+          "bytes": 1102878
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 3916,
+          "bytes": 882336
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 3154,
+          "bytes": 220542
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 158,
+      "total_num_allocations": 7070,
+      "total_bytes_allocated": 1102878
+    },
+    {
+      "source": "allocations-reverse-rust-prepared.allocation-sites.json",
+      "source_sha256": "558d57ec30e1938e1f979707c851291bc709483dd4f2e81df1ee3004a7850bef",
+      "capture_sha256": "a071227689e66db81f684bf3808413bdd368bcdbc5f606703748da8d4719f17a",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 281117,
+          "bytes": 41283595
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 144000,
+          "bytes": 32680000
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 137117,
+          "bytes": 8603595
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 121,
+      "total_num_allocations": 281117,
+      "total_bytes_allocated": 41283595
+    },
+    {
+      "source": "allocations-reverse-rust-rows_dict.allocation-sites.json",
+      "source_sha256": "2338eb74d55b4671028e4b1bc0d58535267dc4461c37a37d3715e99529b6d865",
+      "capture_sha256": "ed009d18140f2beb14acfafdc9bd630994d9a92cfdb29d3c95d50b51ba0d5e90",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 118853,
+          "bytes": 20375467
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 23340,
+          "bytes": 5394080
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 95513,
+          "bytes": 14981387
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 133,
+      "total_num_allocations": 118853,
+      "total_bytes_allocated": 20375467
+    },
+    {
+      "source": "allocations-reverse-rust-rows_namedtuple.allocation-sites.json",
+      "source_sha256": "e06d1e54c6fb07bc09dd44f2a508cbbc2751cf7521df6c4f0ef383e1b346fed5",
+      "capture_sha256": "e8860cc424420c4143ede0b9ad5f7afd550f1bc5fe85426de1e485e854751ea0",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 80315,
+          "bytes": 17919711
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 23340,
+          "bytes": 6353920
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 56975,
+          "bytes": 11565791
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 132,
+      "total_num_allocations": 80315,
+      "total_bytes_allocated": 17919711
+    },
+    {
+      "source": "allocations-reverse-rust-rows_tuple.allocation-sites.json",
+      "source_sha256": "220e86e86ed9ae3e18b56fccbee55112f7f1af3ddd93457754a7dfc7e7b4ce87",
+      "capture_sha256": "8eb80067fb30414a1780ff610f0996d83b512f657905b5e6e5935ef86be1f85d",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 40844,
+          "bytes": 10860919
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 3220,
+          "bytes": 728640
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 37624,
+          "bytes": 10132279
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 128,
+      "total_num_allocations": 40844,
+      "total_bytes_allocated": 10860919
+    },
+    {
+      "source": "allocations-reverse-rust-transaction.allocation-sites.json",
+      "source_sha256": "0e2e30f3b389b2009f8bfc2a9c7aa83df56f3398a699b3fe120b185c4a12ef24",
+      "capture_sha256": "38798ecaf118deaab246a43a26c011db7c3f66b1877faeb948d9c02e4d28da77",
+      "previous_analyzer_sha256": "41da651afbc8af4da2f5015b1f32877150fedd784678fac46068dc7eeaf8cecb",
+      "original_classes": {
+        "profile_frame_materialization": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 21134,
+          "bytes": 3001531
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "corrected_classes": {
+        "profile_frame_materialization": {
+          "allocations": 9800,
+          "bytes": 2231040
+        },
+        "monitoring_setup": {
+          "allocations": 0,
+          "bytes": 0
+        },
+        "other_instrumented_allocations": {
+          "allocations": 11334,
+          "bytes": 770491
+        },
+        "unresolved_native_site": {
+          "allocations": 0,
+          "bytes": 0
+        }
+      },
+      "changed_sites": 163,
+      "total_num_allocations": 21134,
+      "total_bytes_allocated": 3001531
+    }
+  ],
+  "limitations": [
+    "No allocation events or bytes are subtracted.",
+    "Unrecognized observer effects can remain; other instrumented allocations are not ordinary allocations.",
+    "No timing or allocation capture was rerun or modified."
+  ]
+}

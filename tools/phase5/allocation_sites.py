@@ -29,6 +29,18 @@ def classify(stack):
         and "call_profile_func" in names[1:5]
     ):
         return "profile_frame_materialization"
+    # Linux DWARF preserves allocator frames that the macOS trace can omit.
+    if names[:8] == [
+        "_PyObject_MallocWithType",
+        "gc_alloc",
+        "_PyObject_GC_NewVar",
+        "_PyFrame_New_NoTrack",
+        "_PyFrame_MakeAndSetFrameObject",
+        "_PyFrame_GetFrameObject",
+        "PyEval_GetFrame",
+        "call_profile_func",
+    ]:
+        return "profile_frame_materialization"
     if names[0] == "force_instrument_lock_held":
         return "monitoring_setup"
     # Instrumented interpreter opcodes also surround ordinary application work.

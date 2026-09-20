@@ -67,6 +67,35 @@ class AllocationSitesTests(unittest.TestCase):
             {"total_num_allocations": 5, "total_bytes_allocated": 4488},
         )
 
+    def test_linux_profile_frame_allocation_helpers(self):
+        names = [
+            "_PyObject_MallocWithType",
+            "gc_alloc",
+            "_PyObject_GC_NewVar",
+            "_PyFrame_New_NoTrack",
+            "_PyFrame_MakeAndSetFrameObject",
+            "_PyFrame_GetFrameObject",
+            "PyEval_GetFrame",
+            "call_profile_func",
+        ]
+        self.assertEqual(classify(stack(*names)), "profile_frame_materialization")
+        for index in range(len(names)):
+            changed = names.copy()
+            changed[index] = "unrecognized_application_function"
+            self.assertEqual(
+                classify(stack(*changed)), "other_instrumented_allocations"
+            )
+        result = summarize(
+            [record(2, 192, *names), record(6, 64, "driver_allocate")],
+            {"total_num_allocations": 2, "total_bytes_allocated": 256},
+        )
+        self.assertEqual(
+            result["classes"]["profile_frame_materialization"],
+            {"allocations": 1, "bytes": 192},
+        )
+        self.assertEqual(result["total_num_allocations"], 2)
+        self.assertEqual(result["total_bytes_allocated"], 256)
+
     def test_totals_retain_profiling_zero_size_and_mapping_allocations(self):
         result = self.fixture()
         self.assertEqual(

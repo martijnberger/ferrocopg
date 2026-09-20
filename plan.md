@@ -182,7 +182,11 @@ search for tiny transport optimizations.
    attribution report/archive; do not redispatch completed measurements.
    Successor Tests `35519509151` (all 57 jobs) and Lint `35519509127` also pass.
    Production Python/Rust sources
-   and Cargo settings remain identical to `7bbc14eb`.
+   and Cargo settings remain identical to `7bbc14eb`. Audit summary `f5ac04d1`
+   is published; the 2.9 MiB raw archive was separately committed as `5f8ac74d`
+   after explicitly allowing its size. Preserve and push that archive at the
+   next safe checkpoint. Successor Tests `35524995303` and Lint `35524995299`
+   were started by the audit push; follow them rather than cancelling them.
    Do not restart live handles
    or push over active Tests just to publish evidence-only commits.
    Satisfy every Phase 5 completion gate below on that candidate. Commit coherent
@@ -1474,9 +1478,12 @@ See the parity report's dedicated-attribution section. Tests `35511889731`
 are terminal success. Published attribution revision `8955d0a6` completed
 diagnostic workflow `35519527974`; its report/archive independently validate all
 workers and identities. Successor Tests `35519509151` and Lint `35519509127`
-also pass. Do not rerun completed measurements. Correct the Linux allocation
-observer classification using captured stacks before interpreting those counts,
-then finish the bottleneck table, remaining dispositions, and instrumentation
+also pass. Do not rerun completed measurements. The Linux allocation observer
+classification is now corrected for the exact observed eight-frame path;
+all 72 saved site reports reconcile with unchanged canonical totals, and 103
+tests pass. Preserve `2026-09-20-linux-allocation-reclassification.json` and
+the original categories in the dedicated archive. Finish the bottleneck table,
+remaining dispositions, and instrumentation
 coverage audit. Direct GIL/poll/wakeup coverage is not supplied by strace totals.
 The acceptance benchmark and soak `35511989284` are already terminal success
 and independently audited; do not restart them.
