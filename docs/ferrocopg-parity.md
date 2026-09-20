@@ -176,11 +176,58 @@ timing, skips acceptance/codegen jobs, and rejects conflicting diagnostic inputs
 It preserves the wheel, executables, all reports/logs, and manifest in a
 `phase5-layer-matrix-<revision>` artifact for 90 days. Audit the exact revision
 and raw reports after completion; a dispatch or green workflow alone does not
-establish a performance conclusion. This extension has not yet completed a
-dedicated run. It does not measure GIL transitions or scheduler wakeups, nor
+establish a performance conclusion. Published revision `0ec45e1d` is now running
+this matrix in workflow `35527765141`; follow that handle, not a replacement
+dispatch. It does not measure GIL transitions or scheduler wakeups, nor
 does its periodic sampling prove perfect host idleness. Review observer cost,
 all sampling intervals, and the existing before/after inventory when assessing
 the timing evidence; do not silently describe these measurements as observer-free.
+
+### Marked-loop handoff instrumentation
+
+`tools/phase5/handoff_trace.py` adds a separate Linux-only diagnostic. It uses
+[bpftrace child-PID filtering and tracepoints](https://bpftrace.org/docs/0.22)
+plus two diagnostic C marker functions, called through `ctypes.PyDLL` without
+releasing the interpreter. Only the region containing 1,000 prepared binary
+parameterized queries is counted, after 1,000 warmups; imports, setup, and
+cleanup are outside the marked loop. Fresh public cursors, binary int2
+parameters, one binary int4 result, autocommit, and one in-flight query match
+across Python/C/Rust in both backend orders. These are instrumented counts,
+never ordinary latency measurements.
+
+The probes distinguish `PyEval_SaveThread` entries and `PyEval_RestoreThread`
+returns, plus `PyGILState_Ensure` returns and `PyGILState_Release` entries with
+already-held versus previously-unheld state. These
+[CPython APIs](https://docs.python.org/3.14/c-api/threads.html) expose explicit
+attachment/detachment boundaries, not every interpreter-internal GIL switch.
+Scheduler wakeups, new-task wakeups, context switches, and available poll-family
+syscall entries are separate counters. Scheduler target TIDs are tracked from
+worker creation and removed at exit; they are not inferred from futex totals.
+This fixed worker does not spawn subprocesses in its measured loop.
+
+Linux root privileges, exported shared-Python symbols, and scheduler/poll
+tracepoints are required. Preflight reports, the generated BPF program, marker
+library, raw counts, worker fingerprints, and partial failures are preserved.
+Unknown output, missing/duplicate regions, changed packages/environments, and
+tracer warnings/errors fail the diagnostic. An unavailable tracer is not a zero
+count. Timing under uprobes can alter scheduling, so counts are observations
+under instrumentation, not an overhead-free causal latency budget.
+
+The opt-in command, after publication, is:
+
+```sh
+gh workflow run phase5.yml --repo martijnberger/ferrocopg \
+  --ref martijn/phase5-notice-lock -f handoff_trace=true
+```
+
+It skips other diagnostic/acceptance modes and rejects ambiguous inputs.
+All 122 Phase 5 tests pass locally, including region/count/identity rejection
+and partial-failure preservation. The C markers compile with warnings as errors,
+and all three installed marked-query workers pass their live Mac smoke checks
+at diagnostic source snapshot `0e8d3bfa882c19ad20715a8b29561f020dd44b67`.
+Those checks do not exercise BPF. Linux preflight, attachment, event collection,
+and independent raw-count audit remain outstanding; this tooling does not yet
+close the handoff/wakeup requirement or cover non-scalar workloads.
 
 ### Original constant-query diagnostic
 

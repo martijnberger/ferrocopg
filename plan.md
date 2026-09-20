@@ -191,21 +191,31 @@ search for tiny transport optimizations.
    Production Python/Rust sources
    and Cargo settings remain identical to `7bbc14eb`. Audit summary `f5ac04d1`
    is published; the 2.9 MiB raw archive was separately committed as `5f8ac74d`
-   after explicitly allowing its size. Preserve and push that archive at the
-   next safe checkpoint. Successor Tests `35524995303` and Lint `35524995299`
-   were started by the audit push; follow them rather than cancelling them.
+   after explicitly allowing its size and is now published through `0ec45e1d`.
+   Successor Tests `35524995303` passed all 57 jobs, and Lint `35524995299` passes.
+   The queued diagnostic stack was then pushed at `0ec45e1d`; follow successor
+   Tests `35527753862` rather than cancelling it; Lint `35527753918` passes.
    Do not restart live handles
    or push over active Tests just to publish evidence-only commits.
    The matched layer-matrix coordinator and opt-in `layer_matrix=true` dispatch
-   are implemented, with all 112 Phase 5 tests passing locally. At the next safe
-   publication checkpoint, dispatch this new diagnostic once and follow its
-   exact handle; do not rerun the old attribution or acceptance workload. It
+   are implemented, with all 112 Phase 5 tests passing locally. At the safe
+   publication checkpoint, the new diagnostic was dispatched once as
+   `35527765141` at `0ec45e1dfa4196d1e8ea17cf6b76d3d227119de9`. Its measurement
+   step is now running; follow that handle and audit its artifacts when terminal.
+   Do not rerun the old attribution or acceptance workload. It
    expands the native/public comparison to prepared/unprepared parameters and
    text/binary results, but does not close GIL/wakeup or host-idleness gaps.
    Its host-activity extension now samples process/system CPU during every case
    and records sampling gaps and observer CPU cost. All 116 tests pass. Assess
    these raw intervals on the dedicated runner; the local sampler smoke had
    measurable overhead and does not establish an idle or observer-free run.
+   The separate `handoff_trace.py` coordinator and `handoff_trace=true` workflow
+   mode are now implemented locally. All 122 Phase 5 tests and three installed
+   marked-worker smoke checks pass, but Linux BPF preflight/attachment and event
+   collection are not yet validated. Publish after successor CI is terminal,
+   then dispatch this new mode once. Missing tracepoints, absent exported Python
+   APIs, tracer warnings, and missing region markers must fail rather than be
+   treated as zero events. Do not count this as completed GIL/wakeup evidence.
    Satisfy every Phase 5 completion gate below on that candidate. Commit coherent
    slices with AI attribution and push
    the active development bookmark regularly. Keep `main` promotion, branch
