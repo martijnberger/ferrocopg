@@ -305,6 +305,12 @@ at diagnostic source snapshot `0e8d3bfa882c19ad20715a8b29561f020dd44b67`.
 Those checks do not exercise BPF. Linux preflight, attachment, event collection,
 and independent raw-count audit remain outstanding; this tooling does not yet
 close the handoff/wakeup requirement or cover non-scalar workloads.
+The tooling and completed matrix evidence are now published at
+`6c868a2bbf484c7509eaf66147d66c568a7a2077`. Handoff diagnostic
+[workflow `35530943059`](https://github.com/martijnberger/ferrocopg/actions/runs/35530943059)
+has been dispatched once; follow that exact handle. Successor Tests
+`35530927817` and Lint `35530927844` are queued. A diagnostic failure must retain
+its artifacts and be diagnosed, not treated as zero events or silently retried.
 
 ### Original constant-query diagnostic
 

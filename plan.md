@@ -233,10 +233,13 @@ search for tiny transport optimizations.
    checking with that existing warning excluded passes. Publish this alongside
    the handoff tracer when current CI is terminal, preserving the original failure.
    The separate `handoff_trace.py` coordinator and `handoff_trace=true` workflow
-   mode are now implemented locally. All 122 Phase 5 tests and three installed
+   mode are now published at `6c868a2bbf484c7509eaf66147d66c568a7a2077`.
+   Diagnostic workflow `35530943059` was dispatched once for that revision;
+   follow it without restarting completed scalar or acceptance measurements.
+   Successor Tests `35530927817` and Lint `35530927844` are also queued; do not
+   push over the active Tests run. All 122 Phase 5 tests and three installed
    marked-worker smoke checks pass, but Linux BPF preflight/attachment and event
-   collection are not yet validated. Publish after successor CI is terminal,
-   then dispatch this new mode once. Missing tracepoints, absent exported Python
+   collection are not yet validated. Missing tracepoints, absent exported Python
    APIs, tracer warnings, and missing region markers must fail rather than be
    treated as zero events. Do not count this as completed GIL/wakeup evidence.
    Satisfy every Phase 5 completion gate below on that candidate. Commit coherent
