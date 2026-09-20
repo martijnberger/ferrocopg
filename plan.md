@@ -1416,8 +1416,14 @@ Rust-client performance floor has been established.
   three-run benchmark wheel. See the retained-full-soak evidence and parity report.
 - [ ] Confirm scheduled soak execution and publish final-candidate reproducible
   results; a passing earlier CI run does not validate later code.
-- [ ] Revalidate the complete supported synchronous compatibility matrix and
-  installed-package boundary after the performance changes.
+- [x] Revalidate the complete supported synchronous compatibility matrix and
+  installed-package boundary after the performance changes. Frozen `7bbc14eb`,
+  Tests `35511889731`: all eight Rust jobs and the package job pass. All raw
+  JUnit classifications independently recompute with zero supported synchronous
+  failures/errors; package checks cover Rust-only use, official Psycopg
+  coexistence, and uninstall isolation. See the frozen-compatibility evidence.
+  The wider upstream workflow is still running; do not interrupt it with a push
+  or describe the whole workflow as green before it finishes.
 - [x] Align the README with the completed synchronous contract, staged-package
   usage, official async delegation, and experimental Rust async status. Remove
   obsolete Phase 4 gap claims without removing the raw libpq/socket boundaries.
@@ -1450,8 +1456,9 @@ statistics identities are checked, and all sites remain available in artifacts.
 Preserve `2026-09-20-allocation-observer-effect.json` and its raw-capture archive;
 do not optimize a profiler-created allocation as if it were ordinary driver work.
 See the parity report's dedicated-attribution section. Wait for active Tests
-`35511889731` to become terminal before pushing and dispatching this slice;
-continue following acceptance soak `35511989284` independently.
+`35511889731` to become terminal before pushing and dispatching this slice.
+The acceptance benchmark and soak `35511989284` are already terminal success
+and independently audited; do not restart them.
 
 - [x] Add and run initial native libpq, vendored `postgres`, Rust session, PyO3,
   and public API probes, plus fresh/reused cursor controls and separate profiles.

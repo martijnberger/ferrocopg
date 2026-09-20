@@ -516,9 +516,30 @@ This establishes the three-run **beta benchmark gate**, not near parity. Plain
 connection, TLS connection, and binary COPY meet both engineering targets in
 all three reports; dictionary rows do so only in run 2. The remaining workloads
 still exceed at least one near-parity objective. The separate checkpoint Tests
-`35511889731` remain live; Lint `35511889747` passes. Follow existing handles
-rather than restarting them. The final combined acceptance audit,
+`35511889731` remain live overall; its eight Rust compatibility jobs and package
+job pass, and Lint `35511889747` passes. Follow existing handles rather than
+restarting them. The final combined acceptance audit,
 scheduled-run proof, and remaining attribution work are still outstanding.
+
+The [frozen compatibility audit](performance/2026-09-20-frozen-compatibility.json)
+independently recomputes every field of all eight uploaded classifier reports
+from their raw JUnit XML with unchanged manifests, floors, baselines, and a zero
+synchronous regression budget. Supported synchronous passes are 4,483 on
+Python 3.11/PostgreSQL 14, 4,623 on the six intermediate configurations, and
+4,656 on Python 3.14/PostgreSQL 18, with no synchronous failures or errors.
+Experimental native-async failures remain in the original reports rather than
+being relabeled passes. The [compressed originals](performance/2026-09-20-frozen-compatibility.json.gz)
+retain all eight XML files, original and recomputed reports, classifier logs,
+verification inputs, artifact metadata, and the completed package-job log.
+The independent package job builds a CPython 3.11 release wheel and verifies
+Rust-only queries, coexistence with official Psycopg, and uninstall isolation.
+Its wheel SHA-256 is
+`a03d93047caf4c3802e18c0ac948500102caa6049486557991143bcc8bc1a4aa`;
+the artifact is `10607112769`. Namespace/member hashes are independently checked.
+This smoke job resolved official Psycopg 3.3.6, unlike the pinned 3.3.2 benchmark
+comparator; its wheel is not the CPython 3.14 performance wheel. This proves the
+supported synchronous and package-boundary gates at the frozen revision, not a
+terminal result for the wider workflow or Phase 6's full platform wheel matrix.
 
 The full soak artifact is `10607420931`. [The audit summary](performance/2026-09-20-retained-full-soak.json)
 records independently recomputed resource budgets, worker identities, coverage,

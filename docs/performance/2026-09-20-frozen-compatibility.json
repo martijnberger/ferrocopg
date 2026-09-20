@@ -1,0 +1,1895 @@
+{
+  "revision": "7bbc14eba9a573bf528317f0859a8734db589e19",
+  "workflow": "https://github.com/martijnberger/ferrocopg/actions/runs/35511889731",
+  "scope": "Supported synchronous matrix and installed-package boundary; the wider workflow is not yet terminal.",
+  "supported_sync_and_package_status": "success",
+  "workflow_status_at_observation": "in_progress",
+  "workflow_conclusion_at_observation": "",
+  "reports": [
+    {
+      "baseline_key": "py3.11-pg14",
+      "scopes": {
+        "async": {
+          "errors": 7,
+          "executed": 504,
+          "failed": 79,
+          "manifested": 772,
+          "passed": 418,
+          "rate": 0.8293650793650794,
+          "skipped": 109,
+          "total": 613
+        },
+        "overall": {
+          "errors": 7,
+          "executed": 4987,
+          "failed": 79,
+          "manifested": 1021,
+          "passed": 4901,
+          "rate": 0.9827551634249048,
+          "skipped": 439,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4483,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4483,
+          "rate": 1.0,
+          "skipped": 330,
+          "total": 4813
+        }
+      },
+      "files": {
+        "ferrocopg-compat.xml": "2da7f1737ed243d0661139c222dae969b372957b011ff9b4334f6bc65e24804a",
+        "ferrocopg-compat-report.json": "5828adbcb110cc3eae3b05550cd95e6a0b4f4df070b320efcbc671629fd70029",
+        "recomputed.json": "5828adbcb110cc3eae3b05550cd95e6a0b4f4df070b320efcbc671629fd70029",
+        "recomputed.log": "780c2ae799cfe720da9e5d3306253a8207bf299c515fe436df17b561a90d68cf"
+      },
+      "exact_recomputation": true
+    },
+    {
+      "baseline_key": "py3.11-pg15",
+      "scopes": {
+        "async": {
+          "errors": 11,
+          "executed": 594,
+          "failed": 95,
+          "manifested": 772,
+          "passed": 488,
+          "rate": 0.8215488215488216,
+          "skipped": 19,
+          "total": 613
+        },
+        "overall": {
+          "errors": 11,
+          "executed": 5217,
+          "failed": 95,
+          "manifested": 1021,
+          "passed": 5111,
+          "rate": 0.9796818094690435,
+          "skipped": 209,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 190,
+          "total": 4813
+        }
+      },
+      "files": {
+        "ferrocopg-compat.xml": "b1a05d4e36ea1eb0fe6284b2720b5375c83d1f353b27d7f779396c20e6d3c03b",
+        "ferrocopg-compat-report.json": "ae1d3dab8f2ef3eb5c0a83715392bc9fc61d4ea1df8a60a0c8b2d2ae0f29825d",
+        "recomputed.json": "ae1d3dab8f2ef3eb5c0a83715392bc9fc61d4ea1df8a60a0c8b2d2ae0f29825d",
+        "recomputed.log": "0ce9827ef34d4e1bdd3a83f717322cc69e001f2b4bd782190d1a925d50e9d39c"
+      },
+      "exact_recomputation": true
+    },
+    {
+      "baseline_key": "py3.11-pg16",
+      "scopes": {
+        "async": {
+          "errors": 11,
+          "executed": 594,
+          "failed": 95,
+          "manifested": 772,
+          "passed": 488,
+          "rate": 0.8215488215488216,
+          "skipped": 19,
+          "total": 613
+        },
+        "overall": {
+          "errors": 11,
+          "executed": 5217,
+          "failed": 95,
+          "manifested": 1021,
+          "passed": 5111,
+          "rate": 0.9796818094690435,
+          "skipped": 209,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 190,
+          "total": 4813
+        }
+      },
+      "files": {
+        "ferrocopg-compat.xml": "078fa51b7ede0e4b48ae0c83d147cfbbed0a0ea3de08743f479f113d582ad89b",
+        "ferrocopg-compat-report.json": "5a422cfc5e19654696ef04429cbe1036b82a2995c05eee3a37a1ec1e919eca03",
+        "recomputed.json": "5a422cfc5e19654696ef04429cbe1036b82a2995c05eee3a37a1ec1e919eca03",
+        "recomputed.log": "b9a17c8d01b793c58df87558ae98fab138a0326e60e8ac5d730869e775bd56a6"
+      },
+      "exact_recomputation": true
+    },
+    {
+      "baseline_key": "py3.11-pg17",
+      "scopes": {
+        "async": {
+          "errors": 11,
+          "executed": 594,
+          "failed": 95,
+          "manifested": 772,
+          "passed": 488,
+          "rate": 0.8215488215488216,
+          "skipped": 19,
+          "total": 613
+        },
+        "overall": {
+          "errors": 11,
+          "executed": 5217,
+          "failed": 95,
+          "manifested": 1021,
+          "passed": 5111,
+          "rate": 0.9796818094690435,
+          "skipped": 209,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 190,
+          "total": 4813
+        }
+      },
+      "files": {
+        "ferrocopg-compat.xml": "ddef4923e5fe7e1f942b3d8834b75ae68ec6a57a9ae19c2807919126e13d2026",
+        "ferrocopg-compat-report.json": "443c14cc2b52634d53ba260fba65a3ca9713ea3918bd827860a1e4cead988a32",
+        "recomputed.json": "443c14cc2b52634d53ba260fba65a3ca9713ea3918bd827860a1e4cead988a32",
+        "recomputed.log": "a50182c2918b2e92f3137cce8a082446740dfd34bc457df8bd5b5ede693c34b0"
+      },
+      "exact_recomputation": true
+    },
+    {
+      "baseline_key": "py3.11-pg18",
+      "scopes": {
+        "async": {
+          "errors": 11,
+          "executed": 594,
+          "failed": 95,
+          "manifested": 772,
+          "passed": 488,
+          "rate": 0.8215488215488216,
+          "skipped": 19,
+          "total": 613
+        },
+        "overall": {
+          "errors": 11,
+          "executed": 5217,
+          "failed": 95,
+          "manifested": 1021,
+          "passed": 5111,
+          "rate": 0.9796818094690435,
+          "skipped": 209,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 190,
+          "total": 4813
+        }
+      },
+      "files": {
+        "ferrocopg-compat.xml": "dfe0e5316c9f5b093f6d4b2857c10de5f1e49fec4bd9812f18232f2adb925311",
+        "ferrocopg-compat-report.json": "47ceb84770c998236a641ba9cb0959273a726b36132c945c2bdb53ac920dd91f",
+        "recomputed.json": "47ceb84770c998236a641ba9cb0959273a726b36132c945c2bdb53ac920dd91f",
+        "recomputed.log": "58e35e48bce2de34b578a4ea12e21f5990d7a5c4d4dd31f3f0101ed0f0900df9"
+      },
+      "exact_recomputation": true
+    },
+    {
+      "baseline_key": "py3.12-pg16",
+      "scopes": {
+        "async": {
+          "errors": 11,
+          "executed": 594,
+          "failed": 94,
+          "manifested": 772,
+          "passed": 489,
+          "rate": 0.8232323232323232,
+          "skipped": 19,
+          "total": 613
+        },
+        "overall": {
+          "errors": 11,
+          "executed": 5217,
+          "failed": 94,
+          "manifested": 1021,
+          "passed": 5112,
+          "rate": 0.9798734905117884,
+          "skipped": 209,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 190,
+          "total": 4813
+        }
+      },
+      "files": {
+        "ferrocopg-compat.xml": "00da53f682320461332d827808a55847bbf2b68895cf03e06fae2b6cf7078686",
+        "ferrocopg-compat-report.json": "dd568b1752f60a05c6b3c5da7517e06f68f1a20cd3d7e9c673a56a4f2b6c6b6a",
+        "recomputed.json": "dd568b1752f60a05c6b3c5da7517e06f68f1a20cd3d7e9c673a56a4f2b6c6b6a",
+        "recomputed.log": "64de4f54e5c56a73e31c2bb7d04c16cc361126553d04cdc4949d4801d34f6bd3"
+      },
+      "exact_recomputation": true
+    },
+    {
+      "baseline_key": "py3.13-pg17",
+      "scopes": {
+        "async": {
+          "errors": 11,
+          "executed": 594,
+          "failed": 95,
+          "manifested": 772,
+          "passed": 488,
+          "rate": 0.8215488215488216,
+          "skipped": 19,
+          "total": 613
+        },
+        "overall": {
+          "errors": 11,
+          "executed": 5217,
+          "failed": 95,
+          "manifested": 1021,
+          "passed": 5111,
+          "rate": 0.9796818094690435,
+          "skipped": 209,
+          "total": 5426
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 190,
+          "total": 4813
+        }
+      },
+      "files": {
+        "ferrocopg-compat.xml": "c29b8d294c8a53ebd98774fb2aaf08978a0b970d6b29bf166ccea181ded11b13",
+        "ferrocopg-compat-report.json": "10f38841e65787de1ab5d560a698a35cf2e70bf9f1f2c870cc20413ba0fa3548",
+        "recomputed.json": "10f38841e65787de1ab5d560a698a35cf2e70bf9f1f2c870cc20413ba0fa3548",
+        "recomputed.log": "3865cbb58d86287981b3dd40cdae7b6940f1862094dd2e27a95a0397a969e791"
+      },
+      "exact_recomputation": true
+    },
+    {
+      "baseline_key": "py3.14-pg18",
+      "scopes": {
+        "async": {
+          "errors": 11,
+          "executed": 625,
+          "failed": 101,
+          "manifested": 772,
+          "passed": 513,
+          "rate": 0.8208,
+          "skipped": 23,
+          "total": 648
+        },
+        "overall": {
+          "errors": 11,
+          "executed": 5281,
+          "failed": 101,
+          "manifested": 1021,
+          "passed": 5169,
+          "rate": 0.978791895474342,
+          "skipped": 215,
+          "total": 5496
+        },
+        "sync": {
+          "errors": 0,
+          "executed": 4656,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4656,
+          "rate": 1.0,
+          "skipped": 192,
+          "total": 4848
+        }
+      },
+      "files": {
+        "ferrocopg-compat.xml": "5cf0071ae35fad9438e65821e7687602de8b07b3cb46eb5e13b816546f1f24df",
+        "ferrocopg-compat-report.json": "f07667f46e92a8e68f18b23c5b0eb3edf530981e5165eb779850106ac950fa90",
+        "recomputed.json": "f07667f46e92a8e68f18b23c5b0eb3edf530981e5165eb779850106ac950fa90",
+        "recomputed.log": "49619325bed42d3251bf9ed0de04a7048828eff5cf72a07073889a057b8a9637"
+      },
+      "exact_recomputation": true
+    }
+  ],
+  "jobs": [
+    {
+      "completedAt": "2026-09-20T13:36:20Z",
+      "conclusion": "success",
+      "databaseId": 106081107075,
+      "name": "ferrocopg-rust (3.13, postgres:17, 17, newest)",
+      "startedAt": "2026-09-20T13:23:17Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-09-20T13:23:18Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-09-20T13:23:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:23:19Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v6",
+          "number": 2,
+          "startedAt": "2026-09-20T13:23:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:23:19Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v6",
+          "number": 3,
+          "startedAt": "2026-09-20T13:23:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:23:21Z",
+          "conclusion": "success",
+          "name": "Run astral-sh/setup-uv@v7",
+          "number": 4,
+          "startedAt": "2026-09-20T13:23:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:23:31Z",
+          "conclusion": "success",
+          "name": "Start PostgreSQL service",
+          "number": 5,
+          "startedAt": "2026-09-20T13:23:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:23:37Z",
+          "conclusion": "success",
+          "name": "Install the wanted libpq version",
+          "number": 6,
+          "startedAt": "2026-09-20T13:23:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:25:04Z",
+          "conclusion": "success",
+          "name": "Sync uv environment for the Rust path",
+          "number": 7,
+          "startedAt": "2026-09-20T13:23:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:25:42Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg backend crate tests",
+          "number": 8,
+          "startedAt": "2026-09-20T13:25:04Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:26:07Z",
+          "conclusion": "success",
+          "name": "Run vendored synchronous wait-loop tests",
+          "number": 9,
+          "startedAt": "2026-09-20T13:25:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:26:18Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg Python extension crate tests",
+          "number": 10,
+          "startedAt": "2026-09-20T13:26:07Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:26:41Z",
+          "conclusion": "success",
+          "name": "Install ferrocopg Rust extension",
+          "number": 11,
+          "startedAt": "2026-09-20T13:26:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:26:44Z",
+          "conclusion": "success",
+          "name": "Run Rust-default connection smoke test",
+          "number": 12,
+          "startedAt": "2026-09-20T13:26:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:26:45Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg bootstrap tests",
+          "number": 13,
+          "startedAt": "2026-09-20T13:26:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:36:17Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg compatibility harness",
+          "number": 14,
+          "startedAt": "2026-09-20T13:26:45Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:36:18Z",
+          "conclusion": "success",
+          "name": "Upload ferrocopg compatibility report",
+          "number": 15,
+          "startedAt": "2026-09-20T13:36:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:36:18Z",
+          "conclusion": "success",
+          "name": "Post Run astral-sh/setup-uv@v7",
+          "number": 28,
+          "startedAt": "2026-09-20T13:36:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:36:18Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v6",
+          "number": 29,
+          "startedAt": "2026-09-20T13:36:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:36:18Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v6",
+          "number": 30,
+          "startedAt": "2026-09-20T13:36:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:36:18Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 31,
+          "startedAt": "2026-09-20T13:36:18Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/martijnberger/ferrocopg/actions/runs/35511889731/job/106081107075"
+    },
+    {
+      "completedAt": "2026-09-20T15:02:27Z",
+      "conclusion": "success",
+      "databaseId": 106081107142,
+      "name": "ferrocopg-rust (3.11, postgres:16, 16, newest)",
+      "startedAt": "2026-09-20T14:48:58Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-09-20T14:49:00Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-09-20T14:48:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:49:01Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v6",
+          "number": 2,
+          "startedAt": "2026-09-20T14:49:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:49:01Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v6",
+          "number": 3,
+          "startedAt": "2026-09-20T14:49:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:49:02Z",
+          "conclusion": "success",
+          "name": "Run astral-sh/setup-uv@v7",
+          "number": 4,
+          "startedAt": "2026-09-20T14:49:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:49:09Z",
+          "conclusion": "success",
+          "name": "Start PostgreSQL service",
+          "number": 5,
+          "startedAt": "2026-09-20T14:49:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:49:16Z",
+          "conclusion": "success",
+          "name": "Install the wanted libpq version",
+          "number": 6,
+          "startedAt": "2026-09-20T14:49:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:50:50Z",
+          "conclusion": "success",
+          "name": "Sync uv environment for the Rust path",
+          "number": 7,
+          "startedAt": "2026-09-20T14:49:16Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:51:29Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg backend crate tests",
+          "number": 8,
+          "startedAt": "2026-09-20T14:50:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:51:54Z",
+          "conclusion": "success",
+          "name": "Run vendored synchronous wait-loop tests",
+          "number": 9,
+          "startedAt": "2026-09-20T14:51:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:52:05Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg Python extension crate tests",
+          "number": 10,
+          "startedAt": "2026-09-20T14:51:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:52:28Z",
+          "conclusion": "success",
+          "name": "Install ferrocopg Rust extension",
+          "number": 11,
+          "startedAt": "2026-09-20T14:52:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:52:30Z",
+          "conclusion": "success",
+          "name": "Run Rust-default connection smoke test",
+          "number": 12,
+          "startedAt": "2026-09-20T14:52:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:52:31Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg bootstrap tests",
+          "number": 13,
+          "startedAt": "2026-09-20T14:52:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T15:02:24Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg compatibility harness",
+          "number": 14,
+          "startedAt": "2026-09-20T14:52:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T15:02:25Z",
+          "conclusion": "success",
+          "name": "Upload ferrocopg compatibility report",
+          "number": 15,
+          "startedAt": "2026-09-20T15:02:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T15:02:25Z",
+          "conclusion": "success",
+          "name": "Post Run astral-sh/setup-uv@v7",
+          "number": 28,
+          "startedAt": "2026-09-20T15:02:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T15:02:25Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v6",
+          "number": 29,
+          "startedAt": "2026-09-20T15:02:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T15:02:25Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v6",
+          "number": 30,
+          "startedAt": "2026-09-20T15:02:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T15:02:25Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 31,
+          "startedAt": "2026-09-20T15:02:25Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/martijnberger/ferrocopg/actions/runs/35511889731/job/106081107142"
+    },
+    {
+      "completedAt": "2026-09-20T14:55:44Z",
+      "conclusion": "success",
+      "databaseId": 106081107146,
+      "name": "ferrocopg-rust (3.11, postgres:17, 17, newest)",
+      "startedAt": "2026-09-20T14:43:26Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-09-20T14:43:28Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-09-20T14:43:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:43:29Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v6",
+          "number": 2,
+          "startedAt": "2026-09-20T14:43:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:43:30Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v6",
+          "number": 3,
+          "startedAt": "2026-09-20T14:43:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:43:32Z",
+          "conclusion": "success",
+          "name": "Run astral-sh/setup-uv@v7",
+          "number": 4,
+          "startedAt": "2026-09-20T14:43:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:43:47Z",
+          "conclusion": "success",
+          "name": "Start PostgreSQL service",
+          "number": 5,
+          "startedAt": "2026-09-20T14:43:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:43:54Z",
+          "conclusion": "success",
+          "name": "Install the wanted libpq version",
+          "number": 6,
+          "startedAt": "2026-09-20T14:43:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:45:23Z",
+          "conclusion": "success",
+          "name": "Sync uv environment for the Rust path",
+          "number": 7,
+          "startedAt": "2026-09-20T14:43:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:46:01Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg backend crate tests",
+          "number": 8,
+          "startedAt": "2026-09-20T14:45:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:46:24Z",
+          "conclusion": "success",
+          "name": "Run vendored synchronous wait-loop tests",
+          "number": 9,
+          "startedAt": "2026-09-20T14:46:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:46:35Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg Python extension crate tests",
+          "number": 10,
+          "startedAt": "2026-09-20T14:46:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:46:59Z",
+          "conclusion": "success",
+          "name": "Install ferrocopg Rust extension",
+          "number": 11,
+          "startedAt": "2026-09-20T14:46:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:47:01Z",
+          "conclusion": "success",
+          "name": "Run Rust-default connection smoke test",
+          "number": 12,
+          "startedAt": "2026-09-20T14:46:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:47:03Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg bootstrap tests",
+          "number": 13,
+          "startedAt": "2026-09-20T14:47:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:55:41Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg compatibility harness",
+          "number": 14,
+          "startedAt": "2026-09-20T14:47:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:55:42Z",
+          "conclusion": "success",
+          "name": "Upload ferrocopg compatibility report",
+          "number": 15,
+          "startedAt": "2026-09-20T14:55:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:55:42Z",
+          "conclusion": "success",
+          "name": "Post Run astral-sh/setup-uv@v7",
+          "number": 28,
+          "startedAt": "2026-09-20T14:55:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:55:42Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v6",
+          "number": 29,
+          "startedAt": "2026-09-20T14:55:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:55:43Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v6",
+          "number": 30,
+          "startedAt": "2026-09-20T14:55:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:55:43Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 31,
+          "startedAt": "2026-09-20T14:55:43Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/martijnberger/ferrocopg/actions/runs/35511889731/job/106081107146"
+    },
+    {
+      "completedAt": "2026-09-20T14:04:36Z",
+      "conclusion": "success",
+      "databaseId": 106081107147,
+      "name": "ferrocopg-rust (3.11, postgres:18, 18, newest)",
+      "startedAt": "2026-09-20T13:50:07Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-09-20T13:50:10Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-09-20T13:50:08Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:50:11Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v6",
+          "number": 2,
+          "startedAt": "2026-09-20T13:50:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:50:11Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v6",
+          "number": 3,
+          "startedAt": "2026-09-20T13:50:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:50:14Z",
+          "conclusion": "success",
+          "name": "Run astral-sh/setup-uv@v7",
+          "number": 4,
+          "startedAt": "2026-09-20T13:50:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:50:24Z",
+          "conclusion": "success",
+          "name": "Start PostgreSQL service",
+          "number": 5,
+          "startedAt": "2026-09-20T13:50:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:50:31Z",
+          "conclusion": "success",
+          "name": "Install the wanted libpq version",
+          "number": 6,
+          "startedAt": "2026-09-20T13:50:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:52:06Z",
+          "conclusion": "success",
+          "name": "Sync uv environment for the Rust path",
+          "number": 7,
+          "startedAt": "2026-09-20T13:50:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:52:46Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg backend crate tests",
+          "number": 8,
+          "startedAt": "2026-09-20T13:52:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:53:11Z",
+          "conclusion": "success",
+          "name": "Run vendored synchronous wait-loop tests",
+          "number": 9,
+          "startedAt": "2026-09-20T13:52:46Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:53:23Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg Python extension crate tests",
+          "number": 10,
+          "startedAt": "2026-09-20T13:53:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:53:46Z",
+          "conclusion": "success",
+          "name": "Install ferrocopg Rust extension",
+          "number": 11,
+          "startedAt": "2026-09-20T13:53:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:53:48Z",
+          "conclusion": "success",
+          "name": "Run Rust-default connection smoke test",
+          "number": 12,
+          "startedAt": "2026-09-20T13:53:46Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:53:49Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg bootstrap tests",
+          "number": 13,
+          "startedAt": "2026-09-20T13:53:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:04:31Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg compatibility harness",
+          "number": 14,
+          "startedAt": "2026-09-20T13:53:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:04:33Z",
+          "conclusion": "success",
+          "name": "Upload ferrocopg compatibility report",
+          "number": 15,
+          "startedAt": "2026-09-20T14:04:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:04:33Z",
+          "conclusion": "success",
+          "name": "Post Run astral-sh/setup-uv@v7",
+          "number": 28,
+          "startedAt": "2026-09-20T14:04:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:04:33Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v6",
+          "number": 29,
+          "startedAt": "2026-09-20T14:04:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:04:33Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v6",
+          "number": 30,
+          "startedAt": "2026-09-20T14:04:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:04:33Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 31,
+          "startedAt": "2026-09-20T14:04:33Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/martijnberger/ferrocopg/actions/runs/35511889731/job/106081107147"
+    },
+    {
+      "completedAt": "2026-09-20T14:54:09Z",
+      "conclusion": "success",
+      "databaseId": 106081107151,
+      "name": "ferrocopg-package",
+      "startedAt": "2026-09-20T14:51:05Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-09-20T14:51:08Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-09-20T14:51:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:51:24Z",
+          "conclusion": "success",
+          "name": "Initialize containers",
+          "number": 2,
+          "startedAt": "2026-09-20T14:51:08Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:51:25Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v6",
+          "number": 3,
+          "startedAt": "2026-09-20T14:51:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:51:26Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v6",
+          "number": 4,
+          "startedAt": "2026-09-20T14:51:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:51:30Z",
+          "conclusion": "success",
+          "name": "Run astral-sh/setup-uv@v7",
+          "number": 5,
+          "startedAt": "2026-09-20T14:51:26Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:52:54Z",
+          "conclusion": "success",
+          "name": "Install libpq and the build environment",
+          "number": 6,
+          "startedAt": "2026-09-20T14:51:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:54:03Z",
+          "conclusion": "success",
+          "name": "Stage and build the ferrocopg wheel",
+          "number": 7,
+          "startedAt": "2026-09-20T14:52:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:54:04Z",
+          "conclusion": "success",
+          "name": "Verify installed-wheel coexistence and Rust query",
+          "number": 8,
+          "startedAt": "2026-09-20T14:54:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:54:05Z",
+          "conclusion": "success",
+          "name": "Upload the staged ferrocopg wheel",
+          "number": 9,
+          "startedAt": "2026-09-20T14:54:04Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:54:05Z",
+          "conclusion": "success",
+          "name": "Post Run astral-sh/setup-uv@v7",
+          "number": 15,
+          "startedAt": "2026-09-20T14:54:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:54:06Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v6",
+          "number": 16,
+          "startedAt": "2026-09-20T14:54:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:54:06Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v6",
+          "number": 17,
+          "startedAt": "2026-09-20T14:54:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:54:06Z",
+          "conclusion": "success",
+          "name": "Stop containers",
+          "number": 18,
+          "startedAt": "2026-09-20T14:54:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:54:06Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 19,
+          "startedAt": "2026-09-20T14:54:06Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/martijnberger/ferrocopg/actions/runs/35511889731/job/106081107151"
+    },
+    {
+      "completedAt": "2026-09-20T14:54:34Z",
+      "conclusion": "success",
+      "databaseId": 106081107155,
+      "name": "ferrocopg-rust (3.11, postgres:14, 14, oldest)",
+      "startedAt": "2026-09-20T14:40:40Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-09-20T14:40:42Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-09-20T14:40:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:40:43Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v6",
+          "number": 2,
+          "startedAt": "2026-09-20T14:40:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:40:43Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v6",
+          "number": 3,
+          "startedAt": "2026-09-20T14:40:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:40:44Z",
+          "conclusion": "success",
+          "name": "Run astral-sh/setup-uv@v7",
+          "number": 4,
+          "startedAt": "2026-09-20T14:40:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:40:53Z",
+          "conclusion": "success",
+          "name": "Start PostgreSQL service",
+          "number": 5,
+          "startedAt": "2026-09-20T14:40:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:41:06Z",
+          "conclusion": "success",
+          "name": "Install the wanted libpq version",
+          "number": 6,
+          "startedAt": "2026-09-20T14:40:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:42:36Z",
+          "conclusion": "success",
+          "name": "Sync uv environment for the Rust path",
+          "number": 7,
+          "startedAt": "2026-09-20T14:41:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:43:16Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg backend crate tests",
+          "number": 8,
+          "startedAt": "2026-09-20T14:42:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:43:41Z",
+          "conclusion": "success",
+          "name": "Run vendored synchronous wait-loop tests",
+          "number": 9,
+          "startedAt": "2026-09-20T14:43:16Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:43:54Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg Python extension crate tests",
+          "number": 10,
+          "startedAt": "2026-09-20T14:43:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:44:17Z",
+          "conclusion": "success",
+          "name": "Install ferrocopg Rust extension",
+          "number": 11,
+          "startedAt": "2026-09-20T14:43:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:44:19Z",
+          "conclusion": "success",
+          "name": "Run Rust-default connection smoke test",
+          "number": 12,
+          "startedAt": "2026-09-20T14:44:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:44:21Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg bootstrap tests",
+          "number": 13,
+          "startedAt": "2026-09-20T14:44:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:54:31Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg compatibility harness",
+          "number": 14,
+          "startedAt": "2026-09-20T14:44:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:54:32Z",
+          "conclusion": "success",
+          "name": "Upload ferrocopg compatibility report",
+          "number": 15,
+          "startedAt": "2026-09-20T14:54:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:54:32Z",
+          "conclusion": "success",
+          "name": "Post Run astral-sh/setup-uv@v7",
+          "number": 28,
+          "startedAt": "2026-09-20T14:54:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:54:32Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v6",
+          "number": 29,
+          "startedAt": "2026-09-20T14:54:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:54:32Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v6",
+          "number": 30,
+          "startedAt": "2026-09-20T14:54:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:54:32Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 31,
+          "startedAt": "2026-09-20T14:54:32Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/martijnberger/ferrocopg/actions/runs/35511889731/job/106081107155"
+    },
+    {
+      "completedAt": "2026-09-20T14:04:43Z",
+      "conclusion": "success",
+      "databaseId": 106081107171,
+      "name": "ferrocopg-rust (3.14, postgres:18, 18, newest)",
+      "startedAt": "2026-09-20T13:50:10Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-09-20T13:50:12Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-09-20T13:50:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:50:12Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v6",
+          "number": 2,
+          "startedAt": "2026-09-20T13:50:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:50:13Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v6",
+          "number": 3,
+          "startedAt": "2026-09-20T13:50:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:50:14Z",
+          "conclusion": "success",
+          "name": "Run astral-sh/setup-uv@v7",
+          "number": 4,
+          "startedAt": "2026-09-20T13:50:13Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:50:24Z",
+          "conclusion": "success",
+          "name": "Start PostgreSQL service",
+          "number": 5,
+          "startedAt": "2026-09-20T13:50:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:50:32Z",
+          "conclusion": "success",
+          "name": "Install the wanted libpq version",
+          "number": 6,
+          "startedAt": "2026-09-20T13:50:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:51:57Z",
+          "conclusion": "success",
+          "name": "Sync uv environment for the Rust path",
+          "number": 7,
+          "startedAt": "2026-09-20T13:50:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:52:33Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg backend crate tests",
+          "number": 8,
+          "startedAt": "2026-09-20T13:51:57Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:52:56Z",
+          "conclusion": "success",
+          "name": "Run vendored synchronous wait-loop tests",
+          "number": 9,
+          "startedAt": "2026-09-20T13:52:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:53:06Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg Python extension crate tests",
+          "number": 10,
+          "startedAt": "2026-09-20T13:52:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:53:29Z",
+          "conclusion": "success",
+          "name": "Install ferrocopg Rust extension",
+          "number": 11,
+          "startedAt": "2026-09-20T13:53:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:53:32Z",
+          "conclusion": "success",
+          "name": "Run Rust-default connection smoke test",
+          "number": 12,
+          "startedAt": "2026-09-20T13:53:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T13:53:34Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg bootstrap tests",
+          "number": 13,
+          "startedAt": "2026-09-20T13:53:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:04:41Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg compatibility harness",
+          "number": 14,
+          "startedAt": "2026-09-20T13:53:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:04:42Z",
+          "conclusion": "success",
+          "name": "Upload ferrocopg compatibility report",
+          "number": 15,
+          "startedAt": "2026-09-20T14:04:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:04:42Z",
+          "conclusion": "success",
+          "name": "Post Run astral-sh/setup-uv@v7",
+          "number": 28,
+          "startedAt": "2026-09-20T14:04:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:04:42Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v6",
+          "number": 29,
+          "startedAt": "2026-09-20T14:04:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:04:42Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v6",
+          "number": 30,
+          "startedAt": "2026-09-20T14:04:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:04:43Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 31,
+          "startedAt": "2026-09-20T14:04:42Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/martijnberger/ferrocopg/actions/runs/35511889731/job/106081107171"
+    },
+    {
+      "completedAt": "2026-09-20T15:00:35Z",
+      "conclusion": "success",
+      "databaseId": 106081107176,
+      "name": "ferrocopg-rust (3.12, postgres:16, 16, newest)",
+      "startedAt": "2026-09-20T14:48:19Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-09-20T14:48:21Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-09-20T14:48:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:48:23Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v6",
+          "number": 2,
+          "startedAt": "2026-09-20T14:48:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:48:23Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v6",
+          "number": 3,
+          "startedAt": "2026-09-20T14:48:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:48:25Z",
+          "conclusion": "success",
+          "name": "Run astral-sh/setup-uv@v7",
+          "number": 4,
+          "startedAt": "2026-09-20T14:48:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:48:34Z",
+          "conclusion": "success",
+          "name": "Start PostgreSQL service",
+          "number": 5,
+          "startedAt": "2026-09-20T14:48:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:48:41Z",
+          "conclusion": "success",
+          "name": "Install the wanted libpq version",
+          "number": 6,
+          "startedAt": "2026-09-20T14:48:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:49:51Z",
+          "conclusion": "success",
+          "name": "Sync uv environment for the Rust path",
+          "number": 7,
+          "startedAt": "2026-09-20T14:48:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:50:22Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg backend crate tests",
+          "number": 8,
+          "startedAt": "2026-09-20T14:49:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:50:41Z",
+          "conclusion": "success",
+          "name": "Run vendored synchronous wait-loop tests",
+          "number": 9,
+          "startedAt": "2026-09-20T14:50:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:50:50Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg Python extension crate tests",
+          "number": 10,
+          "startedAt": "2026-09-20T14:50:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:51:08Z",
+          "conclusion": "success",
+          "name": "Install ferrocopg Rust extension",
+          "number": 11,
+          "startedAt": "2026-09-20T14:50:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:51:10Z",
+          "conclusion": "success",
+          "name": "Run Rust-default connection smoke test",
+          "number": 12,
+          "startedAt": "2026-09-20T14:51:08Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:51:11Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg bootstrap tests",
+          "number": 13,
+          "startedAt": "2026-09-20T14:51:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T15:00:31Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg compatibility harness",
+          "number": 14,
+          "startedAt": "2026-09-20T14:51:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T15:00:32Z",
+          "conclusion": "success",
+          "name": "Upload ferrocopg compatibility report",
+          "number": 15,
+          "startedAt": "2026-09-20T15:00:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T15:00:33Z",
+          "conclusion": "success",
+          "name": "Post Run astral-sh/setup-uv@v7",
+          "number": 28,
+          "startedAt": "2026-09-20T15:00:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T15:00:33Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v6",
+          "number": 29,
+          "startedAt": "2026-09-20T15:00:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T15:00:33Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v6",
+          "number": 30,
+          "startedAt": "2026-09-20T15:00:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T15:00:33Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 31,
+          "startedAt": "2026-09-20T15:00:33Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/martijnberger/ferrocopg/actions/runs/35511889731/job/106081107176"
+    },
+    {
+      "completedAt": "2026-09-20T14:54:13Z",
+      "conclusion": "success",
+      "databaseId": 106081107207,
+      "name": "ferrocopg-rust (3.11, postgres:15, 15, newest)",
+      "startedAt": "2026-09-20T14:40:22Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-09-20T14:40:24Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-09-20T14:40:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:40:26Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v6",
+          "number": 2,
+          "startedAt": "2026-09-20T14:40:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:40:26Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v6",
+          "number": 3,
+          "startedAt": "2026-09-20T14:40:26Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:40:29Z",
+          "conclusion": "success",
+          "name": "Run astral-sh/setup-uv@v7",
+          "number": 4,
+          "startedAt": "2026-09-20T14:40:26Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:40:38Z",
+          "conclusion": "success",
+          "name": "Start PostgreSQL service",
+          "number": 5,
+          "startedAt": "2026-09-20T14:40:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:40:45Z",
+          "conclusion": "success",
+          "name": "Install the wanted libpq version",
+          "number": 6,
+          "startedAt": "2026-09-20T14:40:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:42:21Z",
+          "conclusion": "success",
+          "name": "Sync uv environment for the Rust path",
+          "number": 7,
+          "startedAt": "2026-09-20T14:40:45Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:43:00Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg backend crate tests",
+          "number": 8,
+          "startedAt": "2026-09-20T14:42:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:43:24Z",
+          "conclusion": "success",
+          "name": "Run vendored synchronous wait-loop tests",
+          "number": 9,
+          "startedAt": "2026-09-20T14:43:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:43:36Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg Python extension crate tests",
+          "number": 10,
+          "startedAt": "2026-09-20T14:43:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:43:58Z",
+          "conclusion": "success",
+          "name": "Install ferrocopg Rust extension",
+          "number": 11,
+          "startedAt": "2026-09-20T14:43:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:44:00Z",
+          "conclusion": "success",
+          "name": "Run Rust-default connection smoke test",
+          "number": 12,
+          "startedAt": "2026-09-20T14:43:58Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:44:01Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg bootstrap tests",
+          "number": 13,
+          "startedAt": "2026-09-20T14:44:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:54:08Z",
+          "conclusion": "success",
+          "name": "Run ferrocopg compatibility harness",
+          "number": 14,
+          "startedAt": "2026-09-20T14:44:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:54:09Z",
+          "conclusion": "success",
+          "name": "Upload ferrocopg compatibility report",
+          "number": 15,
+          "startedAt": "2026-09-20T14:54:08Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:54:09Z",
+          "conclusion": "success",
+          "name": "Post Run astral-sh/setup-uv@v7",
+          "number": 28,
+          "startedAt": "2026-09-20T14:54:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:54:10Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v6",
+          "number": 29,
+          "startedAt": "2026-09-20T14:54:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:54:10Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v6",
+          "number": 30,
+          "startedAt": "2026-09-20T14:54:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-09-20T14:54:10Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 31,
+          "startedAt": "2026-09-20T14:54:10Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/martijnberger/ferrocopg/actions/runs/35511889731/job/106081107207"
+    }
+  ],
+  "wheel": {
+    "filename": "ferrocopg-0.1.0-cp311-cp311-manylinux_2_38_x86_64.whl",
+    "sha256": "a03d93047caf4c3802e18c0ac948500102caa6049486557991143bcc8bc1a4aa",
+    "member_sha256": {
+      "ferrocopg/__init__.py": "546fa11ec65349b0e3727d7d81600545473bc2c6784bb4b7092939ddc59a5e8a",
+      "ferrocopg/_acompat.py": "a403fe13a8deb1d80e3ae7e9e532e1f2eb525917951e4f7fddc42b5f1d9ad78a",
+      "ferrocopg/_adapters_map.py": "573a8598e0f46bf7891768cf68d4bddf4e91dc22a3afb14bc9d4bfc1d44c4497",
+      "ferrocopg/_capabilities.py": "01d498d399be8394f2c47e7a72680ce0a9f26b424d017070286f69042c1768bd",
+      "ferrocopg/_cmodule.py": "81e27abbc8788aa62e1acbb7e80a035c1be39685fc44276106ca2f5873438bb2",
+      "ferrocopg/_column.py": "948799c75558d917f2af529254b0963dfb664069deb759d72377f2088d82e55f",
+      "ferrocopg/_compat.py": "9c82f8c18563c21f9b7dfb77d5650dcd24817357d9cc8a8a14e460aeed39b57e",
+      "ferrocopg/_connection_base.py": "e5c1d9409a6498ebaba6847e639fe4ba4a1ad8d6adf682495550cb16ed1cc843",
+      "ferrocopg/_connection_info.py": "1aab70228aeb12fe3578c60f2004b9b8bffbe3324c3a4727a2024e50eb0316c6",
+      "ferrocopg/_conninfo_attempts.py": "f69c721909cc0b12590c39a9aa22cb615ace62e23b268b674f8ba8c857aa2d49",
+      "ferrocopg/_conninfo_attempts_async.py": "5f7860a6950fb8924ff2d553392cddc79877a163682b61952f5debfdf6322451",
+      "ferrocopg/_conninfo_utils.py": "be0264539e6f23b54f7b3886418acdee5acfe0b7d50b4eb4952f2d9a196dd41d",
+      "ferrocopg/_copy.py": "694294daa5eac8aad365f6f5cc0d1f76fc73278e6bea34eab942abba7af98457",
+      "ferrocopg/_copy_async.py": "87d758f02dc08ca688c2751c1b1ff551464c0719f541be1a3a285cfda6f92ef9",
+      "ferrocopg/_copy_base.py": "29e85675bea40d0d8d95f9703c892e156d98097e54343d45543485d8a918c553",
+      "ferrocopg/_cursor_base.py": "26eaa0d80560f9b00c1de55d8a20de002b9cbf959da69d1e13d23d922beff0dc",
+      "ferrocopg/_dns.py": "d52e2b5c21504c4f8624ae5128389b80e78927a3631f9adef5bb613f4b4532a1",
+      "ferrocopg/_encodings.py": "f2b5aee1d5ad05dc70633c858eae42aa15569391c488abbb50a1289904c775c1",
+      "ferrocopg/_enums.py": "a12ee93f0f2c2e8bf999348b9f53972bf00d97938a4e870a60141524c311ada2",
+      "ferrocopg/_ferrocopg.py": "3b7de15c7b3315d1fef878132d8853d234d928b237cdf9a6e49366211bfbfda7",
+      "ferrocopg/_ferrocopg_async.py": "495f868b6c744048723233f0d435a8764a9c443c20ada8585701a228025e54e4",
+      "ferrocopg/_ferrocopg_conninfo.py": "52f36d4a20e724070fa302f656b97625c423910bf270ee1ef98e2a5878a0ed7a",
+      "ferrocopg/_official.py": "c487f9bf8e74296e9070a38956a6400463d01eb56df542d5b2427fa78b172b28",
+      "ferrocopg/_oids.py": "3018aeffa0b8a708ecf363699dd9bc1757817fc1c2029472dec2daeaf48fc9ba",
+      "ferrocopg/_pipeline.py": "b1660d2a5efdaa7aa326bc0d0810a2d5d9c40f90972eb9fa6115f658fa802a64",
+      "ferrocopg/_pipeline_async.py": "10c29922f2026a363ec02d4c64911f4a07ed7594b9107224e4ecc486b04da078",
+      "ferrocopg/_pipeline_base.py": "8fd4651b94e9a0f0bd7c2756c2f55ee031c87d5254cf7621aa33aa9ecc2ee9e1",
+      "ferrocopg/_pq_compat.py": "a62ed2f308dfe80ad09ad3d2c1442f784925d839b7eeb6cfb3f8666084a972c3",
+      "ferrocopg/_preparing.py": "7c35122400335ddd975a74c1957293fa9bc39b4ba178aca8997898a90161fc08",
+      "ferrocopg/_py_transformer.py": "a670653cd757f349691c4194ecb6c9c6b80ba145a7ade39ee163ab19a419fbdb",
+      "ferrocopg/_queries.py": "a417ac82e307e22c4d2bad16e465d675d461074d506ce87bd29c35a8e2da406b",
+      "ferrocopg/_rmodule.py": "8ba5fb0e347e4e2e1d590ce18697ba5e01aea46bffc023d8061c68a0c82c4075",
+      "ferrocopg/_rust/__init__.py": "a5e12579832dc3c26224e84931e265d9e9d73ae39de4dd5863261ded8eae16fb",
+      "ferrocopg/_rust/_ferrocopg.cpython-311-x86_64-linux-gnu.so": "8a6998db46ba1c7421a8334a4e2315dd72cd9108de4ad4f17418d5706379d16e",
+      "ferrocopg/_server_cursor.py": "21750953da98bac13405a344ebacd6f199a2e5dc92009951d6470aa3050ed9ee",
+      "ferrocopg/_server_cursor_async.py": "052d7171a9059b7cdc2fc30c107c27b5ed31be712916daeee7cc0081671813fb",
+      "ferrocopg/_server_cursor_base.py": "f09de914d8897c94f98f7018608946a6f777f9f4e6ea8355d397ed31b88566d7",
+      "ferrocopg/_struct.py": "4534cd5a1859380a7ffc90be3c812237812229994aba5d33995300701cf2c1e4",
+      "ferrocopg/_tpc.py": "dbaade36306eba1f01b0923c0cae9470154e9643e647d3886dce17dd4e0304dd",
+      "ferrocopg/_transformer.py": "0c13f69f598d6b61c30da0cb59c369f55188bacef797aae134511d3d6f022253",
+      "ferrocopg/_tstrings.py": "d0b2c62c72a3fa15cb79de1eb9e001767b99ed5f1e239876b2506ef5fe9af225",
+      "ferrocopg/_typeinfo.py": "c7e4338d7769ca92343474a83b6b3117af7ea79e914495bb5716f38078fa08ae",
+      "ferrocopg/_typemod.py": "519c0715f9d66d7ab167d508541ac9877eb9f7da686406998fae6ff04b1b209b",
+      "ferrocopg/_tz.py": "cd4a6cb4817c61eb9f2e226e425a1edc5f36c9698ed2c9e1933d7210178ae9d2",
+      "ferrocopg/_vendored.py": "d7bed31d3bbf6dafc67438d8e664327fd5298cb9d64e2479c8862e6b46c690c0",
+      "ferrocopg/_wrappers.py": "44fe56068002e5be1da6d2103ebc1f1904d3370c794d453c4b8f7ca4d149c904",
+      "ferrocopg/abc.py": "fbee4f53130738f5eac91df754d8f47ba668bf8f8d6f4a033792d70436f105dc",
+      "ferrocopg/adapt.py": "2fe49726f5f5fe28c557c4ea5c5d70d33687a4effef1b1995a7c0ad92318af20",
+      "ferrocopg/client_cursor.py": "2fdefb4f10614c4e0877f030f50bb91d5cc83a79d053e839527d51cbf414facf",
+      "ferrocopg/connection.py": "a98d8bb030cdf722f2b2d40bf32511e70b9dd5dcb6a8045b76f49038016f920b",
+      "ferrocopg/connection_async.py": "bef827def258fdb35f85f80570be0da10a318835e1fe9de9a419e51c00373f19",
+      "ferrocopg/conninfo.py": "0c2facbafd48a307b061e4754302780fa2e477cf2a4e50c434b39540f8121e5d",
+      "ferrocopg/copy.py": "fd5ef68e9d835ebd931ecaa8f52e9c6a1bde328d10b819777e78a0b74ac699b7",
+      "ferrocopg/crdb/__init__.py": "674c11bec482fc2a5a38159f5828a5c0fd2c37a037f88561403e5c95d826fdd1",
+      "ferrocopg/crdb/_types.py": "283cc0f275c3e875304f8691dfbd41ba029f65f72a78b1c8bb563a628d074d60",
+      "ferrocopg/crdb/connection.py": "a8da57e56ed1cb1d84dc645d40b939c86d384752d68aa0f29804513f28761ece",
+      "ferrocopg/cursor.py": "2a0298ca456fa181f1c5d9e878bb48feb7c797b88fd344e0891c851b83720324",
+      "ferrocopg/cursor_async.py": "baec93de14348d41f65a9d8eadfcbe7338f0a01c92c2210479bb89a25d0826ff",
+      "ferrocopg/dbapi20.py": "a6f014d21dad513dfe07705bc5cda597353d5baa9135b763452bc561dc332746",
+      "ferrocopg/errors.py": "ebea98455325d066f3eaf118c6deb2d59b08466aec67574c853bdeb236f7b3d8",
+      "ferrocopg/generators.py": "4b1e11adc3ec50ef4e701251c757c34a43cb884a882f19d35ddbc9a9dd07f714",
+      "ferrocopg/postgres.py": "0eb279075bbdf5b934feb135b72269b41b05c00a1f1054cd8256235b9ab19c48",
+      "ferrocopg/pq/__init__.py": "1efd0f1f982ec2f6ac4f9d690f7d15b1f7f065e92bb69e5e8bf1a4ebff6d4b7b",
+      "ferrocopg/pq/_debug.py": "46cc6b5a7c1a48f303a1e8a66bd7fd499c2d598a17fb12c16a4165949c731ae8",
+      "ferrocopg/pq/_enums.py": "7a1f64faaf282234de50deaa2f668f98ea5133848e2a4d567712bc2a91865736",
+      "ferrocopg/pq/_pq_ctypes.py": "58b41863728ebf870f582d953cb1cf27eaecd2cd90c0bf377a9e0c21fa384313",
+      "ferrocopg/pq/_pq_ctypes.pyi": "e00d030cd96f80a7d93b37bd21c45c41af70178a96cec09f2c517938b18e2ceb",
+      "ferrocopg/pq/abc.py": "fc7d65f6dcceaa38de327db8d86582c89dbb7cb37889f9f9e573bbc5e5baebf1",
+      "ferrocopg/pq/misc.py": "0c532bf94bf34663aa54fe46f4e6893229e24f6edfc992d894e238ff6c3303c3",
+      "ferrocopg/pq/pq_ctypes.py": "b235fbaac78cf8c460eef441ca02d7a0b848061bc9c2b2bfc8cab330d4c4d17b",
+      "ferrocopg/py.typed": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "ferrocopg/raw_cursor.py": "be393a35719812560224a3a8a6584dd74fce48ba25871503d9cda28b49985359",
+      "ferrocopg/rows.py": "2aadc647f25969d31a391ba0d425f32c8ca17b08eb8b8e4a96b995ef64ae57bc",
+      "ferrocopg/sql.py": "679c0af3847fed2ca6164c291624041a7ecfbd2eab3e20c4c3e4da88164c9fdb",
+      "ferrocopg/transaction.py": "7180361011696beee7f81079bd7f4c79f7eade64899241bd290c99f9a50aabd4",
+      "ferrocopg/types/__init__.py": "f9f8e78c80557763144d136b9f52c886b9c6af9deb76af0fc29bd422f8d5968d",
+      "ferrocopg/types/array.py": "c1abe21b3f83a26b3bbc1b42af6ca305d664e88eea5a06fda9c38c2fa26d0fa3",
+      "ferrocopg/types/bool.py": "e1e9426247c6d3e4c6fc7733c9f7f0378f32d52bdfbe5a461fafbfdb565a5802",
+      "ferrocopg/types/composite.py": "17ccfcd0b84499dc17a543a08c024f4ffc1ce830dcdbd41da8105d917d7805c5",
+      "ferrocopg/types/datetime.py": "1966558989811be6c9ef04b8a8d293ec261ab53456921ee8a5f14b4e27336ddc",
+      "ferrocopg/types/enum.py": "d476f10a9e4668d03207f30ae3671d8971cc55ea06ff51f67c52d4d843137006",
+      "ferrocopg/types/hstore.py": "fc3b4dff304794b9384110bdeea49ecc3032853536c6a47e36c8c380f89ace8f",
+      "ferrocopg/types/json.py": "5be25df080ad379f319159b5da5f1b7e6fd53fd3a96ba67463fe73e247c535a5",
+      "ferrocopg/types/multirange.py": "8c7ab3fd303783955195f9986dce068cc129578619b1c090afb335073b1996b6",
+      "ferrocopg/types/net.py": "baee8032fe6d0df2e79a7a6bd018273066ee258767abb5c934d5085cfea20ee2",
+      "ferrocopg/types/none.py": "832fce26a13562c949d91222c7412adf1d01f083dfa07f8671cdac40c20ed12c",
+      "ferrocopg/types/numeric.py": "1a3ec260bb2f1d6a7bb6aab1f33596a14b8dbd310f0350e7cac8f651d8d285df",
+      "ferrocopg/types/numpy.py": "83d8ea55882a45a3060fec4f5fee3735c2bcba5468ae4d60f920275c47f16bc1",
+      "ferrocopg/types/range.py": "41a499003f6b5cc38b0e2651a14184ac1a00db15354a158a3fbe387e82376fc0",
+      "ferrocopg/types/shapely.py": "774afee614da1cabfa6914e43a7ed11a300333486fd51728cb5c44ff935c48e1",
+      "ferrocopg/types/string.py": "0a882dc425fd4f54f37ff511d463da7156dba5342c1b49a4a594ee25b963fb4c",
+      "ferrocopg/types/uuid.py": "c1cb8abde3e630af09b12b9d0253fc165fc0d3dc5cab3a7204c45cee63ff6f03",
+      "ferrocopg/version.py": "0728b2e275d6c29cafe11f694f9dbe56a92925783eb9318935fe70b74bc03bac",
+      "ferrocopg/waiting.py": "239c7fdf77bdcb7d5ff11c451833f2ea98262446ea401819b3cad981a5fc4412",
+      "ferrocopg-0.1.0.dist-info/METADATA": "14177d5b0f165fe965ae53c0065d16cdd6347c146404f4f30fcf2f67a62cebaa",
+      "ferrocopg-0.1.0.dist-info/WHEEL": "fbd90ff7f384e7200c4bcb8b04a16a056d5d4e75e180ad7b5f3e527ded633ed2",
+      "ferrocopg-0.1.0.dist-info/licenses/LICENSE.txt": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118",
+      "ferrocopg-0.1.0.dist-info/sboms/ferrocopg-python.cyclonedx.json": "e1be70ecfe25009740bccd5713a5babce575dd110ffaa5634962e2d6c78ca638",
+      "ferrocopg-0.1.0.dist-info/RECORD": "002e0a07b97f90167dd3ed790aa8272c69d131085cc86addcbaacfdfca17ddd4"
+    },
+    "artifact_id": 10607112769,
+    "python": "3.11.16",
+    "coexistence_psycopg": "3.3.6",
+    "not_the_cp314_benchmark_wheel": true
+  },
+  "raw_archive": {
+    "path": "2026-09-20-frozen-compatibility.json.gz",
+    "sha256": "76a7068443e82aa1ed398f5afe060b265690f4677e43d39d213600a69eccd757",
+    "files": 41
+  },
+  "limitations": [
+    "Experimental native async failures remain in the original reports and are outside the first release support contract.",
+    "This CPython 3.11 package smoke does not replace the Phase 6 platform wheel matrix.",
+    "The independent benchmark used pinned official Psycopg 3.3.2; the package smoke resolved official Psycopg 3.3.6.",
+    "The unchanged production sources and classifier inputs match the frozen revision; diagnostic-only successors require their own CI."
+  ]
+}
