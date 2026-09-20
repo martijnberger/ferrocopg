@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "mode": "rejected-handoff-diagnostic",
+  "acceptance_evidence": false,
+  "event_counts_valid": false,
+  "revision": "6c868a2bbf484c7509eaf66147d66c568a7a2077",
+  "workflow": 35530943059,
+  "artifact_id": 10610669820,
+  "artifact_api_size": 4330409,
+  "artifact_api_digest": "sha256:d6a9ae78828fac68ef6427c893cd02508f8f841ff0e4c8d92adbe7320c26dfde",
+  "failure": "invalid or unexpected BPF output: phase5-attribution-results/handoff.bt:35:31-39: WARNING: Can't lookup map element because it does not exist.",
+  "result_files_verified": 9,
+  "counts_file_bytes": 38626771,
+  "warning_lines": 122397,
+  "warning_kinds": [
+    "Can't lookup map element because it does not exist."
+  ],
+  "bpftrace_version": "bpftrace v0.20.2",
+  "interpretation": "The first worker ran, but -kk emits diagnostics for ordinary absent-key membership reads. The resulting warning flood invalidates this capture. Switch to -k, retain strict parser/warning checks, and validate a new changed-revision run. Do not salvage these counts as clean measurements.",
+  "source_reference": "https://github.com/bpftrace/bpftrace/blob/v0.20.2/src/ast/irbuilderbpf.cpp",
+  "wheel_sha256": "b5b0b540f79a85b589a1362eb24bb5d8cfd984b973924282708aa2004fff5c61",
+  "raw_archive": "2026-09-20-handoff-first-failure.json.gz",
+  "embedded_text_files": 20,
+  "binary_artifacts_not_embedded": {
+    "home/runner/work/ferrocopg/ferrocopg/phase5-attribution-results/markers.so": {
+      "sha256": "788f5470f90041bc9e3190df7df77dea72fc81eb66c82bc6acada5c078d195ab",
+      "size": 15176
+    },
+    "home/runner/work/ferrocopg/ferrocopg/target/release/examples/layer_probe": {
+      "sha256": "aff4a457df0b18c91a7cb074b118cf9627197c7883d301988a830ed31332ba61",
+      "size": 1959152
+    },
+    "tmp/phase5-attribution-wheels/ferrocopg-0.1.0-cp314-cp314-manylinux_2_38_x86_64.whl": {
+      "sha256": "b5b0b540f79a85b589a1362eb24bb5d8cfd984b973924282708aa2004fff5c61",
+      "size": 3154192
+    },
+    "tmp/phase5-libpq-probe": {
+      "sha256": "85b01a293e308d0e156b2d8a89427d95ddaf893daf32185617b778b8e6070148",
+      "size": 17304
+    }
+  },
+  "raw_archive_sha256": "7eedac298b19993314c0aa54551d8f84dafe634e574bdf3ca96e2614e15f8dad"
+}

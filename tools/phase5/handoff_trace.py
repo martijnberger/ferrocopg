@@ -77,7 +77,7 @@ def program(library, marker, polls):
     if not polls or not set(polls) <= set(POLLS) or len(set(polls)) != len(polls):
         raise ValueError("invalid available poll tracepoints")
     source = f"""
-BEGIN {{ @owned[cpid] = 1; }}
+BEGIN {{ @active = 0; @owned[cpid] = 1; }}
 tracepoint:sched:sched_process_fork /pid == cpid/
 {{ @owned[args->child_pid] = 1; }}
 tracepoint:sched:sched_process_exit /@owned[tid]/
@@ -351,7 +351,9 @@ def coordinate(args):
                     [
                         "bpftrace",
                         "-q",
-                        "-kk",
+                        # Absent membership keys are normal. -kk emits a warning
+                        # for every such read; -k still checks update/output errors.
+                        "-k",
                         "-o",
                         str(counts_file),
                         "-c",

@@ -302,15 +302,34 @@ All 122 Phase 5 tests pass locally, including region/count/identity rejection
 and partial-failure preservation. The C markers compile with warnings as errors,
 and all three installed marked-query workers pass their live Mac smoke checks
 at diagnostic source snapshot `0e8d3bfa882c19ad20715a8b29561f020dd44b67`.
-Those checks do not exercise BPF. Linux preflight, attachment, event collection,
-and independent raw-count audit remain outstanding; this tooling does not yet
-close the handoff/wakeup requirement or cover non-scalar workloads.
+Those local checks do not exercise BPF. Validated event collection and an
+independent raw-count audit remain outstanding; this tooling does not yet close
+the handoff/wakeup requirement or cover non-scalar workloads.
 The tooling and completed matrix evidence are now published at
 `6c868a2bbf484c7509eaf66147d66c568a7a2077`. Handoff diagnostic
 [workflow `35530943059`](https://github.com/martijnberger/ferrocopg/actions/runs/35530943059)
-has been dispatched once; follow that exact handle. Successor Tests
-`35530927817` and Lint `35530927844` are queued. A diagnostic failure must retain
-its artifacts and be diagnosed, not treated as zero events or silently retried.
+is now terminal failure. Linux preflight and attachment succeeded on bpftrace
+0.20.2, but its `-kk` helper-debug mode emitted 122,397 warnings for ordinary
+absent-key membership reads, producing a 38,626,771-byte count stream. The first
+worker completed, then the strict parser correctly rejected the contaminated
+capture. No completed worker comparison exists. The
+[failure audit](performance/2026-09-20-handoff-first-failure.json) and
+[complete 20-file raw text/source archive](performance/2026-09-20-handoff-first-failure.json.gz)
+preserve the original stream, manifest, generated BPF, worker, source revision,
+and terminal metadata. All nine result-file hashes independently reconcile.
+Binary artifacts remain in CI artifact `10610669820`, with hashes retained.
+
+The correction initializes the active flag and switches to `-k`. The
+[bpftrace 0.20.2 implementation](https://github.com/bpftrace/bpftrace/blob/v0.20.2/src/ast/irbuilderbpf.cpp)
+explicitly distinguishes read helpers that return zero from update/output
+failures at that checking level. Expected absent membership keys are normal in
+this program; it does not dereference arbitrary user/kernel pointers. Strict
+warning/output rejection, complete marker checks, and identity validation stay
+unchanged. Regression tests assert the invocation, and all 122 tests pass.
+This is not permission to reinterpret the noisy first capture as valid data.
+The corrected revision still needs a clean Linux run after publication.
+Successor Tests `35530927817` is live; Lint `35530927844` passes. Preserve that
+live run before pushing the correction.
 
 ### Original constant-query diagnostic
 

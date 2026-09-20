@@ -57,6 +57,7 @@ class HandoffTraceTests(unittest.TestCase):
             )
         self.assertIn("@active && @owned[args->pid]", program)
         self.assertIn("delete(@owned[tid])", program)
+        self.assertIn("BEGIN { @active = 0; @owned[cpid] = 1; }", program)
         self.assertIn("sys_enter_poll /pid == cpid && @active/", program)
         self.assertIn("sys_enter_epoll_wait /pid == cpid && @active/", program)
         self.assertNotIn("sys_enter_ppoll", program)
@@ -120,6 +121,8 @@ class HandoffTraceTests(unittest.TestCase):
                 Path(argv[-1]).write_bytes(b"marker fixture")
                 return
             command = trace.shlex.split(argv[argv.index("-c") + 1])
+            self.assertIn("-k", argv)
+            self.assertNotIn("-kk", argv)
             backend = command[command.index("--worker") + 1]
             calls.append(backend)
             self.assertEqual(timeout, 300)

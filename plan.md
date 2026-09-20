@@ -234,12 +234,18 @@ search for tiny transport optimizations.
    the handoff tracer when current CI is terminal, preserving the original failure.
    The separate `handoff_trace.py` coordinator and `handoff_trace=true` workflow
    mode are now published at `6c868a2bbf484c7509eaf66147d66c568a7a2077`.
-   Diagnostic workflow `35530943059` was dispatched once for that revision;
-   follow it without restarting completed scalar or acceptance measurements.
-   Successor Tests `35530927817` and Lint `35530927844` are also queued; do not
-   push over the active Tests run. All 122 Phase 5 tests and three installed
-   marked-worker smoke checks pass, but Linux BPF preflight/attachment and event
-   collection are not yet validated. Missing tracepoints, absent exported Python
+   Diagnostic workflow `35530943059` is terminal failure. Linux preflight and
+   attachment succeeded, but `-kk` on bpftrace 0.20.2 emitted 122,397 warnings
+   for expected absent-key map reads. The strict parser rejected the capture;
+   preserve `2026-09-20-handoff-first-failure.json` and its complete raw archive.
+   Do not salvage its counts. The focused correction initializes the active
+   flag and uses `-k`, retaining update/output helper checks and strict warning
+   rejection. All 122 Phase 5 tests pass. Publish after current Tests becomes
+   terminal, then dispatch the corrected diagnostic once; its counts still
+   require a clean Linux run and independent audit. Do not restart completed
+   scalar or acceptance measurements. Successor Tests `35530927817` is live,
+   and Lint `35530927844` passes; do not push over the active Tests run.
+   Three installed marked-worker smoke checks pass. Missing tracepoints, absent exported Python
    APIs, tracer warnings, and missing region markers must fail rather than be
    treated as zero events. Do not count this as completed GIL/wakeup evidence.
    Satisfy every Phase 5 completion gate below on that candidate. Commit coherent
