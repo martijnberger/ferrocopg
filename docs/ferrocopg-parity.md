@@ -491,8 +491,8 @@ experiments have already delivered near parity.
 The retained production implementation is frozen for full acceptance at
 `7bbc14eba9a573bf528317f0859a8734db589e19`; its runtime matches the green
 `8eddc2ec` compatibility checkpoint. [Workflow 35511989284](https://github.com/martijnberger/ferrocopg/actions/runs/35511989284)
-has completed its benchmark job successfully; the full three-backend soak is
-still running. All three reports and their 99 individual worker files were
+has completed successfully, including benchmark and full three-backend soak
+jobs. All three benchmark reports and their 99 individual worker files were
 downloaded and independently checked against the frozen 100-iteration,
 nine-sample, 1,000-row protocol and unchanged beta policy. Every workload passes
 both limits in every run. Machine/server identities match throughout, and the
@@ -517,8 +517,41 @@ connection, TLS connection, and binary COPY meet both engineering targets in
 all three reports; dictionary rows do so only in run 2. The remaining workloads
 still exceed at least one near-parity objective. The separate checkpoint Tests
 `35511889731` remain live; Lint `35511889747` passes. Follow existing handles
-rather than restarting them. The soak, final combined acceptance audit,
+rather than restarting them. The final combined acceptance audit,
 scheduled-run proof, and remaining attribution work are still outstanding.
+
+The full soak artifact is `10607420931`. [The audit summary](performance/2026-09-20-retained-full-soak.json)
+records independently recomputed resource budgets, worker identities, coverage,
+and cleanup; [the compressed originals](performance/2026-09-20-retained-full-soak.json.gz)
+retain the full report, all three worker reports and logs, server configuration,
+process snapshots, and wheel hash file. The 33 MB PostgreSQL log remains in the
+CI artifact with its SHA-256 recorded in the summary; it is not silently omitted
+from the evidence inventory.
+
+| Backend | Measured seconds | Measured cycles per scenario | Resource samples | RSS median growth |
+| --- | ---: | ---: | ---: | ---: |
+| Rust | 1800.221 | 33,060 | 1,654 | 1.41 MiB |
+| Python | 1800.737 | 21,480 | 1,075 | 0.91 MiB |
+| C | 1800.579 | 32,040 | 1,603 | 1.20 MiB |
+
+Every worker exercises churn, transactions, cancellation, text/binary COPY,
+pipeline, pool, and concurrent pool contention. Measured counts above exclude
+the three warmup epochs (60 additional cycles per scenario). The scenario
+counts match the snapshot/epoch count exactly. All worker JSON files match their
+combined-report rows, and the original growth and late-RSS budgets recompute.
+Driver-object, thread, socket, descriptor, and workload-session growth is zero.
+Final cleanup retains one observer socket and one main thread, with zero
+workload-owned sessions; these are not leaked workload connections. RSS growth
+uses the original first/last-three-sample median rule, not endpoint subtraction.
+
+The soak was built separately on its dedicated runner. Its wheel SHA-256 is
+`010226ec58f67fdca556fbd8655367724461167da725313164cb2d9cf1841de7`, verified
+against the uploaded hash file. All 94 `ferrocopg/` package members are
+byte-identical to the benchmark wheel, including native extension SHA-256
+`6275e4a319d7e39ea9be94b6f34f2cf78ce7585ce4803ea6591e39c1062f9f8b`.
+The different ZIP hashes are retained, not relabeled as one wheel. This passes
+the retained candidate's full-duration reliability gate; it does not demonstrate
+near parity or scheduled execution.
 
 ### Dedicated attribution harness
 
@@ -633,6 +666,9 @@ change any ordinary timing or beta acceptance result.
 The complete installed-wheel suite passes 102 tests, including conservative
 classification, canonical-total reconciliation, changed-input rejection, and
 both-order orchestration checks. Ruff, formatting, codespell, and actionlint pass.
+The same 102 tests also pass in the ordinary benchmark environment with Memray
+confirmed absent; diagnostic imports do not add a profiler dependency to the
+acceptance environment.
 
 ### Initial protocol evidence
 

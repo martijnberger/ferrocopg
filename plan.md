@@ -162,7 +162,11 @@ search for tiny transport optimizations.
    or assume every hypothesis must be merged.
 5. Retained runtime is frozen at published `7bbc14eb` for acceptance workflow
    `35511989284`: its three-run benchmark passes all eleven workloads in each
-   report and has been independently recomputed; its full soak is running.
+   report and has been independently recomputed. Its full soak also passes:
+   artifact `10607420931` independently validates all three 1,800-second workers,
+   eight scenarios, resource budgets, and cleanup. All 94 package files match
+   the benchmark wheel byte-for-byte, including the native extension. Preserve
+   `2026-09-20-retained-full-soak.json` and its complete report archive.
    Checkpoint Tests `35511889731` remain live and Lint `35511889747` passes.
    Do not restart live handles
    or push over active Tests just to publish evidence-only commits.
@@ -1404,8 +1408,12 @@ Rust-client performance floor has been established.
   recompute. One wheel and machine/server identity throughout; dedicated runner
   process snapshots are retained. See the parity report for their limitations.
   Earlier failed runs remain failed and preserved.
-- [ ] Pass the full 30-minute-per-backend soak, including concurrent pool use,
-  on the candidate revision.
+- [x] Pass the full 30-minute-per-backend soak, including concurrent pool use,
+  on the candidate revision. Frozen `7bbc14eb`, workflow `35511989284`, artifact
+  `10607420931`: all three workers exceed 1,800 seconds and cover all eight
+  scenarios; raw resource limits and cleanup independently recompute with no
+  failures. The separate soak wheel has identical package payloads to the
+  three-run benchmark wheel. See the retained-full-soak evidence and parity report.
 - [ ] Confirm scheduled soak execution and publish final-candidate reproducible
   results; a passing earlier CI run does not validate later code.
 - [ ] Revalidate the complete supported synchronous compatibility matrix and

@@ -1,0 +1,174 @@
+{
+  "revision": "7bbc14eba9a573bf528317f0859a8734db589e19",
+  "workflow": 35511989284,
+  "artifact": 10607420931,
+  "wheel_sha256": "010226ec58f67fdca556fbd8655367724461167da725313164cb2d9cf1841de7",
+  "package_files_identical_to_benchmark": 94,
+  "native_sha256": {
+    "ferrocopg/_rust/_ferrocopg.cpython-314-x86_64-linux-gnu.so": "6275e4a319d7e39ea9be94b6f34f2cf78ce7585ce4803ea6591e39c1062f9f8b"
+  },
+  "environment": {
+    "python": "3.14.7 (main, Aug  6 2026, 02:19:46) [GCC 13.3.0]",
+    "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "server": "PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+    "server_settings": {
+      "fsync": "on",
+      "max_connections": "100",
+      "shared_buffers": "16384",
+      "ssl": "on",
+      "synchronous_commit": "on"
+    },
+    "cpu_logical": 4,
+    "cpu_physical": 2,
+    "memory_bytes": 16766414848
+  },
+  "backends": [
+    {
+      "backend": "rust",
+      "elapsed_seconds": 1800.220757322,
+      "cycles_per_scenario_including_warmup": 33120,
+      "measured_cycles_per_scenario": 33060,
+      "resource_samples": 1654,
+      "growth": {
+        "rss_bytes": 1474560,
+        "driver_objects": 0,
+        "threads": 0,
+        "sockets": 0,
+        "fds": 0,
+        "sessions": 0
+      },
+      "cleanup": {
+        "rss_bytes": 56598528,
+        "threads": 1,
+        "sockets": 1,
+        "fds": 5,
+        "driver_objects": 630,
+        "sessions": 0
+      }
+    },
+    {
+      "backend": "python",
+      "elapsed_seconds": 1800.7371122519999,
+      "cycles_per_scenario_including_warmup": 21540,
+      "measured_cycles_per_scenario": 21480,
+      "resource_samples": 1075,
+      "growth": {
+        "rss_bytes": 958464,
+        "driver_objects": 0,
+        "threads": 0,
+        "sockets": 0,
+        "fds": 0,
+        "sessions": 0
+      },
+      "cleanup": {
+        "rss_bytes": 44224512,
+        "threads": 1,
+        "sockets": 1,
+        "fds": 5,
+        "driver_objects": 323,
+        "sessions": 0
+      }
+    },
+    {
+      "backend": "c",
+      "elapsed_seconds": 1800.5792086739998,
+      "cycles_per_scenario_including_warmup": 32100,
+      "measured_cycles_per_scenario": 32040,
+      "resource_samples": 1603,
+      "growth": {
+        "rss_bytes": 1261568,
+        "driver_objects": 0,
+        "threads": 0,
+        "sockets": 0,
+        "fds": 0,
+        "sessions": 0
+      },
+      "cleanup": {
+        "rss_bytes": 45481984,
+        "threads": 1,
+        "sockets": 1,
+        "fds": 5,
+        "driver_objects": 322,
+        "sessions": 0
+      }
+    }
+  ],
+  "failures": [],
+  "workflow_url": "https://github.com/martijnberger/ferrocopg/actions/runs/35511989284",
+  "event": "workflow_dispatch",
+  "status": "completed",
+  "conclusion": "success",
+  "archive": "2026-09-20-retained-full-soak.json.gz",
+  "archive_sha256": "1776f5be4dd1ec391df1e661b37de3246571372fe742e4419e85d75593fa2485",
+  "retained_files": [
+    {
+      "name": "phase5-processes-after.log",
+      "sha256": "d0caaa07571bfb13ce14e155ed06be3293f7afc0ef8b0089e58825aa6c0605ba",
+      "bytes": 6081
+    },
+    {
+      "name": "phase5-processes-before.log",
+      "sha256": "0505954dde40d319ad7a2e97e0e0ad9a147874a2ce3a419f8b2463a0c37ad360",
+      "bytes": 6555
+    },
+    {
+      "name": "phase5-results/report.json",
+      "sha256": "10ecbd3dd778986535aac3367bcb248ec02c5c690db2ee3dcf5671a7996d8d65",
+      "bytes": 780807
+    },
+    {
+      "name": "phase5-results/soak-c.json",
+      "sha256": "f3fb4dfdb00d6fbfc091cda7c1d7182c4b9a8cfeefc51881cfe807fd82548205",
+      "bytes": 237063
+    },
+    {
+      "name": "phase5-results/soak-c.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "name": "phase5-results/soak-python.json",
+      "sha256": "19a51072c95ad18ce0000332be0d9d1fb88ebc329063f63e54f7124af54127fd",
+      "bytes": 159452
+    },
+    {
+      "name": "phase5-results/soak-python.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "name": "phase5-results/soak-rust.json",
+      "sha256": "bfe065f5616666e1940b73e1ef713a33b9229c17796d3dca8334586591918651",
+      "bytes": 244594
+    },
+    {
+      "name": "phase5-results/soak-rust.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "name": "phase5-server.json",
+      "sha256": "99c01b243ac2c765feeaaf4b19ae8712c0f6788b1fda87c9dd109cf07b0fa6c0",
+      "bytes": 4674
+    },
+    {
+      "name": "phase5-wheel.sha256",
+      "sha256": "04b688092952242e43912e66ec336b554e3cfb1e40e3c5ebef9f45f47b4c9885",
+      "bytes": 139
+    }
+  ],
+  "external_artifact_files": [
+    {
+      "name": "phase5-postgres.log",
+      "sha256": "aab322c96e13a3c4e9cb933e3c41eaef748e5df2c7b615733f7ce8a8b42a0fb3",
+      "bytes": 34744403
+    }
+  ],
+  "limitations": [
+    "Soak and benchmark use separate runners and separately built wheels; all 94 package members including native extension are byte-identical",
+    "Resource counts retain the official observer socket; zero sessions means no surviving workload-owned sessions",
+    "Operation counts include three warmup epochs; measured counts are reported separately",
+    "A soak pass is not a near-parity or scheduled-run result"
+  ]
+}
