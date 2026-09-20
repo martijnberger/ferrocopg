@@ -23,8 +23,9 @@ uv pip install --python /tmp/phase5-env/bin/python \
   -r tools/phase5/requirements.txt /tmp/phase5-wheels/*.whl
 export PHASE5_DSN='host=127.0.0.1 user=postgres password=password dbname=postgres sslmode=disable'
 revision=$(jj log -r @ --no-graph -T commit_id)
-/tmp/phase5-env/bin/python tools/phase5/run.py benchmark \
-  --revision "$revision" --output /tmp/phase5-benchmark
+/tmp/phase5-env/bin/python tools/phase5/repeat_benchmark.py \
+  --revision "$revision" --wheel /tmp/phase5-wheels/*.whl \
+  --output /tmp/phase5-benchmark
 /tmp/phase5-env/bin/python tools/phase5/run.py soak \
   --revision "$revision" --output /tmp/phase5-soak
 ```
@@ -41,19 +42,36 @@ with savepoint rollback, text and binary COPY in both directions, and official
 pool checkout/query/return. Every workload checks returned data or recovery
 behavior. TLS setup verifies encryption using `pg_stat_ssl`.
 
-Defaults are 10 warmup operations, nine samples of 20 operations, and 1,000 rows
-per bulk operation. Each worker records raw wall and process CPU measurements,
+The repeated beta gate uses 10 warmup operations, nine samples of 100 operations,
+and 1,000 rows per bulk operation. The single-run diagnostic command
+`run.py benchmark` defaults to 20 operations instead. Each worker records raw wall and process CPU measurements,
 individual-operation latency percentiles, work units per second, peak RSS sampled by the parent,
 cleanup resources, and machine/server/package metadata. Benchmark order rotates
 across workloads. Preserve all raw JSON and logs when publishing comparisons.
-Run the complete benchmark at least three times on the same idle machine before
-making a release performance claim; investigate disagreement across runs.
+The repeated runner executes all three comparisons sequentially, even if a
+comparison fails a performance limit. It checks the wheel checksum and installed
+package fingerprints before and after every comparison and records all failures
+in `summary.json`. Use an empty output directory for each attempt. Do not rebuild,
+install packages, or run other tests while collecting timings. Investigate
+disagreement across runs; do not cherry-pick the fastest run or workloads.
 
 The exit status is nonzero if any workload is missing, crashes, times out, or
 fails a correctness check. Each workload's median Rust duration must be no more
-than the Python median and no more than 1.25 times the C median. These are the
-roadmap's acceptance limits. A failure remains a release blocker unless an
-explicit release decision approves a documented exception.
+than 1.15 times the Python median and no more than 1.50 times the C median.
+These beta ceilings were explicitly approved on 2026-09-20 and are recorded as
+policy `beta-2026-09-20` in new reports. All eleven workloads must pass both
+limits in every one of the three runs. Python parity and no more than 1.25 times
+C remain longer-term optimization goals, not beta blockers. Existing reports
+retain their original verdicts; the new policy does not retroactively turn an
+old failure into acceptance. Compatibility, soak duration, and resource budgets
+are unchanged. No candidate has yet passed the revised three-run gate.
+
+Once accepted, preserve the frozen Rust wheel and raw results as the regression
+baseline for later changes. Cross-driver ceilings are not a license to spend
+that entire budget on each change: repeatable regressions require an explicit,
+documented architectural tradeoff. A numerical Rust-to-Rust regression budget
+will be set after measuring that baseline's repeatability, not inferred from
+the new comparator ceilings.
 
 ## Query diagnostics
 
@@ -113,8 +131,9 @@ useful for harness development, but do not establish the 30-minute soak gate.
 
 The `Phase 5 reliability and performance` workflow runs weekly, supports manual
 dispatch, and runs when the harness changes on `main`. It builds a release
-wheel, starts PostgreSQL 18 with TLS, runs both modes, and publishes reports
-and server logs for 90 days, including on failure. Shared CI timing is useful
+wheel, starts PostgreSQL 18 with TLS, runs three benchmarks sequentially on one
+runner and the full soak on a separate runner, and publishes wheels, reports,
+server-image identity, and server logs for 90 days, including on failure. Shared CI timing is useful
 for detecting regressions; release claims also require repeatable measurements
 on an idle machine.
 

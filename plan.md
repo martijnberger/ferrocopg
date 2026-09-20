@@ -62,9 +62,65 @@ results for workflows that are still running.
   Changing the development default does not authorize a PyPI release.
 - Treat Phases 3 and 4 as completed implementation milestones, Phase 5 as
   incomplete acceptance work, and Phases 6 and 7 as pending release work.
-- Prioritize measured shared small-query overhead, then remaining COPY and
-  result-adaptation gaps. Do not expand into native async or a pool fork.
+- Consolidate the architecturally sound, measured Phase 5 improvements and
+  validate a frozen beta candidate. Further optimization is bounded by evidence,
+  not an open-ended requirement to beat every comparator. Do not expand into
+  native async or a pool fork.
 - Keep upstream synchronization separate from the undecided upstreaming question.
+
+### Approved beta policy and consolidation (2026-09-20)
+
+The user explicitly approved revising the beta ceilings to Rust/Python <=
+`1.15` and Rust/C <= `1.50` for every workload. The original Python parity and
+`1.25` C targets remain optimization goals. This is a product tradeoff in service
+of a trustworthy Rust backend, not evidence that Rust is intrinsically slower.
+Compatibility, diagnostics/callback semantics, package boundaries, full soaks,
+and resource budgets are unchanged. PyPI publication remains blocked.
+
+Consolidation decisions:
+
+| Experiment family | Decision and architectural rationale |
+| --- | --- |
+| ThinLTO and one codegen unit | Keep: portable build-level gains without new runtime state or API behavior. |
+| Timer reuse and synchronous request priming | Keep: remove repeated wait-loop work while retaining signal, cancellation, and callback contracts. |
+| Native row drain and result projection | Keep: reduce crossings and redundant conversion while preserving result lifetimes and custom adapters. |
+| COPY borrowing and codec plans | Keep: remove transient copies and repeated codec setup without a second public COPY API. |
+| Notice-drain locking | Keep: retain checked delivery/lifetime behavior and avoid redundant synchronization. |
+| Rust-owned transformer and native dispatcher | Leave removed: extra state/dispatch machinery has no convincing measured gain and increases callback/cache complexity. |
+| Lazy public cursor projection | Leave removed: preserving encoding snapshots and subclass descriptors eliminates the preliminary gain. |
+| New idle-connection write-before-read prototype | Exclude: only unit-tested, not benchmark/compatibility validated; changes vendored I/O ordering without an established benefit. |
+
+The retained improvements are already on `martijn/phase5-notice-lock`; no mass
+merge of experiment branches is needed. Production sources and Cargo settings
+remain at the restored `94d6da1a`/`52b5bcd8` boundary (same production code as
+`9d160e8e`). The uncommitted I/O prototype and its generated vendor lockfile are
+removed from the candidate; this is exclusion, not a measured rejection.
+
+Execution: version the new benchmark policy in reports, test exact boundaries,
+and run three complete comparisons sequentially on one runner using one wheel,
+with installed-package and wheel fingerprints checked between runs. Preserve
+every report, including failures, and retain the wheel as the future Rust
+regression baseline if accepted. No numerical Rust-to-Rust regression allowance
+is assumed: set it from measured repeatability after candidate acceptance, and
+require explicit justification for repeatable regressions meanwhile.
+
+Historical reports below retain their original policies and failed verdicts.
+In the latest dedicated comparison, the retained baseline passes 8/11 workloads
+under the old policy; the three remaining gaps are parameterized (1.045/1.259),
+prepared (1.109/1.413), and pool (1.111/1.354), Python/C respectively. Another
+run of identical production code has larger gaps, so no revised-policy pass is
+claimed by reclassifying those reports. Phase 5 remains incomplete until the
+new frozen-candidate evidence passes all gates.
+
+Local consolidation verification: all 70 installed-wheel/accounting checks pass
+against the restored baseline wheel, including new exact-limit, invalid-sample,
+three-run completeness, retained-failure, and identity-change tests. Ruff and
+codespell pass. These checks validate the revised harness and existing production
+implementation, not the new candidate's performance. The preceding `94d6da1a`
+Tests (`35494565868`) and Lint (`35494565874`) runs also pass; fresh CI is still
+required for the policy/harness commit.
+
+### Historical investigation checkpoints
 
 Latest investigation: lazy public cursor-result projection is also rejected.
 The initial shortcut improved local query pairs, but did not preserve deferred
@@ -145,7 +201,9 @@ uses the documented `SHOW LOCAL STATEMENTS` interface instead of internal tables
 All six focused checks pass on both CockroachDB 24.3.36 and the same development
 version as CI. The corrected candidate `9d160e8e` now passes all 57 CI jobs and
 the full three-backend soak; its benchmark and local strict gate still fail.
-The product decisions and release gates remain unchanged. Further work should
+At that historical checkpoint, product decisions and release gates were unchanged.
+The approved beta policy above now supersedes only the performance ceilings.
+Further work should
 reuse the active development branch once its prior CI completes rather than
 creating a branch per optimization. Superseded-branch deletion awaits user
 confirmation; no branches have been deleted.
@@ -734,8 +792,9 @@ The following synchronous contract must be 100% green:
 
 Publication is blocked until repeatable benchmarks show:
 
-- ferrocopg matches or outperforms official Psycopg's pure-Python path
-- ferrocopg's median duration is no more than 1.25 times Psycopg C for every
+- ferrocopg's median duration is no more than 1.15 times official Psycopg's
+  pure-Python path for every workload
+- ferrocopg's median duration is no more than 1.50 times Psycopg C for every
   workload in the acceptance suite
 - no benchmark shows unbounded memory growth or connection/thread leakage
 
@@ -751,8 +810,13 @@ The benchmark suite must cover:
 - synchronous pool checkout/query/return cycles
 
 Results must include latency distributions, throughput, CPU time, and peak
-memory. Any exception to the 25% target requires a documented rationale and an
-explicit release decision.
+memory. These beta ceilings were explicitly approved on 2026-09-20; they are not
+a claim that a candidate has passed. Python parity and the original 25% C target
+remain longer-term optimization goals. Further exceptions require a documented
+rationale and an explicit release decision. Three complete passing runs of the
+same frozen wheel on the same otherwise idle machine are required. Preserve
+that wheel and its results as a Rust-to-Rust regression baseline after acceptance;
+repeatable regressions require review even if comparator ceilings still pass.
 
 ## Release Matrix
 
@@ -3289,13 +3353,14 @@ local gates and remaining complete benchmark limits visible.
 - Full-duration soaks pass the documented resource budgets without hangs;
   short smoke runs do not satisfy this gate.
 - At least three complete benchmark runs meet both limits for every workload:
-  Rust/Python median duration <= `1.0` and Rust/C <= `1.25`, using the same
+  Rust/Python median duration <= `1.15` and Rust/C <= `1.50`, using the same
   frozen candidate wheel on the same otherwise idle machine. Do not combine
   passing workloads from different runs or revisions.
 - Published evidence identifies the tested source revision, installed packages,
   machine/server configuration, raw samples, and any failures.
 - The supported synchronous compatibility and package-boundary gates remain
-  green after optimization. No performance exception is assumed approved.
+  green after consolidation. Only the dated beta ceiling revision is approved;
+  no correctness, resource, or per-workload exception is assumed.
 
 ### Phase 6: Build and validate release wheels
 
@@ -3388,6 +3453,28 @@ should be planned from measured scalability and cancellation evidence after
 the synchronous beta is established.
 
 ## Immediate Next Actions
+
+1. Freeze the consolidated production implementation without resurrecting
+   rejected experiments. Keep their compatibility regressions and raw evidence.
+2. Run the versioned beta policy (`1.15` Python / `1.50` C) through the repeated
+   benchmark runner: three full reports, one installed wheel, one otherwise idle
+   machine. Do not combine runs or replace failures with historical passes.
+3. Run the full 30-minute-per-backend soak and supported compatibility/package
+   matrix for this candidate. Preserve wheel checksums, server identity, raw
+   results, logs, and the exact source revision in durable CI artifacts.
+4. Review any remaining failures before additional optimization. Permit a new
+   experiment only for a specific measured blocker or concrete simplification
+   of ownership/maintenance; require evidence of its cost and compatibility.
+5. Confirm scheduled reliability coverage separately; manual dispatch does not
+   prove the schedule ran. Do not delete superseded bookmarks without approval.
+6. Mark Phase 5 complete only after acceptance. Then proceed to Phase 6 wheel
+   validation and Phase 7 publication, keeping the Rust default, explicit libpq
+   fallback, synchronous-first scope, and undecided upstreaming status.
+
+### Superseded optimization-first actions (historical context)
+
+The following list records the earlier strategy and original thresholds; it is
+not the active task list and must not override the dated beta decision above.
 
 1. Use `9d160e8e` as the latest completed CI compatibility/reliability checkpoint:
    all 57 compatibility jobs, lint, and the full three-backend soak pass.

@@ -55,6 +55,7 @@ jobs:
           docker run --rm -d --name phase5-postgres -p 5432:5432 \
             -v "$PWD/.ci-tls:/tls:ro" -e POSTGRES_PASSWORD=password postgres:18 \
             -c ssl=on -c ssl_cert_file=/tls/server.crt -c ssl_key_file=/tls/server.key
+          docker image inspect postgres:18 > phase5-server.json
           for attempt in $(seq 1 60); do
             if docker exec phase5-postgres pg_isready -U postgres; then
               exit 0
@@ -75,16 +76,28 @@ jobs:
           uv venv /tmp/phase5-env --python 3.14
           uv pip install --python /tmp/phase5-env/bin/python \
             -r tools/phase5/requirements.txt /tmp/phase5-wheels/*.whl
+          sha256sum /tmp/phase5-wheels/*.whl > phase5-wheel.sha256
       - name: Check acceptance accounting
         run: /tmp/phase5-env/bin/python -m unittest discover -s tools/phase5 -v
-      - name: Run installed-package acceptance
+      - name: Record runner processes before measurement
+        run: ps -eo pid,ppid,pcpu,comm > phase5-processes-before.log
+      - name: Run three complete benchmarks on this runner
+        if: matrix.mode == 'benchmark'
         run: |
-          /tmp/phase5-env/bin/python tools/phase5/run.py ${{ matrix.mode }} \
+          /tmp/phase5-env/bin/python tools/phase5/repeat_benchmark.py \
+            --revision "$GITHUB_SHA" --wheel /tmp/phase5-wheels/*.whl \
+            --output phase5-results
+      - name: Run full installed-package soak
+        if: matrix.mode == 'soak'
+        run: |
+          /tmp/phase5-env/bin/python tools/phase5/run.py soak \
             --revision "$GITHUB_SHA" --output phase5-results \
             --seconds 1800 --iterations 20 --samples 9 --rows 1000 --timeout 2400
       - name: Collect server diagnostics
         if: always()
-        run: docker logs phase5-postgres > phase5-postgres.log 2>&1
+        run: |
+          ps -eo pid,ppid,pcpu,comm > phase5-processes-after.log
+          docker logs phase5-postgres > phase5-postgres.log 2>&1
       - name: Publish measurements and failure diagnostics
         if: always()
         uses: actions/upload-artifact@v7
@@ -94,6 +107,10 @@ jobs:
           path: |
             phase5-results/
             phase5-postgres.log
+            phase5-server.json
+            phase5-wheel.sha256
+            phase5-processes-*.log
+            /tmp/phase5-wheels/*.whl
           if-no-files-found: error
 
   codegen-experiment:

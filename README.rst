@@ -31,6 +31,13 @@ synchronous ``0.1.0`` beta for CPython 3.11-3.14 and PostgreSQL 14-18. See the
 `Rust backend plan <plan.md>`_ for the compatibility, performance, packaging,
 and release gates.
 
+The goal is a reliable Rust backend, not a promise to beat libpq in every
+workload. The beta performance gate allows median durations up to 15% above
+official Psycopg Python and 50% above Psycopg C, with three complete passing
+runs of one frozen candidate. These are acceptance ceilings, not achieved
+performance claims. Compatibility and resource-leak requirements are unchanged;
+see the `measurement protocol <docs/ferrocopg-performance.md>`_.
+
 
 Trying the Rust backend
 -----------------------

@@ -25,6 +25,8 @@ from workloads import BENCHMARKS, SOAKS, workload
 
 BACKENDS = ("rust", "python", "c")
 SCHEMA = 1
+PERFORMANCE_POLICY = "beta-2026-09-20"
+PERFORMANCE_LIMITS = {"python": 1.15, "c": 1.50}
 
 
 def percentile(values: list[float], fraction: float) -> float:
@@ -226,20 +228,33 @@ def worker(args: argparse.Namespace) -> dict[str, Any]:
 def compare(results: list[dict[str, Any]]) -> dict[str, Any]:
     ratios, failures = {}, []
     for name in BENCHMARKS:
-        group = {r["backend"]: r for r in results if r.get("workload") == name}
-        if set(group) != set(BACKENDS):
+        rows = [r for r in results if r.get("workload") == name]
+        group = {r["backend"]: r for r in rows}
+        if len(rows) != len(BACKENDS) or set(group) != set(BACKENDS):
             failures.append(f"{name}: missing backend measurements")
             continue
         if any(r.get("failures") for r in group.values()):
             failures.append(f"{name}: worker failed")
             continue
+        if any(
+            len(r.get("seconds", [])) < 3
+            or any(not math.isfinite(n) or n <= 0 for n in r["seconds"])
+            for r in group.values()
+        ):
+            failures.append(f"{name}: invalid timing samples")
+            continue
         medians = {b: statistics.median(r["seconds"]) for b, r in group.items()}
         ratios[name] = {b: medians["rust"] / medians[b] for b in ("python", "c")}
-        for backend, limit in (("python", 1.0), ("c", 1.25)):
+        for backend, limit in PERFORMANCE_LIMITS.items():
             ratio = ratios[name][backend]
             if ratio > limit:
                 failures.append(f"{name}: rust/{backend}={ratio:.3f} exceeds {limit}")
-    return {"ratios": ratios, "failures": failures}
+    return {
+        "performance_policy": PERFORMANCE_POLICY,
+        "performance_limits": dict(PERFORMANCE_LIMITS),
+        "ratios": ratios,
+        "failures": failures,
+    }
 
 
 def child(

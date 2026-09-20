@@ -7,6 +7,8 @@ from unittest.mock import patch
 from run import (
     BACKENDS,
     BENCHMARKS,
+    PERFORMANCE_LIMITS,
+    PERFORMANCE_POLICY,
     compare,
     growth_failures,
     percentile,
@@ -45,8 +47,39 @@ class ContractTests(unittest.TestCase):
 
     def test_python_regression_is_not_hidden_by_c_budget(self):
         results = self.results()
-        results[0]["seconds"] = [1.01] * 3
+        results[0]["seconds"] = [1.150001] * 3
         self.assertIn("rust/python", compare(results)["failures"][0])
+
+    def test_beta_limits_are_inclusive_and_recorded(self):
+        for backend, limit in PERFORMANCE_LIMITS.items():
+            with self.subTest(backend=backend):
+                results = self.results()
+                for row in results:
+                    row["seconds"] = [limit if row["backend"] != backend else 1.0] * 3
+                verdict = compare(results)
+                self.assertFalse(verdict["failures"])
+                self.assertEqual(verdict["performance_policy"], PERFORMANCE_POLICY)
+                self.assertEqual(verdict["performance_limits"], PERFORMANCE_LIMITS)
+                for row in results:
+                    if row["backend"] == "rust":
+                        row["seconds"] = [limit + 0.000001] * 3
+                self.assertTrue(compare(results)["failures"])
+
+    def test_invalid_samples_and_duplicate_workers_fail(self):
+        for samples in (
+            [],
+            [1.0],
+            [0.0] * 3,
+            [-1.0] * 3,
+            [float("nan")] * 3,
+            [float("inf")] * 3,
+        ):
+            with self.subTest(samples=samples):
+                results = self.results()
+                results[0]["seconds"] = samples
+                self.assertTrue(compare(results)["failures"])
+        results = self.results()
+        self.assertTrue(compare(results + [results[0]])["failures"])
 
     def test_c_budget_is_enforced(self):
         results = self.results()
