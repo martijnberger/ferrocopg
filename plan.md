@@ -152,14 +152,19 @@ search for tiny transport optimizations.
    passing. Preserve its measurements and contract tests, not its cache.
    The 5C.3 helper-body ablation now quantifies a small, non-idle opportunity;
    do not prioritize a standalone outcome envelope as the parity intervention.
-   Inspect native execution packets that remove intermediate parameter
-   representations next, preserving callback and mutable-buffer snapshot timing.
-   The parity report records contracts and both-order evidence. Record dispositions
+   Native packet prototype `0390bdc9` is also rejected: longer paired controls
+   reverse the fresh-parameterized effect between orders. Backend runtime files
+   are restored to `8eddc2ec`; retain snapshot tests, not the packet. Complete
+   the outstanding 5B dedicated-runner/broader-workload attribution before
+   another execution/adaptation rewrite. The parity report records the evidence
+   and contracts. Record dispositions
    for other plan-reuse approaches; do not repeat rejected cache/transformer designs
    or assume every hypothesis must be merged.
 5. Retained runtime is frozen at published `7bbc14eb` for acceptance workflow
-   `35511989284` (benchmark and full soak, currently queued). Checkpoint Tests
-   `35511889731` and Lint `35511889747` are pending. Do not restart live handles
+   `35511989284`: its three-run benchmark passes all eleven workloads in each
+   report and has been independently recomputed; its full soak is running.
+   Checkpoint Tests `35511889731` remain live and Lint `35511889747` passes.
+   Do not restart live handles
    or push over active Tests just to publish evidence-only commits.
    Satisfy every Phase 5 completion gate below on that candidate. Commit coherent
    slices with AI attribution and push
@@ -1392,9 +1397,13 @@ Rust-client performance floor has been established.
 - [x] Configure weekly/manual reliability CI and artifact retention.
 - [x] Consolidate measured improvements, remove rejected prototypes, and version
   the explicitly approved beta policy without weakening correctness.
-- [ ] Pass the complete benchmark at least three times on the same otherwise
+- [x] Pass the complete benchmark at least three times on the same otherwise
   idle machine using one installed release wheel, under the `1.15` Python /
-  `1.50` C beta policy. Preserve all failures and exact identities.
+  `1.50` C beta policy. Frozen `7bbc14eb`, workflow `35511989284`, artifact
+  `10605224553`: all 99 workers and three complete verdicts independently
+  recompute. One wheel and machine/server identity throughout; dedicated runner
+  process snapshots are retained. See the parity report for their limitations.
+  Earlier failed runs remain failed and preserved.
 - [ ] Pass the full 30-minute-per-backend soak, including concurrent pool use,
   on the candidate revision.
 - [ ] Confirm scheduled soak execution and publish final-candidate reproducible
@@ -1621,9 +1630,9 @@ parity report, without reusing arbitrary mutable adaptation callbacks.
 - [ ] Measure query, transaction, and pool effects separately. Do not collapse
   intermediate pipeline events into a single last-status value.
 
-**Rules shared by all prototypes**
+**5C.4 Native parameter packet (additional bounded experiment)**
 
-Native parameter packet experiment (2026-09-20, not yet measured): eliminate
+Native parameter packet experiment (2026-09-20, prototype `0390bdc9`): eliminate
 the Python tuple-list bridge and repeated native buffer extraction for adapted
 parameters, without porting the transformer or caching callbacks. An immutable
 native packet snapshots bytes at the existing conversion point, before prepare
@@ -1642,6 +1651,23 @@ binding signatures also accept the packet. Reject flat/mixed performance-only
 results; all eleven workloads and fresh compatibility/resource gates are needed
 before retaining a performance claim. Do not change the currently running
 `7bbc14eb` acceptance candidate or silently apply its results to this prototype.
+
+Disposition: reject and restore backend runtime files exactly to `8eddc2ec`.
+Sixteen controls with nine 50,000-operation samples and matching dependencies
+give fresh-parameterized wall ratios 0.9657/1.0441 and CPU 0.9488/1.0716;
+reused-parameterized wall ratios are 0.9817/0.9898. Fresh behavior is not
+repeatable across both orders on this busy Mac, and reused gains alone do not
+justify the added machinery. Preserve all samples and limitations in
+`2026-09-20-parameter-packet-rejected.json`; no all-eleven candidate report is
+needed for a rejected implementation. The prototype passes 87 installed checks
+and 437 focused source tests, but its full strict local gate remains failed:
+4,748/4,749 sync cases pass, with the pool backoff timing failure unwaived.
+Keep the independent mutable-buffer snapshot test and longer-sample accounting;
+remove the obsolete private packet test with the implementation. This does not
+prove a larger typed-native execution/adaptation design cannot work. Complete
+the remaining 5B dedicated-runner cost model before choosing another rewrite.
+
+**Rules shared by all prototypes**
 
 - [ ] Prioritize the largest proven avoidable overhead, not the most Rust-looking
   implementation. Start with shared query/adapter work only if 5B supports it.
@@ -3854,18 +3880,19 @@ the synchronous beta is established.
 3. Do not restart rejected adapter-schema prototype `3e51f41f`: production code
    is restored to `8eddc2ec`, with its tests and measurements retained.
    The 5C.3 omission control shows a small opportunity and does not justify
-   prioritizing a standalone outcome envelope for parity. Quantify a native
-   execution packet eliminating intermediate parameter representations next;
-   preserve per-execution callbacks and buffer snapshot timing. Record explicit
+   prioritizing a standalone outcome envelope for parity. Native packet
+   `0390bdc9` is now also rejected after mixed fresh-query results; its runtime
+   is removed, not merged into the acceptance candidate. Complete 5B's remaining
+   dedicated-runner attribution and broader workload cost model. Record explicit
    dispositions for remaining plan-reuse approaches rather than leaving them
    indefinitely open or declaring all plan reuse impossible from one cache.
    Direct Tokio/pristine upstream controls are needed only if a native-client
    floor becomes a suspected blocker.
-4. Follow acceptance workflow `35511989284` for frozen `7bbc14eb`: it will run
-   three complete benchmarks and full soaks; both jobs are currently queued.
-   Checkpoint Tests `35511889731` and Lint `35511889747` are pending.
-   Require three complete benchmarks under `1.15` Python / `1.50` C,
-   full soaks, and the supported compatibility/
+4. Follow acceptance workflow `35511989284` for frozen `7bbc14eb`: three complete
+   benchmarks pass and all 99 workers independently recompute; full soaks are
+   running. Checkpoint Tests `35511889731` are live and Lint `35511889747` passes.
+   Preserve this one-wheel benchmark evidence under `1.15` Python / `1.50` C.
+   Require the full soaks and supported compatibility/
    package matrix. Publish all raw evidence. Track Python parity/C <= `1.10`
    separately; neither waive failures nor turn the stretch goal into an endless
    implicit release blocker.

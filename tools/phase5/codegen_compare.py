@@ -42,8 +42,15 @@ INTEGRATION_WORKLOADS = ("constant", "parameterized")
 INTEGRATION_ITERATIONS = 5000
 
 
-def compare_integration(output: Path, revisions: dict[str, str]) -> dict[str, object]:
+def compare_integration(
+    output: Path,
+    revisions: dict[str, str],
+    *,
+    iterations: int = INTEGRATION_ITERATIONS,
+) -> dict[str, object]:
     """Check all raw cursor controls before reporting either measurement order."""
+    if iterations < INTEGRATION_ITERATIONS:
+        raise ValueError("integration controls cannot shorten the default sample")
     comparison_order(list(revisions))
     first, second = revisions
     fingerprints = {}
@@ -69,7 +76,7 @@ def compare_integration(output: Path, revisions: dict[str, str]) -> dict[str, ob
                         or result["case"] != case
                         or result["workload"] != workload
                         or result["metadata"]["revision"] != revision
-                        or result["iterations"] != INTEGRATION_ITERATIONS
+                        or result["iterations"] != iterations
                         or result["warmup"] != 1000
                         or result["binary"] is not True
                         or result["prepared"] is not True
@@ -122,7 +129,12 @@ def compare_integration(output: Path, revisions: dict[str, str]) -> dict[str, ob
                         for key in ("wall_us", "cpu_us")
                     },
                 }
-    return {"release_acceptance": False, "variant_revisions": revisions, "pairs": pairs}
+    return {
+        "release_acceptance": False,
+        "variant_revisions": revisions,
+        "iterations_per_sample": iterations,
+        "pairs": pairs,
+    }
 
 
 def build_environment(

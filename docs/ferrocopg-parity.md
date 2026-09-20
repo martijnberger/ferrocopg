@@ -416,7 +416,7 @@ A proper design must retain per-request command/transaction/setting events,
 including errors, cancellation, and each intermediate pipeline operation.
 Copying a connection's final status onto all results would be incorrect.
 
-The next discriminating experiment should remove intermediate **parameter
+The next discriminating experiment proposed removing intermediate **parameter
 representations**, not cache mutable callback instances or merely move generic
 Python dispatch into Rust. `_convert_query_params()` currently turns the
 transformer's separate values/types/formats into Python tuples, then PyO3
@@ -427,17 +427,98 @@ buffer contents at the current conversion point, before preparation can run
 notices or other callbacks; deferring the copy until execution can change values.
 Do not add a cache or assume an extra native builder call is free. Measure the
 packet construction and full fresh/reused query path before deciding retention.
-This larger boundary remains unimplemented and unproven.
+The bounded packet implementation below now tests this hypothesis; it is not a
+replacement for the complete execution/adaptation layer.
+
+### Native parameter packet disposition (2026-09-20)
+
+Prototype `0390bdc9` creates an immutable Rust-owned parameter packet at the
+existing conversion point, then shares its owned buffers with the native
+execution call. It removes the intermediate Python tuple list without moving
+adaptation callbacks into Rust or caching their instances. Legacy native calls,
+non-default query classes, and encoding bridges retain compatible paths.
+Tests cover mixed formats/NULLs, non-contiguous buffers, custom `__bytes__`,
+bytes subclasses, owner release, prepared/unprepared calls, and mutation before
+preparation. The snapshot test explicitly confirmed the candidate used a packet.
+
+The release wheel passes all 87 installed/accounting checks, and 437 focused
+upstream cases pass. Its full local classifier remains **failed**: 4,748/4,749
+supported sync cases pass with zero errors, but pool `test_check_backoff` exceeds
+the unchanged 105 ms ceiling. All other sync families pass; experimental async
+remains separate (511/622). Preserve `/tmp/phase5-packet-full.xml`, its log, and
+its classifier report. Fresh configured mypy passes 239 files after annotating
+the staging helper's variable-length replacement tuple; that annotation changes
+no staged runtime behavior.
+
+Both frozen environments have matching dependency versions. The sixteen controls
+use 1,000 warmups and nine samples of 50,000 operations in both orders, with no
+overlapping builds, tests, installs, or profiling. This Mac was **not idle** and
+had substantial desktop/game activity. The longer-sample verifier requires the
+declared iteration count in every report; it cannot silently accept default-size
+or shorter data. Ratios are candidate/baseline:
+
+| Control | Wall a / b | CPU a / b |
+| --- | ---: | ---: |
+| Fresh constant | 0.9982 / 0.9855 | 0.9975 / 0.9809 |
+| Fresh parameterized | 0.9657 / 1.0441 | 0.9488 / 1.0716 |
+| Reused constant | 0.9865 / 1.0038 | 0.9800 / 1.0010 |
+| Reused parameterized | 0.9817 / 0.9898 | 0.9814 / 0.9864 |
+
+**Disposition: reject and restore the retained runtime.** The fresh-parameterized
+effect changes sign in both wall and CPU results. Reused-parameterized gains of
+about 1-2% do not justify the extra packet/ownership machinery without a
+repeatable fresh-query benefit. This is not proof that every packet design is
+ineffective, nor a stable 4.4% regression claim from a busy machine. No all-eleven
+candidate comparison was run because the prototype was not retained.
+[Raw measurements, wheel identities, profile, and failed compatibility report](performance/2026-09-20-parameter-packet-rejected.json)
+preserve the complete result, not just favorable samples. The prototype remains
+in history; its private-only test is removed with it, while the mutable-buffer
+snapshot contract and longer-sample accounting remain. Production Rust/Python
+backend files again exactly match `8eddc2ec`; the source extension is rebuilt
+without the packet. The rejected wheel remains isolated for reproducibility.
+All 86 retained installed/accounting checks pass without skips; fresh configured
+mypy again passes all 239 files after restoration.
+
+The next priority is the outstanding 5B attribution work on a dedicated runner,
+including broader workload profiles and allocation/polling/syscall evidence.
+Another small wrapper or generic-transformer rewrite is not justified by these
+results. A larger Rust-owned execution/adaptation design needs a measured cost
+budget and a separate retention decision, not a claim that these four bounded
+experiments have already delivered near parity.
 
 ### Acceptance checkpoint
 
 The retained production implementation is frozen for full acceptance at
 `7bbc14eba9a573bf528317f0859a8734db589e19`; its runtime matches the green
 `8eddc2ec` compatibility checkpoint. [Workflow 35511989284](https://github.com/martijnberger/ferrocopg/actions/runs/35511989284)
-is queued for three complete benchmark runs and the full three-backend soak.
-Follow this handle rather than restarting it on observation timeouts. The
-separate checkpoint Tests `35511889731` and Lint `35511889747` are also pending.
-No final acceptance or scheduled-run success is claimed.
+has completed its benchmark job successfully; the full three-backend soak is
+still running. All three reports and their 99 individual worker files were
+downloaded and independently checked against the frozen 100-iteration,
+nine-sample, 1,000-row protocol and unchanged beta policy. Every workload passes
+both limits in every run. Machine/server identities match throughout, and the
+wheel SHA-256 agrees with both the runner's summary and its separate hash file:
+`727b049d201963c7f8ea09c59356f3708355dd4ad84fd7d6ca85922ab2567d7b`.
+The artifact is `10605224553`. [The readable comparison reports](performance/2026-09-20-retained-three-run-benchmark.json)
+retain all nine-sample wall/CPU totals, percentile summaries, identities, and
+before/after process snapshots. The [complete compressed reports](performance/2026-09-20-retained-three-run-benchmark.json.gz)
+also preserve every per-operation latency array; the readable file records the
+archive hash. No sample is discarded to fit the repository's file-size limit. No process
+exceeds 5% CPU in the pre-run snapshot; post-run `docker-proxy` is 8%. These are
+dedicated-runner snapshots, not continuous host-idleness telemetry.
+
+| Workload | Rust/Python range across three runs | Rust/C range |
+| --- | ---: | ---: |
+| Parameterized | 1.012-1.074 | 1.162-1.327 |
+| Prepared | 1.004-1.030 | 1.353-1.391 |
+| Pool | 1.018-1.060 | 1.231-1.310 |
+
+This establishes the three-run **beta benchmark gate**, not near parity. Plain
+connection, TLS connection, and binary COPY meet both engineering targets in
+all three reports; dictionary rows do so only in run 2. The remaining workloads
+still exceed at least one near-parity objective. The separate checkpoint Tests
+`35511889731` remain live; Lint `35511889747` passes. Follow existing handles
+rather than restarting them. The soak, final combined acceptance audit,
+scheduled-run proof, and remaining attribution work are still outstanding.
 
 ### Execution-plan prototype boundary
 

@@ -242,6 +242,21 @@ class CodegenExperimentTests(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             compare_integration(self.output, revisions)
 
+    def test_integration_longer_samples_require_matching_evidence(self):
+        revisions = self.integration_controls()
+        for iterations in (1, 50000):
+            with self.subTest(iterations=iterations), self.assertRaises(ValueError):
+                compare_integration(self.output, revisions, iterations=iterations)
+        for path in self.output.glob("integration-*.json"):
+            result = json.loads(path.read_text())
+            result["iterations"] = 50000
+            path.write_text(json.dumps(result))
+        report = compare_integration(self.output, revisions, iterations=50000)
+        self.assertEqual(report["iterations_per_sample"], 50000)
+        self.assertFalse(report["release_acceptance"])
+        with self.assertRaises(ValueError):
+            compare_integration(self.output, revisions)
+
     def test_candidate_comparison_keeps_each_wheels_revision(self):
         revisions = {"baseline": "parent", "candidate": "candidate"}
         self.assertEqual(

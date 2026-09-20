@@ -106,7 +106,7 @@ class _SyntheticResult:
 
 
 class _BoundParams(NamedTuple):
-    values: Sequence[tuple[int, bool, bytes | None]]
+    values: list[tuple[int, bool, bytes | None]]
     types: tuple[int, ...]
     transcode: tuple[bool, ...]
 
@@ -3527,13 +3527,6 @@ class NoTlsConnectionAdapter:
         autocommit: bool = True,
     ):
         self._session = session
-        self._bound_packet = (
-            getattr(_ferrocopg, "BackendBoundParams", None)
-            if isinstance(
-                session._session, getattr(_ferrocopg, "BackendSyncNoTlsSession", ())
-            )
-            else None
-        )
         self.lock = _BackendRLock()
         self._is_ferrocopg = True
         self._conninfo = conninfo
@@ -4586,9 +4579,7 @@ class NoTlsConnectionAdapter:
         assert len(pgq.params) == len(pgq.types) == len(pgq.formats)
         transcode = _query_param_transcode_flags(pgq, query, params, tx)
         bound = _BoundParams(
-            values=self._bound_packet(pgq.types, pgq.formats, pgq.params)
-            if self._bound_packet is not None and query_cls is PostgresQuery
-            else [
+            values=[
                 (
                     oid,
                     format == pq.Format.BINARY,
