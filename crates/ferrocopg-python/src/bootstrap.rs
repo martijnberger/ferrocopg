@@ -543,19 +543,117 @@ fn backend_runtime_error(message: impl Into<String>) -> PyErr {
     PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(message.into())
 }
 
-fn bound_params(params: Vec<(u32, bool, Option<Vec<u8>>)>) -> Vec<ferrocopg_postgres::BoundParam> {
-    params
-        .into_iter()
-        .map(|(oid, binary, value)| ferrocopg_postgres::BoundParam {
-            oid,
-            value,
-            format: if binary {
-                ferrocopg_postgres::ParamFormat::Binary
+#[pyclass(frozen, module = "ferrocopg_rust._ferrocopg")]
+struct BackendBoundParams {
+    inner: Arc<Vec<ferrocopg_postgres::BoundParam>>,
+}
+
+#[pymethods]
+impl BackendBoundParams {
+    #[new]
+    fn new(
+        py: Python<'_>,
+        types: &Bound<'_, PyTuple>,
+        formats: &Bound<'_, PyList>,
+        values: &Bound<'_, PyList>,
+    ) -> PyResult<Self> {
+        if types.len() != values.len() || formats.len() != values.len() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "parameter types, formats, and values must have equal lengths",
+            ));
+        }
+        let mut params = Vec::with_capacity(values.len());
+        for (index, value) in values.iter().enumerate() {
+            // Freeze mutable/custom buffers before preparation can invoke callbacks.
+            let value = if value.is_none() {
+                None
+            } else if let Ok(bytes) = value.cast_exact::<PyBytes>() {
+                Some(bytes.as_bytes().to_vec())
             } else {
-                ferrocopg_postgres::ParamFormat::Text
-            },
+                Some(
+                    py.get_type::<PyBytes>()
+                        .call1((value,))?
+                        .cast::<PyBytes>()?
+                        .as_bytes()
+                        .to_vec(),
+                )
+            };
+            params.push(ferrocopg_postgres::BoundParam {
+                oid: types.get_item(index)?.extract()?,
+                format: if formats.get_item(index)?.extract::<i32>()? == 1 {
+                    ferrocopg_postgres::ParamFormat::Binary
+                } else {
+                    ferrocopg_postgres::ParamFormat::Text
+                },
+                value,
+            });
+        }
+        Ok(Self {
+            inner: Arc::new(params),
         })
-        .collect()
+    }
+
+    fn __len__(&self) -> usize {
+        self.inner.len()
+    }
+
+    fn __getitem__(
+        &self,
+        py: Python<'_>,
+        index: isize,
+    ) -> PyResult<(u32, bool, Option<Py<PyBytes>>)> {
+        let index = if index < 0 {
+            self.inner.len() as isize + index
+        } else {
+            index
+        };
+        let param = usize::try_from(index)
+            .ok()
+            .and_then(|index| self.inner.get(index))
+            .ok_or_else(|| {
+                pyo3::exceptions::PyIndexError::new_err("parameter index out of range")
+            })?;
+        Ok((
+            param.oid,
+            param.format == ferrocopg_postgres::ParamFormat::Binary,
+            param.value.as_ref().map(|v| PyBytes::new(py, v).unbind()),
+        ))
+    }
+}
+
+enum OwnedBoundParams {
+    Packet(Arc<Vec<ferrocopg_postgres::BoundParam>>),
+    Legacy(Vec<ferrocopg_postgres::BoundParam>),
+}
+
+impl AsRef<[ferrocopg_postgres::BoundParam]> for OwnedBoundParams {
+    fn as_ref(&self) -> &[ferrocopg_postgres::BoundParam] {
+        match self {
+            Self::Packet(params) => params,
+            Self::Legacy(params) => params,
+        }
+    }
+}
+
+fn bound_params(params: &Bound<'_, PyAny>) -> PyResult<OwnedBoundParams> {
+    if let Ok(packet) = params.cast::<BackendBoundParams>() {
+        return Ok(OwnedBoundParams::Packet(Arc::clone(&packet.get().inner)));
+    }
+    let params: Vec<(u32, bool, Option<Vec<u8>>)> = params.extract()?;
+    Ok(OwnedBoundParams::Legacy(
+        params
+            .into_iter()
+            .map(|(oid, binary, value)| ferrocopg_postgres::BoundParam {
+                oid,
+                value,
+                format: if binary {
+                    ferrocopg_postgres::ParamFormat::Binary
+                } else {
+                    ferrocopg_postgres::ParamFormat::Text
+                },
+            })
+            .collect(),
+    ))
 }
 
 fn wire_format(binary: bool) -> ferrocopg_postgres::WireFormat {
@@ -1500,25 +1598,27 @@ impl BackendSyncNoTlsSession {
         &self,
         py: Python<'_>,
         query: &str,
-        params: Vec<(u32, bool, Option<Vec<u8>>)>,
+        params: &Bound<'_, PyAny>,
     ) -> PyResult<BackendResultSet> {
         let query = query.to_owned();
-        let params = bound_params(params);
-        with_session(py, self, move |session| session.run_params(&query, &params))
-            .map(BackendResultSet::from)
+        let params = bound_params(params)?;
+        with_session(py, self, move |session| {
+            session.run_params(&query, params.as_ref())
+        })
+        .map(BackendResultSet::from)
     }
 
     fn run_params_format(
         &self,
         py: Python<'_>,
         query: &str,
-        params: Vec<(u32, bool, Option<Vec<u8>>)>,
+        params: &Bound<'_, PyAny>,
         binary: bool,
     ) -> PyResult<BackendResultSet> {
         let query = query.to_owned();
-        let params = bound_params(params);
+        let params = bound_params(params)?;
         with_session(py, self, move |session| {
-            session.run_params_format(&query, &params, wire_format(binary))
+            session.run_params_format(&query, params.as_ref(), wire_format(binary))
         })
         .map(BackendResultSet::from)
     }
@@ -1696,11 +1796,11 @@ impl BackendSyncNoTlsSession {
         &self,
         py: Python<'_>,
         statement_id: u64,
-        params: Vec<(u32, bool, Option<Vec<u8>>)>,
+        params: &Bound<'_, PyAny>,
     ) -> PyResult<BackendResultSet> {
-        let params = bound_params(params);
+        let params = bound_params(params)?;
         with_session(py, self, move |session| {
-            session.run_prepared_params(statement_id, &params)
+            session.run_prepared_params(statement_id, params.as_ref())
         })
         .map(BackendResultSet::from)
     }
@@ -1709,12 +1809,12 @@ impl BackendSyncNoTlsSession {
         &self,
         py: Python<'_>,
         statement_id: u64,
-        params: Vec<(u32, bool, Option<Vec<u8>>)>,
+        params: &Bound<'_, PyAny>,
         binary: bool,
     ) -> PyResult<BackendResultSet> {
-        let params = bound_params(params);
+        let params = bound_params(params)?;
         with_session(py, self, move |session| {
-            session.run_prepared_params_format(statement_id, &params, wire_format(binary))
+            session.run_prepared_params_format(statement_id, params.as_ref(), wire_format(binary))
         })
         .map(BackendResultSet::from)
     }
@@ -1739,6 +1839,7 @@ impl BackendSyncNoTlsSession {
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<BackendBoundParams>()?;
     m.add_class::<BackendConninfoSummary>()?;
     m.add_class::<BackendConnectPlan>()?;
     m.add_class::<BackendConnectEndpoint>()?;

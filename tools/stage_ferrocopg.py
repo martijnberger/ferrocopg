@@ -536,7 +536,7 @@ def _transform_source(path: Path, source: str) -> str:
             raise RuntimeError("cannot locate the Rust extension import during staging")
         transformed = transformed.replace(RUST_IMPORT, STAGED_RUST_IMPORT, 1)
     elif path.name == "__init__.py" and path.parent.name == "ferrocopg":
-        replacements = (
+        replacements: tuple[tuple[str, str], ...] = (
             (SOURCE_ASYNC_IMPORT, STAGED_ASYNC_IMPORT),
             (SOURCE_CONNECTION_IMPORT, STAGED_CONNECTION_IMPORT),
             (SOURCE_CONNECTION_EXPORT, STAGED_CONNECTION_EXPORT),

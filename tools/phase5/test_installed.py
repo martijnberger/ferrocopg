@@ -8,12 +8,125 @@ import subprocess
 import sys
 import unittest
 import weakref
+from unittest.mock import patch
 
 
 @unittest.skipUnless(
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_parameter_buffers_are_snapshotted_before_preparation(self):
+        import ferrocopg
+        from ferrocopg.adapt import Dumper
+
+        class Payload:
+            pass
+
+        for as_view in (False, True):
+            with self.subTest(as_view=as_view):
+                payload = bytearray(b"abcd")
+
+                class MutableDumper(Dumper):
+                    oid = 17
+                    format = ferrocopg.pq.Format.BINARY
+
+                    def dump(self, obj):
+                        return memoryview(payload)[::2] if as_view else payload
+
+                with ferrocopg.connect(
+                    os.environ["PHASE5_DSN"], autocommit=True
+                ) as conn:
+                    conn.adapters.register_dumper(Payload, MutableDumper)
+                    prepare = conn._session.prepare_bound
+
+                    def mutate_before_prepare(*args):
+                        payload[:] = b"xxxx"
+                        return prepare(*args)
+
+                    with patch.object(
+                        conn._session, "prepare_bound", mutate_before_prepare
+                    ):
+                        cur = conn.execute(
+                            "select %s::bytea", (Payload(),), prepare=True
+                        )
+                    self.assertEqual(cur.fetchone(), (b"ac" if as_view else b"abcd",))
+                    self.assertEqual(payload, b"xxxx")
+                    cur.execute("select %s::bytea", (Payload(),), prepare=True)
+                    self.assertEqual(cur.fetchone(), (b"xx" if as_view else b"xxxx",))
+
+    def test_native_parameter_packet_owns_buffers_and_preserves_legacy_calls(self):
+        from ferrocopg._rust import _ferrocopg as native
+
+        packet_type = getattr(native, "BackendBoundParams", None)
+        if packet_type is None:
+            self.skipTest("baseline wheel predates the private native parameter packet")
+        calls = []
+
+        class BytesSubclass(bytes):
+            def __bytes__(self):
+                return b"overridden"
+
+        self.assertEqual(
+            list(packet_type((17,), [1], [BytesSubclass(b"original")])),
+            [(17, True, b"overridden")],
+        )
+
+        class CustomBytes:
+            def __bytes__(self):
+                calls.append("bytes")
+                return b"custom"
+
+        custom = CustomBytes()
+        owner = weakref.ref(custom)
+        buffer = bytearray(b"abcd")
+        values = [buffer, memoryview(buffer)[::2], custom, None, b""]
+        packet = packet_type((17, 17, 17, 25, 17), [1, 1, 1, 0, 1], values)
+        buffer[:] = b"xxxx"
+        values.clear()
+        del custom
+        self.assertIsNone(owner())
+        self.assertEqual(calls, ["bytes"])
+        expected = [
+            (17, True, b"abcd"),
+            (17, True, b"ac"),
+            (17, True, b"custom"),
+            (25, False, None),
+            (17, True, b""),
+        ]
+        self.assertEqual(list(packet), expected)
+        self.assertEqual(packet[-1], expected[-1])
+        self.assertEqual(len(packet), 5)
+        for index in (-6, 5):
+            with self.assertRaises(IndexError):
+                packet[index]
+        for types, formats, data in (((17,), [], [b"a"]), ((), [1], [b"a"])):
+            with self.assertRaises(ValueError):
+                packet_type(types, formats, data)
+        with self.assertRaises(TypeError):
+            packet_type((17,), [1], [object()])
+
+        session = native.connect_session(os.environ["PHASE5_DSN"])
+        query = "select $1::bytea, $2::bytea, $3::bytea, $4::text, $5::bytea"
+        try:
+            prepared = session.prepare_params(query, [17, 17, 17, 25, 17])
+            results = [
+                session.run_params(query, packet),
+                session.run_params_format(query, packet, True),
+                session.run_prepared_params(prepared.statement_id, packet),
+                session.run_prepared_params_format(prepared.statement_id, packet, True),
+                session.run_prepared_params_format(
+                    prepared.statement_id, expected, True
+                ),
+            ]
+        finally:
+            session.close()
+        del packet
+        for result in results:
+            self.assertEqual(
+                [result.get_value(0, i) for i in range(5)],
+                [b"abcd", b"ac", b"custom", None, b""],
+            )
+
     def test_execution_schema_type_registry_snapshots(self):
         import ferrocopg
 

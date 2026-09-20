@@ -1623,6 +1623,26 @@ parity report, without reusing arbitrary mutable adaptation callbacks.
 
 **Rules shared by all prototypes**
 
+Native parameter packet experiment (2026-09-20, not yet measured): eliminate
+the Python tuple-list bridge and repeated native buffer extraction for adapted
+parameters, without porting the transformer or caching callbacks. An immutable
+native packet snapshots bytes at the existing conversion point, before prepare
+or transaction operations can invoke callbacks. Execution takes shared ownership
+of that packet; legacy tuple input remains supported. Non-default query classes
+and mocked/legacy sessions retain their existing path. Encoding bridges may
+materialize the packet's sequence projection only on the exceptional path.
+
+Hypothesis: the removed Python packaging and repeated extraction outweigh the
+additional packet-constructor call and shared-ownership cost. Require buffer
+snapshot/release, mixed formats/NULL, legacy binding, encoding, preparation/error,
+and full supported-sync controls. Compare fresh/reused constant/parameterized
+queries against frozen `8eddc2ec` in both orders, with no overlapping work.
+Constant queries are an important regression control because their native
+binding signatures also accept the packet. Reject flat/mixed performance-only
+results; all eleven workloads and fresh compatibility/resource gates are needed
+before retaining a performance claim. Do not change the currently running
+`7bbc14eb` acceptance candidate or silently apply its results to this prototype.
+
 - [ ] Prioritize the largest proven avoidable overhead, not the most Rust-looking
   implementation. Start with shared query/adapter work only if 5B supports it.
 - [ ] Require each experiment to name its hypothesis, preserved contracts, and
