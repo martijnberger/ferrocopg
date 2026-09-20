@@ -75,6 +75,10 @@ the new comparator ceilings.
 
 ## Query diagnostics
 
+For attribution between the native clients, Rust session, direct binding, and
+public Python APIs, see the [parity investigation](ferrocopg-parity.md).
+These matched layer probes are separate from beta acceptance.
+
 Use `tools/phase5/query_profile.py` to investigate small-query overhead without
 changing acceptance workloads. Run each backend in a separate process, using
 the same installed environment and DSN as the benchmark:

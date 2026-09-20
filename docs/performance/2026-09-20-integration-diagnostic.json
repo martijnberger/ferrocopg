@@ -1,0 +1,2832 @@
+{
+  "schema": 1,
+  "acceptance_evidence": false,
+  "date": "2026-09-20",
+  "integration_probe_source_sha256": "5b73f4b4cdc1c8044e12cc6c07ee05a8b12af1451ff904679d1cbf1dd78fbc4e",
+  "limitations": [
+    "Non-idle macOS development machine; background UI/browser/node activity",
+    "No production code changed",
+    "Layer probe is parameter-free prepared binary int4 over plaintext loopback",
+    "Native clients are vendored, not pristine upstream; no direct Tokio control yet",
+    "Profiles are separately instrumented call counts, not acceptance timings",
+    "Development snapshot IDs identify probe working copies, not rebuilt installed-wheel revisions"
+  ],
+  "installed_rust_wheel_sha256": "924f3af85c5b6b31047f901b8bc668a0d1891bfb91ef6bb60c12cfa63a0e11ca",
+  "installed_rust_production_checkpoint": "52b5bcd83ba463d89611cab39fbfc9c000981274",
+  "layer_probe": {
+    "mode": "layer-diagnostic",
+    "acceptance_evidence": false,
+    "revision": "1c1d7237bdd2ed7d07acdd365f95c7df96c5fa0d",
+    "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]",
+    "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+    "protocol": {
+      "query": "select 42::int4",
+      "prepared": true,
+      "result_format": "binary",
+      "in_flight": 1,
+      "iterations": 10000,
+      "samples": 9,
+      "warmup": 1000,
+      "tls": false
+    },
+    "sha256": {
+      "/tmp/ferrocopg-phase5-codegen-thin-target/release/examples/layer_probe": "7a54cd36ca783f0ce3a033044f6cf6219f77d74118425566c7cee24df8c65203",
+      "/tmp/phase5-libpq-layer-probe": "034af5c448c6eed58b65d2b74882f122d52a5f73833cf27fd909352805be9b0e",
+      "/Users/martijnberger/src/psycopg/Cargo.lock": "668ac2bbf560c6eb57b4128546d0c9e987ea47e1940a308021ca0e5fa63d7ae6",
+      "/Users/martijnberger/src/psycopg/crates/ferrocopg-postgres/examples/layer_probe.rs": "5ea33460f3f7772b38b002d5fd95317cb202c97418e50ce86cb5dc06071c12cd",
+      "/Users/martijnberger/src/psycopg/tools/phase5/libpq_probe.c": "4616ed33359340522947093c184cbce630809bf98e013f707ad1603c83d3acd6",
+      "/Users/martijnberger/src/psycopg/tools/phase5/layer_probe.py": "fceb768351a707b39e698225f89784ab3183d00646330a340424e1732df6ef23"
+    },
+    "orders": {
+      "forward": {
+        "libpq": {
+          "wall_us": [
+            18.072800001,
+            19.686299999,
+            19.702700002,
+            19.8366,
+            19.597600002,
+            19.1991,
+            19.723999998,
+            19.528500002,
+            19.4299
+          ],
+          "median_us": 19.597600002
+        },
+        "postgres": {
+          "wall_us": [
+            18.9064791,
+            18.586675,
+            18.4090083,
+            18.8461334,
+            18.9008459,
+            18.8119625,
+            18.7644916,
+            18.663166699999998,
+            18.910370800000003
+          ],
+          "median_us": 18.8119625
+        },
+        "postgres-wait": {
+          "wall_us": [
+            19.3562375,
+            19.0592084,
+            18.9778584,
+            18.9280209,
+            19.1290959,
+            18.9754167,
+            19.0758625,
+            18.8275084,
+            18.8332875
+          ],
+          "median_us": 18.9778584
+        },
+        "session": {
+          "wall_us": [
+            19.4231416,
+            19.606583299999997,
+            19.655270799999997,
+            19.3180417,
+            19.0524042,
+            19.5048666,
+            19.431175,
+            19.3363166,
+            19.3138042
+          ],
+          "median_us": 19.4231416
+        },
+        "binding": {
+          "wall_us": [
+            21.7942,
+            22.4276041,
+            21.725225,
+            21.4894125,
+            21.581966700000002,
+            21.678900000000002,
+            21.865125,
+            21.6218,
+            21.6408375
+          ],
+          "median_us": 21.678900000000002
+        },
+        "python": {
+          "wall_us": [
+            41.6802667,
+            41.0929042,
+            41.448354200000004,
+            38.605879200000004,
+            39.066058299999995,
+            40.538050000000005,
+            42.3722,
+            44.6590041,
+            41.9027042
+          ],
+          "median_us": 41.448354200000004
+        },
+        "c": {
+          "wall_us": [
+            31.2563334,
+            31.1651542,
+            31.0010791,
+            31.077441699999998,
+            30.6587,
+            31.0226167,
+            31.009333299999998,
+            31.139162499999998,
+            31.034425
+          ],
+          "median_us": 31.034425
+        },
+        "rust": {
+          "wall_us": [
+            41.6023792,
+            40.9383875,
+            40.7914125,
+            40.9445625,
+            40.950475,
+            40.9639167,
+            41.029683299999995,
+            41.5963875,
+            41.6512416
+          ],
+          "median_us": 40.9639167
+        }
+      },
+      "reverse": {
+        "rust": {
+          "wall_us": [
+            43.798191599999996,
+            40.980987500000005,
+            44.8625833,
+            40.797091699999996,
+            41.6593708,
+            43.2660583,
+            41.617625,
+            40.6910875,
+            40.8955667
+          ],
+          "median_us": 41.617625
+        },
+        "c": {
+          "wall_us": [
+            30.2928625,
+            28.4508417,
+            28.061754099999998,
+            26.3922708,
+            28.330583299999997,
+            31.2855292,
+            31.2040416,
+            31.2045292,
+            31.100116699999997
+          ],
+          "median_us": 30.2928625
+        },
+        "python": {
+          "wall_us": [
+            40.9042792,
+            41.45715,
+            40.65715,
+            41.8324708,
+            40.4681084,
+            42.2262291,
+            44.6235125,
+            43.7758708,
+            41.7258917
+          ],
+          "median_us": 41.7258917
+        },
+        "binding": {
+          "wall_us": [
+            21.8419542,
+            21.7616417,
+            21.636316599999997,
+            21.817195899999998,
+            21.7948958,
+            21.6566625,
+            21.6888959,
+            21.592375,
+            21.579175
+          ],
+          "median_us": 21.6888959
+        },
+        "session": {
+          "wall_us": [
+            19.546491699999997,
+            19.4207791,
+            19.376725,
+            19.6376958,
+            19.6140541,
+            19.496925,
+            19.5452,
+            19.4085375,
+            19.4266833
+          ],
+          "median_us": 19.496925
+        },
+        "postgres-wait": {
+          "wall_us": [
+            23.495616599999998,
+            18.511329200000002,
+            19.0747167,
+            19.0719958,
+            19.1146208,
+            19.0514708,
+            18.9730125,
+            18.827625,
+            19.0362542
+          ],
+          "median_us": 19.0514708
+        },
+        "postgres": {
+          "wall_us": [
+            18.850108300000002,
+            19.073675,
+            18.810229200000002,
+            18.8226541,
+            18.5072708,
+            19.2043375,
+            18.8589292,
+            18.746575,
+            19.0340667
+          ],
+          "median_us": 18.850108300000002
+        },
+        "libpq": {
+          "wall_us": [
+            19.542799998,
+            19.959100001,
+            19.619799999,
+            19.493100001,
+            19.905199998,
+            19.493299999,
+            19.674800002,
+            19.606700001,
+            19.618500001
+          ],
+          "median_us": 19.618500001
+        }
+      }
+    },
+    "failures": []
+  },
+  "integration": {
+    "forward-constant-c-public-fresh": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-fresh",
+      "backend": "c",
+      "workload": "constant",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 25.6123668,
+          "cpu_us": 14.524799999999999
+        },
+        {
+          "wall_us": 22.5104166,
+          "cpu_us": 13.2432
+        },
+        {
+          "wall_us": 22.4687916,
+          "cpu_us": 13.1872
+        },
+        {
+          "wall_us": 26.2826584,
+          "cpu_us": 14.75
+        },
+        {
+          "wall_us": 28.880575,
+          "cpu_us": 15.7506
+        },
+        {
+          "wall_us": 27.3313916,
+          "cpu_us": 15.1008
+        },
+        {
+          "wall_us": 28.529266800000002,
+          "cpu_us": 15.6934
+        },
+        {
+          "wall_us": 22.421191599999997,
+          "cpu_us": 13.2172
+        },
+        {
+          "wall_us": 22.6041666,
+          "cpu_us": 13.254
+        }
+      ],
+      "medians_us": {
+        "wall_us": 25.6123668,
+        "cpu_us": 14.524799999999999
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:53:53.090906+00:00",
+      "installed_manifest_sha256": {
+        "psycopg": "63f3e3525ca40e1cbe4820dbf0578324ac3d31f5cd414c56adfea0a643e464ec",
+        "psycopg-c": "ba7b72130ee5d6b5ac3dbf572013be37135c08d69a79ec82edb6b34861ff070d"
+      }
+    },
+    "forward-constant-c-public-reused": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-reused",
+      "backend": "c",
+      "workload": "constant",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 22.243275,
+          "cpu_us": 11.535
+        },
+        {
+          "wall_us": 19.7452082,
+          "cpu_us": 10.502
+        },
+        {
+          "wall_us": 19.5355334,
+          "cpu_us": 10.467799999999999
+        },
+        {
+          "wall_us": 20.749458399999998,
+          "cpu_us": 11.0168
+        },
+        {
+          "wall_us": 21.1292334,
+          "cpu_us": 11.2192
+        },
+        {
+          "wall_us": 27.1574918,
+          "cpu_us": 13.2682
+        },
+        {
+          "wall_us": 27.2675668,
+          "cpu_us": 13.273200000000001
+        },
+        {
+          "wall_us": 27.2316082,
+          "cpu_us": 13.2352
+        },
+        {
+          "wall_us": 27.172416600000002,
+          "cpu_us": 13.272200000000002
+        }
+      ],
+      "medians_us": {
+        "wall_us": 22.243275,
+        "cpu_us": 11.535
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:53:54.386941+00:00",
+      "installed_manifest_sha256": {
+        "psycopg": "63f3e3525ca40e1cbe4820dbf0578324ac3d31f5cd414c56adfea0a643e464ec",
+        "psycopg-c": "ba7b72130ee5d6b5ac3dbf572013be37135c08d69a79ec82edb6b34861ff070d"
+      }
+    },
+    "forward-constant-rust-adapter-fresh": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "adapter-fresh",
+      "backend": "rust",
+      "workload": "constant",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 36.369949999999996,
+          "cpu_us": 25.0718
+        },
+        {
+          "wall_us": 35.226575,
+          "cpu_us": 24.291
+        },
+        {
+          "wall_us": 35.2158084,
+          "cpu_us": 24.496599999999997
+        },
+        {
+          "wall_us": 35.9789082,
+          "cpu_us": 24.8146
+        },
+        {
+          "wall_us": 35.3512168,
+          "cpu_us": 24.3578
+        },
+        {
+          "wall_us": 35.752891600000005,
+          "cpu_us": 24.648400000000002
+        },
+        {
+          "wall_us": 35.6486916,
+          "cpu_us": 24.5386
+        },
+        {
+          "wall_us": 35.1340166,
+          "cpu_us": 24.5348
+        },
+        {
+          "wall_us": 34.829133399999996,
+          "cpu_us": 24.4894
+        }
+      ],
+      "medians_us": {
+        "wall_us": 35.3512168,
+        "cpu_us": 24.5348
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:53:49.651045+00:00",
+      "installed_manifest_sha256": {
+        "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+      }
+    },
+    "forward-constant-rust-adapter-reused": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "adapter-reused",
+      "backend": "rust",
+      "workload": "constant",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 32.013475,
+          "cpu_us": 22.8562
+        },
+        {
+          "wall_us": 33.9532332,
+          "cpu_us": 23.1448
+        },
+        {
+          "wall_us": 34.010541599999996,
+          "cpu_us": 23.2222
+        },
+        {
+          "wall_us": 33.3498166,
+          "cpu_us": 22.7198
+        },
+        {
+          "wall_us": 32.5282916,
+          "cpu_us": 22.459
+        },
+        {
+          "wall_us": 32.98205,
+          "cpu_us": 22.630200000000002
+        },
+        {
+          "wall_us": 32.1997082,
+          "cpu_us": 22.6174
+        },
+        {
+          "wall_us": 33.9948916,
+          "cpu_us": 23.6154
+        },
+        {
+          "wall_us": 33.9210084,
+          "cpu_us": 22.9722
+        }
+      ],
+      "medians_us": {
+        "wall_us": 33.3498166,
+        "cpu_us": 22.8562
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:53:51.408756+00:00",
+      "installed_manifest_sha256": {
+        "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+      }
+    },
+    "forward-constant-rust-public-fresh": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-fresh",
+      "backend": "rust",
+      "workload": "constant",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 41.7628332,
+          "cpu_us": 30.2194
+        },
+        {
+          "wall_us": 49.61425,
+          "cpu_us": 34.319
+        },
+        {
+          "wall_us": 41.859625,
+          "cpu_us": 30.316
+        },
+        {
+          "wall_us": 41.5380334,
+          "cpu_us": 30.0884
+        },
+        {
+          "wall_us": 42.3154668,
+          "cpu_us": 30.55
+        },
+        {
+          "wall_us": 40.883333400000005,
+          "cpu_us": 29.626
+        },
+        {
+          "wall_us": 45.2648,
+          "cpu_us": 31.7278
+        },
+        {
+          "wall_us": 39.866925,
+          "cpu_us": 28.877599999999997
+        },
+        {
+          "wall_us": 40.383191599999996,
+          "cpu_us": 29.1654
+        }
+      ],
+      "medians_us": {
+        "wall_us": 41.7628332,
+        "cpu_us": 30.2194
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:53:45.770105+00:00",
+      "installed_manifest_sha256": {
+        "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+      }
+    },
+    "forward-constant-rust-public-reused": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-reused",
+      "backend": "rust",
+      "workload": "constant",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 36.4246084,
+          "cpu_us": 25.1338
+        },
+        {
+          "wall_us": 36.3780084,
+          "cpu_us": 24.994799999999998
+        },
+        {
+          "wall_us": 36.665125,
+          "cpu_us": 25.200400000000002
+        },
+        {
+          "wall_us": 35.467666799999996,
+          "cpu_us": 24.289
+        },
+        {
+          "wall_us": 36.3330334,
+          "cpu_us": 25.2588
+        },
+        {
+          "wall_us": 36.9393082,
+          "cpu_us": 25.5418
+        },
+        {
+          "wall_us": 35.6056418,
+          "cpu_us": 24.438200000000002
+        },
+        {
+          "wall_us": 35.298224999999995,
+          "cpu_us": 24.4228
+        },
+        {
+          "wall_us": 35.5448084,
+          "cpu_us": 24.462799999999998
+        }
+      ],
+      "medians_us": {
+        "wall_us": 36.3330334,
+        "cpu_us": 24.994799999999998
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:53:47.879670+00:00",
+      "installed_manifest_sha256": {
+        "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+      }
+    },
+    "forward-parameterized-c-public-fresh": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-fresh",
+      "backend": "c",
+      "workload": "parameterized",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 28.4082084,
+          "cpu_us": 16.415
+        },
+        {
+          "wall_us": 24.8687582,
+          "cpu_us": 14.890799999999999
+        },
+        {
+          "wall_us": 29.731441599999997,
+          "cpu_us": 16.761200000000002
+        },
+        {
+          "wall_us": 32.138225,
+          "cpu_us": 17.5944
+        },
+        {
+          "wall_us": 30.953875,
+          "cpu_us": 17.0854
+        },
+        {
+          "wall_us": 32.35915,
+          "cpu_us": 17.488599999999998
+        },
+        {
+          "wall_us": 29.6974084,
+          "cpu_us": 16.7862
+        },
+        {
+          "wall_us": 29.7603584,
+          "cpu_us": 16.974
+        },
+        {
+          "wall_us": 33.1577166,
+          "cpu_us": 18.3782
+        }
+      ],
+      "medians_us": {
+        "wall_us": 29.7603584,
+        "cpu_us": 16.974
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:54:03.985344+00:00",
+      "installed_manifest_sha256": {
+        "psycopg": "63f3e3525ca40e1cbe4820dbf0578324ac3d31f5cd414c56adfea0a643e464ec",
+        "psycopg-c": "ba7b72130ee5d6b5ac3dbf572013be37135c08d69a79ec82edb6b34861ff070d"
+      }
+    },
+    "forward-parameterized-c-public-reused": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-reused",
+      "backend": "c",
+      "workload": "parameterized",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 28.8896168,
+          "cpu_us": 14.282399999999999
+        },
+        {
+          "wall_us": 28.565766800000002,
+          "cpu_us": 14.17
+        },
+        {
+          "wall_us": 28.610975,
+          "cpu_us": 14.1332
+        },
+        {
+          "wall_us": 28.6457334,
+          "cpu_us": 14.1736
+        },
+        {
+          "wall_us": 28.7781832,
+          "cpu_us": 14.2026
+        },
+        {
+          "wall_us": 28.8398416,
+          "cpu_us": 14.2806
+        },
+        {
+          "wall_us": 28.5656834,
+          "cpu_us": 14.101799999999999
+        },
+        {
+          "wall_us": 28.7288166,
+          "cpu_us": 14.202399999999999
+        },
+        {
+          "wall_us": 28.722625,
+          "cpu_us": 14.196
+        }
+      ],
+      "medians_us": {
+        "wall_us": 28.722625,
+        "cpu_us": 14.196
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:54:05.496134+00:00",
+      "installed_manifest_sha256": {
+        "psycopg": "63f3e3525ca40e1cbe4820dbf0578324ac3d31f5cd414c56adfea0a643e464ec",
+        "psycopg-c": "ba7b72130ee5d6b5ac3dbf572013be37135c08d69a79ec82edb6b34861ff070d"
+      }
+    },
+    "forward-parameterized-rust-adapter-fresh": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "adapter-fresh",
+      "backend": "rust",
+      "workload": "parameterized",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 42.008891600000005,
+          "cpu_us": 30.6184
+        },
+        {
+          "wall_us": 41.6870666,
+          "cpu_us": 30.299400000000002
+        },
+        {
+          "wall_us": 41.557,
+          "cpu_us": 30.248
+        },
+        {
+          "wall_us": 41.523425,
+          "cpu_us": 30.261400000000002
+        },
+        {
+          "wall_us": 41.088300000000004,
+          "cpu_us": 29.9592
+        },
+        {
+          "wall_us": 41.556008399999996,
+          "cpu_us": 30.3112
+        },
+        {
+          "wall_us": 41.4544084,
+          "cpu_us": 30.1512
+        },
+        {
+          "wall_us": 41.65188319999999,
+          "cpu_us": 30.3436
+        },
+        {
+          "wall_us": 41.34765,
+          "cpu_us": 30.1662
+        }
+      ],
+      "medians_us": {
+        "wall_us": 41.556008399999996,
+        "cpu_us": 30.261400000000002
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:53:59.949940+00:00",
+      "installed_manifest_sha256": {
+        "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+      }
+    },
+    "forward-parameterized-rust-adapter-reused": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "adapter-reused",
+      "backend": "rust",
+      "workload": "parameterized",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 39.775574999999996,
+          "cpu_us": 28.348200000000002
+        },
+        {
+          "wall_us": 39.893758399999996,
+          "cpu_us": 28.453
+        },
+        {
+          "wall_us": 39.7204418,
+          "cpu_us": 28.426
+        },
+        {
+          "wall_us": 42.6094916,
+          "cpu_us": 30.0158
+        },
+        {
+          "wall_us": 41.7040834,
+          "cpu_us": 29.5932
+        },
+        {
+          "wall_us": 44.2280834,
+          "cpu_us": 31.2924
+        },
+        {
+          "wall_us": 38.220241800000004,
+          "cpu_us": 28.072
+        },
+        {
+          "wall_us": 40.3820334,
+          "cpu_us": 29.0258
+        },
+        {
+          "wall_us": 41.16165,
+          "cpu_us": 29.3838
+        }
+      ],
+      "medians_us": {
+        "wall_us": 40.3820334,
+        "cpu_us": 29.0258
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:54:01.973481+00:00",
+      "installed_manifest_sha256": {
+        "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+      }
+    },
+    "forward-parameterized-rust-public-fresh": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-fresh",
+      "backend": "rust",
+      "workload": "parameterized",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 46.6118082,
+          "cpu_us": 35.6506
+        },
+        {
+          "wall_us": 47.2808584,
+          "cpu_us": 36.0796
+        },
+        {
+          "wall_us": 47.3208584,
+          "cpu_us": 36.0316
+        },
+        {
+          "wall_us": 47.328224999999996,
+          "cpu_us": 36.061
+        },
+        {
+          "wall_us": 47.1633584,
+          "cpu_us": 36.024
+        },
+        {
+          "wall_us": 46.9502166,
+          "cpu_us": 35.8392
+        },
+        {
+          "wall_us": 46.8192832,
+          "cpu_us": 35.687
+        },
+        {
+          "wall_us": 47.847133199999995,
+          "cpu_us": 35.6186
+        },
+        {
+          "wall_us": 47.9508,
+          "cpu_us": 35.695
+        }
+      ],
+      "medians_us": {
+        "wall_us": 47.2808584,
+        "cpu_us": 35.8392
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:53:55.579272+00:00",
+      "installed_manifest_sha256": {
+        "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+      }
+    },
+    "forward-parameterized-rust-public-reused": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-reused",
+      "backend": "rust",
+      "workload": "parameterized",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 43.118075,
+          "cpu_us": 31.7374
+        },
+        {
+          "wall_us": 42.3699084,
+          "cpu_us": 31.1162
+        },
+        {
+          "wall_us": 42.789791599999994,
+          "cpu_us": 31.037200000000002
+        },
+        {
+          "wall_us": 42.499558400000005,
+          "cpu_us": 30.793
+        },
+        {
+          "wall_us": 42.4735084,
+          "cpu_us": 30.7668
+        },
+        {
+          "wall_us": 41.9523084,
+          "cpu_us": 30.618599999999997
+        },
+        {
+          "wall_us": 42.9641084,
+          "cpu_us": 31.593400000000003
+        },
+        {
+          "wall_us": 42.154883399999996,
+          "cpu_us": 31.002
+        },
+        {
+          "wall_us": 42.263975,
+          "cpu_us": 31.1986
+        }
+      ],
+      "medians_us": {
+        "wall_us": 42.4735084,
+        "cpu_us": 31.037200000000002
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:53:57.873410+00:00",
+      "installed_manifest_sha256": {
+        "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+      }
+    },
+    "profile-constant-c": {
+      "mode": "integration-profile",
+      "acceptance_evidence": false,
+      "case": "public-fresh",
+      "backend": "c",
+      "workload": "constant",
+      "iterations": 10000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [],
+      "medians_us": null,
+      "profile": "/tmp/phase5-integration-20260920/profile-constant-c.pstats",
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:54:28.998000+00:00",
+      "installed_manifest_sha256": {
+        "psycopg": "63f3e3525ca40e1cbe4820dbf0578324ac3d31f5cd414c56adfea0a643e464ec",
+        "psycopg-c": "ba7b72130ee5d6b5ac3dbf572013be37135c08d69a79ec82edb6b34861ff070d"
+      }
+    },
+    "profile-constant-rust": {
+      "mode": "integration-profile",
+      "acceptance_evidence": false,
+      "case": "public-fresh",
+      "backend": "rust",
+      "workload": "constant",
+      "iterations": 10000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [],
+      "medians_us": null,
+      "profile": "/tmp/phase5-integration-20260920/profile-constant-rust.pstats",
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:54:28.064114+00:00",
+      "installed_manifest_sha256": {
+        "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+      }
+    },
+    "profile-parameterized-c": {
+      "mode": "integration-profile",
+      "acceptance_evidence": false,
+      "case": "public-fresh",
+      "backend": "c",
+      "workload": "parameterized",
+      "iterations": 10000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [],
+      "medians_us": null,
+      "profile": "/tmp/phase5-integration-20260920/profile-parameterized-c.pstats",
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:54:30.657749+00:00",
+      "installed_manifest_sha256": {
+        "psycopg": "63f3e3525ca40e1cbe4820dbf0578324ac3d31f5cd414c56adfea0a643e464ec",
+        "psycopg-c": "ba7b72130ee5d6b5ac3dbf572013be37135c08d69a79ec82edb6b34861ff070d"
+      }
+    },
+    "profile-parameterized-rust": {
+      "mode": "integration-profile",
+      "acceptance_evidence": false,
+      "case": "public-fresh",
+      "backend": "rust",
+      "workload": "parameterized",
+      "iterations": 10000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [],
+      "medians_us": null,
+      "profile": "/tmp/phase5-integration-20260920/profile-parameterized-rust.pstats",
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:54:29.563053+00:00",
+      "installed_manifest_sha256": {
+        "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+      }
+    },
+    "reverse-constant-c-public-fresh": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-fresh",
+      "backend": "c",
+      "workload": "constant",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 28.2002832,
+          "cpu_us": 15.435799999999999
+        },
+        {
+          "wall_us": 28.6907418,
+          "cpu_us": 15.6042
+        },
+        {
+          "wall_us": 28.612908400000002,
+          "cpu_us": 15.541
+        },
+        {
+          "wall_us": 29.2260082,
+          "cpu_us": 15.7768
+        },
+        {
+          "wall_us": 26.623125,
+          "cpu_us": 14.805399999999999
+        },
+        {
+          "wall_us": 22.2245918,
+          "cpu_us": 13.0076
+        },
+        {
+          "wall_us": 25.3236834,
+          "cpu_us": 14.1998
+        },
+        {
+          "wall_us": 28.249225,
+          "cpu_us": 15.426200000000001
+        },
+        {
+          "wall_us": 28.6240082,
+          "cpu_us": 15.563
+        }
+      ],
+      "medians_us": {
+        "wall_us": 28.249225,
+        "cpu_us": 15.435799999999999
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:54:08.267486+00:00",
+      "installed_manifest_sha256": {
+        "psycopg": "63f3e3525ca40e1cbe4820dbf0578324ac3d31f5cd414c56adfea0a643e464ec",
+        "psycopg-c": "ba7b72130ee5d6b5ac3dbf572013be37135c08d69a79ec82edb6b34861ff070d"
+      }
+    },
+    "reverse-constant-c-public-reused": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-reused",
+      "backend": "c",
+      "workload": "constant",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 27.4006832,
+          "cpu_us": 13.4348
+        },
+        {
+          "wall_us": 27.3865834,
+          "cpu_us": 13.3862
+        },
+        {
+          "wall_us": 26.5709168,
+          "cpu_us": 13.1228
+        },
+        {
+          "wall_us": 27.541175,
+          "cpu_us": 13.46
+        },
+        {
+          "wall_us": 27.39525,
+          "cpu_us": 13.324
+        },
+        {
+          "wall_us": 26.1209416,
+          "cpu_us": 12.8978
+        },
+        {
+          "wall_us": 22.292291799999997,
+          "cpu_us": 11.5176
+        },
+        {
+          "wall_us": 25.2676168,
+          "cpu_us": 12.853200000000001
+        },
+        {
+          "wall_us": 26.018283200000003,
+          "cpu_us": 12.9776
+        }
+      ],
+      "medians_us": {
+        "wall_us": 26.5709168,
+        "cpu_us": 13.1228
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:54:06.935666+00:00",
+      "installed_manifest_sha256": {
+        "psycopg": "63f3e3525ca40e1cbe4820dbf0578324ac3d31f5cd414c56adfea0a643e464ec",
+        "psycopg-c": "ba7b72130ee5d6b5ac3dbf572013be37135c08d69a79ec82edb6b34861ff070d"
+      }
+    },
+    "reverse-constant-rust-adapter-fresh": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "adapter-fresh",
+      "backend": "rust",
+      "workload": "constant",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 33.01975,
+          "cpu_us": 23.740599999999997
+        },
+        {
+          "wall_us": 32.7094666,
+          "cpu_us": 23.591
+        },
+        {
+          "wall_us": 32.4095584,
+          "cpu_us": 23.443
+        },
+        {
+          "wall_us": 33.207825,
+          "cpu_us": 23.770400000000002
+        },
+        {
+          "wall_us": 33.6039082,
+          "cpu_us": 24.065
+        },
+        {
+          "wall_us": 34.8605334,
+          "cpu_us": 24.65
+        },
+        {
+          "wall_us": 36.7905,
+          "cpu_us": 25.3854
+        },
+        {
+          "wall_us": 37.2038,
+          "cpu_us": 25.577
+        },
+        {
+          "wall_us": 33.480325,
+          "cpu_us": 24.0548
+        }
+      ],
+      "medians_us": {
+        "wall_us": 33.480325,
+        "cpu_us": 24.0548
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:54:11.243974+00:00",
+      "installed_manifest_sha256": {
+        "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+      }
+    },
+    "reverse-constant-rust-adapter-reused": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "adapter-reused",
+      "backend": "rust",
+      "workload": "constant",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 33.545891600000004,
+          "cpu_us": 23.392799999999998
+        },
+        {
+          "wall_us": 33.969241800000006,
+          "cpu_us": 23.3748
+        },
+        {
+          "wall_us": 32.0514834,
+          "cpu_us": 22.660400000000003
+        },
+        {
+          "wall_us": 31.1941418,
+          "cpu_us": 22.479400000000002
+        },
+        {
+          "wall_us": 30.5468832,
+          "cpu_us": 22.1006
+        },
+        {
+          "wall_us": 31.279425,
+          "cpu_us": 22.4494
+        },
+        {
+          "wall_us": 31.2091416,
+          "cpu_us": 22.220200000000002
+        },
+        {
+          "wall_us": 31.9190668,
+          "cpu_us": 22.247
+        },
+        {
+          "wall_us": 32.1034166,
+          "cpu_us": 22.6534
+        }
+      ],
+      "medians_us": {
+        "wall_us": 31.9190668,
+        "cpu_us": 22.479400000000002
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:54:09.639781+00:00",
+      "installed_manifest_sha256": {
+        "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+      }
+    },
+    "reverse-constant-rust-public-fresh": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-fresh",
+      "backend": "rust",
+      "workload": "constant",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 41.262416599999995,
+          "cpu_us": 29.912599999999998
+        },
+        {
+          "wall_us": 41.5055334,
+          "cpu_us": 29.9024
+        },
+        {
+          "wall_us": 41.252425,
+          "cpu_us": 29.6996
+        },
+        {
+          "wall_us": 40.913333400000006,
+          "cpu_us": 29.547400000000003
+        },
+        {
+          "wall_us": 39.27865,
+          "cpu_us": 28.803
+        },
+        {
+          "wall_us": 40.756675,
+          "cpu_us": 29.5132
+        },
+        {
+          "wall_us": 41.779083400000005,
+          "cpu_us": 30.2434
+        },
+        {
+          "wall_us": 41.6997416,
+          "cpu_us": 30.082
+        },
+        {
+          "wall_us": 41.9723668,
+          "cpu_us": 30.2792
+        }
+      ],
+      "medians_us": {
+        "wall_us": 41.262416599999995,
+        "cpu_us": 29.9024
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:54:14.681220+00:00",
+      "installed_manifest_sha256": {
+        "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+      }
+    },
+    "reverse-constant-rust-public-reused": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-reused",
+      "backend": "rust",
+      "workload": "constant",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 32.942375,
+          "cpu_us": 23.906200000000002
+        },
+        {
+          "wall_us": 33.4179584,
+          "cpu_us": 23.9438
+        },
+        {
+          "wall_us": 36.2089084,
+          "cpu_us": 24.9898
+        },
+        {
+          "wall_us": 35.4274834,
+          "cpu_us": 24.3466
+        },
+        {
+          "wall_us": 35.513141600000004,
+          "cpu_us": 24.4546
+        },
+        {
+          "wall_us": 36.2041584,
+          "cpu_us": 24.9994
+        },
+        {
+          "wall_us": 35.6182166,
+          "cpu_us": 24.3966
+        },
+        {
+          "wall_us": 35.4771084,
+          "cpu_us": 24.4418
+        },
+        {
+          "wall_us": 35.929300000000005,
+          "cpu_us": 24.767400000000002
+        }
+      ],
+      "medians_us": {
+        "wall_us": 35.513141600000004,
+        "cpu_us": 24.4418
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:54:12.938804+00:00",
+      "installed_manifest_sha256": {
+        "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+      }
+    },
+    "reverse-parameterized-c-public-fresh": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-fresh",
+      "backend": "c",
+      "workload": "parameterized",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 32.008716799999995,
+          "cpu_us": 17.8382
+        },
+        {
+          "wall_us": 32.066275000000005,
+          "cpu_us": 17.8388
+        },
+        {
+          "wall_us": 31.8413,
+          "cpu_us": 17.7424
+        },
+        {
+          "wall_us": 31.939875,
+          "cpu_us": 17.808799999999998
+        },
+        {
+          "wall_us": 31.788,
+          "cpu_us": 17.686799999999998
+        },
+        {
+          "wall_us": 31.644266599999998,
+          "cpu_us": 17.719
+        },
+        {
+          "wall_us": 32.0449584,
+          "cpu_us": 17.7784
+        },
+        {
+          "wall_us": 29.3,
+          "cpu_us": 16.6608
+        },
+        {
+          "wall_us": 31.8220832,
+          "cpu_us": 17.734
+        }
+      ],
+      "medians_us": {
+        "wall_us": 31.8413,
+        "cpu_us": 17.7424
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:54:18.137307+00:00",
+      "installed_manifest_sha256": {
+        "psycopg": "63f3e3525ca40e1cbe4820dbf0578324ac3d31f5cd414c56adfea0a643e464ec",
+        "psycopg-c": "ba7b72130ee5d6b5ac3dbf572013be37135c08d69a79ec82edb6b34861ff070d"
+      }
+    },
+    "reverse-parameterized-c-public-reused": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-reused",
+      "backend": "c",
+      "workload": "parameterized",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 28.5853332,
+          "cpu_us": 14.3654
+        },
+        {
+          "wall_us": 28.6235584,
+          "cpu_us": 14.268600000000001
+        },
+        {
+          "wall_us": 28.302183199999998,
+          "cpu_us": 14.1256
+        },
+        {
+          "wall_us": 28.4324166,
+          "cpu_us": 14.268600000000001
+        },
+        {
+          "wall_us": 28.30075,
+          "cpu_us": 14.1144
+        },
+        {
+          "wall_us": 28.2216332,
+          "cpu_us": 14.08
+        },
+        {
+          "wall_us": 28.2379416,
+          "cpu_us": 14.11
+        },
+        {
+          "wall_us": 28.1583584,
+          "cpu_us": 14.1052
+        },
+        {
+          "wall_us": 28.3027582,
+          "cpu_us": 14.088
+        }
+      ],
+      "medians_us": {
+        "wall_us": 28.302183199999998,
+        "cpu_us": 14.1144
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:54:16.710267+00:00",
+      "installed_manifest_sha256": {
+        "psycopg": "63f3e3525ca40e1cbe4820dbf0578324ac3d31f5cd414c56adfea0a643e464ec",
+        "psycopg-c": "ba7b72130ee5d6b5ac3dbf572013be37135c08d69a79ec82edb6b34861ff070d"
+      }
+    },
+    "reverse-parameterized-rust-adapter-fresh": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "adapter-fresh",
+      "backend": "rust",
+      "workload": "parameterized",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 41.866275,
+          "cpu_us": 30.0658
+        },
+        {
+          "wall_us": 42.1670834,
+          "cpu_us": 30.196
+        },
+        {
+          "wall_us": 41.9772418,
+          "cpu_us": 30.0944
+        },
+        {
+          "wall_us": 42.0292834,
+          "cpu_us": 30.1944
+        },
+        {
+          "wall_us": 41.876525,
+          "cpu_us": 30.2102
+        },
+        {
+          "wall_us": 41.4306166,
+          "cpu_us": 29.8508
+        },
+        {
+          "wall_us": 41.45245,
+          "cpu_us": 29.935599999999997
+        },
+        {
+          "wall_us": 41.7884,
+          "cpu_us": 30.1318
+        },
+        {
+          "wall_us": 41.6159832,
+          "cpu_us": 29.9998
+        }
+      ],
+      "medians_us": {
+        "wall_us": 41.866275,
+        "cpu_us": 30.0944
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:54:21.670019+00:00",
+      "installed_manifest_sha256": {
+        "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+      }
+    },
+    "reverse-parameterized-rust-adapter-reused": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "adapter-reused",
+      "backend": "rust",
+      "workload": "parameterized",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 40.315324999999994,
+          "cpu_us": 28.476
+        },
+        {
+          "wall_us": 40.2073416,
+          "cpu_us": 28.4938
+        },
+        {
+          "wall_us": 40.2805916,
+          "cpu_us": 28.508599999999998
+        },
+        {
+          "wall_us": 40.473175000000005,
+          "cpu_us": 28.7778
+        },
+        {
+          "wall_us": 40.5137584,
+          "cpu_us": 28.851599999999998
+        },
+        {
+          "wall_us": 39.5826832,
+          "cpu_us": 28.203799999999998
+        },
+        {
+          "wall_us": 38.539525000000005,
+          "cpu_us": 27.8974
+        },
+        {
+          "wall_us": 39.5108582,
+          "cpu_us": 28.2192
+        },
+        {
+          "wall_us": 40.0577,
+          "cpu_us": 28.578
+        }
+      ],
+      "medians_us": {
+        "wall_us": 40.2073416,
+        "cpu_us": 28.4938
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:54:19.713257+00:00",
+      "installed_manifest_sha256": {
+        "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+      }
+    },
+    "reverse-parameterized-rust-public-fresh": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-fresh",
+      "backend": "rust",
+      "workload": "parameterized",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 54.4537168,
+          "cpu_us": 39.6736
+        },
+        {
+          "wall_us": 46.8182084,
+          "cpu_us": 34.911199999999994
+        },
+        {
+          "wall_us": 47.1466584,
+          "cpu_us": 35.4298
+        },
+        {
+          "wall_us": 46.9923416,
+          "cpu_us": 35.3416
+        },
+        {
+          "wall_us": 46.600825,
+          "cpu_us": 35.0368
+        },
+        {
+          "wall_us": 46.6592666,
+          "cpu_us": 35.263
+        },
+        {
+          "wall_us": 46.329233200000004,
+          "cpu_us": 34.7206
+        },
+        {
+          "wall_us": 46.338275,
+          "cpu_us": 34.6446
+        },
+        {
+          "wall_us": 46.1895916,
+          "cpu_us": 34.5854
+        }
+      ],
+      "medians_us": {
+        "wall_us": 46.6592666,
+        "cpu_us": 35.0368
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:54:25.760655+00:00",
+      "installed_manifest_sha256": {
+        "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+      }
+    },
+    "reverse-parameterized-rust-public-reused": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-reused",
+      "backend": "rust",
+      "workload": "parameterized",
+      "iterations": 5000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "samples": [
+        {
+          "wall_us": 42.032,
+          "cpu_us": 30.296200000000002
+        },
+        {
+          "wall_us": 42.143925,
+          "cpu_us": 30.3766
+        },
+        {
+          "wall_us": 42.067583400000004,
+          "cpu_us": 30.3824
+        },
+        {
+          "wall_us": 41.756141799999995,
+          "cpu_us": 30.1466
+        },
+        {
+          "wall_us": 42.1205334,
+          "cpu_us": 30.4344
+        },
+        {
+          "wall_us": 41.6489834,
+          "cpu_us": 30.0306
+        },
+        {
+          "wall_us": 41.7349834,
+          "cpu_us": 30.0624
+        },
+        {
+          "wall_us": 42.1829832,
+          "cpu_us": 30.6128
+        },
+        {
+          "wall_us": 42.0180166,
+          "cpu_us": 30.303
+        }
+      ],
+      "medians_us": {
+        "wall_us": 42.032,
+        "cpu_us": 30.303
+      },
+      "profile": null,
+      "revision": "56e2dc408e216330f11e81fa69a13794585c5d78",
+      "measured_at": "2026-09-20T07:54:23.712090+00:00",
+      "installed_manifest_sha256": {
+        "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+      }
+    }
+  },
+  "profiles": {
+    "profile-constant-c": {
+      "total_calls": 550001,
+      "profiled_seconds": 0.41449778200000004,
+      "top_25_by_self_time": [
+        {
+          "file": "connection.py",
+          "line": 475,
+          "function": "wait",
+          "calls": 10000,
+          "self_seconds": 0.177305753,
+          "cumulative_seconds": 0.348535154
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 275,
+          "function": "_maybe_prepare_gen",
+          "calls": 20000,
+          "self_seconds": 0.05180840900000001,
+          "cumulative_seconds": 0.11762594800000001
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 578,
+          "function": "_send_query_prepared",
+          "calls": 10000,
+          "self_seconds": 0.025650484,
+          "cumulative_seconds": 0.025650484
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 195,
+          "function": "_execute_gen",
+          "calls": 20000,
+          "self_seconds": 0.012804735000000001,
+          "cumulative_seconds": 0.171229401
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 503,
+          "function": "_select_current_result",
+          "calls": 10000,
+          "self_seconds": 0.011273815000000001,
+          "cumulative_seconds": 0.018436042
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 373,
+          "function": "_start_query",
+          "calls": 10000,
+          "self_seconds": 0.011027792000000002,
+          "cumulative_seconds": 0.015627783
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 61,
+          "function": "__init__",
+          "calls": 10000,
+          "self_seconds": 0.010327349000000001,
+          "cumulative_seconds": 0.026405785
+        },
+        {
+          "file": "_adapters_map.py",
+          "line": 75,
+          "function": "__init__",
+          "calls": 10000,
+          "self_seconds": 0.009828477,
+          "cumulative_seconds": 0.014040188
+        },
+        {
+          "file": "integration_profile.py",
+          "line": 61,
+          "function": "operation",
+          "calls": 10000,
+          "self_seconds": 0.007600069,
+          "cumulative_seconds": 0.414474573
+        },
+        {
+          "file": "cursor.py",
+          "line": 100,
+          "function": "execute",
+          "calls": 10000,
+          "self_seconds": 0.006883397,
+          "cumulative_seconds": 0.357919953
+        },
+        {
+          "file": "connection.py",
+          "line": 227,
+          "function": "cursor",
+          "calls": 10000,
+          "self_seconds": 0.006202915000000001,
+          "cumulative_seconds": 0.038565126000000005
+        },
+        {
+          "file": "cursor.py",
+          "line": 239,
+          "function": "fetchone",
+          "calls": 10000,
+          "self_seconds": 0.005869325000000001,
+          "cumulative_seconds": 0.010389425
+        },
+        {
+          "file": "_queries.py",
+          "line": 59,
+          "function": "convert",
+          "calls": 10000,
+          "self_seconds": 0.00541872,
+          "cumulative_seconds": 0.018172779
+        },
+        {
+          "file": "_queries.py",
+          "line": 165,
+          "function": "_ensure_bytes",
+          "calls": 10000,
+          "self_seconds": 0.0051174820000000005,
+          "cumulative_seconds": 0.010824100000000001
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 460,
+          "function": "_convert_query",
+          "calls": 10000,
+          "self_seconds": 0.00488536,
+          "cumulative_seconds": 0.024120639000000003
+        },
+        {
+          "file": "_preparing.py",
+          "line": 121,
+          "function": "maybe_add_to_cache",
+          "calls": 10000,
+          "self_seconds": 0.004843500000000001,
+          "cumulative_seconds": 0.007018699000000001
+        },
+        {
+          "file": "_preparing.py",
+          "line": 57,
+          "function": "get",
+          "calls": 10000,
+          "self_seconds": 0.004279103,
+          "cumulative_seconds": 0.006571672000000001
+        },
+        {
+          "file": "cursor.py",
+          "line": 44,
+          "function": "__init__",
+          "calls": 10000,
+          "self_seconds": 0.004237097,
+          "cumulative_seconds": 0.030642882000000003
+        },
+        {
+          "file": "_encodings.py",
+          "line": 82,
+          "function": "conn_encoding",
+          "calls": 10000,
+          "self_seconds": 0.0036584010000000004,
+          "cumulative_seconds": 0.0036584010000000004
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 529,
+          "function": "_set_results",
+          "calls": 10000,
+          "self_seconds": 0.003233422,
+          "cumulative_seconds": 0.021669464000000003
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'copy' of 'dict' objects>",
+          "calls": 30000,
+          "self_seconds": 0.003207211,
+          "cumulative_seconds": 0.003207211
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'get' of 'dict' objects>",
+          "calls": 20000,
+          "self_seconds": 0.002967913,
+          "cumulative_seconds": 0.002967913
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 467,
+          "function": "_check_results",
+          "calls": 10000,
+          "self_seconds": 0.002677711,
+          "cumulative_seconds": 0.002677711
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 601,
+          "function": "_check_result_for_fetch",
+          "calls": 10000,
+          "self_seconds": 0.002654033,
+          "cumulative_seconds": 0.0034472720000000004
+        },
+        {
+          "file": "cursor.py",
+          "line": 78,
+          "function": "_make_row_maker",
+          "calls": 10000,
+          "self_seconds": 0.002486872,
+          "cumulative_seconds": 0.003463481
+        }
+      ]
+    },
+    "profile-constant-rust": {
+      "total_calls": 1850001,
+      "profiled_seconds": 0.75119641,
+      "top_25_by_self_time": [
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'run_prepared_params_format' of 'ferrocopg_rust._ferrocopg.BackendSyncNoTlsSession' objects>",
+          "calls": 10000,
+          "self_seconds": 0.21518688000000002,
+          "cumulative_seconds": 0.21518688000000002
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 4170,
+          "function": "_execute",
+          "calls": 10000,
+          "self_seconds": 0.030854444,
+          "cumulative_seconds": 0.409047684
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 4340,
+          "function": "_execute_bound",
+          "calls": 10000,
+          "self_seconds": 0.018177358,
+          "cumulative_seconds": 0.30435916500000004
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 2126,
+          "function": "execute",
+          "calls": 10000,
+          "self_seconds": 0.017867979000000003,
+          "cumulative_seconds": 0.454016481
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 2562,
+          "function": "_result_loaders",
+          "calls": 10000,
+          "self_seconds": 0.017329326000000003,
+          "cumulative_seconds": 0.097394353
+        },
+        {
+          "file": "_adapters_map.py",
+          "line": 75,
+          "function": "__init__",
+          "calls": 20000,
+          "self_seconds": 0.017145449,
+          "cumulative_seconds": 0.024963212000000002
+        },
+        {
+          "file": "cursor.py",
+          "line": 44,
+          "function": "__init__",
+          "calls": 10000,
+          "self_seconds": 0.017104401,
+          "cumulative_seconds": 0.052303934
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 2264,
+          "function": "_fetchone_row",
+          "calls": 10000,
+          "self_seconds": 0.014803390000000001,
+          "cumulative_seconds": 0.16678122
+        },
+        {
+          "file": "cursor.py",
+          "line": 59,
+          "function": "_sync_ferrocopg_cursor",
+          "calls": 20000,
+          "self_seconds": 0.01463328,
+          "cumulative_seconds": 0.048492068000000006
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 1791,
+          "function": "execute_prepared_bound",
+          "calls": 10000,
+          "self_seconds": 0.014088602,
+          "cumulative_seconds": 0.263372408
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.getattr>",
+          "calls": 100000,
+          "self_seconds": 0.011237420000000001,
+          "cumulative_seconds": 0.011237420000000001
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 2320,
+          "function": "_native_result_transformer",
+          "calls": 10000,
+          "self_seconds": 0.010608654,
+          "cumulative_seconds": 0.12214955200000001
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 1554,
+          "function": "pgresults",
+          "calls": 20000,
+          "self_seconds": 0.010509163,
+          "cumulative_seconds": 0.016437936
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 60,
+          "function": "__init__",
+          "calls": 10000,
+          "self_seconds": 0.010196714,
+          "cumulative_seconds": 0.024569834000000002
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 1937,
+          "function": "_drain_notices",
+          "calls": 10000,
+          "self_seconds": 0.010168343,
+          "cumulative_seconds": 0.016250913000000002
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 4787,
+          "function": "_statusmessage_for_query",
+          "calls": 10000,
+          "self_seconds": 0.009913925,
+          "cumulative_seconds": 0.016604318
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 1875,
+          "function": "_call",
+          "calls": 10000,
+          "self_seconds": 0.008141539,
+          "cumulative_seconds": 0.24069959800000001
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 4469,
+          "function": "_convert_query_params",
+          "calls": 10000,
+          "self_seconds": 0.00766686,
+          "cumulative_seconds": 0.011106737
+        },
+        {
+          "file": "_py_transformer.py",
+          "line": 344,
+          "function": "get_loader",
+          "calls": 10000,
+          "self_seconds": 0.007650270000000001,
+          "cumulative_seconds": 0.025850883
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 2038,
+          "function": "pgresults",
+          "calls": 20000,
+          "self_seconds": 0.007571114,
+          "cumulative_seconds": 0.029369596
+        },
+        {
+          "file": "integration_profile.py",
+          "line": 61,
+          "function": "operation",
+          "calls": 10000,
+          "self_seconds": 0.007067635,
+          "cumulative_seconds": 0.7531902180000001
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 4904,
+          "function": "_changes_client_encoding",
+          "calls": 10000,
+          "self_seconds": 0.00701273,
+          "cumulative_seconds": 0.011809185000000002
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 4288,
+          "function": "_refresh_client_encoding",
+          "calls": 10000,
+          "self_seconds": 0.006995389,
+          "cumulative_seconds": 0.021976754
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 2020,
+          "function": "_encoding",
+          "calls": 40000,
+          "self_seconds": 0.0069615860000000005,
+          "cumulative_seconds": 0.009924865000000001
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 3546,
+          "function": "closed",
+          "calls": 30000,
+          "self_seconds": 0.0067851100000000004,
+          "cumulative_seconds": 0.009813659
+        }
+      ]
+    },
+    "profile-parameterized-c": {
+      "total_calls": 630001,
+      "profiled_seconds": 0.43765996100000004,
+      "top_25_by_self_time": [
+        {
+          "file": "connection.py",
+          "line": 475,
+          "function": "wait",
+          "calls": 10000,
+          "self_seconds": 0.176782767,
+          "cumulative_seconds": 0.373684332
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 275,
+          "function": "_maybe_prepare_gen",
+          "calls": 20000,
+          "self_seconds": 0.051374652,
+          "cumulative_seconds": 0.11754792900000001
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 578,
+          "function": "_send_query_prepared",
+          "calls": 10000,
+          "self_seconds": 0.026355344000000003,
+          "cumulative_seconds": 0.026355344000000003
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 195,
+          "function": "_execute_gen",
+          "calls": 20000,
+          "self_seconds": 0.012699943,
+          "cumulative_seconds": 0.196901565
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 503,
+          "function": "_select_current_result",
+          "calls": 10000,
+          "self_seconds": 0.011115003,
+          "cumulative_seconds": 0.017891281000000002
+        },
+        {
+          "file": "_queries.py",
+          "line": 94,
+          "function": "dump",
+          "calls": 10000,
+          "self_seconds": 0.010872613000000001,
+          "cumulative_seconds": 0.022154867
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 373,
+          "function": "_start_query",
+          "calls": 10000,
+          "self_seconds": 0.010614381,
+          "cumulative_seconds": 0.015141969000000002
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 61,
+          "function": "__init__",
+          "calls": 10000,
+          "self_seconds": 0.010092391000000001,
+          "cumulative_seconds": 0.025272852000000002
+        },
+        {
+          "file": "_queries.py",
+          "line": 59,
+          "function": "convert",
+          "calls": 10000,
+          "self_seconds": 0.009459939,
+          "cumulative_seconds": 0.044510882
+        },
+        {
+          "file": "_adapters_map.py",
+          "line": 75,
+          "function": "__init__",
+          "calls": 10000,
+          "self_seconds": 0.009003728,
+          "cumulative_seconds": 0.013204478
+        },
+        {
+          "file": "integration_profile.py",
+          "line": 61,
+          "function": "operation",
+          "calls": 10000,
+          "self_seconds": 0.007399636,
+          "cumulative_seconds": 0.437644211
+        },
+        {
+          "file": "cursor.py",
+          "line": 100,
+          "function": "execute",
+          "calls": 10000,
+          "self_seconds": 0.006867367,
+          "cumulative_seconds": 0.383069333
+        },
+        {
+          "file": "_queries.py",
+          "line": 130,
+          "function": "validate_and_reorder_params",
+          "calls": 10000,
+          "self_seconds": 0.006475989000000001,
+          "cumulative_seconds": 0.009923843
+        },
+        {
+          "file": "connection.py",
+          "line": 227,
+          "function": "cursor",
+          "calls": 10000,
+          "self_seconds": 0.006030462,
+          "cumulative_seconds": 0.036892874
+        },
+        {
+          "file": "cursor.py",
+          "line": 239,
+          "function": "fetchone",
+          "calls": 10000,
+          "self_seconds": 0.005709945,
+          "cumulative_seconds": 0.010282368
+        },
+        {
+          "file": "_preparing.py",
+          "line": 121,
+          "function": "maybe_add_to_cache",
+          "calls": 10000,
+          "self_seconds": 0.00511767,
+          "cumulative_seconds": 0.007234513000000001
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 460,
+          "function": "_convert_query",
+          "calls": 10000,
+          "self_seconds": 0.004905141,
+          "cumulative_seconds": 0.050464221000000004
+        },
+        {
+          "file": "_queries.py",
+          "line": 165,
+          "function": "_ensure_bytes",
+          "calls": 10000,
+          "self_seconds": 0.004866731,
+          "cumulative_seconds": 0.010306332000000001
+        },
+        {
+          "file": "_preparing.py",
+          "line": 57,
+          "function": "get",
+          "calls": 10000,
+          "self_seconds": 0.0043289700000000006,
+          "cumulative_seconds": 0.00647797
+        },
+        {
+          "file": "cursor.py",
+          "line": 44,
+          "function": "__init__",
+          "calls": 10000,
+          "self_seconds": 0.004113679,
+          "cumulative_seconds": 0.029386531
+        },
+        {
+          "file": "_encodings.py",
+          "line": 82,
+          "function": "conn_encoding",
+          "calls": 10000,
+          "self_seconds": 0.003393189,
+          "cumulative_seconds": 0.003393189
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 529,
+          "function": "_set_results",
+          "calls": 10000,
+          "self_seconds": 0.003257433,
+          "cumulative_seconds": 0.021148714000000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'copy' of 'dict' objects>",
+          "calls": 30000,
+          "self_seconds": 0.0031905400000000004,
+          "cumulative_seconds": 0.0031905400000000004
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.len>",
+          "calls": 40000,
+          "self_seconds": 0.002958815,
+          "cumulative_seconds": 0.002958815
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 601,
+          "function": "_check_result_for_fetch",
+          "calls": 10000,
+          "self_seconds": 0.002717562,
+          "cumulative_seconds": 0.003525868
+        }
+      ]
+    },
+    "profile-parameterized-rust": {
+      "total_calls": 2250001,
+      "profiled_seconds": 0.9071811060000003,
+      "top_25_by_self_time": [
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'run_prepared_params_format' of 'ferrocopg_rust._ferrocopg.BackendSyncNoTlsSession' objects>",
+          "calls": 10000,
+          "self_seconds": 0.230506712,
+          "cumulative_seconds": 0.230506712
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 4469,
+          "function": "_convert_query_params",
+          "calls": 10000,
+          "self_seconds": 0.037485658000000005,
+          "cumulative_seconds": 0.17975934100000002
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 4170,
+          "function": "_execute",
+          "calls": 10000,
+          "self_seconds": 0.025999163000000002,
+          "cumulative_seconds": 0.5875626860000001
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 2126,
+          "function": "execute",
+          "calls": 10000,
+          "self_seconds": 0.020099538,
+          "cumulative_seconds": 0.636627155
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 4340,
+          "function": "_execute_bound",
+          "calls": 10000,
+          "self_seconds": 0.019791817,
+          "cumulative_seconds": 0.324418967
+        },
+        {
+          "file": "cursor.py",
+          "line": 44,
+          "function": "__init__",
+          "calls": 10000,
+          "self_seconds": 0.018108665,
+          "cumulative_seconds": 0.056236989
+        },
+        {
+          "file": "_adapters_map.py",
+          "line": 75,
+          "function": "__init__",
+          "calls": 20000,
+          "self_seconds": 0.016629916,
+          "cumulative_seconds": 0.024264007
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 2264,
+          "function": "_fetchone_row",
+          "calls": 10000,
+          "self_seconds": 0.015897911,
+          "cumulative_seconds": 0.132541964
+        },
+        {
+          "file": "cursor.py",
+          "line": 59,
+          "function": "_sync_ferrocopg_cursor",
+          "calls": 20000,
+          "self_seconds": 0.015255144000000002,
+          "cumulative_seconds": 0.050751914
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 1791,
+          "function": "execute_prepared_bound",
+          "calls": 10000,
+          "self_seconds": 0.014777568000000001,
+          "cumulative_seconds": 0.280098595
+        },
+        {
+          "file": "_py_transformer.py",
+          "line": 238,
+          "function": "get_dumper",
+          "calls": 10000,
+          "self_seconds": 0.014503851000000002,
+          "cumulative_seconds": 0.029662468
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.getattr>",
+          "calls": 110000,
+          "self_seconds": 0.012275552,
+          "cumulative_seconds": 0.012275552
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 2320,
+          "function": "_native_result_transformer",
+          "calls": 10000,
+          "self_seconds": 0.011781241000000001,
+          "cumulative_seconds": 0.08558098500000001
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 1554,
+          "function": "pgresults",
+          "calls": 20000,
+          "self_seconds": 0.011249427000000001,
+          "cumulative_seconds": 0.017564426
+        },
+        {
+          "file": "_queries.py",
+          "line": 59,
+          "function": "convert",
+          "calls": 10000,
+          "self_seconds": 0.011211120000000002,
+          "cumulative_seconds": 0.09665264200000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.isinstance>",
+          "calls": 110000,
+          "self_seconds": 0.011196928,
+          "cumulative_seconds": 0.026453124
+        },
+        {
+          "file": "_cursor_base.py",
+          "line": 60,
+          "function": "__init__",
+          "calls": 10000,
+          "self_seconds": 0.010905683000000001,
+          "cumulative_seconds": 0.026775777
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 1937,
+          "function": "_drain_notices",
+          "calls": 10000,
+          "self_seconds": 0.010599123,
+          "cumulative_seconds": 0.01657199
+        },
+        {
+          "file": "_py_transformer.py",
+          "line": 171,
+          "function": "dump_sequence",
+          "calls": 10000,
+          "self_seconds": 0.010226791,
+          "cumulative_seconds": 0.059302015000000007
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 4787,
+          "function": "_statusmessage_for_query",
+          "calls": 10000,
+          "self_seconds": 0.010154876,
+          "cumulative_seconds": 0.016862259
+        },
+        {
+          "file": "_py_transformer.py",
+          "line": 344,
+          "function": "get_loader",
+          "calls": 10000,
+          "self_seconds": 0.008908185,
+          "cumulative_seconds": 0.029202515000000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.len>",
+          "calls": 120000,
+          "self_seconds": 0.008865111,
+          "cumulative_seconds": 0.008865111
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 1875,
+          "function": "_call",
+          "calls": 10000,
+          "self_seconds": 0.008393683,
+          "cumulative_seconds": 0.256628586
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 2562,
+          "function": "_result_loaders",
+          "calls": 10000,
+          "self_seconds": 0.008120723,
+          "cumulative_seconds": 0.059016530000000005
+        },
+        {
+          "file": "_ferrocopg.py",
+          "line": 2038,
+          "function": "pgresults",
+          "calls": 20000,
+          "self_seconds": 0.007858194,
+          "cumulative_seconds": 0.03088977
+        }
+      ]
+    }
+  },
+  "environments": {
+    "forward-binding": {
+      "revision": "1c1d7237bdd2ed7d07acdd365f95c7df96c5fa0d",
+      "measured_at": "2026-09-20T07:50:02.814518+00:00",
+      "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]",
+      "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+      "machine": "arm64",
+      "processor": "arm",
+      "cpu_logical": 12,
+      "cpu_physical": 12,
+      "memory_bytes": 38654705664,
+      "driver": "0.1.0",
+      "driver_file": "/tmp/ferrocopg-phase5-env/lib/python3.14/site-packages/ferrocopg/__init__.py",
+      "pool": "3.3.0",
+      "psutil": "7.2.2",
+      "libpq": 0,
+      "server": "PostgreSQL 15.19 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.1.1.101), 64-bit",
+      "server_settings": {
+        "fsync": "on",
+        "max_connections": "100",
+        "shared_buffers": "16384",
+        "ssl": "on",
+        "synchronous_commit": "on"
+      },
+      "vendored_revision": "6a52e77dc38827214b294759823a072841b4819f"
+    },
+    "forward-c": {
+      "revision": "1c1d7237bdd2ed7d07acdd365f95c7df96c5fa0d",
+      "measured_at": "2026-09-20T07:50:08.836956+00:00",
+      "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]",
+      "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+      "machine": "arm64",
+      "processor": "arm",
+      "cpu_logical": 12,
+      "cpu_physical": 12,
+      "memory_bytes": 38654705664,
+      "driver": "3.3.2",
+      "driver_file": "/tmp/ferrocopg-phase5-env/lib/python3.14/site-packages/psycopg/__init__.py",
+      "pool": "3.3.0",
+      "psutil": "7.2.2",
+      "libpq": 150019,
+      "server": "PostgreSQL 15.19 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.1.1.101), 64-bit",
+      "server_settings": {
+        "fsync": "on",
+        "max_connections": "100",
+        "shared_buffers": "16384",
+        "ssl": "on",
+        "synchronous_commit": "on"
+      },
+      "vendored_revision": null
+    },
+    "forward-python": {
+      "revision": "1c1d7237bdd2ed7d07acdd365f95c7df96c5fa0d",
+      "measured_at": "2026-09-20T07:50:04.941258+00:00",
+      "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]",
+      "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+      "machine": "arm64",
+      "processor": "arm",
+      "cpu_logical": 12,
+      "cpu_physical": 12,
+      "memory_bytes": 38654705664,
+      "driver": "3.3.2",
+      "driver_file": "/tmp/ferrocopg-phase5-env/lib/python3.14/site-packages/psycopg/__init__.py",
+      "pool": "3.3.0",
+      "psutil": "7.2.2",
+      "libpq": 150019,
+      "server": "PostgreSQL 15.19 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.1.1.101), 64-bit",
+      "server_settings": {
+        "fsync": "on",
+        "max_connections": "100",
+        "shared_buffers": "16384",
+        "ssl": "on",
+        "synchronous_commit": "on"
+      },
+      "vendored_revision": null
+    },
+    "forward-rust": {
+      "revision": "1c1d7237bdd2ed7d07acdd365f95c7df96c5fa0d",
+      "measured_at": "2026-09-20T07:50:11.781883+00:00",
+      "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]",
+      "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+      "machine": "arm64",
+      "processor": "arm",
+      "cpu_logical": 12,
+      "cpu_physical": 12,
+      "memory_bytes": 38654705664,
+      "driver": "0.1.0",
+      "driver_file": "/tmp/ferrocopg-phase5-env/lib/python3.14/site-packages/ferrocopg/__init__.py",
+      "pool": "3.3.0",
+      "psutil": "7.2.2",
+      "libpq": 0,
+      "server": "PostgreSQL 15.19 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.1.1.101), 64-bit",
+      "server_settings": {
+        "fsync": "on",
+        "max_connections": "100",
+        "shared_buffers": "16384",
+        "ssl": "on",
+        "synchronous_commit": "on"
+      },
+      "vendored_revision": "6a52e77dc38827214b294759823a072841b4819f"
+    },
+    "reverse-binding": {
+      "revision": "1c1d7237bdd2ed7d07acdd365f95c7df96c5fa0d",
+      "measured_at": "2026-09-20T07:50:26.398366+00:00",
+      "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]",
+      "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+      "machine": "arm64",
+      "processor": "arm",
+      "cpu_logical": 12,
+      "cpu_physical": 12,
+      "memory_bytes": 38654705664,
+      "driver": "0.1.0",
+      "driver_file": "/tmp/ferrocopg-phase5-env/lib/python3.14/site-packages/ferrocopg/__init__.py",
+      "pool": "3.3.0",
+      "psutil": "7.2.2",
+      "libpq": 0,
+      "server": "PostgreSQL 15.19 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.1.1.101), 64-bit",
+      "server_settings": {
+        "fsync": "on",
+        "max_connections": "100",
+        "shared_buffers": "16384",
+        "ssl": "on",
+        "synchronous_commit": "on"
+      },
+      "vendored_revision": "6a52e77dc38827214b294759823a072841b4819f"
+    },
+    "reverse-c": {
+      "revision": "1c1d7237bdd2ed7d07acdd365f95c7df96c5fa0d",
+      "measured_at": "2026-09-20T07:50:19.623001+00:00",
+      "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]",
+      "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+      "machine": "arm64",
+      "processor": "arm",
+      "cpu_logical": 12,
+      "cpu_physical": 12,
+      "memory_bytes": 38654705664,
+      "driver": "3.3.2",
+      "driver_file": "/tmp/ferrocopg-phase5-env/lib/python3.14/site-packages/psycopg/__init__.py",
+      "pool": "3.3.0",
+      "psutil": "7.2.2",
+      "libpq": 150019,
+      "server": "PostgreSQL 15.19 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.1.1.101), 64-bit",
+      "server_settings": {
+        "fsync": "on",
+        "max_connections": "100",
+        "shared_buffers": "16384",
+        "ssl": "on",
+        "synchronous_commit": "on"
+      },
+      "vendored_revision": null
+    },
+    "reverse-python": {
+      "revision": "1c1d7237bdd2ed7d07acdd365f95c7df96c5fa0d",
+      "measured_at": "2026-09-20T07:50:22.445474+00:00",
+      "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]",
+      "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+      "machine": "arm64",
+      "processor": "arm",
+      "cpu_logical": 12,
+      "cpu_physical": 12,
+      "memory_bytes": 38654705664,
+      "driver": "3.3.2",
+      "driver_file": "/tmp/ferrocopg-phase5-env/lib/python3.14/site-packages/psycopg/__init__.py",
+      "pool": "3.3.0",
+      "psutil": "7.2.2",
+      "libpq": 150019,
+      "server": "PostgreSQL 15.19 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.1.1.101), 64-bit",
+      "server_settings": {
+        "fsync": "on",
+        "max_connections": "100",
+        "shared_buffers": "16384",
+        "ssl": "on",
+        "synchronous_commit": "on"
+      },
+      "vendored_revision": null
+    },
+    "reverse-rust": {
+      "revision": "1c1d7237bdd2ed7d07acdd365f95c7df96c5fa0d",
+      "measured_at": "2026-09-20T07:50:15.644677+00:00",
+      "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]",
+      "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+      "machine": "arm64",
+      "processor": "arm",
+      "cpu_logical": 12,
+      "cpu_physical": 12,
+      "memory_bytes": 38654705664,
+      "driver": "0.1.0",
+      "driver_file": "/tmp/ferrocopg-phase5-env/lib/python3.14/site-packages/ferrocopg/__init__.py",
+      "pool": "3.3.0",
+      "psutil": "7.2.2",
+      "libpq": 0,
+      "server": "PostgreSQL 15.19 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.1.1.101), 64-bit",
+      "server_settings": {
+        "fsync": "on",
+        "max_connections": "100",
+        "shared_buffers": "16384",
+        "ssl": "on",
+        "synchronous_commit": "on"
+      },
+      "vendored_revision": "6a52e77dc38827214b294759823a072841b4819f"
+    }
+  },
+  "installed_manifest_sha256": {
+    "forward-binding": {
+      "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+    },
+    "forward-c": {
+      "psycopg": "63f3e3525ca40e1cbe4820dbf0578324ac3d31f5cd414c56adfea0a643e464ec",
+      "psycopg-c": "ba7b72130ee5d6b5ac3dbf572013be37135c08d69a79ec82edb6b34861ff070d"
+    },
+    "forward-python": {
+      "psycopg": "63f3e3525ca40e1cbe4820dbf0578324ac3d31f5cd414c56adfea0a643e464ec"
+    },
+    "forward-rust": {
+      "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+    },
+    "reverse-binding": {
+      "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+    },
+    "reverse-c": {
+      "psycopg": "63f3e3525ca40e1cbe4820dbf0578324ac3d31f5cd414c56adfea0a643e464ec",
+      "psycopg-c": "ba7b72130ee5d6b5ac3dbf572013be37135c08d69a79ec82edb6b34861ff070d"
+    },
+    "reverse-python": {
+      "psycopg": "63f3e3525ca40e1cbe4820dbf0578324ac3d31f5cd414c56adfea0a643e464ec"
+    },
+    "reverse-rust": {
+      "ferrocopg": "61601a7cbefa4951110440117948de4e6d2adf8c3d183e23053b6c9e90575f6d"
+    }
+  }
+}

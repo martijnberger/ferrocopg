@@ -68,6 +68,96 @@ results for workflows that are still running.
   native async or a pool fork.
 - Keep upstream synchronization separate from the undecided upstreaming question.
 
+### Phase 5 direction: redesign the integration, preserve the API (2026-09-20)
+
+After consolidation and the merge to `main`, the next goal is to determine
+whether synchronous performance parity is achievable, and which layer must
+change to get there. Do not assume that `tokio-postgres`, Rust, Python, or the
+FFI boundary is the limiting factor from end-to-end benchmarks alone.
+
+The user explicitly permits changing the internal integration shape. Preserve
+the Python-visible supported API and behavior when importing the Rust backend,
+not the Cython implementation's architecture or our existing private adapter
+objects. Private state fields, bridge classes, duplicate bookkeeping, and
+emulated internal plumbing may be replaced. Tests asserting only an obsolete
+private layout should evolve with the design; public types/signatures, row and
+adapter callbacks, exceptions, metadata, lifecycle, and concurrency behavior
+remain compatibility requirements. Do not confuse preserving behavior with
+preserving every internal implementation detail.
+
+Keep two explicitly different targets:
+
+- **Beta acceptance:** the approved per-workload Rust/Python <= `1.15` and
+  Rust/C <= `1.50` ceilings, three complete frozen-wheel runs, and unchanged
+  compatibility and reliability gates. The candidate is `7c1a644a`; its runs
+  are not replaced or relabeled by this investigation.
+- **Engineering objective:** Python parity and C parity where practical;
+  define near parity as <= `1.10` times C median duration per workload for
+  research tracking. This 10% objective is not a newly tightened beta gate,
+  an allowance for correctness regressions, or an achieved result. Report
+  absolute microseconds, CPU, throughput, and tail latency alongside ratios.
+
+The deliverable is a reproducible attribution report and a prioritized, bounded
+optimization plan, not a growing collection of speculative native rewrites.
+See [the parity investigation](docs/ferrocopg-parity.md) for the probe protocol,
+limitations, layer map, and decision rules. A lower-level API is a diagnostic
+control, not permission to remove Python-facing behavior from the product.
+
+Initial matched diagnostics now point above the native client: vendored Rust
+`postgres` takes 18.8-18.9 us, native libpq 19.6 us, the Rust session 19.4-19.5 us,
+the direct PyO3 binding 21.7 us, and the full Rust API 41.0-41.6 us for prepared
+binary `select 42::int4` in both orders. A separate fresh/reused cursor matrix
+and profiles identify duplicate cursor state synchronization, adapter-map
+construction, and repeated query/loader setup. The preferred next prototype is
+a single-owner cursor/result integration, not another isolated FFI helper.
+These are non-idle local diagnostics, not beta acceptance or a general verdict
+on pristine upstream. Preserve their limitations and raw samples in the report.
+
+### Resume instructions for the Phase 5 goal loop
+
+This section and 5A-5C below are the active execution contract. Historical
+investigations and the superseded action list are evidence, not instructions
+to repeat discarded experiments. Resume implementation, not another open-ended
+search for tiny transport optimizations.
+
+1. Read `docs/ferrocopg-parity.md` and the recorded integration diagnostic.
+   Preserve the current investigation tools and uncommitted work. `main` contains
+   consolidated production candidate `7c1a644a`; the new integration design is
+   not implemented yet. Inspect current working-copy and remote state with `jj`
+   before making a new implementation checkpoint; never rewrite published work.
+2. Establish Python-visible contract tests and reproduce the affected query
+   controls on an idle machine. Then implement **5C.1 single-owner cursor/result
+   state** as the first independently reviewable prototype. Do not require a
+   pristine-Tokio investigation before addressing the measured integration gap.
+3. Measure wall and CPU costs against the unchanged control in both orders.
+   Keep a prototype only with preserved public behavior and a repeatable benefit;
+   reject flat/mixed performance-only changes. Architectural simplifications
+   without a speed gain need a separately documented rationale, not a speed claim.
+4. Based on the remaining profile, proceed to **5C.2 reusable execution plans**,
+   then **5C.3 server-reported execution outcomes** if justified. These are ordered
+   hypotheses, not a requirement to merge all three regardless of their results.
+5. Freeze the retained implementation and satisfy every Phase 5 completion gate
+   below on that candidate. Commit coherent slices with AI attribution and push
+   the active development bookmark regularly. Keep `main` promotion, branch
+   deletion, dependency replacement, and PyPI publication separate from this loop.
+
+Do not restart the goal automatically as part of updating this document. When
+the user resumes it, use these instructions instead of the historical
+optimization-first strategy. Report a measured architectural limit and request
+a scope/deferral decision if the evidence no longer supports useful progress;
+do not silently relax limits or claim that beta acceptance proves near parity.
+
+Latest frozen-candidate benchmark checkpoint: workflow `35497418189`, artifact
+`10601482794`, completed all three comparisons for `7c1a644a`. Runs 2 and 3 pass
+every beta limit. Run 1 fails parameterized/Python (`1.184`), parameterized/C
+(`1.573`), and prepared/Python (`1.158`); therefore the repeated benchmark gate
+fails. The same workflow's soak completed successfully: all three backends ran
+for at least 1,800 seconds, all eight scenarios completed, the recorded resource
+checks passed, and each backend left zero sessions after cleanup. The workflow
+is terminal with an overall failure because of the benchmark job. Preserve
+these failures and do not rerun the unchanged candidate simply to select three
+favorable samples.
+
 ### Approved beta policy and consolidation (2026-09-20)
 
 The user explicitly approved revising the beta ceilings to Rust/Python <=
@@ -1252,12 +1342,14 @@ Definition of done:
 - Only raw libpq/socket boundaries remain manifested for the release contract.
 - The complete release-critical suite is green.
 
-### Phase 5: Pooling, stress, and performance
+### Phase 5: Reliability, performance attribution, and parity
 
-Status: in progress. The installed-package harness is implemented; acceptance
-runs and performance fixes remain required.
+Status: in progress. Consolidated beta acceptance and the parity investigation
+are separate workstreams. The beta candidate is frozen at `7c1a644a`; diagnostic
+tools do not change its production implementation. No claim of an irreducible
+Rust-client performance floor has been established.
 
-Tasks:
+#### 5A: Establish the trustworthy beta baseline
 
 - [x] Prove official `psycopg_pool.ConnectionPool` integration.
 - [x] Define reproducible soak and benchmark commands, machine metadata, and
@@ -1270,10 +1362,11 @@ Tasks:
 - [x] Establish a full-duration, three-backend soak baseline with published CI
   artifacts (revision `24b646e3`; not the final optimized candidate).
 - [x] Configure weekly/manual reliability CI and artifact retention.
-- [ ] Close the measured query, result-adaptation, transaction, COPY, and pool
-  performance gaps without weakening correctness or acceptance thresholds.
+- [x] Consolidate measured improvements, remove rejected prototypes, and version
+  the explicitly approved beta policy without weakening correctness.
 - [ ] Pass the complete benchmark at least three times on the same otherwise
-  idle machine using an installed release wheel built from the recorded revision.
+  idle machine using one installed release wheel, under the `1.15` Python /
+  `1.50` C beta policy. Preserve all failures and exact identities.
 - [ ] Pass the full 30-minute-per-backend soak, including concurrent pool use,
   on the candidate revision.
 - [ ] Confirm scheduled soak execution and publish final-candidate reproducible
@@ -1283,6 +1376,86 @@ Tasks:
 - [x] Align the README with the completed synchronous contract, staged-package
   usage, official async delegation, and experimental Rust async status. Remove
   obsolete Phase 4 gap claims without removing the raw libpq/socket boundaries.
+
+#### 5B: Attribute latency and establish the achievable floor
+
+- [x] Add and run initial native libpq, vendored `postgres`, Rust session, PyO3,
+  and public API probes, plus fresh/reused cursor controls and separate profiles.
+  Preserve raw samples and explicitly label non-idle local results diagnostic.
+- [x] Record the initial cost model and prioritize integration work over transport
+  replacement. The report is in `docs/ferrocopg-parity.md`.
+- [ ] Reproduce the affected comparisons on an idle runner. Separate synchronous
+  one-query latency from pipelined/concurrent throughput.
+- If a native-client floor becomes a suspected blocker, compare direct Tokio and
+  pristine pinned upstream with vendored crates before blaming upstream. This is
+  a conditional investigation, not a blocker for integration prototypes. Do not
+  mix a library upgrade with a local optimization when testing causality.
+- [ ] Match preparation state, parameter/result formats, server/connection
+  settings, TLS, returned data, transaction boundaries, and queries in flight.
+  Record CPU time, allocation counts, polling/wakeup/syscall counts, and protocol
+  round trips in separate instrumented runs; do not time profiled runs as normal.
+- [ ] Repeat in both orders on an idle machine and preserve raw measurements.
+  Break down small-query, multi-row, COPY, transaction, and pool costs separately.
+  A constant, parameter-free SELECT is only the first isolation probe.
+- [ ] Publish a bottleneck table: measured cost, confidence/limitations, ownership
+  layer, expected recoverable fraction, and the next discriminating experiment.
+
+#### 5C: Make bounded changes toward parity
+
+**5C.1 Single-owner cursor/result state (first prototype)**
+
+- [ ] Keep the public Connection/Cursor surface but replace the second cursor-like
+  adapter and after-execute/after-fetch state copying with one authoritative
+  execution state: active result, result index, row position, and lifecycle.
+- [ ] Back public metadata with stable owned result handles. Capture encoding
+  and result-shape snapshots at execution. Preserve public `pgresult` behavior,
+  custom cursor/row factories, navigation, errors, and detached result lifetimes.
+- [ ] Test observable contracts rather than asserting private `_results` or
+  adapter layout. Do not revive lazy properties that defer required snapshots.
+- [ ] Compare fresh/reused constant and parameterized queries, wall and CPU, in
+  both orders; then run all eleven workloads before retaining a speed claim.
+
+**5C.2 Reusable execution plans (second, evidence-driven prototype)**
+
+- [ ] Separate reusable SQL/parameter-layout and result-decoding plans from
+  execution values, mutable callbacks, cursor position, and errors.
+- [ ] Define ownership and explicit invalidation for adapter registrations,
+  encoding, value-dependent dumper selection, parameter types, result format,
+  result shape, and prepared/session state. Bound cache size and release owners.
+- [ ] Preserve custom constructor/callback ordering and per-execution contexts;
+  cache valid decisions, not arbitrary mutable Python callback objects. Measure
+  whether reuse removes the repeated transformer/loader setup found in profiles.
+
+**5C.3 Server-reported execution outcomes (third, conditional prototype)**
+
+- [ ] Return owned results together with command/transaction status, setting
+  changes, and ordered notices from the native boundary where supported.
+- [ ] Replace redundant SQL-text inference with authoritative protocol state;
+  retain classification needed before execution. Preserve errors, rollback,
+  pipeline result ordering, cancellation, and callback/reentrancy semantics.
+- [ ] Measure query, transaction, and pool effects separately. Do not collapse
+  intermediate pipeline events into a single last-status value.
+
+**Rules shared by all prototypes**
+
+- [ ] Prioritize the largest proven avoidable overhead, not the most Rust-looking
+  implementation. Start with shared query/adapter work only if 5B supports it.
+- [ ] Require each experiment to name its hypothesis, preserved contracts, and
+  success/rejection criteria before implementation. Keep one architectural
+  change per comparison; stop flat/mixed experiments rather than repeating them.
+- [ ] Track Python parity and C <= `1.10` as the near-parity engineering objective
+  across all eleven acceptance workloads. Never average away a slow workload.
+- [ ] Recheck the full wheel, compatibility, and resource gates after retained
+  production changes. Do not port the transformer again without new evidence.
+- [ ] If a native-client floor is demonstrated, document the smallest viable
+  transport/runtime change and its maintenance cost; do not rewrite the protocol
+  stack or switch libraries solely on a microbenchmark or headline ratio.
+
+The investigation is complete when it establishes an actionable cost model and
+either reaches the engineering objective with repeatable evidence or records
+the remaining measured limit and an explicit decision to defer larger changes.
+Near parity is not silently required to publish the beta; 5A's approved gates
+remain the publication performance requirement.
 
 The commands and acceptance budgets are documented in
 `docs/ferrocopg-performance.md`. The harness under `tools/phase5` measures the
@@ -3349,6 +3522,12 @@ local gates and remaining complete benchmark limits visible.
 
 #### Phase 5 definition of done
 
+- A reproducible layer-attribution report identifies the remaining parity gaps,
+  their evidence/limitations, and an agreed next optimization or deferral decision.
+- The three ordered integration hypotheses have explicit dispositions: retained
+  with evidence, rejected with evidence, or deferred with a stated reason. No
+  prototype is merged merely to tick a task, and no experiment remains confused
+  with the final candidate. Near parity remains distinct from beta acceptance.
 - Sync pooling is documented and green.
 - Full-duration soaks pass the documented resource budgets without hangs;
   short smoke runs do not satisfy this gate.
@@ -3361,6 +3540,9 @@ local gates and remaining complete benchmark limits visible.
 - The supported synchronous compatibility and package-boundary gates remain
   green after consolidation. Only the dated beta ceiling revision is approved;
   no correctness, resource, or per-workload exception is assumed.
+- Scheduled reliability execution is confirmed separately from push/manual CI.
+  Mark the Phase 5 goal complete only when all these conditions hold; Phases 6/7
+  and publication remain separate work.
 
 ### Phase 6: Build and validate release wheels
 
@@ -3454,22 +3636,29 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Freeze the consolidated production implementation without resurrecting
-   rejected experiments. Keep their compatibility regressions and raw evidence.
-2. Run the versioned beta policy (`1.15` Python / `1.50` C) through the repeated
-   benchmark runner: three full reports, one installed wheel, one otherwise idle
-   machine. Do not combine runs or replace failures with historical passes.
-3. Run the full 30-minute-per-backend soak and supported compatibility/package
-   matrix for this candidate. Preserve wheel checksums, server identity, raw
-   results, logs, and the exact source revision in durable CI artifacts.
-4. Review any remaining failures before additional optimization. Permit a new
-   experiment only for a specific measured blocker or concrete simplification
-   of ownership/maintenance; require evidence of its cost and compatibility.
+1. Follow the resume instructions above. Refresh the existing `7c1a644a` CI
+   checkpoint; its three-run benchmark is a failure despite runs 2/3 passing.
+   Keep its evidence separate from any new integration candidate.
+2. Establish public-contract tests and idle-runner query controls, then implement
+   5C.1 single-owner cursor/result state. Preserve custom callbacks, subclassing,
+   metadata snapshots, resource lifetime, cancellation, and error ordering;
+   private Cython/adapter layout is not a constraint.
+3. Measure that prototype independently in both orders, then all eleven
+   workloads. Proceed to 5C.2 reusable plans and conditionally 5C.3 server-reported
+   outcomes according to the remaining profile, not as one unreviewable rewrite.
+   Direct Tokio/pristine upstream controls are needed only if a native-client
+   floor becomes a suspected blocker.
+4. Freeze the retained production candidate and run three complete benchmarks
+   under `1.15` Python / `1.50` C, full soaks, and the supported compatibility/
+   package matrix. Publish all raw evidence. Track Python parity/C <= `1.10`
+   separately; neither waive failures nor turn the stretch goal into an endless
+   implicit release blocker.
 5. Confirm scheduled reliability coverage separately; manual dispatch does not
    prove the schedule ran. Do not delete superseded bookmarks without approval.
-6. Mark Phase 5 complete only after acceptance. Then proceed to Phase 6 wheel
-   validation and Phase 7 publication, keeping the Rust default, explicit libpq
-   fallback, synchronous-first scope, and undecided upstreaming status.
+6. Mark Phase 5 complete only after its full definition of done. Report readiness
+   for Phase 6 wheel validation; do not expand this goal loop into publication.
+   Keep the Rust default, explicit libpq fallback, synchronous-first scope, and
+   undecided upstreaming status.
 
 ### Superseded optimization-first actions (historical context)
 

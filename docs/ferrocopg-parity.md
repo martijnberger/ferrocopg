@@ -1,0 +1,254 @@
+# Performance parity investigation
+
+## Decision and scope
+
+The fork exists to provide a trustworthy Rust backend behind Psycopg's proven
+API. Phase 5 now distinguishes beta acceptance from the work needed to approach
+performance parity. The approved beta ceilings remain 1.15 times Python and 1.50
+times C for every workload. The engineering objective is Python parity and C
+parity where practical; "near parity" means no more than 1.10 times C median
+duration for research tracking, not a new release gate.
+
+We cannot infer that the underlying Rust library is slow from a Python-level
+comparison. The upstream [`postgres` implementation](https://docs.rs/postgres/0.19.13/postgres/#implementation)
+wraps `tokio-postgres` with a Tokio runtime. The
+[`tokio-postgres` client](https://docs.rs/tokio-postgres/0.7.17/tokio_postgres/#pipelining)
+supports pipelining, but that does not imply the same latency for a synchronous
+single-query API. Concurrency and single-operation latency are different tests.
+Our repository also patches both libraries, so measurements of the vendored
+client are not measurements of pristine upstream.
+
+The Python-visible API and supported behavior are the contract; Cython's
+internal object graph is not. We may replace private bridge objects and state
+duplication, and redesign the Python/native call boundary. Public cursor types,
+signatures, metadata, adaptation and row-factory callbacks, exceptions, resource
+lifetime, cancellation, and concurrency must remain compatible. Tests for a
+private implementation shape should not force us to preserve that shape when
+the same observable contract can be tested without it.
+
+## Layer map
+
+| Layer | Work performed | Evidence needed |
+| --- | --- | --- |
+| Public Python cursor and connection | Cursor creation, factories, parameter adaptation, prepared cache, transaction state, result navigation | Full API versus direct binding; allocation/call profiles; reused versus fresh cursor |
+| Compatibility adapters | Cursor/result state synchronization, metadata projection, encoding, SQL classification, loader context | Attribute costs with semantics-preserving controls, not omitted behavior |
+| PyO3 binding | Argument/result objects, GIL release/reacquisition, session mutex, signal state and wait callback | Direct native-session binding versus Rust-only session |
+| Rust session | Prepared lookup, parameter validation, result metadata and wire rows | Rust session versus direct vendored client |
+| Synchronous Rust client | Runtime entry, future polling, notices and wait timers | Vendored client with/without callback, direct Tokio, pristine upstream |
+| Protocol and transport | Messages, buffers, socket waits, decoding, server round trips | Native libpq control with matched protocol; syscall/packet trace separately |
+
+Relevant implementation entry points are `Cursor._sync_ferrocopg_cursor()` in
+`psycopg/psycopg/cursor_async.py`, `NoTlsCursorAdapter.execute()` and
+`NoTlsConnectionAdapter._execute()` in `psycopg/psycopg/_ferrocopg.py`,
+`with_session()` in `crates/ferrocopg-python/src/bootstrap.rs`,
+`run_statement_refs()` in `crates/ferrocopg-postgres/src/session.rs`, and
+`poll_block_on_inner()` in `vendor/postgres/src/connection.rs`.
+
+These show plausible costs, not measured attribution by themselves. In
+particular, the public cursor owns a backend cursor adapter and synchronizes
+result state after operations. Query execution also performs classification,
+encoding/transaction bookkeeping, and loader/factory work. The native result
+path builds column descriptions and clones names. None of these costs can be
+assumed dominant merely because their code is visible.
+
+## Matched first probe
+
+`tools/phase5/layer_probe.py` compares eight paths in forward and reverse order:
+native libpq, vendored `postgres`, vendored `postgres` with a no-op wait callback,
+the Rust session, its direct PyO3 binding, official Python, official C, and the
+full ferrocopg API. Build both native binaries before any measurement:
+
+```sh
+cargo build --release --offline --locked -p ferrocopg-postgres --example layer_probe
+cc -O3 -Wall -Wextra -Werror $(pg_config --cppflags) \
+  -I"$(pg_config --includedir)" -L"$(pg_config --libdir)" \
+  tools/phase5/libpq_probe.c -lpq -o /tmp/phase5-libpq-layer-probe
+export PHASE5_DSN='host=127.0.0.1 dbname=postgres user=postgres sslmode=disable'
+revision=$(jj log -r @ --no-graph -T commit_id)
+/tmp/phase5-env/bin/python tools/phase5/layer_probe.py \
+  --native-rust target/release/examples/layer_probe \
+  --native-libpq /tmp/phase5-libpq-layer-probe \
+  --revision "$revision" --output /tmp/phase5-layer-diagnostic
+```
+
+Use the installed-wheel environment from the performance guide. If
+`CARGO_TARGET_DIR` is set, adjust the Rust binary path. On macOS, set
+`DYLD_LIBRARY_PATH` as described there. The C probe uses POSIX clocks; this
+diagnostic is not a Windows portability claim. Its output must be a new path.
+
+Every path prepares `select 42::int4` before measurement, uses binary results,
+autocommit, a persistent plaintext connection, and one query in flight. It checks
+the returned value on every operation. Warmup is 1,000 operations, followed by
+nine samples of 10,000 operations. Full API probes create a cursor for each call,
+as normal `conn.execute()` does. The binding probe reads raw bytes rather than
+running the public adapter/row-factory machinery; that difference is intentional
+and must not be advertised as drop-in API performance.
+
+Reports preserve wall-time samples, executable/source/lockfile hashes, and
+installed Python implementation fingerprints. This is a latency diagnostic,
+not CPU/allocation profiling and not a replacement for the eleven-workload
+release suite. The workload has no bound parameters, TLS, pool contention, COPY,
+or explicit transaction commands. It does not isolate pristine upstream or
+direct Tokio yet. Differences between separate paths are useful hypotheses,
+not an additive profiler breakdown or a proof that all overhead is removable.
+
+## Initial evidence: 2026-09-20
+
+The [recorded diagnostic evidence](performance/2026-09-20-integration-diagnostic.json)
+contains all uninstrumented samples in both orders, package/executable/source
+fingerprints, and the top separately profiled functions. Production code is the
+restored `52b5bcd8` implementation, also present in `7c1a644a`. The installed Rust
+wheel SHA-256 is `924f3af85c5b6b31047f901b8bc668a0d1891bfb91ef6bb60c12cfa63a0e11ca`.
+Probe source working-copy snapshots were `1c1d7237` and `56e2dc40`; these are not
+claims that a new production wheel was built at those revisions.
+
+Environment: macOS ARM64, CPython 3.14.6, PostgreSQL/libpq 15.19, official Psycopg
+3.3.2, portable ThinLTO release build. The machine had background UI/browser/node
+activity, so this is exploratory evidence requiring idle-runner replication.
+All builds and tests finished before timing; profiles ran only after timing.
+
+Matched layer medians, microseconds per operation:
+
+| Path | Forward | Reverse |
+| --- | ---: | ---: |
+| Native libpq | 19.598 | 19.619 |
+| Vendored Rust `postgres` | 18.812 | 18.850 |
+| Vendored Rust with wait callback | 18.978 | 19.051 |
+| Rust session/result construction | 19.423 | 19.497 |
+| Direct PyO3 session binding | 21.679 | 21.689 |
+| Full official Python API | 41.448 | 41.726 |
+| Full official C API | 31.034 | 30.293 |
+| Full ferrocopg API | 40.964 | 41.618 |
+
+For this narrow query, there is no evidence that the Rust client's latency floor
+prevents parity: it is slightly faster than native libpq in both orders. The
+binding is about 2.2 microseconds above the Rust session; full ferrocopg is about
+19.3-19.9 microseconds above the binding. These differences identify where to
+investigate, not independent additive costs or wholly removable work. Public
+Psycopg necessarily does more than a raw-byte native probe.
+
+### Integration controls
+
+`tools/phase5/integration_profile.py` separately measures explicit cursor
+creation/execute/fetch, rather than the layer probe's `conn.execute()` path.
+It supports fresh/reused public cursors and fresh/reused backend adapters as
+diagnostic bypasses. Each case has 1,000 warmup operations and nine samples of
+5,000 operations per order. All queries use prepared statements and binary
+results. The parameterized case is `select %s::int4 + 1`, `(41,)`.
+
+For example, run the following independently for each backend/case/workload,
+then repeat the sequence in reverse order. Only Rust supports adapter cases.
+Run `--profile /tmp/profile.pstats` separately after all timing cases, never
+concurrently; it emits profile statistics instead of benchmark samples.
+
+```sh
+/tmp/phase5-env/bin/python tools/phase5/integration_profile.py \
+  --backend rust --case public-fresh --workload parameterized \
+  --revision "$revision" --iterations 5000 --samples 9 \
+  --output /tmp/integration-rust-fresh.json
+```
+
+| Cursor path | Constant forward/reverse (us) | Parameterized forward/reverse (us) |
+| --- | ---: | ---: |
+| Rust public, fresh | 41.763 / 41.262 | 47.281 / 46.659 |
+| Rust public, reused | 36.333 / 35.513 | 42.474 / 42.032 |
+| Rust adapter, fresh | 35.351 / 33.480 | 41.556 / 41.866 |
+| Rust adapter, reused | 33.350 / 31.919 | 40.382 / 40.207 |
+| C public, fresh | 25.612 / 28.249 | 29.760 / 31.841 |
+| C public, reused | 22.243 / 26.571 | 28.723 / 28.302 |
+
+CPU medians also expose client-side work: fresh Rust constant queries consume
+29.9-30.2 us versus C's 14.5-15.4 us; parameterized queries consume 35.0-35.8 us
+versus C's 17.0-17.7 us. Wall-time variation across orders remains visible and
+must not be hidden by selecting one order or mixing these figures with another
+experiment's native baseline.
+
+Reusing the public cursor saves approximately 4.6-5.7 us. Bypassing the public
+wrapper saves approximately 4.8-7.8 us for fresh cursors, but does not close the
+gap. These savings overlap: do not add them. A bare adapter omits Python-visible
+public-cursor behavior and is not an acceptable replacement without redesign.
+
+Separate cProfile runs of 10,000 fresh-cursor operations report:
+
+- Rust: 1,850,001 observed calls for constant queries and 2,250,001 for parameters.
+  C: 550,001 and 630,001 respectively. C functions conceal internal work, so
+  this is evidence of extra Python dispatch, not a comparison of all CPU work.
+- Rust constructs `AdaptersMap` 20,000 times versus C's 10,000 in both workloads.
+- Rust runs `_sync_ferrocopg_cursor()` and `pgresults()` 20,000 times: after
+  execution and fetching, despite one result being fetched per operation.
+- Query routing/prepared bookkeeping and `_result_loaders()` /
+  `_native_result_transformer()` are prominent Python-side paths. Reused cursors
+  still reset query/result transformers on every execution, so cursor reuse alone
+  does not eliminate per-query adaptation/loader setup.
+
+Do not use profiled runtimes as benchmark timings or sum cumulative profile
+times: instrumentation changes costs and cumulative times overlap. Full `.pstats`
+files and worker reports remain under `/tmp/phase5-integration-20260920`; the
+linked repository evidence preserves raw timing samples and selected profile
+statistics for review.
+
+## Proposed integration shape
+
+The evidence supports **one owner for cursor/result state, with a thin public
+Python facade**, rather than a public cursor synchronizing a second cursor-like
+adapter. This does not require reproducing Cython internals or exposing native
+implementation classes as a new public API.
+
+1. Replace the public-cursor/backend-cursor state mirroring with one execution
+   state. Keep the public cursor type and behavior, and project required public
+   metadata from stable native result handles without copying bookkeeping on
+   every fetch. This is a structural redesign, not the rejected lazy-property
+   shortcut. Internal `_results` layout is not itself a product requirement.
+2. Give query/loader plans an explicit lifetime and invalidation mechanism.
+   Cache only against parameter types, result shape/format, adapter changes,
+   encoding, and prepared/session state. Reuse immutable plans; do not reuse
+   stale mutable callback contexts or assume built-in adapters are unmodified.
+3. Use a coarse native execution/result boundary where measurements justify it.
+   Keep PostgreSQL bytes and row offsets owned natively; expose Python values
+   and metadata when required. Preserve registered Python adapters/row factories,
+   reentrancy, exception ordering, notice delivery, cancellation, GIL/locking
+   rules, and results that outlive a cursor or connection.
+
+The next prototype should address step 1, accompanied by a public-contract test
+matrix and the same fresh/reused controls. It should be judged on uninstrumented
+wall **and CPU** costs in both orders, then all eleven workloads. The bypass
+control suggests a useful opportunity, not a promised production speedup.
+Step 1 alone is unlikely to close the full gap: in the parameterized controls,
+reaching C +10% would require roughly 11.6-14.5 us (25-31%) less total duration.
+Plan reuse and query bookkeeping therefore need separate measured follow-ups.
+
+## Next experiments and decision rules
+
+1. Reproduce the initial layer and integration comparisons on an otherwise idle
+   dedicated runner, retaining both orders. Prioritize the integration gap now
+   observed. If the native-client floor becomes a suspected blocker, add pinned
+   pristine upstream and direct Tokio controls, holding dependency versions and
+   release codegen constant, before attributing it to the underlying library.
+2. Extend the matched protocol to the existing parameterized/prepared workloads,
+   text versus binary results, and fresh versus reused cursors. Determine how
+   much overhead is fixed per operation versus per value/row. Verify round trips
+   rather than assuming equivalent SQL implies equivalent wire behavior.
+3. Profile only the layer with a repeatable gap. Collect client CPU,
+   allocations/copies, GIL transitions, polls/wakeups, syscalls, and Python call
+   counts in separate runs. CPU and waiting time must not be conflated.
+4. If the direct binding is close to native but the full API is not, prioritize
+   compatibility bookkeeping and cursor/query/loader lifetime. Consolidate state
+   only with exact type, subclass, encoding snapshot, callback, and adapter
+   invalidation tests. Do not resurrect the rejected lazy projection or native
+   transformer merely because these paths contain Python work.
+5. If the Rust session is slow while its direct client is not, investigate result
+   metadata and parameter conversion. If the direct client itself is slow, first
+   separate our vendored patches, sync runtime driving, and protocol behavior
+   before considering transport changes or a new library.
+6. Repeat for transactions and pool operations, then bulk rows and COPY. Compute
+   an opportunity budget in microseconds per operation: a sub-microsecond change
+   cannot close a ten-microsecond gap on its own. Reject flat/mixed changes and
+   require a complete same-wheel comparison before retaining a performance claim.
+
+No production optimization is introduced by this investigation. Beta validation
+continues against frozen `7c1a644a`; changing probes or documentation does not
+change its artifact identity or convert a previous failure into a pass.
+
+Validation of the diagnostic tooling: both native probes build in release mode;
+all forward/reverse result checks pass; all 74 installed-wheel/accounting tests,
+Ruff, codespell, workspace Rust formatting, and mypy (239 source files) pass.
