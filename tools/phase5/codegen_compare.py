@@ -64,6 +64,8 @@ def compare_integration(output: Path, revisions: dict[str, str]) -> dict[str, ob
                         result["mode"] != "integration-diagnostic"
                         or result["acceptance_evidence"] is not False
                         or result["backend"] != "rust"
+                        or result.get("bookkeeping", "normal") != "normal"
+                        or result.get("omitted_helper_bodies", []) != []
                         or result["case"] != case
                         or result["workload"] != workload
                         or result["metadata"]["revision"] != revision

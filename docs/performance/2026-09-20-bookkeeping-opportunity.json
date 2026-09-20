@@ -1,0 +1,1549 @@
+{
+  "probe": {
+    "revision": "7bbc14eba9a573bf528317f0859a8734db589e19",
+    "runtime_revision": "8eddc2ecd97a384c23765c75df7dfd40788f083f",
+    "source_sha256": "d174bd486242042ddea9dc5b130108835f612b697c848ec08e3377f09f063a53",
+    "idle_host": false,
+    "acceptance_evidence": false
+  },
+  "interpretation": "Diagnostic omission of helper bodies, not compatible production code or acceptance evidence. Calls remain. Non-idle local machine; no builds, tests, or profiles overlapped timing. Process snapshot before measurement unavailable due sandbox restriction.",
+  "measurements": {
+    "parameterized-normal-b": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-fresh",
+      "backend": "rust",
+      "bookkeeping": "normal",
+      "omitted_helper_bodies": [],
+      "workload": "parameterized",
+      "iterations": 50000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "metadata": {
+        "revision": "8eddc2ecd97a384c23765c75df7dfd40788f083f",
+        "measured_at": "2026-09-20T12:55:46.343481+00:00",
+        "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]",
+        "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+        "machine": "arm64",
+        "processor": "arm",
+        "cpu_logical": 12,
+        "cpu_physical": 12,
+        "memory_bytes": 38654705664,
+        "driver": "0.1.0",
+        "driver_file": "/tmp/ferrocopg-phase5-schema-control-env/lib/python3.14/site-packages/ferrocopg/__init__.py",
+        "pool": "3.3.0",
+        "psutil": "7.2.2",
+        "libpq": 0,
+        "server": "PostgreSQL 15.19 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.1.1.101), 64-bit",
+        "server_settings": {
+          "fsync": "on",
+          "max_connections": "100",
+          "shared_buffers": "16384",
+          "ssl": "on",
+          "synchronous_commit": "on"
+        },
+        "vendored_revision": "6a52e77dc38827214b294759823a072841b4819f"
+      },
+      "installed_file_sha256": {
+        "ferrocopg": {
+          "ferrocopg/__init__.py": "546fa11ec65349b0e3727d7d81600545473bc2c6784bb4b7092939ddc59a5e8a",
+          "ferrocopg/_acompat.py": "a403fe13a8deb1d80e3ae7e9e532e1f2eb525917951e4f7fddc42b5f1d9ad78a",
+          "ferrocopg/_adapters_map.py": "573a8598e0f46bf7891768cf68d4bddf4e91dc22a3afb14bc9d4bfc1d44c4497",
+          "ferrocopg/_capabilities.py": "01d498d399be8394f2c47e7a72680ce0a9f26b424d017070286f69042c1768bd",
+          "ferrocopg/_cmodule.py": "81e27abbc8788aa62e1acbb7e80a035c1be39685fc44276106ca2f5873438bb2",
+          "ferrocopg/_column.py": "948799c75558d917f2af529254b0963dfb664069deb759d72377f2088d82e55f",
+          "ferrocopg/_compat.py": "9c82f8c18563c21f9b7dfb77d5650dcd24817357d9cc8a8a14e460aeed39b57e",
+          "ferrocopg/_connection_base.py": "e5c1d9409a6498ebaba6847e639fe4ba4a1ad8d6adf682495550cb16ed1cc843",
+          "ferrocopg/_connection_info.py": "1aab70228aeb12fe3578c60f2004b9b8bffbe3324c3a4727a2024e50eb0316c6",
+          "ferrocopg/_conninfo_attempts.py": "f69c721909cc0b12590c39a9aa22cb615ace62e23b268b674f8ba8c857aa2d49",
+          "ferrocopg/_conninfo_attempts_async.py": "5f7860a6950fb8924ff2d553392cddc79877a163682b61952f5debfdf6322451",
+          "ferrocopg/_conninfo_utils.py": "be0264539e6f23b54f7b3886418acdee5acfe0b7d50b4eb4952f2d9a196dd41d",
+          "ferrocopg/_copy.py": "694294daa5eac8aad365f6f5cc0d1f76fc73278e6bea34eab942abba7af98457",
+          "ferrocopg/_copy_async.py": "87d758f02dc08ca688c2751c1b1ff551464c0719f541be1a3a285cfda6f92ef9",
+          "ferrocopg/_copy_base.py": "29e85675bea40d0d8d95f9703c892e156d98097e54343d45543485d8a918c553",
+          "ferrocopg/_cursor_base.py": "26eaa0d80560f9b00c1de55d8a20de002b9cbf959da69d1e13d23d922beff0dc",
+          "ferrocopg/_dns.py": "d52e2b5c21504c4f8624ae5128389b80e78927a3631f9adef5bb613f4b4532a1",
+          "ferrocopg/_encodings.py": "f2b5aee1d5ad05dc70633c858eae42aa15569391c488abbb50a1289904c775c1",
+          "ferrocopg/_enums.py": "a12ee93f0f2c2e8bf999348b9f53972bf00d97938a4e870a60141524c311ada2",
+          "ferrocopg/_ferrocopg.py": "3b7de15c7b3315d1fef878132d8853d234d928b237cdf9a6e49366211bfbfda7",
+          "ferrocopg/_ferrocopg_async.py": "495f868b6c744048723233f0d435a8764a9c443c20ada8585701a228025e54e4",
+          "ferrocopg/_ferrocopg_conninfo.py": "52f36d4a20e724070fa302f656b97625c423910bf270ee1ef98e2a5878a0ed7a",
+          "ferrocopg/_official.py": "c487f9bf8e74296e9070a38956a6400463d01eb56df542d5b2427fa78b172b28",
+          "ferrocopg/_oids.py": "3018aeffa0b8a708ecf363699dd9bc1757817fc1c2029472dec2daeaf48fc9ba",
+          "ferrocopg/_pipeline.py": "b1660d2a5efdaa7aa326bc0d0810a2d5d9c40f90972eb9fa6115f658fa802a64",
+          "ferrocopg/_pipeline_async.py": "10c29922f2026a363ec02d4c64911f4a07ed7594b9107224e4ecc486b04da078",
+          "ferrocopg/_pipeline_base.py": "8fd4651b94e9a0f0bd7c2756c2f55ee031c87d5254cf7621aa33aa9ecc2ee9e1",
+          "ferrocopg/_pq_compat.py": "a62ed2f308dfe80ad09ad3d2c1442f784925d839b7eeb6cfb3f8666084a972c3",
+          "ferrocopg/_preparing.py": "7c35122400335ddd975a74c1957293fa9bc39b4ba178aca8997898a90161fc08",
+          "ferrocopg/_py_transformer.py": "a670653cd757f349691c4194ecb6c9c6b80ba145a7ade39ee163ab19a419fbdb",
+          "ferrocopg/_queries.py": "a417ac82e307e22c4d2bad16e465d675d461074d506ce87bd29c35a8e2da406b",
+          "ferrocopg/_rmodule.py": "8ba5fb0e347e4e2e1d590ce18697ba5e01aea46bffc023d8061c68a0c82c4075",
+          "ferrocopg/_rust/__init__.py": "a5e12579832dc3c26224e84931e265d9e9d73ae39de4dd5863261ded8eae16fb",
+          "ferrocopg/_rust/_ferrocopg.cpython-314-darwin.so": "81ecf7f6bd0e809c0849b38b4d9fb67026ef3904fca2a7a6e87766784d726dab",
+          "ferrocopg/_server_cursor.py": "21750953da98bac13405a344ebacd6f199a2e5dc92009951d6470aa3050ed9ee",
+          "ferrocopg/_server_cursor_async.py": "052d7171a9059b7cdc2fc30c107c27b5ed31be712916daeee7cc0081671813fb",
+          "ferrocopg/_server_cursor_base.py": "f09de914d8897c94f98f7018608946a6f777f9f4e6ea8355d397ed31b88566d7",
+          "ferrocopg/_struct.py": "4534cd5a1859380a7ffc90be3c812237812229994aba5d33995300701cf2c1e4",
+          "ferrocopg/_tpc.py": "dbaade36306eba1f01b0923c0cae9470154e9643e647d3886dce17dd4e0304dd",
+          "ferrocopg/_transformer.py": "0c13f69f598d6b61c30da0cb59c369f55188bacef797aae134511d3d6f022253",
+          "ferrocopg/_tstrings.py": "d0b2c62c72a3fa15cb79de1eb9e001767b99ed5f1e239876b2506ef5fe9af225",
+          "ferrocopg/_typeinfo.py": "c7e4338d7769ca92343474a83b6b3117af7ea79e914495bb5716f38078fa08ae",
+          "ferrocopg/_typemod.py": "519c0715f9d66d7ab167d508541ac9877eb9f7da686406998fae6ff04b1b209b",
+          "ferrocopg/_tz.py": "cd4a6cb4817c61eb9f2e226e425a1edc5f36c9698ed2c9e1933d7210178ae9d2",
+          "ferrocopg/_vendored.py": "d7bed31d3bbf6dafc67438d8e664327fd5298cb9d64e2479c8862e6b46c690c0",
+          "ferrocopg/_wrappers.py": "44fe56068002e5be1da6d2103ebc1f1904d3370c794d453c4b8f7ca4d149c904",
+          "ferrocopg/abc.py": "fbee4f53130738f5eac91df754d8f47ba668bf8f8d6f4a033792d70436f105dc",
+          "ferrocopg/adapt.py": "2fe49726f5f5fe28c557c4ea5c5d70d33687a4effef1b1995a7c0ad92318af20",
+          "ferrocopg/client_cursor.py": "2fdefb4f10614c4e0877f030f50bb91d5cc83a79d053e839527d51cbf414facf",
+          "ferrocopg/connection.py": "a98d8bb030cdf722f2b2d40bf32511e70b9dd5dcb6a8045b76f49038016f920b",
+          "ferrocopg/connection_async.py": "bef827def258fdb35f85f80570be0da10a318835e1fe9de9a419e51c00373f19",
+          "ferrocopg/conninfo.py": "0c2facbafd48a307b061e4754302780fa2e477cf2a4e50c434b39540f8121e5d",
+          "ferrocopg/copy.py": "fd5ef68e9d835ebd931ecaa8f52e9c6a1bde328d10b819777e78a0b74ac699b7",
+          "ferrocopg/crdb/__init__.py": "674c11bec482fc2a5a38159f5828a5c0fd2c37a037f88561403e5c95d826fdd1",
+          "ferrocopg/crdb/_types.py": "283cc0f275c3e875304f8691dfbd41ba029f65f72a78b1c8bb563a628d074d60",
+          "ferrocopg/crdb/connection.py": "a8da57e56ed1cb1d84dc645d40b939c86d384752d68aa0f29804513f28761ece",
+          "ferrocopg/cursor.py": "2a0298ca456fa181f1c5d9e878bb48feb7c797b88fd344e0891c851b83720324",
+          "ferrocopg/cursor_async.py": "baec93de14348d41f65a9d8eadfcbe7338f0a01c92c2210479bb89a25d0826ff",
+          "ferrocopg/dbapi20.py": "a6f014d21dad513dfe07705bc5cda597353d5baa9135b763452bc561dc332746",
+          "ferrocopg/errors.py": "ebea98455325d066f3eaf118c6deb2d59b08466aec67574c853bdeb236f7b3d8",
+          "ferrocopg/generators.py": "4b1e11adc3ec50ef4e701251c757c34a43cb884a882f19d35ddbc9a9dd07f714",
+          "ferrocopg/postgres.py": "0eb279075bbdf5b934feb135b72269b41b05c00a1f1054cd8256235b9ab19c48",
+          "ferrocopg/pq/__init__.py": "1efd0f1f982ec2f6ac4f9d690f7d15b1f7f065e92bb69e5e8bf1a4ebff6d4b7b",
+          "ferrocopg/pq/_debug.py": "46cc6b5a7c1a48f303a1e8a66bd7fd499c2d598a17fb12c16a4165949c731ae8",
+          "ferrocopg/pq/_enums.py": "7a1f64faaf282234de50deaa2f668f98ea5133848e2a4d567712bc2a91865736",
+          "ferrocopg/pq/_pq_ctypes.py": "58b41863728ebf870f582d953cb1cf27eaecd2cd90c0bf377a9e0c21fa384313",
+          "ferrocopg/pq/abc.py": "fc7d65f6dcceaa38de327db8d86582c89dbb7cb37889f9f9e573bbc5e5baebf1",
+          "ferrocopg/pq/misc.py": "0c532bf94bf34663aa54fe46f4e6893229e24f6edfc992d894e238ff6c3303c3",
+          "ferrocopg/pq/pq_ctypes.py": "b235fbaac78cf8c460eef441ca02d7a0b848061bc9c2b2bfc8cab330d4c4d17b",
+          "ferrocopg/raw_cursor.py": "be393a35719812560224a3a8a6584dd74fce48ba25871503d9cda28b49985359",
+          "ferrocopg/rows.py": "2aadc647f25969d31a391ba0d425f32c8ca17b08eb8b8e4a96b995ef64ae57bc",
+          "ferrocopg/sql.py": "679c0af3847fed2ca6164c291624041a7ecfbd2eab3e20c4c3e4da88164c9fdb",
+          "ferrocopg/transaction.py": "7180361011696beee7f81079bd7f4c79f7eade64899241bd290c99f9a50aabd4",
+          "ferrocopg/types/__init__.py": "f9f8e78c80557763144d136b9f52c886b9c6af9deb76af0fc29bd422f8d5968d",
+          "ferrocopg/types/array.py": "c1abe21b3f83a26b3bbc1b42af6ca305d664e88eea5a06fda9c38c2fa26d0fa3",
+          "ferrocopg/types/bool.py": "e1e9426247c6d3e4c6fc7733c9f7f0378f32d52bdfbe5a461fafbfdb565a5802",
+          "ferrocopg/types/composite.py": "17ccfcd0b84499dc17a543a08c024f4ffc1ce830dcdbd41da8105d917d7805c5",
+          "ferrocopg/types/datetime.py": "1966558989811be6c9ef04b8a8d293ec261ab53456921ee8a5f14b4e27336ddc",
+          "ferrocopg/types/enum.py": "d476f10a9e4668d03207f30ae3671d8971cc55ea06ff51f67c52d4d843137006",
+          "ferrocopg/types/hstore.py": "fc3b4dff304794b9384110bdeea49ecc3032853536c6a47e36c8c380f89ace8f",
+          "ferrocopg/types/json.py": "5be25df080ad379f319159b5da5f1b7e6fd53fd3a96ba67463fe73e247c535a5",
+          "ferrocopg/types/multirange.py": "8c7ab3fd303783955195f9986dce068cc129578619b1c090afb335073b1996b6",
+          "ferrocopg/types/net.py": "baee8032fe6d0df2e79a7a6bd018273066ee258767abb5c934d5085cfea20ee2",
+          "ferrocopg/types/none.py": "832fce26a13562c949d91222c7412adf1d01f083dfa07f8671cdac40c20ed12c",
+          "ferrocopg/types/numeric.py": "1a3ec260bb2f1d6a7bb6aab1f33596a14b8dbd310f0350e7cac8f651d8d285df",
+          "ferrocopg/types/numpy.py": "83d8ea55882a45a3060fec4f5fee3735c2bcba5468ae4d60f920275c47f16bc1",
+          "ferrocopg/types/range.py": "41a499003f6b5cc38b0e2651a14184ac1a00db15354a158a3fbe387e82376fc0",
+          "ferrocopg/types/shapely.py": "774afee614da1cabfa6914e43a7ed11a300333486fd51728cb5c44ff935c48e1",
+          "ferrocopg/types/string.py": "0a882dc425fd4f54f37ff511d463da7156dba5342c1b49a4a594ee25b963fb4c",
+          "ferrocopg/types/uuid.py": "c1cb8abde3e630af09b12b9d0253fc165fc0d3dc5cab3a7204c45cee63ff6f03",
+          "ferrocopg/version.py": "0728b2e275d6c29cafe11f694f9dbe56a92925783eb9318935fe70b74bc03bac",
+          "ferrocopg/waiting.py": "239c7fdf77bdcb7d5ff11c451833f2ea98262446ea401819b3cad981a5fc4412"
+        }
+      },
+      "samples": [
+        {
+          "wall_us": 48.8696875,
+          "cpu_us": 36.07196
+        },
+        {
+          "wall_us": 55.06407584,
+          "cpu_us": 39.34832
+        },
+        {
+          "wall_us": 47.6995125,
+          "cpu_us": 35.7768
+        },
+        {
+          "wall_us": 45.085894180000004,
+          "cpu_us": 34.45412
+        },
+        {
+          "wall_us": 51.4566775,
+          "cpu_us": 36.8279
+        },
+        {
+          "wall_us": 57.3170125,
+          "cpu_us": 39.74946
+        },
+        {
+          "wall_us": 64.76733166,
+          "cpu_us": 40.302099999999996
+        },
+        {
+          "wall_us": 44.12266584,
+          "cpu_us": 33.229980000000005
+        },
+        {
+          "wall_us": 52.44393084,
+          "cpu_us": 36.34406
+        }
+      ],
+      "medians_us": {
+        "wall_us": 51.4566775,
+        "cpu_us": 36.34406
+      },
+      "profile": null
+    },
+    "constant-omit-helper-bodies-a": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-fresh",
+      "backend": "rust",
+      "bookkeeping": "omit-helper-bodies",
+      "omitted_helper_bodies": [
+        "_refresh_client_encoding",
+        "_refresh_session_timeout",
+        "_update_transaction_state"
+      ],
+      "workload": "constant",
+      "iterations": 50000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "metadata": {
+        "revision": "8eddc2ecd97a384c23765c75df7dfd40788f083f",
+        "measured_at": "2026-09-20T12:53:43.959810+00:00",
+        "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]",
+        "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+        "machine": "arm64",
+        "processor": "arm",
+        "cpu_logical": 12,
+        "cpu_physical": 12,
+        "memory_bytes": 38654705664,
+        "driver": "0.1.0",
+        "driver_file": "/tmp/ferrocopg-phase5-schema-control-env/lib/python3.14/site-packages/ferrocopg/__init__.py",
+        "pool": "3.3.0",
+        "psutil": "7.2.2",
+        "libpq": 0,
+        "server": "PostgreSQL 15.19 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.1.1.101), 64-bit",
+        "server_settings": {
+          "fsync": "on",
+          "max_connections": "100",
+          "shared_buffers": "16384",
+          "ssl": "on",
+          "synchronous_commit": "on"
+        },
+        "vendored_revision": "6a52e77dc38827214b294759823a072841b4819f"
+      },
+      "installed_file_sha256": {
+        "ferrocopg": {
+          "ferrocopg/__init__.py": "546fa11ec65349b0e3727d7d81600545473bc2c6784bb4b7092939ddc59a5e8a",
+          "ferrocopg/_acompat.py": "a403fe13a8deb1d80e3ae7e9e532e1f2eb525917951e4f7fddc42b5f1d9ad78a",
+          "ferrocopg/_adapters_map.py": "573a8598e0f46bf7891768cf68d4bddf4e91dc22a3afb14bc9d4bfc1d44c4497",
+          "ferrocopg/_capabilities.py": "01d498d399be8394f2c47e7a72680ce0a9f26b424d017070286f69042c1768bd",
+          "ferrocopg/_cmodule.py": "81e27abbc8788aa62e1acbb7e80a035c1be39685fc44276106ca2f5873438bb2",
+          "ferrocopg/_column.py": "948799c75558d917f2af529254b0963dfb664069deb759d72377f2088d82e55f",
+          "ferrocopg/_compat.py": "9c82f8c18563c21f9b7dfb77d5650dcd24817357d9cc8a8a14e460aeed39b57e",
+          "ferrocopg/_connection_base.py": "e5c1d9409a6498ebaba6847e639fe4ba4a1ad8d6adf682495550cb16ed1cc843",
+          "ferrocopg/_connection_info.py": "1aab70228aeb12fe3578c60f2004b9b8bffbe3324c3a4727a2024e50eb0316c6",
+          "ferrocopg/_conninfo_attempts.py": "f69c721909cc0b12590c39a9aa22cb615ace62e23b268b674f8ba8c857aa2d49",
+          "ferrocopg/_conninfo_attempts_async.py": "5f7860a6950fb8924ff2d553392cddc79877a163682b61952f5debfdf6322451",
+          "ferrocopg/_conninfo_utils.py": "be0264539e6f23b54f7b3886418acdee5acfe0b7d50b4eb4952f2d9a196dd41d",
+          "ferrocopg/_copy.py": "694294daa5eac8aad365f6f5cc0d1f76fc73278e6bea34eab942abba7af98457",
+          "ferrocopg/_copy_async.py": "87d758f02dc08ca688c2751c1b1ff551464c0719f541be1a3a285cfda6f92ef9",
+          "ferrocopg/_copy_base.py": "29e85675bea40d0d8d95f9703c892e156d98097e54343d45543485d8a918c553",
+          "ferrocopg/_cursor_base.py": "26eaa0d80560f9b00c1de55d8a20de002b9cbf959da69d1e13d23d922beff0dc",
+          "ferrocopg/_dns.py": "d52e2b5c21504c4f8624ae5128389b80e78927a3631f9adef5bb613f4b4532a1",
+          "ferrocopg/_encodings.py": "f2b5aee1d5ad05dc70633c858eae42aa15569391c488abbb50a1289904c775c1",
+          "ferrocopg/_enums.py": "a12ee93f0f2c2e8bf999348b9f53972bf00d97938a4e870a60141524c311ada2",
+          "ferrocopg/_ferrocopg.py": "3b7de15c7b3315d1fef878132d8853d234d928b237cdf9a6e49366211bfbfda7",
+          "ferrocopg/_ferrocopg_async.py": "495f868b6c744048723233f0d435a8764a9c443c20ada8585701a228025e54e4",
+          "ferrocopg/_ferrocopg_conninfo.py": "52f36d4a20e724070fa302f656b97625c423910bf270ee1ef98e2a5878a0ed7a",
+          "ferrocopg/_official.py": "c487f9bf8e74296e9070a38956a6400463d01eb56df542d5b2427fa78b172b28",
+          "ferrocopg/_oids.py": "3018aeffa0b8a708ecf363699dd9bc1757817fc1c2029472dec2daeaf48fc9ba",
+          "ferrocopg/_pipeline.py": "b1660d2a5efdaa7aa326bc0d0810a2d5d9c40f90972eb9fa6115f658fa802a64",
+          "ferrocopg/_pipeline_async.py": "10c29922f2026a363ec02d4c64911f4a07ed7594b9107224e4ecc486b04da078",
+          "ferrocopg/_pipeline_base.py": "8fd4651b94e9a0f0bd7c2756c2f55ee031c87d5254cf7621aa33aa9ecc2ee9e1",
+          "ferrocopg/_pq_compat.py": "a62ed2f308dfe80ad09ad3d2c1442f784925d839b7eeb6cfb3f8666084a972c3",
+          "ferrocopg/_preparing.py": "7c35122400335ddd975a74c1957293fa9bc39b4ba178aca8997898a90161fc08",
+          "ferrocopg/_py_transformer.py": "a670653cd757f349691c4194ecb6c9c6b80ba145a7ade39ee163ab19a419fbdb",
+          "ferrocopg/_queries.py": "a417ac82e307e22c4d2bad16e465d675d461074d506ce87bd29c35a8e2da406b",
+          "ferrocopg/_rmodule.py": "8ba5fb0e347e4e2e1d590ce18697ba5e01aea46bffc023d8061c68a0c82c4075",
+          "ferrocopg/_rust/__init__.py": "a5e12579832dc3c26224e84931e265d9e9d73ae39de4dd5863261ded8eae16fb",
+          "ferrocopg/_rust/_ferrocopg.cpython-314-darwin.so": "81ecf7f6bd0e809c0849b38b4d9fb67026ef3904fca2a7a6e87766784d726dab",
+          "ferrocopg/_server_cursor.py": "21750953da98bac13405a344ebacd6f199a2e5dc92009951d6470aa3050ed9ee",
+          "ferrocopg/_server_cursor_async.py": "052d7171a9059b7cdc2fc30c107c27b5ed31be712916daeee7cc0081671813fb",
+          "ferrocopg/_server_cursor_base.py": "f09de914d8897c94f98f7018608946a6f777f9f4e6ea8355d397ed31b88566d7",
+          "ferrocopg/_struct.py": "4534cd5a1859380a7ffc90be3c812237812229994aba5d33995300701cf2c1e4",
+          "ferrocopg/_tpc.py": "dbaade36306eba1f01b0923c0cae9470154e9643e647d3886dce17dd4e0304dd",
+          "ferrocopg/_transformer.py": "0c13f69f598d6b61c30da0cb59c369f55188bacef797aae134511d3d6f022253",
+          "ferrocopg/_tstrings.py": "d0b2c62c72a3fa15cb79de1eb9e001767b99ed5f1e239876b2506ef5fe9af225",
+          "ferrocopg/_typeinfo.py": "c7e4338d7769ca92343474a83b6b3117af7ea79e914495bb5716f38078fa08ae",
+          "ferrocopg/_typemod.py": "519c0715f9d66d7ab167d508541ac9877eb9f7da686406998fae6ff04b1b209b",
+          "ferrocopg/_tz.py": "cd4a6cb4817c61eb9f2e226e425a1edc5f36c9698ed2c9e1933d7210178ae9d2",
+          "ferrocopg/_vendored.py": "d7bed31d3bbf6dafc67438d8e664327fd5298cb9d64e2479c8862e6b46c690c0",
+          "ferrocopg/_wrappers.py": "44fe56068002e5be1da6d2103ebc1f1904d3370c794d453c4b8f7ca4d149c904",
+          "ferrocopg/abc.py": "fbee4f53130738f5eac91df754d8f47ba668bf8f8d6f4a033792d70436f105dc",
+          "ferrocopg/adapt.py": "2fe49726f5f5fe28c557c4ea5c5d70d33687a4effef1b1995a7c0ad92318af20",
+          "ferrocopg/client_cursor.py": "2fdefb4f10614c4e0877f030f50bb91d5cc83a79d053e839527d51cbf414facf",
+          "ferrocopg/connection.py": "a98d8bb030cdf722f2b2d40bf32511e70b9dd5dcb6a8045b76f49038016f920b",
+          "ferrocopg/connection_async.py": "bef827def258fdb35f85f80570be0da10a318835e1fe9de9a419e51c00373f19",
+          "ferrocopg/conninfo.py": "0c2facbafd48a307b061e4754302780fa2e477cf2a4e50c434b39540f8121e5d",
+          "ferrocopg/copy.py": "fd5ef68e9d835ebd931ecaa8f52e9c6a1bde328d10b819777e78a0b74ac699b7",
+          "ferrocopg/crdb/__init__.py": "674c11bec482fc2a5a38159f5828a5c0fd2c37a037f88561403e5c95d826fdd1",
+          "ferrocopg/crdb/_types.py": "283cc0f275c3e875304f8691dfbd41ba029f65f72a78b1c8bb563a628d074d60",
+          "ferrocopg/crdb/connection.py": "a8da57e56ed1cb1d84dc645d40b939c86d384752d68aa0f29804513f28761ece",
+          "ferrocopg/cursor.py": "2a0298ca456fa181f1c5d9e878bb48feb7c797b88fd344e0891c851b83720324",
+          "ferrocopg/cursor_async.py": "baec93de14348d41f65a9d8eadfcbe7338f0a01c92c2210479bb89a25d0826ff",
+          "ferrocopg/dbapi20.py": "a6f014d21dad513dfe07705bc5cda597353d5baa9135b763452bc561dc332746",
+          "ferrocopg/errors.py": "ebea98455325d066f3eaf118c6deb2d59b08466aec67574c853bdeb236f7b3d8",
+          "ferrocopg/generators.py": "4b1e11adc3ec50ef4e701251c757c34a43cb884a882f19d35ddbc9a9dd07f714",
+          "ferrocopg/postgres.py": "0eb279075bbdf5b934feb135b72269b41b05c00a1f1054cd8256235b9ab19c48",
+          "ferrocopg/pq/__init__.py": "1efd0f1f982ec2f6ac4f9d690f7d15b1f7f065e92bb69e5e8bf1a4ebff6d4b7b",
+          "ferrocopg/pq/_debug.py": "46cc6b5a7c1a48f303a1e8a66bd7fd499c2d598a17fb12c16a4165949c731ae8",
+          "ferrocopg/pq/_enums.py": "7a1f64faaf282234de50deaa2f668f98ea5133848e2a4d567712bc2a91865736",
+          "ferrocopg/pq/_pq_ctypes.py": "58b41863728ebf870f582d953cb1cf27eaecd2cd90c0bf377a9e0c21fa384313",
+          "ferrocopg/pq/abc.py": "fc7d65f6dcceaa38de327db8d86582c89dbb7cb37889f9f9e573bbc5e5baebf1",
+          "ferrocopg/pq/misc.py": "0c532bf94bf34663aa54fe46f4e6893229e24f6edfc992d894e238ff6c3303c3",
+          "ferrocopg/pq/pq_ctypes.py": "b235fbaac78cf8c460eef441ca02d7a0b848061bc9c2b2bfc8cab330d4c4d17b",
+          "ferrocopg/raw_cursor.py": "be393a35719812560224a3a8a6584dd74fce48ba25871503d9cda28b49985359",
+          "ferrocopg/rows.py": "2aadc647f25969d31a391ba0d425f32c8ca17b08eb8b8e4a96b995ef64ae57bc",
+          "ferrocopg/sql.py": "679c0af3847fed2ca6164c291624041a7ecfbd2eab3e20c4c3e4da88164c9fdb",
+          "ferrocopg/transaction.py": "7180361011696beee7f81079bd7f4c79f7eade64899241bd290c99f9a50aabd4",
+          "ferrocopg/types/__init__.py": "f9f8e78c80557763144d136b9f52c886b9c6af9deb76af0fc29bd422f8d5968d",
+          "ferrocopg/types/array.py": "c1abe21b3f83a26b3bbc1b42af6ca305d664e88eea5a06fda9c38c2fa26d0fa3",
+          "ferrocopg/types/bool.py": "e1e9426247c6d3e4c6fc7733c9f7f0378f32d52bdfbe5a461fafbfdb565a5802",
+          "ferrocopg/types/composite.py": "17ccfcd0b84499dc17a543a08c024f4ffc1ce830dcdbd41da8105d917d7805c5",
+          "ferrocopg/types/datetime.py": "1966558989811be6c9ef04b8a8d293ec261ab53456921ee8a5f14b4e27336ddc",
+          "ferrocopg/types/enum.py": "d476f10a9e4668d03207f30ae3671d8971cc55ea06ff51f67c52d4d843137006",
+          "ferrocopg/types/hstore.py": "fc3b4dff304794b9384110bdeea49ecc3032853536c6a47e36c8c380f89ace8f",
+          "ferrocopg/types/json.py": "5be25df080ad379f319159b5da5f1b7e6fd53fd3a96ba67463fe73e247c535a5",
+          "ferrocopg/types/multirange.py": "8c7ab3fd303783955195f9986dce068cc129578619b1c090afb335073b1996b6",
+          "ferrocopg/types/net.py": "baee8032fe6d0df2e79a7a6bd018273066ee258767abb5c934d5085cfea20ee2",
+          "ferrocopg/types/none.py": "832fce26a13562c949d91222c7412adf1d01f083dfa07f8671cdac40c20ed12c",
+          "ferrocopg/types/numeric.py": "1a3ec260bb2f1d6a7bb6aab1f33596a14b8dbd310f0350e7cac8f651d8d285df",
+          "ferrocopg/types/numpy.py": "83d8ea55882a45a3060fec4f5fee3735c2bcba5468ae4d60f920275c47f16bc1",
+          "ferrocopg/types/range.py": "41a499003f6b5cc38b0e2651a14184ac1a00db15354a158a3fbe387e82376fc0",
+          "ferrocopg/types/shapely.py": "774afee614da1cabfa6914e43a7ed11a300333486fd51728cb5c44ff935c48e1",
+          "ferrocopg/types/string.py": "0a882dc425fd4f54f37ff511d463da7156dba5342c1b49a4a594ee25b963fb4c",
+          "ferrocopg/types/uuid.py": "c1cb8abde3e630af09b12b9d0253fc165fc0d3dc5cab3a7204c45cee63ff6f03",
+          "ferrocopg/version.py": "0728b2e275d6c29cafe11f694f9dbe56a92925783eb9318935fe70b74bc03bac",
+          "ferrocopg/waiting.py": "239c7fdf77bdcb7d5ff11c451833f2ea98262446ea401819b3cad981a5fc4412"
+        }
+      },
+      "samples": [
+        {
+          "wall_us": 39.5400675,
+          "cpu_us": 28.50152
+        },
+        {
+          "wall_us": 40.17885416,
+          "cpu_us": 28.89716
+        },
+        {
+          "wall_us": 39.36681,
+          "cpu_us": 28.423
+        },
+        {
+          "wall_us": 39.45555416,
+          "cpu_us": 28.513939999999998
+        },
+        {
+          "wall_us": 39.369455,
+          "cpu_us": 28.422
+        },
+        {
+          "wall_us": 39.41342832,
+          "cpu_us": 28.39758
+        },
+        {
+          "wall_us": 40.470981679999994,
+          "cpu_us": 29.21484
+        },
+        {
+          "wall_us": 39.4402975,
+          "cpu_us": 28.40442
+        },
+        {
+          "wall_us": 39.769121659999996,
+          "cpu_us": 28.63516
+        }
+      ],
+      "medians_us": {
+        "wall_us": 39.45555416,
+        "cpu_us": 28.50152
+      },
+      "profile": null
+    },
+    "constant-normal-a": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-fresh",
+      "backend": "rust",
+      "bookkeeping": "normal",
+      "omitted_helper_bodies": [],
+      "workload": "constant",
+      "iterations": 50000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "metadata": {
+        "revision": "8eddc2ecd97a384c23765c75df7dfd40788f083f",
+        "measured_at": "2026-09-20T12:53:25.062323+00:00",
+        "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]",
+        "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+        "machine": "arm64",
+        "processor": "arm",
+        "cpu_logical": 12,
+        "cpu_physical": 12,
+        "memory_bytes": 38654705664,
+        "driver": "0.1.0",
+        "driver_file": "/tmp/ferrocopg-phase5-schema-control-env/lib/python3.14/site-packages/ferrocopg/__init__.py",
+        "pool": "3.3.0",
+        "psutil": "7.2.2",
+        "libpq": 0,
+        "server": "PostgreSQL 15.19 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.1.1.101), 64-bit",
+        "server_settings": {
+          "fsync": "on",
+          "max_connections": "100",
+          "shared_buffers": "16384",
+          "ssl": "on",
+          "synchronous_commit": "on"
+        },
+        "vendored_revision": "6a52e77dc38827214b294759823a072841b4819f"
+      },
+      "installed_file_sha256": {
+        "ferrocopg": {
+          "ferrocopg/__init__.py": "546fa11ec65349b0e3727d7d81600545473bc2c6784bb4b7092939ddc59a5e8a",
+          "ferrocopg/_acompat.py": "a403fe13a8deb1d80e3ae7e9e532e1f2eb525917951e4f7fddc42b5f1d9ad78a",
+          "ferrocopg/_adapters_map.py": "573a8598e0f46bf7891768cf68d4bddf4e91dc22a3afb14bc9d4bfc1d44c4497",
+          "ferrocopg/_capabilities.py": "01d498d399be8394f2c47e7a72680ce0a9f26b424d017070286f69042c1768bd",
+          "ferrocopg/_cmodule.py": "81e27abbc8788aa62e1acbb7e80a035c1be39685fc44276106ca2f5873438bb2",
+          "ferrocopg/_column.py": "948799c75558d917f2af529254b0963dfb664069deb759d72377f2088d82e55f",
+          "ferrocopg/_compat.py": "9c82f8c18563c21f9b7dfb77d5650dcd24817357d9cc8a8a14e460aeed39b57e",
+          "ferrocopg/_connection_base.py": "e5c1d9409a6498ebaba6847e639fe4ba4a1ad8d6adf682495550cb16ed1cc843",
+          "ferrocopg/_connection_info.py": "1aab70228aeb12fe3578c60f2004b9b8bffbe3324c3a4727a2024e50eb0316c6",
+          "ferrocopg/_conninfo_attempts.py": "f69c721909cc0b12590c39a9aa22cb615ace62e23b268b674f8ba8c857aa2d49",
+          "ferrocopg/_conninfo_attempts_async.py": "5f7860a6950fb8924ff2d553392cddc79877a163682b61952f5debfdf6322451",
+          "ferrocopg/_conninfo_utils.py": "be0264539e6f23b54f7b3886418acdee5acfe0b7d50b4eb4952f2d9a196dd41d",
+          "ferrocopg/_copy.py": "694294daa5eac8aad365f6f5cc0d1f76fc73278e6bea34eab942abba7af98457",
+          "ferrocopg/_copy_async.py": "87d758f02dc08ca688c2751c1b1ff551464c0719f541be1a3a285cfda6f92ef9",
+          "ferrocopg/_copy_base.py": "29e85675bea40d0d8d95f9703c892e156d98097e54343d45543485d8a918c553",
+          "ferrocopg/_cursor_base.py": "26eaa0d80560f9b00c1de55d8a20de002b9cbf959da69d1e13d23d922beff0dc",
+          "ferrocopg/_dns.py": "d52e2b5c21504c4f8624ae5128389b80e78927a3631f9adef5bb613f4b4532a1",
+          "ferrocopg/_encodings.py": "f2b5aee1d5ad05dc70633c858eae42aa15569391c488abbb50a1289904c775c1",
+          "ferrocopg/_enums.py": "a12ee93f0f2c2e8bf999348b9f53972bf00d97938a4e870a60141524c311ada2",
+          "ferrocopg/_ferrocopg.py": "3b7de15c7b3315d1fef878132d8853d234d928b237cdf9a6e49366211bfbfda7",
+          "ferrocopg/_ferrocopg_async.py": "495f868b6c744048723233f0d435a8764a9c443c20ada8585701a228025e54e4",
+          "ferrocopg/_ferrocopg_conninfo.py": "52f36d4a20e724070fa302f656b97625c423910bf270ee1ef98e2a5878a0ed7a",
+          "ferrocopg/_official.py": "c487f9bf8e74296e9070a38956a6400463d01eb56df542d5b2427fa78b172b28",
+          "ferrocopg/_oids.py": "3018aeffa0b8a708ecf363699dd9bc1757817fc1c2029472dec2daeaf48fc9ba",
+          "ferrocopg/_pipeline.py": "b1660d2a5efdaa7aa326bc0d0810a2d5d9c40f90972eb9fa6115f658fa802a64",
+          "ferrocopg/_pipeline_async.py": "10c29922f2026a363ec02d4c64911f4a07ed7594b9107224e4ecc486b04da078",
+          "ferrocopg/_pipeline_base.py": "8fd4651b94e9a0f0bd7c2756c2f55ee031c87d5254cf7621aa33aa9ecc2ee9e1",
+          "ferrocopg/_pq_compat.py": "a62ed2f308dfe80ad09ad3d2c1442f784925d839b7eeb6cfb3f8666084a972c3",
+          "ferrocopg/_preparing.py": "7c35122400335ddd975a74c1957293fa9bc39b4ba178aca8997898a90161fc08",
+          "ferrocopg/_py_transformer.py": "a670653cd757f349691c4194ecb6c9c6b80ba145a7ade39ee163ab19a419fbdb",
+          "ferrocopg/_queries.py": "a417ac82e307e22c4d2bad16e465d675d461074d506ce87bd29c35a8e2da406b",
+          "ferrocopg/_rmodule.py": "8ba5fb0e347e4e2e1d590ce18697ba5e01aea46bffc023d8061c68a0c82c4075",
+          "ferrocopg/_rust/__init__.py": "a5e12579832dc3c26224e84931e265d9e9d73ae39de4dd5863261ded8eae16fb",
+          "ferrocopg/_rust/_ferrocopg.cpython-314-darwin.so": "81ecf7f6bd0e809c0849b38b4d9fb67026ef3904fca2a7a6e87766784d726dab",
+          "ferrocopg/_server_cursor.py": "21750953da98bac13405a344ebacd6f199a2e5dc92009951d6470aa3050ed9ee",
+          "ferrocopg/_server_cursor_async.py": "052d7171a9059b7cdc2fc30c107c27b5ed31be712916daeee7cc0081671813fb",
+          "ferrocopg/_server_cursor_base.py": "f09de914d8897c94f98f7018608946a6f777f9f4e6ea8355d397ed31b88566d7",
+          "ferrocopg/_struct.py": "4534cd5a1859380a7ffc90be3c812237812229994aba5d33995300701cf2c1e4",
+          "ferrocopg/_tpc.py": "dbaade36306eba1f01b0923c0cae9470154e9643e647d3886dce17dd4e0304dd",
+          "ferrocopg/_transformer.py": "0c13f69f598d6b61c30da0cb59c369f55188bacef797aae134511d3d6f022253",
+          "ferrocopg/_tstrings.py": "d0b2c62c72a3fa15cb79de1eb9e001767b99ed5f1e239876b2506ef5fe9af225",
+          "ferrocopg/_typeinfo.py": "c7e4338d7769ca92343474a83b6b3117af7ea79e914495bb5716f38078fa08ae",
+          "ferrocopg/_typemod.py": "519c0715f9d66d7ab167d508541ac9877eb9f7da686406998fae6ff04b1b209b",
+          "ferrocopg/_tz.py": "cd4a6cb4817c61eb9f2e226e425a1edc5f36c9698ed2c9e1933d7210178ae9d2",
+          "ferrocopg/_vendored.py": "d7bed31d3bbf6dafc67438d8e664327fd5298cb9d64e2479c8862e6b46c690c0",
+          "ferrocopg/_wrappers.py": "44fe56068002e5be1da6d2103ebc1f1904d3370c794d453c4b8f7ca4d149c904",
+          "ferrocopg/abc.py": "fbee4f53130738f5eac91df754d8f47ba668bf8f8d6f4a033792d70436f105dc",
+          "ferrocopg/adapt.py": "2fe49726f5f5fe28c557c4ea5c5d70d33687a4effef1b1995a7c0ad92318af20",
+          "ferrocopg/client_cursor.py": "2fdefb4f10614c4e0877f030f50bb91d5cc83a79d053e839527d51cbf414facf",
+          "ferrocopg/connection.py": "a98d8bb030cdf722f2b2d40bf32511e70b9dd5dcb6a8045b76f49038016f920b",
+          "ferrocopg/connection_async.py": "bef827def258fdb35f85f80570be0da10a318835e1fe9de9a419e51c00373f19",
+          "ferrocopg/conninfo.py": "0c2facbafd48a307b061e4754302780fa2e477cf2a4e50c434b39540f8121e5d",
+          "ferrocopg/copy.py": "fd5ef68e9d835ebd931ecaa8f52e9c6a1bde328d10b819777e78a0b74ac699b7",
+          "ferrocopg/crdb/__init__.py": "674c11bec482fc2a5a38159f5828a5c0fd2c37a037f88561403e5c95d826fdd1",
+          "ferrocopg/crdb/_types.py": "283cc0f275c3e875304f8691dfbd41ba029f65f72a78b1c8bb563a628d074d60",
+          "ferrocopg/crdb/connection.py": "a8da57e56ed1cb1d84dc645d40b939c86d384752d68aa0f29804513f28761ece",
+          "ferrocopg/cursor.py": "2a0298ca456fa181f1c5d9e878bb48feb7c797b88fd344e0891c851b83720324",
+          "ferrocopg/cursor_async.py": "baec93de14348d41f65a9d8eadfcbe7338f0a01c92c2210479bb89a25d0826ff",
+          "ferrocopg/dbapi20.py": "a6f014d21dad513dfe07705bc5cda597353d5baa9135b763452bc561dc332746",
+          "ferrocopg/errors.py": "ebea98455325d066f3eaf118c6deb2d59b08466aec67574c853bdeb236f7b3d8",
+          "ferrocopg/generators.py": "4b1e11adc3ec50ef4e701251c757c34a43cb884a882f19d35ddbc9a9dd07f714",
+          "ferrocopg/postgres.py": "0eb279075bbdf5b934feb135b72269b41b05c00a1f1054cd8256235b9ab19c48",
+          "ferrocopg/pq/__init__.py": "1efd0f1f982ec2f6ac4f9d690f7d15b1f7f065e92bb69e5e8bf1a4ebff6d4b7b",
+          "ferrocopg/pq/_debug.py": "46cc6b5a7c1a48f303a1e8a66bd7fd499c2d598a17fb12c16a4165949c731ae8",
+          "ferrocopg/pq/_enums.py": "7a1f64faaf282234de50deaa2f668f98ea5133848e2a4d567712bc2a91865736",
+          "ferrocopg/pq/_pq_ctypes.py": "58b41863728ebf870f582d953cb1cf27eaecd2cd90c0bf377a9e0c21fa384313",
+          "ferrocopg/pq/abc.py": "fc7d65f6dcceaa38de327db8d86582c89dbb7cb37889f9f9e573bbc5e5baebf1",
+          "ferrocopg/pq/misc.py": "0c532bf94bf34663aa54fe46f4e6893229e24f6edfc992d894e238ff6c3303c3",
+          "ferrocopg/pq/pq_ctypes.py": "b235fbaac78cf8c460eef441ca02d7a0b848061bc9c2b2bfc8cab330d4c4d17b",
+          "ferrocopg/raw_cursor.py": "be393a35719812560224a3a8a6584dd74fce48ba25871503d9cda28b49985359",
+          "ferrocopg/rows.py": "2aadc647f25969d31a391ba0d425f32c8ca17b08eb8b8e4a96b995ef64ae57bc",
+          "ferrocopg/sql.py": "679c0af3847fed2ca6164c291624041a7ecfbd2eab3e20c4c3e4da88164c9fdb",
+          "ferrocopg/transaction.py": "7180361011696beee7f81079bd7f4c79f7eade64899241bd290c99f9a50aabd4",
+          "ferrocopg/types/__init__.py": "f9f8e78c80557763144d136b9f52c886b9c6af9deb76af0fc29bd422f8d5968d",
+          "ferrocopg/types/array.py": "c1abe21b3f83a26b3bbc1b42af6ca305d664e88eea5a06fda9c38c2fa26d0fa3",
+          "ferrocopg/types/bool.py": "e1e9426247c6d3e4c6fc7733c9f7f0378f32d52bdfbe5a461fafbfdb565a5802",
+          "ferrocopg/types/composite.py": "17ccfcd0b84499dc17a543a08c024f4ffc1ce830dcdbd41da8105d917d7805c5",
+          "ferrocopg/types/datetime.py": "1966558989811be6c9ef04b8a8d293ec261ab53456921ee8a5f14b4e27336ddc",
+          "ferrocopg/types/enum.py": "d476f10a9e4668d03207f30ae3671d8971cc55ea06ff51f67c52d4d843137006",
+          "ferrocopg/types/hstore.py": "fc3b4dff304794b9384110bdeea49ecc3032853536c6a47e36c8c380f89ace8f",
+          "ferrocopg/types/json.py": "5be25df080ad379f319159b5da5f1b7e6fd53fd3a96ba67463fe73e247c535a5",
+          "ferrocopg/types/multirange.py": "8c7ab3fd303783955195f9986dce068cc129578619b1c090afb335073b1996b6",
+          "ferrocopg/types/net.py": "baee8032fe6d0df2e79a7a6bd018273066ee258767abb5c934d5085cfea20ee2",
+          "ferrocopg/types/none.py": "832fce26a13562c949d91222c7412adf1d01f083dfa07f8671cdac40c20ed12c",
+          "ferrocopg/types/numeric.py": "1a3ec260bb2f1d6a7bb6aab1f33596a14b8dbd310f0350e7cac8f651d8d285df",
+          "ferrocopg/types/numpy.py": "83d8ea55882a45a3060fec4f5fee3735c2bcba5468ae4d60f920275c47f16bc1",
+          "ferrocopg/types/range.py": "41a499003f6b5cc38b0e2651a14184ac1a00db15354a158a3fbe387e82376fc0",
+          "ferrocopg/types/shapely.py": "774afee614da1cabfa6914e43a7ed11a300333486fd51728cb5c44ff935c48e1",
+          "ferrocopg/types/string.py": "0a882dc425fd4f54f37ff511d463da7156dba5342c1b49a4a594ee25b963fb4c",
+          "ferrocopg/types/uuid.py": "c1cb8abde3e630af09b12b9d0253fc165fc0d3dc5cab3a7204c45cee63ff6f03",
+          "ferrocopg/version.py": "0728b2e275d6c29cafe11f694f9dbe56a92925783eb9318935fe70b74bc03bac",
+          "ferrocopg/waiting.py": "239c7fdf77bdcb7d5ff11c451833f2ea98262446ea401819b3cad981a5fc4412"
+        }
+      },
+      "samples": [
+        {
+          "wall_us": 40.918245000000006,
+          "cpu_us": 29.31622
+        },
+        {
+          "wall_us": 51.07396584,
+          "cpu_us": 31.91446
+        },
+        {
+          "wall_us": 40.70819334,
+          "cpu_us": 29.10116
+        },
+        {
+          "wall_us": 40.630293339999994,
+          "cpu_us": 29.4294
+        },
+        {
+          "wall_us": 40.54420916,
+          "cpu_us": 29.43254
+        },
+        {
+          "wall_us": 40.12996334,
+          "cpu_us": 29.1662
+        },
+        {
+          "wall_us": 40.479495840000006,
+          "cpu_us": 29.398220000000002
+        },
+        {
+          "wall_us": 39.93618332,
+          "cpu_us": 29.02198
+        },
+        {
+          "wall_us": 39.88500332,
+          "cpu_us": 28.9866
+        }
+      ],
+      "medians_us": {
+        "wall_us": 40.54420916,
+        "cpu_us": 29.31622
+      },
+      "profile": null
+    },
+    "parameterized-omit-helper-bodies-a": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-fresh",
+      "backend": "rust",
+      "bookkeeping": "omit-helper-bodies",
+      "omitted_helper_bodies": [
+        "_refresh_client_encoding",
+        "_refresh_session_timeout",
+        "_update_transaction_state"
+      ],
+      "workload": "parameterized",
+      "iterations": 50000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "metadata": {
+        "revision": "8eddc2ecd97a384c23765c75df7dfd40788f083f",
+        "measured_at": "2026-09-20T12:54:23.435249+00:00",
+        "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]",
+        "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+        "machine": "arm64",
+        "processor": "arm",
+        "cpu_logical": 12,
+        "cpu_physical": 12,
+        "memory_bytes": 38654705664,
+        "driver": "0.1.0",
+        "driver_file": "/tmp/ferrocopg-phase5-schema-control-env/lib/python3.14/site-packages/ferrocopg/__init__.py",
+        "pool": "3.3.0",
+        "psutil": "7.2.2",
+        "libpq": 0,
+        "server": "PostgreSQL 15.19 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.1.1.101), 64-bit",
+        "server_settings": {
+          "fsync": "on",
+          "max_connections": "100",
+          "shared_buffers": "16384",
+          "ssl": "on",
+          "synchronous_commit": "on"
+        },
+        "vendored_revision": "6a52e77dc38827214b294759823a072841b4819f"
+      },
+      "installed_file_sha256": {
+        "ferrocopg": {
+          "ferrocopg/__init__.py": "546fa11ec65349b0e3727d7d81600545473bc2c6784bb4b7092939ddc59a5e8a",
+          "ferrocopg/_acompat.py": "a403fe13a8deb1d80e3ae7e9e532e1f2eb525917951e4f7fddc42b5f1d9ad78a",
+          "ferrocopg/_adapters_map.py": "573a8598e0f46bf7891768cf68d4bddf4e91dc22a3afb14bc9d4bfc1d44c4497",
+          "ferrocopg/_capabilities.py": "01d498d399be8394f2c47e7a72680ce0a9f26b424d017070286f69042c1768bd",
+          "ferrocopg/_cmodule.py": "81e27abbc8788aa62e1acbb7e80a035c1be39685fc44276106ca2f5873438bb2",
+          "ferrocopg/_column.py": "948799c75558d917f2af529254b0963dfb664069deb759d72377f2088d82e55f",
+          "ferrocopg/_compat.py": "9c82f8c18563c21f9b7dfb77d5650dcd24817357d9cc8a8a14e460aeed39b57e",
+          "ferrocopg/_connection_base.py": "e5c1d9409a6498ebaba6847e639fe4ba4a1ad8d6adf682495550cb16ed1cc843",
+          "ferrocopg/_connection_info.py": "1aab70228aeb12fe3578c60f2004b9b8bffbe3324c3a4727a2024e50eb0316c6",
+          "ferrocopg/_conninfo_attempts.py": "f69c721909cc0b12590c39a9aa22cb615ace62e23b268b674f8ba8c857aa2d49",
+          "ferrocopg/_conninfo_attempts_async.py": "5f7860a6950fb8924ff2d553392cddc79877a163682b61952f5debfdf6322451",
+          "ferrocopg/_conninfo_utils.py": "be0264539e6f23b54f7b3886418acdee5acfe0b7d50b4eb4952f2d9a196dd41d",
+          "ferrocopg/_copy.py": "694294daa5eac8aad365f6f5cc0d1f76fc73278e6bea34eab942abba7af98457",
+          "ferrocopg/_copy_async.py": "87d758f02dc08ca688c2751c1b1ff551464c0719f541be1a3a285cfda6f92ef9",
+          "ferrocopg/_copy_base.py": "29e85675bea40d0d8d95f9703c892e156d98097e54343d45543485d8a918c553",
+          "ferrocopg/_cursor_base.py": "26eaa0d80560f9b00c1de55d8a20de002b9cbf959da69d1e13d23d922beff0dc",
+          "ferrocopg/_dns.py": "d52e2b5c21504c4f8624ae5128389b80e78927a3631f9adef5bb613f4b4532a1",
+          "ferrocopg/_encodings.py": "f2b5aee1d5ad05dc70633c858eae42aa15569391c488abbb50a1289904c775c1",
+          "ferrocopg/_enums.py": "a12ee93f0f2c2e8bf999348b9f53972bf00d97938a4e870a60141524c311ada2",
+          "ferrocopg/_ferrocopg.py": "3b7de15c7b3315d1fef878132d8853d234d928b237cdf9a6e49366211bfbfda7",
+          "ferrocopg/_ferrocopg_async.py": "495f868b6c744048723233f0d435a8764a9c443c20ada8585701a228025e54e4",
+          "ferrocopg/_ferrocopg_conninfo.py": "52f36d4a20e724070fa302f656b97625c423910bf270ee1ef98e2a5878a0ed7a",
+          "ferrocopg/_official.py": "c487f9bf8e74296e9070a38956a6400463d01eb56df542d5b2427fa78b172b28",
+          "ferrocopg/_oids.py": "3018aeffa0b8a708ecf363699dd9bc1757817fc1c2029472dec2daeaf48fc9ba",
+          "ferrocopg/_pipeline.py": "b1660d2a5efdaa7aa326bc0d0810a2d5d9c40f90972eb9fa6115f658fa802a64",
+          "ferrocopg/_pipeline_async.py": "10c29922f2026a363ec02d4c64911f4a07ed7594b9107224e4ecc486b04da078",
+          "ferrocopg/_pipeline_base.py": "8fd4651b94e9a0f0bd7c2756c2f55ee031c87d5254cf7621aa33aa9ecc2ee9e1",
+          "ferrocopg/_pq_compat.py": "a62ed2f308dfe80ad09ad3d2c1442f784925d839b7eeb6cfb3f8666084a972c3",
+          "ferrocopg/_preparing.py": "7c35122400335ddd975a74c1957293fa9bc39b4ba178aca8997898a90161fc08",
+          "ferrocopg/_py_transformer.py": "a670653cd757f349691c4194ecb6c9c6b80ba145a7ade39ee163ab19a419fbdb",
+          "ferrocopg/_queries.py": "a417ac82e307e22c4d2bad16e465d675d461074d506ce87bd29c35a8e2da406b",
+          "ferrocopg/_rmodule.py": "8ba5fb0e347e4e2e1d590ce18697ba5e01aea46bffc023d8061c68a0c82c4075",
+          "ferrocopg/_rust/__init__.py": "a5e12579832dc3c26224e84931e265d9e9d73ae39de4dd5863261ded8eae16fb",
+          "ferrocopg/_rust/_ferrocopg.cpython-314-darwin.so": "81ecf7f6bd0e809c0849b38b4d9fb67026ef3904fca2a7a6e87766784d726dab",
+          "ferrocopg/_server_cursor.py": "21750953da98bac13405a344ebacd6f199a2e5dc92009951d6470aa3050ed9ee",
+          "ferrocopg/_server_cursor_async.py": "052d7171a9059b7cdc2fc30c107c27b5ed31be712916daeee7cc0081671813fb",
+          "ferrocopg/_server_cursor_base.py": "f09de914d8897c94f98f7018608946a6f777f9f4e6ea8355d397ed31b88566d7",
+          "ferrocopg/_struct.py": "4534cd5a1859380a7ffc90be3c812237812229994aba5d33995300701cf2c1e4",
+          "ferrocopg/_tpc.py": "dbaade36306eba1f01b0923c0cae9470154e9643e647d3886dce17dd4e0304dd",
+          "ferrocopg/_transformer.py": "0c13f69f598d6b61c30da0cb59c369f55188bacef797aae134511d3d6f022253",
+          "ferrocopg/_tstrings.py": "d0b2c62c72a3fa15cb79de1eb9e001767b99ed5f1e239876b2506ef5fe9af225",
+          "ferrocopg/_typeinfo.py": "c7e4338d7769ca92343474a83b6b3117af7ea79e914495bb5716f38078fa08ae",
+          "ferrocopg/_typemod.py": "519c0715f9d66d7ab167d508541ac9877eb9f7da686406998fae6ff04b1b209b",
+          "ferrocopg/_tz.py": "cd4a6cb4817c61eb9f2e226e425a1edc5f36c9698ed2c9e1933d7210178ae9d2",
+          "ferrocopg/_vendored.py": "d7bed31d3bbf6dafc67438d8e664327fd5298cb9d64e2479c8862e6b46c690c0",
+          "ferrocopg/_wrappers.py": "44fe56068002e5be1da6d2103ebc1f1904d3370c794d453c4b8f7ca4d149c904",
+          "ferrocopg/abc.py": "fbee4f53130738f5eac91df754d8f47ba668bf8f8d6f4a033792d70436f105dc",
+          "ferrocopg/adapt.py": "2fe49726f5f5fe28c557c4ea5c5d70d33687a4effef1b1995a7c0ad92318af20",
+          "ferrocopg/client_cursor.py": "2fdefb4f10614c4e0877f030f50bb91d5cc83a79d053e839527d51cbf414facf",
+          "ferrocopg/connection.py": "a98d8bb030cdf722f2b2d40bf32511e70b9dd5dcb6a8045b76f49038016f920b",
+          "ferrocopg/connection_async.py": "bef827def258fdb35f85f80570be0da10a318835e1fe9de9a419e51c00373f19",
+          "ferrocopg/conninfo.py": "0c2facbafd48a307b061e4754302780fa2e477cf2a4e50c434b39540f8121e5d",
+          "ferrocopg/copy.py": "fd5ef68e9d835ebd931ecaa8f52e9c6a1bde328d10b819777e78a0b74ac699b7",
+          "ferrocopg/crdb/__init__.py": "674c11bec482fc2a5a38159f5828a5c0fd2c37a037f88561403e5c95d826fdd1",
+          "ferrocopg/crdb/_types.py": "283cc0f275c3e875304f8691dfbd41ba029f65f72a78b1c8bb563a628d074d60",
+          "ferrocopg/crdb/connection.py": "a8da57e56ed1cb1d84dc645d40b939c86d384752d68aa0f29804513f28761ece",
+          "ferrocopg/cursor.py": "2a0298ca456fa181f1c5d9e878bb48feb7c797b88fd344e0891c851b83720324",
+          "ferrocopg/cursor_async.py": "baec93de14348d41f65a9d8eadfcbe7338f0a01c92c2210479bb89a25d0826ff",
+          "ferrocopg/dbapi20.py": "a6f014d21dad513dfe07705bc5cda597353d5baa9135b763452bc561dc332746",
+          "ferrocopg/errors.py": "ebea98455325d066f3eaf118c6deb2d59b08466aec67574c853bdeb236f7b3d8",
+          "ferrocopg/generators.py": "4b1e11adc3ec50ef4e701251c757c34a43cb884a882f19d35ddbc9a9dd07f714",
+          "ferrocopg/postgres.py": "0eb279075bbdf5b934feb135b72269b41b05c00a1f1054cd8256235b9ab19c48",
+          "ferrocopg/pq/__init__.py": "1efd0f1f982ec2f6ac4f9d690f7d15b1f7f065e92bb69e5e8bf1a4ebff6d4b7b",
+          "ferrocopg/pq/_debug.py": "46cc6b5a7c1a48f303a1e8a66bd7fd499c2d598a17fb12c16a4165949c731ae8",
+          "ferrocopg/pq/_enums.py": "7a1f64faaf282234de50deaa2f668f98ea5133848e2a4d567712bc2a91865736",
+          "ferrocopg/pq/_pq_ctypes.py": "58b41863728ebf870f582d953cb1cf27eaecd2cd90c0bf377a9e0c21fa384313",
+          "ferrocopg/pq/abc.py": "fc7d65f6dcceaa38de327db8d86582c89dbb7cb37889f9f9e573bbc5e5baebf1",
+          "ferrocopg/pq/misc.py": "0c532bf94bf34663aa54fe46f4e6893229e24f6edfc992d894e238ff6c3303c3",
+          "ferrocopg/pq/pq_ctypes.py": "b235fbaac78cf8c460eef441ca02d7a0b848061bc9c2b2bfc8cab330d4c4d17b",
+          "ferrocopg/raw_cursor.py": "be393a35719812560224a3a8a6584dd74fce48ba25871503d9cda28b49985359",
+          "ferrocopg/rows.py": "2aadc647f25969d31a391ba0d425f32c8ca17b08eb8b8e4a96b995ef64ae57bc",
+          "ferrocopg/sql.py": "679c0af3847fed2ca6164c291624041a7ecfbd2eab3e20c4c3e4da88164c9fdb",
+          "ferrocopg/transaction.py": "7180361011696beee7f81079bd7f4c79f7eade64899241bd290c99f9a50aabd4",
+          "ferrocopg/types/__init__.py": "f9f8e78c80557763144d136b9f52c886b9c6af9deb76af0fc29bd422f8d5968d",
+          "ferrocopg/types/array.py": "c1abe21b3f83a26b3bbc1b42af6ca305d664e88eea5a06fda9c38c2fa26d0fa3",
+          "ferrocopg/types/bool.py": "e1e9426247c6d3e4c6fc7733c9f7f0378f32d52bdfbe5a461fafbfdb565a5802",
+          "ferrocopg/types/composite.py": "17ccfcd0b84499dc17a543a08c024f4ffc1ce830dcdbd41da8105d917d7805c5",
+          "ferrocopg/types/datetime.py": "1966558989811be6c9ef04b8a8d293ec261ab53456921ee8a5f14b4e27336ddc",
+          "ferrocopg/types/enum.py": "d476f10a9e4668d03207f30ae3671d8971cc55ea06ff51f67c52d4d843137006",
+          "ferrocopg/types/hstore.py": "fc3b4dff304794b9384110bdeea49ecc3032853536c6a47e36c8c380f89ace8f",
+          "ferrocopg/types/json.py": "5be25df080ad379f319159b5da5f1b7e6fd53fd3a96ba67463fe73e247c535a5",
+          "ferrocopg/types/multirange.py": "8c7ab3fd303783955195f9986dce068cc129578619b1c090afb335073b1996b6",
+          "ferrocopg/types/net.py": "baee8032fe6d0df2e79a7a6bd018273066ee258767abb5c934d5085cfea20ee2",
+          "ferrocopg/types/none.py": "832fce26a13562c949d91222c7412adf1d01f083dfa07f8671cdac40c20ed12c",
+          "ferrocopg/types/numeric.py": "1a3ec260bb2f1d6a7bb6aab1f33596a14b8dbd310f0350e7cac8f651d8d285df",
+          "ferrocopg/types/numpy.py": "83d8ea55882a45a3060fec4f5fee3735c2bcba5468ae4d60f920275c47f16bc1",
+          "ferrocopg/types/range.py": "41a499003f6b5cc38b0e2651a14184ac1a00db15354a158a3fbe387e82376fc0",
+          "ferrocopg/types/shapely.py": "774afee614da1cabfa6914e43a7ed11a300333486fd51728cb5c44ff935c48e1",
+          "ferrocopg/types/string.py": "0a882dc425fd4f54f37ff511d463da7156dba5342c1b49a4a594ee25b963fb4c",
+          "ferrocopg/types/uuid.py": "c1cb8abde3e630af09b12b9d0253fc165fc0d3dc5cab3a7204c45cee63ff6f03",
+          "ferrocopg/version.py": "0728b2e275d6c29cafe11f694f9dbe56a92925783eb9318935fe70b74bc03bac",
+          "ferrocopg/waiting.py": "239c7fdf77bdcb7d5ff11c451833f2ea98262446ea401819b3cad981a5fc4412"
+        }
+      },
+      "samples": [
+        {
+          "wall_us": 46.102332499999996,
+          "cpu_us": 34.99802
+        },
+        {
+          "wall_us": 45.99631334,
+          "cpu_us": 34.98572
+        },
+        {
+          "wall_us": 46.12763668,
+          "cpu_us": 35.02432
+        },
+        {
+          "wall_us": 46.13246,
+          "cpu_us": 35.00418
+        },
+        {
+          "wall_us": 46.28941166,
+          "cpu_us": 35.060919999999996
+        },
+        {
+          "wall_us": 46.16606418,
+          "cpu_us": 35.071239999999996
+        },
+        {
+          "wall_us": 46.66224416,
+          "cpu_us": 35.42252
+        },
+        {
+          "wall_us": 46.52741584,
+          "cpu_us": 35.345800000000004
+        },
+        {
+          "wall_us": 47.345751660000005,
+          "cpu_us": 35.9497
+        }
+      ],
+      "medians_us": {
+        "wall_us": 46.16606418,
+        "cpu_us": 35.060919999999996
+      },
+      "profile": null
+    },
+    "parameterized-omit-helper-bodies-b": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-fresh",
+      "backend": "rust",
+      "bookkeeping": "omit-helper-bodies",
+      "omitted_helper_bodies": [
+        "_refresh_client_encoding",
+        "_refresh_session_timeout",
+        "_update_transaction_state"
+      ],
+      "workload": "parameterized",
+      "iterations": 50000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "metadata": {
+        "revision": "8eddc2ecd97a384c23765c75df7dfd40788f083f",
+        "measured_at": "2026-09-20T12:55:22.551846+00:00",
+        "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]",
+        "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+        "machine": "arm64",
+        "processor": "arm",
+        "cpu_logical": 12,
+        "cpu_physical": 12,
+        "memory_bytes": 38654705664,
+        "driver": "0.1.0",
+        "driver_file": "/tmp/ferrocopg-phase5-schema-control-env/lib/python3.14/site-packages/ferrocopg/__init__.py",
+        "pool": "3.3.0",
+        "psutil": "7.2.2",
+        "libpq": 0,
+        "server": "PostgreSQL 15.19 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.1.1.101), 64-bit",
+        "server_settings": {
+          "fsync": "on",
+          "max_connections": "100",
+          "shared_buffers": "16384",
+          "ssl": "on",
+          "synchronous_commit": "on"
+        },
+        "vendored_revision": "6a52e77dc38827214b294759823a072841b4819f"
+      },
+      "installed_file_sha256": {
+        "ferrocopg": {
+          "ferrocopg/__init__.py": "546fa11ec65349b0e3727d7d81600545473bc2c6784bb4b7092939ddc59a5e8a",
+          "ferrocopg/_acompat.py": "a403fe13a8deb1d80e3ae7e9e532e1f2eb525917951e4f7fddc42b5f1d9ad78a",
+          "ferrocopg/_adapters_map.py": "573a8598e0f46bf7891768cf68d4bddf4e91dc22a3afb14bc9d4bfc1d44c4497",
+          "ferrocopg/_capabilities.py": "01d498d399be8394f2c47e7a72680ce0a9f26b424d017070286f69042c1768bd",
+          "ferrocopg/_cmodule.py": "81e27abbc8788aa62e1acbb7e80a035c1be39685fc44276106ca2f5873438bb2",
+          "ferrocopg/_column.py": "948799c75558d917f2af529254b0963dfb664069deb759d72377f2088d82e55f",
+          "ferrocopg/_compat.py": "9c82f8c18563c21f9b7dfb77d5650dcd24817357d9cc8a8a14e460aeed39b57e",
+          "ferrocopg/_connection_base.py": "e5c1d9409a6498ebaba6847e639fe4ba4a1ad8d6adf682495550cb16ed1cc843",
+          "ferrocopg/_connection_info.py": "1aab70228aeb12fe3578c60f2004b9b8bffbe3324c3a4727a2024e50eb0316c6",
+          "ferrocopg/_conninfo_attempts.py": "f69c721909cc0b12590c39a9aa22cb615ace62e23b268b674f8ba8c857aa2d49",
+          "ferrocopg/_conninfo_attempts_async.py": "5f7860a6950fb8924ff2d553392cddc79877a163682b61952f5debfdf6322451",
+          "ferrocopg/_conninfo_utils.py": "be0264539e6f23b54f7b3886418acdee5acfe0b7d50b4eb4952f2d9a196dd41d",
+          "ferrocopg/_copy.py": "694294daa5eac8aad365f6f5cc0d1f76fc73278e6bea34eab942abba7af98457",
+          "ferrocopg/_copy_async.py": "87d758f02dc08ca688c2751c1b1ff551464c0719f541be1a3a285cfda6f92ef9",
+          "ferrocopg/_copy_base.py": "29e85675bea40d0d8d95f9703c892e156d98097e54343d45543485d8a918c553",
+          "ferrocopg/_cursor_base.py": "26eaa0d80560f9b00c1de55d8a20de002b9cbf959da69d1e13d23d922beff0dc",
+          "ferrocopg/_dns.py": "d52e2b5c21504c4f8624ae5128389b80e78927a3631f9adef5bb613f4b4532a1",
+          "ferrocopg/_encodings.py": "f2b5aee1d5ad05dc70633c858eae42aa15569391c488abbb50a1289904c775c1",
+          "ferrocopg/_enums.py": "a12ee93f0f2c2e8bf999348b9f53972bf00d97938a4e870a60141524c311ada2",
+          "ferrocopg/_ferrocopg.py": "3b7de15c7b3315d1fef878132d8853d234d928b237cdf9a6e49366211bfbfda7",
+          "ferrocopg/_ferrocopg_async.py": "495f868b6c744048723233f0d435a8764a9c443c20ada8585701a228025e54e4",
+          "ferrocopg/_ferrocopg_conninfo.py": "52f36d4a20e724070fa302f656b97625c423910bf270ee1ef98e2a5878a0ed7a",
+          "ferrocopg/_official.py": "c487f9bf8e74296e9070a38956a6400463d01eb56df542d5b2427fa78b172b28",
+          "ferrocopg/_oids.py": "3018aeffa0b8a708ecf363699dd9bc1757817fc1c2029472dec2daeaf48fc9ba",
+          "ferrocopg/_pipeline.py": "b1660d2a5efdaa7aa326bc0d0810a2d5d9c40f90972eb9fa6115f658fa802a64",
+          "ferrocopg/_pipeline_async.py": "10c29922f2026a363ec02d4c64911f4a07ed7594b9107224e4ecc486b04da078",
+          "ferrocopg/_pipeline_base.py": "8fd4651b94e9a0f0bd7c2756c2f55ee031c87d5254cf7621aa33aa9ecc2ee9e1",
+          "ferrocopg/_pq_compat.py": "a62ed2f308dfe80ad09ad3d2c1442f784925d839b7eeb6cfb3f8666084a972c3",
+          "ferrocopg/_preparing.py": "7c35122400335ddd975a74c1957293fa9bc39b4ba178aca8997898a90161fc08",
+          "ferrocopg/_py_transformer.py": "a670653cd757f349691c4194ecb6c9c6b80ba145a7ade39ee163ab19a419fbdb",
+          "ferrocopg/_queries.py": "a417ac82e307e22c4d2bad16e465d675d461074d506ce87bd29c35a8e2da406b",
+          "ferrocopg/_rmodule.py": "8ba5fb0e347e4e2e1d590ce18697ba5e01aea46bffc023d8061c68a0c82c4075",
+          "ferrocopg/_rust/__init__.py": "a5e12579832dc3c26224e84931e265d9e9d73ae39de4dd5863261ded8eae16fb",
+          "ferrocopg/_rust/_ferrocopg.cpython-314-darwin.so": "81ecf7f6bd0e809c0849b38b4d9fb67026ef3904fca2a7a6e87766784d726dab",
+          "ferrocopg/_server_cursor.py": "21750953da98bac13405a344ebacd6f199a2e5dc92009951d6470aa3050ed9ee",
+          "ferrocopg/_server_cursor_async.py": "052d7171a9059b7cdc2fc30c107c27b5ed31be712916daeee7cc0081671813fb",
+          "ferrocopg/_server_cursor_base.py": "f09de914d8897c94f98f7018608946a6f777f9f4e6ea8355d397ed31b88566d7",
+          "ferrocopg/_struct.py": "4534cd5a1859380a7ffc90be3c812237812229994aba5d33995300701cf2c1e4",
+          "ferrocopg/_tpc.py": "dbaade36306eba1f01b0923c0cae9470154e9643e647d3886dce17dd4e0304dd",
+          "ferrocopg/_transformer.py": "0c13f69f598d6b61c30da0cb59c369f55188bacef797aae134511d3d6f022253",
+          "ferrocopg/_tstrings.py": "d0b2c62c72a3fa15cb79de1eb9e001767b99ed5f1e239876b2506ef5fe9af225",
+          "ferrocopg/_typeinfo.py": "c7e4338d7769ca92343474a83b6b3117af7ea79e914495bb5716f38078fa08ae",
+          "ferrocopg/_typemod.py": "519c0715f9d66d7ab167d508541ac9877eb9f7da686406998fae6ff04b1b209b",
+          "ferrocopg/_tz.py": "cd4a6cb4817c61eb9f2e226e425a1edc5f36c9698ed2c9e1933d7210178ae9d2",
+          "ferrocopg/_vendored.py": "d7bed31d3bbf6dafc67438d8e664327fd5298cb9d64e2479c8862e6b46c690c0",
+          "ferrocopg/_wrappers.py": "44fe56068002e5be1da6d2103ebc1f1904d3370c794d453c4b8f7ca4d149c904",
+          "ferrocopg/abc.py": "fbee4f53130738f5eac91df754d8f47ba668bf8f8d6f4a033792d70436f105dc",
+          "ferrocopg/adapt.py": "2fe49726f5f5fe28c557c4ea5c5d70d33687a4effef1b1995a7c0ad92318af20",
+          "ferrocopg/client_cursor.py": "2fdefb4f10614c4e0877f030f50bb91d5cc83a79d053e839527d51cbf414facf",
+          "ferrocopg/connection.py": "a98d8bb030cdf722f2b2d40bf32511e70b9dd5dcb6a8045b76f49038016f920b",
+          "ferrocopg/connection_async.py": "bef827def258fdb35f85f80570be0da10a318835e1fe9de9a419e51c00373f19",
+          "ferrocopg/conninfo.py": "0c2facbafd48a307b061e4754302780fa2e477cf2a4e50c434b39540f8121e5d",
+          "ferrocopg/copy.py": "fd5ef68e9d835ebd931ecaa8f52e9c6a1bde328d10b819777e78a0b74ac699b7",
+          "ferrocopg/crdb/__init__.py": "674c11bec482fc2a5a38159f5828a5c0fd2c37a037f88561403e5c95d826fdd1",
+          "ferrocopg/crdb/_types.py": "283cc0f275c3e875304f8691dfbd41ba029f65f72a78b1c8bb563a628d074d60",
+          "ferrocopg/crdb/connection.py": "a8da57e56ed1cb1d84dc645d40b939c86d384752d68aa0f29804513f28761ece",
+          "ferrocopg/cursor.py": "2a0298ca456fa181f1c5d9e878bb48feb7c797b88fd344e0891c851b83720324",
+          "ferrocopg/cursor_async.py": "baec93de14348d41f65a9d8eadfcbe7338f0a01c92c2210479bb89a25d0826ff",
+          "ferrocopg/dbapi20.py": "a6f014d21dad513dfe07705bc5cda597353d5baa9135b763452bc561dc332746",
+          "ferrocopg/errors.py": "ebea98455325d066f3eaf118c6deb2d59b08466aec67574c853bdeb236f7b3d8",
+          "ferrocopg/generators.py": "4b1e11adc3ec50ef4e701251c757c34a43cb884a882f19d35ddbc9a9dd07f714",
+          "ferrocopg/postgres.py": "0eb279075bbdf5b934feb135b72269b41b05c00a1f1054cd8256235b9ab19c48",
+          "ferrocopg/pq/__init__.py": "1efd0f1f982ec2f6ac4f9d690f7d15b1f7f065e92bb69e5e8bf1a4ebff6d4b7b",
+          "ferrocopg/pq/_debug.py": "46cc6b5a7c1a48f303a1e8a66bd7fd499c2d598a17fb12c16a4165949c731ae8",
+          "ferrocopg/pq/_enums.py": "7a1f64faaf282234de50deaa2f668f98ea5133848e2a4d567712bc2a91865736",
+          "ferrocopg/pq/_pq_ctypes.py": "58b41863728ebf870f582d953cb1cf27eaecd2cd90c0bf377a9e0c21fa384313",
+          "ferrocopg/pq/abc.py": "fc7d65f6dcceaa38de327db8d86582c89dbb7cb37889f9f9e573bbc5e5baebf1",
+          "ferrocopg/pq/misc.py": "0c532bf94bf34663aa54fe46f4e6893229e24f6edfc992d894e238ff6c3303c3",
+          "ferrocopg/pq/pq_ctypes.py": "b235fbaac78cf8c460eef441ca02d7a0b848061bc9c2b2bfc8cab330d4c4d17b",
+          "ferrocopg/raw_cursor.py": "be393a35719812560224a3a8a6584dd74fce48ba25871503d9cda28b49985359",
+          "ferrocopg/rows.py": "2aadc647f25969d31a391ba0d425f32c8ca17b08eb8b8e4a96b995ef64ae57bc",
+          "ferrocopg/sql.py": "679c0af3847fed2ca6164c291624041a7ecfbd2eab3e20c4c3e4da88164c9fdb",
+          "ferrocopg/transaction.py": "7180361011696beee7f81079bd7f4c79f7eade64899241bd290c99f9a50aabd4",
+          "ferrocopg/types/__init__.py": "f9f8e78c80557763144d136b9f52c886b9c6af9deb76af0fc29bd422f8d5968d",
+          "ferrocopg/types/array.py": "c1abe21b3f83a26b3bbc1b42af6ca305d664e88eea5a06fda9c38c2fa26d0fa3",
+          "ferrocopg/types/bool.py": "e1e9426247c6d3e4c6fc7733c9f7f0378f32d52bdfbe5a461fafbfdb565a5802",
+          "ferrocopg/types/composite.py": "17ccfcd0b84499dc17a543a08c024f4ffc1ce830dcdbd41da8105d917d7805c5",
+          "ferrocopg/types/datetime.py": "1966558989811be6c9ef04b8a8d293ec261ab53456921ee8a5f14b4e27336ddc",
+          "ferrocopg/types/enum.py": "d476f10a9e4668d03207f30ae3671d8971cc55ea06ff51f67c52d4d843137006",
+          "ferrocopg/types/hstore.py": "fc3b4dff304794b9384110bdeea49ecc3032853536c6a47e36c8c380f89ace8f",
+          "ferrocopg/types/json.py": "5be25df080ad379f319159b5da5f1b7e6fd53fd3a96ba67463fe73e247c535a5",
+          "ferrocopg/types/multirange.py": "8c7ab3fd303783955195f9986dce068cc129578619b1c090afb335073b1996b6",
+          "ferrocopg/types/net.py": "baee8032fe6d0df2e79a7a6bd018273066ee258767abb5c934d5085cfea20ee2",
+          "ferrocopg/types/none.py": "832fce26a13562c949d91222c7412adf1d01f083dfa07f8671cdac40c20ed12c",
+          "ferrocopg/types/numeric.py": "1a3ec260bb2f1d6a7bb6aab1f33596a14b8dbd310f0350e7cac8f651d8d285df",
+          "ferrocopg/types/numpy.py": "83d8ea55882a45a3060fec4f5fee3735c2bcba5468ae4d60f920275c47f16bc1",
+          "ferrocopg/types/range.py": "41a499003f6b5cc38b0e2651a14184ac1a00db15354a158a3fbe387e82376fc0",
+          "ferrocopg/types/shapely.py": "774afee614da1cabfa6914e43a7ed11a300333486fd51728cb5c44ff935c48e1",
+          "ferrocopg/types/string.py": "0a882dc425fd4f54f37ff511d463da7156dba5342c1b49a4a594ee25b963fb4c",
+          "ferrocopg/types/uuid.py": "c1cb8abde3e630af09b12b9d0253fc165fc0d3dc5cab3a7204c45cee63ff6f03",
+          "ferrocopg/version.py": "0728b2e275d6c29cafe11f694f9dbe56a92925783eb9318935fe70b74bc03bac",
+          "ferrocopg/waiting.py": "239c7fdf77bdcb7d5ff11c451833f2ea98262446ea401819b3cad981a5fc4412"
+        }
+      },
+      "samples": [
+        {
+          "wall_us": 84.432085,
+          "cpu_us": 43.91674
+        },
+        {
+          "wall_us": 47.87040916,
+          "cpu_us": 35.54858
+        },
+        {
+          "wall_us": 44.2907675,
+          "cpu_us": 33.32766
+        },
+        {
+          "wall_us": 46.05105084,
+          "cpu_us": 34.088680000000004
+        },
+        {
+          "wall_us": 47.223597500000004,
+          "cpu_us": 34.973279999999995
+        },
+        {
+          "wall_us": 45.33721834,
+          "cpu_us": 33.975019999999994
+        },
+        {
+          "wall_us": 44.501605000000005,
+          "cpu_us": 33.68048
+        },
+        {
+          "wall_us": 54.11853834,
+          "cpu_us": 38.68558
+        },
+        {
+          "wall_us": 55.980925840000005,
+          "cpu_us": 39.8768
+        }
+      ],
+      "medians_us": {
+        "wall_us": 47.223597500000004,
+        "cpu_us": 34.973279999999995
+      },
+      "profile": null
+    },
+    "constant-normal-b": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-fresh",
+      "backend": "rust",
+      "bookkeeping": "normal",
+      "omitted_helper_bodies": [],
+      "workload": "constant",
+      "iterations": 50000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "metadata": {
+        "revision": "8eddc2ecd97a384c23765c75df7dfd40788f083f",
+        "measured_at": "2026-09-20T12:55:02.366281+00:00",
+        "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]",
+        "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+        "machine": "arm64",
+        "processor": "arm",
+        "cpu_logical": 12,
+        "cpu_physical": 12,
+        "memory_bytes": 38654705664,
+        "driver": "0.1.0",
+        "driver_file": "/tmp/ferrocopg-phase5-schema-control-env/lib/python3.14/site-packages/ferrocopg/__init__.py",
+        "pool": "3.3.0",
+        "psutil": "7.2.2",
+        "libpq": 0,
+        "server": "PostgreSQL 15.19 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.1.1.101), 64-bit",
+        "server_settings": {
+          "fsync": "on",
+          "max_connections": "100",
+          "shared_buffers": "16384",
+          "ssl": "on",
+          "synchronous_commit": "on"
+        },
+        "vendored_revision": "6a52e77dc38827214b294759823a072841b4819f"
+      },
+      "installed_file_sha256": {
+        "ferrocopg": {
+          "ferrocopg/__init__.py": "546fa11ec65349b0e3727d7d81600545473bc2c6784bb4b7092939ddc59a5e8a",
+          "ferrocopg/_acompat.py": "a403fe13a8deb1d80e3ae7e9e532e1f2eb525917951e4f7fddc42b5f1d9ad78a",
+          "ferrocopg/_adapters_map.py": "573a8598e0f46bf7891768cf68d4bddf4e91dc22a3afb14bc9d4bfc1d44c4497",
+          "ferrocopg/_capabilities.py": "01d498d399be8394f2c47e7a72680ce0a9f26b424d017070286f69042c1768bd",
+          "ferrocopg/_cmodule.py": "81e27abbc8788aa62e1acbb7e80a035c1be39685fc44276106ca2f5873438bb2",
+          "ferrocopg/_column.py": "948799c75558d917f2af529254b0963dfb664069deb759d72377f2088d82e55f",
+          "ferrocopg/_compat.py": "9c82f8c18563c21f9b7dfb77d5650dcd24817357d9cc8a8a14e460aeed39b57e",
+          "ferrocopg/_connection_base.py": "e5c1d9409a6498ebaba6847e639fe4ba4a1ad8d6adf682495550cb16ed1cc843",
+          "ferrocopg/_connection_info.py": "1aab70228aeb12fe3578c60f2004b9b8bffbe3324c3a4727a2024e50eb0316c6",
+          "ferrocopg/_conninfo_attempts.py": "f69c721909cc0b12590c39a9aa22cb615ace62e23b268b674f8ba8c857aa2d49",
+          "ferrocopg/_conninfo_attempts_async.py": "5f7860a6950fb8924ff2d553392cddc79877a163682b61952f5debfdf6322451",
+          "ferrocopg/_conninfo_utils.py": "be0264539e6f23b54f7b3886418acdee5acfe0b7d50b4eb4952f2d9a196dd41d",
+          "ferrocopg/_copy.py": "694294daa5eac8aad365f6f5cc0d1f76fc73278e6bea34eab942abba7af98457",
+          "ferrocopg/_copy_async.py": "87d758f02dc08ca688c2751c1b1ff551464c0719f541be1a3a285cfda6f92ef9",
+          "ferrocopg/_copy_base.py": "29e85675bea40d0d8d95f9703c892e156d98097e54343d45543485d8a918c553",
+          "ferrocopg/_cursor_base.py": "26eaa0d80560f9b00c1de55d8a20de002b9cbf959da69d1e13d23d922beff0dc",
+          "ferrocopg/_dns.py": "d52e2b5c21504c4f8624ae5128389b80e78927a3631f9adef5bb613f4b4532a1",
+          "ferrocopg/_encodings.py": "f2b5aee1d5ad05dc70633c858eae42aa15569391c488abbb50a1289904c775c1",
+          "ferrocopg/_enums.py": "a12ee93f0f2c2e8bf999348b9f53972bf00d97938a4e870a60141524c311ada2",
+          "ferrocopg/_ferrocopg.py": "3b7de15c7b3315d1fef878132d8853d234d928b237cdf9a6e49366211bfbfda7",
+          "ferrocopg/_ferrocopg_async.py": "495f868b6c744048723233f0d435a8764a9c443c20ada8585701a228025e54e4",
+          "ferrocopg/_ferrocopg_conninfo.py": "52f36d4a20e724070fa302f656b97625c423910bf270ee1ef98e2a5878a0ed7a",
+          "ferrocopg/_official.py": "c487f9bf8e74296e9070a38956a6400463d01eb56df542d5b2427fa78b172b28",
+          "ferrocopg/_oids.py": "3018aeffa0b8a708ecf363699dd9bc1757817fc1c2029472dec2daeaf48fc9ba",
+          "ferrocopg/_pipeline.py": "b1660d2a5efdaa7aa326bc0d0810a2d5d9c40f90972eb9fa6115f658fa802a64",
+          "ferrocopg/_pipeline_async.py": "10c29922f2026a363ec02d4c64911f4a07ed7594b9107224e4ecc486b04da078",
+          "ferrocopg/_pipeline_base.py": "8fd4651b94e9a0f0bd7c2756c2f55ee031c87d5254cf7621aa33aa9ecc2ee9e1",
+          "ferrocopg/_pq_compat.py": "a62ed2f308dfe80ad09ad3d2c1442f784925d839b7eeb6cfb3f8666084a972c3",
+          "ferrocopg/_preparing.py": "7c35122400335ddd975a74c1957293fa9bc39b4ba178aca8997898a90161fc08",
+          "ferrocopg/_py_transformer.py": "a670653cd757f349691c4194ecb6c9c6b80ba145a7ade39ee163ab19a419fbdb",
+          "ferrocopg/_queries.py": "a417ac82e307e22c4d2bad16e465d675d461074d506ce87bd29c35a8e2da406b",
+          "ferrocopg/_rmodule.py": "8ba5fb0e347e4e2e1d590ce18697ba5e01aea46bffc023d8061c68a0c82c4075",
+          "ferrocopg/_rust/__init__.py": "a5e12579832dc3c26224e84931e265d9e9d73ae39de4dd5863261ded8eae16fb",
+          "ferrocopg/_rust/_ferrocopg.cpython-314-darwin.so": "81ecf7f6bd0e809c0849b38b4d9fb67026ef3904fca2a7a6e87766784d726dab",
+          "ferrocopg/_server_cursor.py": "21750953da98bac13405a344ebacd6f199a2e5dc92009951d6470aa3050ed9ee",
+          "ferrocopg/_server_cursor_async.py": "052d7171a9059b7cdc2fc30c107c27b5ed31be712916daeee7cc0081671813fb",
+          "ferrocopg/_server_cursor_base.py": "f09de914d8897c94f98f7018608946a6f777f9f4e6ea8355d397ed31b88566d7",
+          "ferrocopg/_struct.py": "4534cd5a1859380a7ffc90be3c812237812229994aba5d33995300701cf2c1e4",
+          "ferrocopg/_tpc.py": "dbaade36306eba1f01b0923c0cae9470154e9643e647d3886dce17dd4e0304dd",
+          "ferrocopg/_transformer.py": "0c13f69f598d6b61c30da0cb59c369f55188bacef797aae134511d3d6f022253",
+          "ferrocopg/_tstrings.py": "d0b2c62c72a3fa15cb79de1eb9e001767b99ed5f1e239876b2506ef5fe9af225",
+          "ferrocopg/_typeinfo.py": "c7e4338d7769ca92343474a83b6b3117af7ea79e914495bb5716f38078fa08ae",
+          "ferrocopg/_typemod.py": "519c0715f9d66d7ab167d508541ac9877eb9f7da686406998fae6ff04b1b209b",
+          "ferrocopg/_tz.py": "cd4a6cb4817c61eb9f2e226e425a1edc5f36c9698ed2c9e1933d7210178ae9d2",
+          "ferrocopg/_vendored.py": "d7bed31d3bbf6dafc67438d8e664327fd5298cb9d64e2479c8862e6b46c690c0",
+          "ferrocopg/_wrappers.py": "44fe56068002e5be1da6d2103ebc1f1904d3370c794d453c4b8f7ca4d149c904",
+          "ferrocopg/abc.py": "fbee4f53130738f5eac91df754d8f47ba668bf8f8d6f4a033792d70436f105dc",
+          "ferrocopg/adapt.py": "2fe49726f5f5fe28c557c4ea5c5d70d33687a4effef1b1995a7c0ad92318af20",
+          "ferrocopg/client_cursor.py": "2fdefb4f10614c4e0877f030f50bb91d5cc83a79d053e839527d51cbf414facf",
+          "ferrocopg/connection.py": "a98d8bb030cdf722f2b2d40bf32511e70b9dd5dcb6a8045b76f49038016f920b",
+          "ferrocopg/connection_async.py": "bef827def258fdb35f85f80570be0da10a318835e1fe9de9a419e51c00373f19",
+          "ferrocopg/conninfo.py": "0c2facbafd48a307b061e4754302780fa2e477cf2a4e50c434b39540f8121e5d",
+          "ferrocopg/copy.py": "fd5ef68e9d835ebd931ecaa8f52e9c6a1bde328d10b819777e78a0b74ac699b7",
+          "ferrocopg/crdb/__init__.py": "674c11bec482fc2a5a38159f5828a5c0fd2c37a037f88561403e5c95d826fdd1",
+          "ferrocopg/crdb/_types.py": "283cc0f275c3e875304f8691dfbd41ba029f65f72a78b1c8bb563a628d074d60",
+          "ferrocopg/crdb/connection.py": "a8da57e56ed1cb1d84dc645d40b939c86d384752d68aa0f29804513f28761ece",
+          "ferrocopg/cursor.py": "2a0298ca456fa181f1c5d9e878bb48feb7c797b88fd344e0891c851b83720324",
+          "ferrocopg/cursor_async.py": "baec93de14348d41f65a9d8eadfcbe7338f0a01c92c2210479bb89a25d0826ff",
+          "ferrocopg/dbapi20.py": "a6f014d21dad513dfe07705bc5cda597353d5baa9135b763452bc561dc332746",
+          "ferrocopg/errors.py": "ebea98455325d066f3eaf118c6deb2d59b08466aec67574c853bdeb236f7b3d8",
+          "ferrocopg/generators.py": "4b1e11adc3ec50ef4e701251c757c34a43cb884a882f19d35ddbc9a9dd07f714",
+          "ferrocopg/postgres.py": "0eb279075bbdf5b934feb135b72269b41b05c00a1f1054cd8256235b9ab19c48",
+          "ferrocopg/pq/__init__.py": "1efd0f1f982ec2f6ac4f9d690f7d15b1f7f065e92bb69e5e8bf1a4ebff6d4b7b",
+          "ferrocopg/pq/_debug.py": "46cc6b5a7c1a48f303a1e8a66bd7fd499c2d598a17fb12c16a4165949c731ae8",
+          "ferrocopg/pq/_enums.py": "7a1f64faaf282234de50deaa2f668f98ea5133848e2a4d567712bc2a91865736",
+          "ferrocopg/pq/_pq_ctypes.py": "58b41863728ebf870f582d953cb1cf27eaecd2cd90c0bf377a9e0c21fa384313",
+          "ferrocopg/pq/abc.py": "fc7d65f6dcceaa38de327db8d86582c89dbb7cb37889f9f9e573bbc5e5baebf1",
+          "ferrocopg/pq/misc.py": "0c532bf94bf34663aa54fe46f4e6893229e24f6edfc992d894e238ff6c3303c3",
+          "ferrocopg/pq/pq_ctypes.py": "b235fbaac78cf8c460eef441ca02d7a0b848061bc9c2b2bfc8cab330d4c4d17b",
+          "ferrocopg/raw_cursor.py": "be393a35719812560224a3a8a6584dd74fce48ba25871503d9cda28b49985359",
+          "ferrocopg/rows.py": "2aadc647f25969d31a391ba0d425f32c8ca17b08eb8b8e4a96b995ef64ae57bc",
+          "ferrocopg/sql.py": "679c0af3847fed2ca6164c291624041a7ecfbd2eab3e20c4c3e4da88164c9fdb",
+          "ferrocopg/transaction.py": "7180361011696beee7f81079bd7f4c79f7eade64899241bd290c99f9a50aabd4",
+          "ferrocopg/types/__init__.py": "f9f8e78c80557763144d136b9f52c886b9c6af9deb76af0fc29bd422f8d5968d",
+          "ferrocopg/types/array.py": "c1abe21b3f83a26b3bbc1b42af6ca305d664e88eea5a06fda9c38c2fa26d0fa3",
+          "ferrocopg/types/bool.py": "e1e9426247c6d3e4c6fc7733c9f7f0378f32d52bdfbe5a461fafbfdb565a5802",
+          "ferrocopg/types/composite.py": "17ccfcd0b84499dc17a543a08c024f4ffc1ce830dcdbd41da8105d917d7805c5",
+          "ferrocopg/types/datetime.py": "1966558989811be6c9ef04b8a8d293ec261ab53456921ee8a5f14b4e27336ddc",
+          "ferrocopg/types/enum.py": "d476f10a9e4668d03207f30ae3671d8971cc55ea06ff51f67c52d4d843137006",
+          "ferrocopg/types/hstore.py": "fc3b4dff304794b9384110bdeea49ecc3032853536c6a47e36c8c380f89ace8f",
+          "ferrocopg/types/json.py": "5be25df080ad379f319159b5da5f1b7e6fd53fd3a96ba67463fe73e247c535a5",
+          "ferrocopg/types/multirange.py": "8c7ab3fd303783955195f9986dce068cc129578619b1c090afb335073b1996b6",
+          "ferrocopg/types/net.py": "baee8032fe6d0df2e79a7a6bd018273066ee258767abb5c934d5085cfea20ee2",
+          "ferrocopg/types/none.py": "832fce26a13562c949d91222c7412adf1d01f083dfa07f8671cdac40c20ed12c",
+          "ferrocopg/types/numeric.py": "1a3ec260bb2f1d6a7bb6aab1f33596a14b8dbd310f0350e7cac8f651d8d285df",
+          "ferrocopg/types/numpy.py": "83d8ea55882a45a3060fec4f5fee3735c2bcba5468ae4d60f920275c47f16bc1",
+          "ferrocopg/types/range.py": "41a499003f6b5cc38b0e2651a14184ac1a00db15354a158a3fbe387e82376fc0",
+          "ferrocopg/types/shapely.py": "774afee614da1cabfa6914e43a7ed11a300333486fd51728cb5c44ff935c48e1",
+          "ferrocopg/types/string.py": "0a882dc425fd4f54f37ff511d463da7156dba5342c1b49a4a594ee25b963fb4c",
+          "ferrocopg/types/uuid.py": "c1cb8abde3e630af09b12b9d0253fc165fc0d3dc5cab3a7204c45cee63ff6f03",
+          "ferrocopg/version.py": "0728b2e275d6c29cafe11f694f9dbe56a92925783eb9318935fe70b74bc03bac",
+          "ferrocopg/waiting.py": "239c7fdf77bdcb7d5ff11c451833f2ea98262446ea401819b3cad981a5fc4412"
+        }
+      },
+      "samples": [
+        {
+          "wall_us": 40.22539,
+          "cpu_us": 29.214779999999998
+        },
+        {
+          "wall_us": 40.11477,
+          "cpu_us": 29.180259999999997
+        },
+        {
+          "wall_us": 39.944544179999994,
+          "cpu_us": 29.08398
+        },
+        {
+          "wall_us": 40.571634180000004,
+          "cpu_us": 29.50108
+        },
+        {
+          "wall_us": 41.29272418,
+          "cpu_us": 30.078439999999997
+        },
+        {
+          "wall_us": 39.2478375,
+          "cpu_us": 29.07168
+        },
+        {
+          "wall_us": 70.43473582,
+          "cpu_us": 39.0912
+        },
+        {
+          "wall_us": 47.127660000000006,
+          "cpu_us": 30.084319999999998
+        },
+        {
+          "wall_us": 40.09761084,
+          "cpu_us": 28.39546
+        }
+      ],
+      "medians_us": {
+        "wall_us": 40.22539,
+        "cpu_us": 29.214779999999998
+      },
+      "profile": null
+    },
+    "constant-omit-helper-bodies-b": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-fresh",
+      "backend": "rust",
+      "bookkeeping": "omit-helper-bodies",
+      "omitted_helper_bodies": [
+        "_refresh_client_encoding",
+        "_refresh_session_timeout",
+        "_update_transaction_state"
+      ],
+      "workload": "constant",
+      "iterations": 50000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "metadata": {
+        "revision": "8eddc2ecd97a384c23765c75df7dfd40788f083f",
+        "measured_at": "2026-09-20T12:54:44.468250+00:00",
+        "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]",
+        "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+        "machine": "arm64",
+        "processor": "arm",
+        "cpu_logical": 12,
+        "cpu_physical": 12,
+        "memory_bytes": 38654705664,
+        "driver": "0.1.0",
+        "driver_file": "/tmp/ferrocopg-phase5-schema-control-env/lib/python3.14/site-packages/ferrocopg/__init__.py",
+        "pool": "3.3.0",
+        "psutil": "7.2.2",
+        "libpq": 0,
+        "server": "PostgreSQL 15.19 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.1.1.101), 64-bit",
+        "server_settings": {
+          "fsync": "on",
+          "max_connections": "100",
+          "shared_buffers": "16384",
+          "ssl": "on",
+          "synchronous_commit": "on"
+        },
+        "vendored_revision": "6a52e77dc38827214b294759823a072841b4819f"
+      },
+      "installed_file_sha256": {
+        "ferrocopg": {
+          "ferrocopg/__init__.py": "546fa11ec65349b0e3727d7d81600545473bc2c6784bb4b7092939ddc59a5e8a",
+          "ferrocopg/_acompat.py": "a403fe13a8deb1d80e3ae7e9e532e1f2eb525917951e4f7fddc42b5f1d9ad78a",
+          "ferrocopg/_adapters_map.py": "573a8598e0f46bf7891768cf68d4bddf4e91dc22a3afb14bc9d4bfc1d44c4497",
+          "ferrocopg/_capabilities.py": "01d498d399be8394f2c47e7a72680ce0a9f26b424d017070286f69042c1768bd",
+          "ferrocopg/_cmodule.py": "81e27abbc8788aa62e1acbb7e80a035c1be39685fc44276106ca2f5873438bb2",
+          "ferrocopg/_column.py": "948799c75558d917f2af529254b0963dfb664069deb759d72377f2088d82e55f",
+          "ferrocopg/_compat.py": "9c82f8c18563c21f9b7dfb77d5650dcd24817357d9cc8a8a14e460aeed39b57e",
+          "ferrocopg/_connection_base.py": "e5c1d9409a6498ebaba6847e639fe4ba4a1ad8d6adf682495550cb16ed1cc843",
+          "ferrocopg/_connection_info.py": "1aab70228aeb12fe3578c60f2004b9b8bffbe3324c3a4727a2024e50eb0316c6",
+          "ferrocopg/_conninfo_attempts.py": "f69c721909cc0b12590c39a9aa22cb615ace62e23b268b674f8ba8c857aa2d49",
+          "ferrocopg/_conninfo_attempts_async.py": "5f7860a6950fb8924ff2d553392cddc79877a163682b61952f5debfdf6322451",
+          "ferrocopg/_conninfo_utils.py": "be0264539e6f23b54f7b3886418acdee5acfe0b7d50b4eb4952f2d9a196dd41d",
+          "ferrocopg/_copy.py": "694294daa5eac8aad365f6f5cc0d1f76fc73278e6bea34eab942abba7af98457",
+          "ferrocopg/_copy_async.py": "87d758f02dc08ca688c2751c1b1ff551464c0719f541be1a3a285cfda6f92ef9",
+          "ferrocopg/_copy_base.py": "29e85675bea40d0d8d95f9703c892e156d98097e54343d45543485d8a918c553",
+          "ferrocopg/_cursor_base.py": "26eaa0d80560f9b00c1de55d8a20de002b9cbf959da69d1e13d23d922beff0dc",
+          "ferrocopg/_dns.py": "d52e2b5c21504c4f8624ae5128389b80e78927a3631f9adef5bb613f4b4532a1",
+          "ferrocopg/_encodings.py": "f2b5aee1d5ad05dc70633c858eae42aa15569391c488abbb50a1289904c775c1",
+          "ferrocopg/_enums.py": "a12ee93f0f2c2e8bf999348b9f53972bf00d97938a4e870a60141524c311ada2",
+          "ferrocopg/_ferrocopg.py": "3b7de15c7b3315d1fef878132d8853d234d928b237cdf9a6e49366211bfbfda7",
+          "ferrocopg/_ferrocopg_async.py": "495f868b6c744048723233f0d435a8764a9c443c20ada8585701a228025e54e4",
+          "ferrocopg/_ferrocopg_conninfo.py": "52f36d4a20e724070fa302f656b97625c423910bf270ee1ef98e2a5878a0ed7a",
+          "ferrocopg/_official.py": "c487f9bf8e74296e9070a38956a6400463d01eb56df542d5b2427fa78b172b28",
+          "ferrocopg/_oids.py": "3018aeffa0b8a708ecf363699dd9bc1757817fc1c2029472dec2daeaf48fc9ba",
+          "ferrocopg/_pipeline.py": "b1660d2a5efdaa7aa326bc0d0810a2d5d9c40f90972eb9fa6115f658fa802a64",
+          "ferrocopg/_pipeline_async.py": "10c29922f2026a363ec02d4c64911f4a07ed7594b9107224e4ecc486b04da078",
+          "ferrocopg/_pipeline_base.py": "8fd4651b94e9a0f0bd7c2756c2f55ee031c87d5254cf7621aa33aa9ecc2ee9e1",
+          "ferrocopg/_pq_compat.py": "a62ed2f308dfe80ad09ad3d2c1442f784925d839b7eeb6cfb3f8666084a972c3",
+          "ferrocopg/_preparing.py": "7c35122400335ddd975a74c1957293fa9bc39b4ba178aca8997898a90161fc08",
+          "ferrocopg/_py_transformer.py": "a670653cd757f349691c4194ecb6c9c6b80ba145a7ade39ee163ab19a419fbdb",
+          "ferrocopg/_queries.py": "a417ac82e307e22c4d2bad16e465d675d461074d506ce87bd29c35a8e2da406b",
+          "ferrocopg/_rmodule.py": "8ba5fb0e347e4e2e1d590ce18697ba5e01aea46bffc023d8061c68a0c82c4075",
+          "ferrocopg/_rust/__init__.py": "a5e12579832dc3c26224e84931e265d9e9d73ae39de4dd5863261ded8eae16fb",
+          "ferrocopg/_rust/_ferrocopg.cpython-314-darwin.so": "81ecf7f6bd0e809c0849b38b4d9fb67026ef3904fca2a7a6e87766784d726dab",
+          "ferrocopg/_server_cursor.py": "21750953da98bac13405a344ebacd6f199a2e5dc92009951d6470aa3050ed9ee",
+          "ferrocopg/_server_cursor_async.py": "052d7171a9059b7cdc2fc30c107c27b5ed31be712916daeee7cc0081671813fb",
+          "ferrocopg/_server_cursor_base.py": "f09de914d8897c94f98f7018608946a6f777f9f4e6ea8355d397ed31b88566d7",
+          "ferrocopg/_struct.py": "4534cd5a1859380a7ffc90be3c812237812229994aba5d33995300701cf2c1e4",
+          "ferrocopg/_tpc.py": "dbaade36306eba1f01b0923c0cae9470154e9643e647d3886dce17dd4e0304dd",
+          "ferrocopg/_transformer.py": "0c13f69f598d6b61c30da0cb59c369f55188bacef797aae134511d3d6f022253",
+          "ferrocopg/_tstrings.py": "d0b2c62c72a3fa15cb79de1eb9e001767b99ed5f1e239876b2506ef5fe9af225",
+          "ferrocopg/_typeinfo.py": "c7e4338d7769ca92343474a83b6b3117af7ea79e914495bb5716f38078fa08ae",
+          "ferrocopg/_typemod.py": "519c0715f9d66d7ab167d508541ac9877eb9f7da686406998fae6ff04b1b209b",
+          "ferrocopg/_tz.py": "cd4a6cb4817c61eb9f2e226e425a1edc5f36c9698ed2c9e1933d7210178ae9d2",
+          "ferrocopg/_vendored.py": "d7bed31d3bbf6dafc67438d8e664327fd5298cb9d64e2479c8862e6b46c690c0",
+          "ferrocopg/_wrappers.py": "44fe56068002e5be1da6d2103ebc1f1904d3370c794d453c4b8f7ca4d149c904",
+          "ferrocopg/abc.py": "fbee4f53130738f5eac91df754d8f47ba668bf8f8d6f4a033792d70436f105dc",
+          "ferrocopg/adapt.py": "2fe49726f5f5fe28c557c4ea5c5d70d33687a4effef1b1995a7c0ad92318af20",
+          "ferrocopg/client_cursor.py": "2fdefb4f10614c4e0877f030f50bb91d5cc83a79d053e839527d51cbf414facf",
+          "ferrocopg/connection.py": "a98d8bb030cdf722f2b2d40bf32511e70b9dd5dcb6a8045b76f49038016f920b",
+          "ferrocopg/connection_async.py": "bef827def258fdb35f85f80570be0da10a318835e1fe9de9a419e51c00373f19",
+          "ferrocopg/conninfo.py": "0c2facbafd48a307b061e4754302780fa2e477cf2a4e50c434b39540f8121e5d",
+          "ferrocopg/copy.py": "fd5ef68e9d835ebd931ecaa8f52e9c6a1bde328d10b819777e78a0b74ac699b7",
+          "ferrocopg/crdb/__init__.py": "674c11bec482fc2a5a38159f5828a5c0fd2c37a037f88561403e5c95d826fdd1",
+          "ferrocopg/crdb/_types.py": "283cc0f275c3e875304f8691dfbd41ba029f65f72a78b1c8bb563a628d074d60",
+          "ferrocopg/crdb/connection.py": "a8da57e56ed1cb1d84dc645d40b939c86d384752d68aa0f29804513f28761ece",
+          "ferrocopg/cursor.py": "2a0298ca456fa181f1c5d9e878bb48feb7c797b88fd344e0891c851b83720324",
+          "ferrocopg/cursor_async.py": "baec93de14348d41f65a9d8eadfcbe7338f0a01c92c2210479bb89a25d0826ff",
+          "ferrocopg/dbapi20.py": "a6f014d21dad513dfe07705bc5cda597353d5baa9135b763452bc561dc332746",
+          "ferrocopg/errors.py": "ebea98455325d066f3eaf118c6deb2d59b08466aec67574c853bdeb236f7b3d8",
+          "ferrocopg/generators.py": "4b1e11adc3ec50ef4e701251c757c34a43cb884a882f19d35ddbc9a9dd07f714",
+          "ferrocopg/postgres.py": "0eb279075bbdf5b934feb135b72269b41b05c00a1f1054cd8256235b9ab19c48",
+          "ferrocopg/pq/__init__.py": "1efd0f1f982ec2f6ac4f9d690f7d15b1f7f065e92bb69e5e8bf1a4ebff6d4b7b",
+          "ferrocopg/pq/_debug.py": "46cc6b5a7c1a48f303a1e8a66bd7fd499c2d598a17fb12c16a4165949c731ae8",
+          "ferrocopg/pq/_enums.py": "7a1f64faaf282234de50deaa2f668f98ea5133848e2a4d567712bc2a91865736",
+          "ferrocopg/pq/_pq_ctypes.py": "58b41863728ebf870f582d953cb1cf27eaecd2cd90c0bf377a9e0c21fa384313",
+          "ferrocopg/pq/abc.py": "fc7d65f6dcceaa38de327db8d86582c89dbb7cb37889f9f9e573bbc5e5baebf1",
+          "ferrocopg/pq/misc.py": "0c532bf94bf34663aa54fe46f4e6893229e24f6edfc992d894e238ff6c3303c3",
+          "ferrocopg/pq/pq_ctypes.py": "b235fbaac78cf8c460eef441ca02d7a0b848061bc9c2b2bfc8cab330d4c4d17b",
+          "ferrocopg/raw_cursor.py": "be393a35719812560224a3a8a6584dd74fce48ba25871503d9cda28b49985359",
+          "ferrocopg/rows.py": "2aadc647f25969d31a391ba0d425f32c8ca17b08eb8b8e4a96b995ef64ae57bc",
+          "ferrocopg/sql.py": "679c0af3847fed2ca6164c291624041a7ecfbd2eab3e20c4c3e4da88164c9fdb",
+          "ferrocopg/transaction.py": "7180361011696beee7f81079bd7f4c79f7eade64899241bd290c99f9a50aabd4",
+          "ferrocopg/types/__init__.py": "f9f8e78c80557763144d136b9f52c886b9c6af9deb76af0fc29bd422f8d5968d",
+          "ferrocopg/types/array.py": "c1abe21b3f83a26b3bbc1b42af6ca305d664e88eea5a06fda9c38c2fa26d0fa3",
+          "ferrocopg/types/bool.py": "e1e9426247c6d3e4c6fc7733c9f7f0378f32d52bdfbe5a461fafbfdb565a5802",
+          "ferrocopg/types/composite.py": "17ccfcd0b84499dc17a543a08c024f4ffc1ce830dcdbd41da8105d917d7805c5",
+          "ferrocopg/types/datetime.py": "1966558989811be6c9ef04b8a8d293ec261ab53456921ee8a5f14b4e27336ddc",
+          "ferrocopg/types/enum.py": "d476f10a9e4668d03207f30ae3671d8971cc55ea06ff51f67c52d4d843137006",
+          "ferrocopg/types/hstore.py": "fc3b4dff304794b9384110bdeea49ecc3032853536c6a47e36c8c380f89ace8f",
+          "ferrocopg/types/json.py": "5be25df080ad379f319159b5da5f1b7e6fd53fd3a96ba67463fe73e247c535a5",
+          "ferrocopg/types/multirange.py": "8c7ab3fd303783955195f9986dce068cc129578619b1c090afb335073b1996b6",
+          "ferrocopg/types/net.py": "baee8032fe6d0df2e79a7a6bd018273066ee258767abb5c934d5085cfea20ee2",
+          "ferrocopg/types/none.py": "832fce26a13562c949d91222c7412adf1d01f083dfa07f8671cdac40c20ed12c",
+          "ferrocopg/types/numeric.py": "1a3ec260bb2f1d6a7bb6aab1f33596a14b8dbd310f0350e7cac8f651d8d285df",
+          "ferrocopg/types/numpy.py": "83d8ea55882a45a3060fec4f5fee3735c2bcba5468ae4d60f920275c47f16bc1",
+          "ferrocopg/types/range.py": "41a499003f6b5cc38b0e2651a14184ac1a00db15354a158a3fbe387e82376fc0",
+          "ferrocopg/types/shapely.py": "774afee614da1cabfa6914e43a7ed11a300333486fd51728cb5c44ff935c48e1",
+          "ferrocopg/types/string.py": "0a882dc425fd4f54f37ff511d463da7156dba5342c1b49a4a594ee25b963fb4c",
+          "ferrocopg/types/uuid.py": "c1cb8abde3e630af09b12b9d0253fc165fc0d3dc5cab3a7204c45cee63ff6f03",
+          "ferrocopg/version.py": "0728b2e275d6c29cafe11f694f9dbe56a92925783eb9318935fe70b74bc03bac",
+          "ferrocopg/waiting.py": "239c7fdf77bdcb7d5ff11c451833f2ea98262446ea401819b3cad981a5fc4412"
+        }
+      },
+      "samples": [
+        {
+          "wall_us": 41.18068832,
+          "cpu_us": 29.53462
+        },
+        {
+          "wall_us": 39.70114,
+          "cpu_us": 28.61334
+        },
+        {
+          "wall_us": 39.551204160000005,
+          "cpu_us": 28.478540000000002
+        },
+        {
+          "wall_us": 39.77489416,
+          "cpu_us": 28.605520000000002
+        },
+        {
+          "wall_us": 38.83602918,
+          "cpu_us": 27.93294
+        },
+        {
+          "wall_us": 38.902128340000004,
+          "cpu_us": 28.0148
+        },
+        {
+          "wall_us": 38.64395666,
+          "cpu_us": 27.878259999999997
+        },
+        {
+          "wall_us": 38.979485000000004,
+          "cpu_us": 27.98302
+        },
+        {
+          "wall_us": 39.2263675,
+          "cpu_us": 28.17658
+        }
+      ],
+      "medians_us": {
+        "wall_us": 39.2263675,
+        "cpu_us": 28.17658
+      },
+      "profile": null
+    },
+    "parameterized-normal-a": {
+      "mode": "integration-diagnostic",
+      "acceptance_evidence": false,
+      "case": "public-fresh",
+      "backend": "rust",
+      "bookkeeping": "normal",
+      "omitted_helper_bodies": [],
+      "workload": "parameterized",
+      "iterations": 50000,
+      "warmup": 1000,
+      "binary": true,
+      "prepared": true,
+      "metadata": {
+        "revision": "8eddc2ecd97a384c23765c75df7dfd40788f083f",
+        "measured_at": "2026-09-20T12:54:01.964698+00:00",
+        "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]",
+        "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+        "machine": "arm64",
+        "processor": "arm",
+        "cpu_logical": 12,
+        "cpu_physical": 12,
+        "memory_bytes": 38654705664,
+        "driver": "0.1.0",
+        "driver_file": "/tmp/ferrocopg-phase5-schema-control-env/lib/python3.14/site-packages/ferrocopg/__init__.py",
+        "pool": "3.3.0",
+        "psutil": "7.2.2",
+        "libpq": 0,
+        "server": "PostgreSQL 15.19 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.1.1.101), 64-bit",
+        "server_settings": {
+          "fsync": "on",
+          "max_connections": "100",
+          "shared_buffers": "16384",
+          "ssl": "on",
+          "synchronous_commit": "on"
+        },
+        "vendored_revision": "6a52e77dc38827214b294759823a072841b4819f"
+      },
+      "installed_file_sha256": {
+        "ferrocopg": {
+          "ferrocopg/__init__.py": "546fa11ec65349b0e3727d7d81600545473bc2c6784bb4b7092939ddc59a5e8a",
+          "ferrocopg/_acompat.py": "a403fe13a8deb1d80e3ae7e9e532e1f2eb525917951e4f7fddc42b5f1d9ad78a",
+          "ferrocopg/_adapters_map.py": "573a8598e0f46bf7891768cf68d4bddf4e91dc22a3afb14bc9d4bfc1d44c4497",
+          "ferrocopg/_capabilities.py": "01d498d399be8394f2c47e7a72680ce0a9f26b424d017070286f69042c1768bd",
+          "ferrocopg/_cmodule.py": "81e27abbc8788aa62e1acbb7e80a035c1be39685fc44276106ca2f5873438bb2",
+          "ferrocopg/_column.py": "948799c75558d917f2af529254b0963dfb664069deb759d72377f2088d82e55f",
+          "ferrocopg/_compat.py": "9c82f8c18563c21f9b7dfb77d5650dcd24817357d9cc8a8a14e460aeed39b57e",
+          "ferrocopg/_connection_base.py": "e5c1d9409a6498ebaba6847e639fe4ba4a1ad8d6adf682495550cb16ed1cc843",
+          "ferrocopg/_connection_info.py": "1aab70228aeb12fe3578c60f2004b9b8bffbe3324c3a4727a2024e50eb0316c6",
+          "ferrocopg/_conninfo_attempts.py": "f69c721909cc0b12590c39a9aa22cb615ace62e23b268b674f8ba8c857aa2d49",
+          "ferrocopg/_conninfo_attempts_async.py": "5f7860a6950fb8924ff2d553392cddc79877a163682b61952f5debfdf6322451",
+          "ferrocopg/_conninfo_utils.py": "be0264539e6f23b54f7b3886418acdee5acfe0b7d50b4eb4952f2d9a196dd41d",
+          "ferrocopg/_copy.py": "694294daa5eac8aad365f6f5cc0d1f76fc73278e6bea34eab942abba7af98457",
+          "ferrocopg/_copy_async.py": "87d758f02dc08ca688c2751c1b1ff551464c0719f541be1a3a285cfda6f92ef9",
+          "ferrocopg/_copy_base.py": "29e85675bea40d0d8d95f9703c892e156d98097e54343d45543485d8a918c553",
+          "ferrocopg/_cursor_base.py": "26eaa0d80560f9b00c1de55d8a20de002b9cbf959da69d1e13d23d922beff0dc",
+          "ferrocopg/_dns.py": "d52e2b5c21504c4f8624ae5128389b80e78927a3631f9adef5bb613f4b4532a1",
+          "ferrocopg/_encodings.py": "f2b5aee1d5ad05dc70633c858eae42aa15569391c488abbb50a1289904c775c1",
+          "ferrocopg/_enums.py": "a12ee93f0f2c2e8bf999348b9f53972bf00d97938a4e870a60141524c311ada2",
+          "ferrocopg/_ferrocopg.py": "3b7de15c7b3315d1fef878132d8853d234d928b237cdf9a6e49366211bfbfda7",
+          "ferrocopg/_ferrocopg_async.py": "495f868b6c744048723233f0d435a8764a9c443c20ada8585701a228025e54e4",
+          "ferrocopg/_ferrocopg_conninfo.py": "52f36d4a20e724070fa302f656b97625c423910bf270ee1ef98e2a5878a0ed7a",
+          "ferrocopg/_official.py": "c487f9bf8e74296e9070a38956a6400463d01eb56df542d5b2427fa78b172b28",
+          "ferrocopg/_oids.py": "3018aeffa0b8a708ecf363699dd9bc1757817fc1c2029472dec2daeaf48fc9ba",
+          "ferrocopg/_pipeline.py": "b1660d2a5efdaa7aa326bc0d0810a2d5d9c40f90972eb9fa6115f658fa802a64",
+          "ferrocopg/_pipeline_async.py": "10c29922f2026a363ec02d4c64911f4a07ed7594b9107224e4ecc486b04da078",
+          "ferrocopg/_pipeline_base.py": "8fd4651b94e9a0f0bd7c2756c2f55ee031c87d5254cf7621aa33aa9ecc2ee9e1",
+          "ferrocopg/_pq_compat.py": "a62ed2f308dfe80ad09ad3d2c1442f784925d839b7eeb6cfb3f8666084a972c3",
+          "ferrocopg/_preparing.py": "7c35122400335ddd975a74c1957293fa9bc39b4ba178aca8997898a90161fc08",
+          "ferrocopg/_py_transformer.py": "a670653cd757f349691c4194ecb6c9c6b80ba145a7ade39ee163ab19a419fbdb",
+          "ferrocopg/_queries.py": "a417ac82e307e22c4d2bad16e465d675d461074d506ce87bd29c35a8e2da406b",
+          "ferrocopg/_rmodule.py": "8ba5fb0e347e4e2e1d590ce18697ba5e01aea46bffc023d8061c68a0c82c4075",
+          "ferrocopg/_rust/__init__.py": "a5e12579832dc3c26224e84931e265d9e9d73ae39de4dd5863261ded8eae16fb",
+          "ferrocopg/_rust/_ferrocopg.cpython-314-darwin.so": "81ecf7f6bd0e809c0849b38b4d9fb67026ef3904fca2a7a6e87766784d726dab",
+          "ferrocopg/_server_cursor.py": "21750953da98bac13405a344ebacd6f199a2e5dc92009951d6470aa3050ed9ee",
+          "ferrocopg/_server_cursor_async.py": "052d7171a9059b7cdc2fc30c107c27b5ed31be712916daeee7cc0081671813fb",
+          "ferrocopg/_server_cursor_base.py": "f09de914d8897c94f98f7018608946a6f777f9f4e6ea8355d397ed31b88566d7",
+          "ferrocopg/_struct.py": "4534cd5a1859380a7ffc90be3c812237812229994aba5d33995300701cf2c1e4",
+          "ferrocopg/_tpc.py": "dbaade36306eba1f01b0923c0cae9470154e9643e647d3886dce17dd4e0304dd",
+          "ferrocopg/_transformer.py": "0c13f69f598d6b61c30da0cb59c369f55188bacef797aae134511d3d6f022253",
+          "ferrocopg/_tstrings.py": "d0b2c62c72a3fa15cb79de1eb9e001767b99ed5f1e239876b2506ef5fe9af225",
+          "ferrocopg/_typeinfo.py": "c7e4338d7769ca92343474a83b6b3117af7ea79e914495bb5716f38078fa08ae",
+          "ferrocopg/_typemod.py": "519c0715f9d66d7ab167d508541ac9877eb9f7da686406998fae6ff04b1b209b",
+          "ferrocopg/_tz.py": "cd4a6cb4817c61eb9f2e226e425a1edc5f36c9698ed2c9e1933d7210178ae9d2",
+          "ferrocopg/_vendored.py": "d7bed31d3bbf6dafc67438d8e664327fd5298cb9d64e2479c8862e6b46c690c0",
+          "ferrocopg/_wrappers.py": "44fe56068002e5be1da6d2103ebc1f1904d3370c794d453c4b8f7ca4d149c904",
+          "ferrocopg/abc.py": "fbee4f53130738f5eac91df754d8f47ba668bf8f8d6f4a033792d70436f105dc",
+          "ferrocopg/adapt.py": "2fe49726f5f5fe28c557c4ea5c5d70d33687a4effef1b1995a7c0ad92318af20",
+          "ferrocopg/client_cursor.py": "2fdefb4f10614c4e0877f030f50bb91d5cc83a79d053e839527d51cbf414facf",
+          "ferrocopg/connection.py": "a98d8bb030cdf722f2b2d40bf32511e70b9dd5dcb6a8045b76f49038016f920b",
+          "ferrocopg/connection_async.py": "bef827def258fdb35f85f80570be0da10a318835e1fe9de9a419e51c00373f19",
+          "ferrocopg/conninfo.py": "0c2facbafd48a307b061e4754302780fa2e477cf2a4e50c434b39540f8121e5d",
+          "ferrocopg/copy.py": "fd5ef68e9d835ebd931ecaa8f52e9c6a1bde328d10b819777e78a0b74ac699b7",
+          "ferrocopg/crdb/__init__.py": "674c11bec482fc2a5a38159f5828a5c0fd2c37a037f88561403e5c95d826fdd1",
+          "ferrocopg/crdb/_types.py": "283cc0f275c3e875304f8691dfbd41ba029f65f72a78b1c8bb563a628d074d60",
+          "ferrocopg/crdb/connection.py": "a8da57e56ed1cb1d84dc645d40b939c86d384752d68aa0f29804513f28761ece",
+          "ferrocopg/cursor.py": "2a0298ca456fa181f1c5d9e878bb48feb7c797b88fd344e0891c851b83720324",
+          "ferrocopg/cursor_async.py": "baec93de14348d41f65a9d8eadfcbe7338f0a01c92c2210479bb89a25d0826ff",
+          "ferrocopg/dbapi20.py": "a6f014d21dad513dfe07705bc5cda597353d5baa9135b763452bc561dc332746",
+          "ferrocopg/errors.py": "ebea98455325d066f3eaf118c6deb2d59b08466aec67574c853bdeb236f7b3d8",
+          "ferrocopg/generators.py": "4b1e11adc3ec50ef4e701251c757c34a43cb884a882f19d35ddbc9a9dd07f714",
+          "ferrocopg/postgres.py": "0eb279075bbdf5b934feb135b72269b41b05c00a1f1054cd8256235b9ab19c48",
+          "ferrocopg/pq/__init__.py": "1efd0f1f982ec2f6ac4f9d690f7d15b1f7f065e92bb69e5e8bf1a4ebff6d4b7b",
+          "ferrocopg/pq/_debug.py": "46cc6b5a7c1a48f303a1e8a66bd7fd499c2d598a17fb12c16a4165949c731ae8",
+          "ferrocopg/pq/_enums.py": "7a1f64faaf282234de50deaa2f668f98ea5133848e2a4d567712bc2a91865736",
+          "ferrocopg/pq/_pq_ctypes.py": "58b41863728ebf870f582d953cb1cf27eaecd2cd90c0bf377a9e0c21fa384313",
+          "ferrocopg/pq/abc.py": "fc7d65f6dcceaa38de327db8d86582c89dbb7cb37889f9f9e573bbc5e5baebf1",
+          "ferrocopg/pq/misc.py": "0c532bf94bf34663aa54fe46f4e6893229e24f6edfc992d894e238ff6c3303c3",
+          "ferrocopg/pq/pq_ctypes.py": "b235fbaac78cf8c460eef441ca02d7a0b848061bc9c2b2bfc8cab330d4c4d17b",
+          "ferrocopg/raw_cursor.py": "be393a35719812560224a3a8a6584dd74fce48ba25871503d9cda28b49985359",
+          "ferrocopg/rows.py": "2aadc647f25969d31a391ba0d425f32c8ca17b08eb8b8e4a96b995ef64ae57bc",
+          "ferrocopg/sql.py": "679c0af3847fed2ca6164c291624041a7ecfbd2eab3e20c4c3e4da88164c9fdb",
+          "ferrocopg/transaction.py": "7180361011696beee7f81079bd7f4c79f7eade64899241bd290c99f9a50aabd4",
+          "ferrocopg/types/__init__.py": "f9f8e78c80557763144d136b9f52c886b9c6af9deb76af0fc29bd422f8d5968d",
+          "ferrocopg/types/array.py": "c1abe21b3f83a26b3bbc1b42af6ca305d664e88eea5a06fda9c38c2fa26d0fa3",
+          "ferrocopg/types/bool.py": "e1e9426247c6d3e4c6fc7733c9f7f0378f32d52bdfbe5a461fafbfdb565a5802",
+          "ferrocopg/types/composite.py": "17ccfcd0b84499dc17a543a08c024f4ffc1ce830dcdbd41da8105d917d7805c5",
+          "ferrocopg/types/datetime.py": "1966558989811be6c9ef04b8a8d293ec261ab53456921ee8a5f14b4e27336ddc",
+          "ferrocopg/types/enum.py": "d476f10a9e4668d03207f30ae3671d8971cc55ea06ff51f67c52d4d843137006",
+          "ferrocopg/types/hstore.py": "fc3b4dff304794b9384110bdeea49ecc3032853536c6a47e36c8c380f89ace8f",
+          "ferrocopg/types/json.py": "5be25df080ad379f319159b5da5f1b7e6fd53fd3a96ba67463fe73e247c535a5",
+          "ferrocopg/types/multirange.py": "8c7ab3fd303783955195f9986dce068cc129578619b1c090afb335073b1996b6",
+          "ferrocopg/types/net.py": "baee8032fe6d0df2e79a7a6bd018273066ee258767abb5c934d5085cfea20ee2",
+          "ferrocopg/types/none.py": "832fce26a13562c949d91222c7412adf1d01f083dfa07f8671cdac40c20ed12c",
+          "ferrocopg/types/numeric.py": "1a3ec260bb2f1d6a7bb6aab1f33596a14b8dbd310f0350e7cac8f651d8d285df",
+          "ferrocopg/types/numpy.py": "83d8ea55882a45a3060fec4f5fee3735c2bcba5468ae4d60f920275c47f16bc1",
+          "ferrocopg/types/range.py": "41a499003f6b5cc38b0e2651a14184ac1a00db15354a158a3fbe387e82376fc0",
+          "ferrocopg/types/shapely.py": "774afee614da1cabfa6914e43a7ed11a300333486fd51728cb5c44ff935c48e1",
+          "ferrocopg/types/string.py": "0a882dc425fd4f54f37ff511d463da7156dba5342c1b49a4a594ee25b963fb4c",
+          "ferrocopg/types/uuid.py": "c1cb8abde3e630af09b12b9d0253fc165fc0d3dc5cab3a7204c45cee63ff6f03",
+          "ferrocopg/version.py": "0728b2e275d6c29cafe11f694f9dbe56a92925783eb9318935fe70b74bc03bac",
+          "ferrocopg/waiting.py": "239c7fdf77bdcb7d5ff11c451833f2ea98262446ea401819b3cad981a5fc4412"
+        }
+      },
+      "samples": [
+        {
+          "wall_us": 46.949377500000004,
+          "cpu_us": 35.90222
+        },
+        {
+          "wall_us": 47.1662825,
+          "cpu_us": 35.54382
+        },
+        {
+          "wall_us": 49.98541584,
+          "cpu_us": 35.55536
+        },
+        {
+          "wall_us": 47.2137375,
+          "cpu_us": 35.25828
+        },
+        {
+          "wall_us": 46.86178666,
+          "cpu_us": 35.7605
+        },
+        {
+          "wall_us": 46.90033084,
+          "cpu_us": 35.89332
+        },
+        {
+          "wall_us": 47.2330475,
+          "cpu_us": 36.101699999999994
+        },
+        {
+          "wall_us": 46.89179834,
+          "cpu_us": 35.861239999999995
+        },
+        {
+          "wall_us": 46.91977,
+          "cpu_us": 35.94286
+        }
+      ],
+      "medians_us": {
+        "wall_us": 46.949377500000004,
+        "cpu_us": 35.861239999999995
+      },
+      "profile": null
+    }
+  },
+  "pairs": {
+    "constant-a": {
+      "normal": {
+        "wall_us": 40.54420916,
+        "cpu_us": 29.31622
+      },
+      "omitted": {
+        "wall_us": 39.45555416,
+        "cpu_us": 28.50152
+      },
+      "omitted_over_normal": {
+        "wall_us": 0.9731489398226062,
+        "cpu_us": 0.9722099233802993
+      },
+      "saved_us": {
+        "wall_us": 1.0886550000000028,
+        "cpu_us": 0.814700000000002
+      }
+    },
+    "constant-b": {
+      "normal": {
+        "wall_us": 40.22539,
+        "cpu_us": 29.214779999999998
+      },
+      "omitted": {
+        "wall_us": 39.2263675,
+        "cpu_us": 28.17658
+      },
+      "omitted_over_normal": {
+        "wall_us": 0.9751643800097403,
+        "cpu_us": 0.9644631929454887
+      },
+      "saved_us": {
+        "wall_us": 0.9990224999999953,
+        "cpu_us": 1.0381999999999962
+      }
+    },
+    "parameterized-a": {
+      "normal": {
+        "wall_us": 46.949377500000004,
+        "cpu_us": 35.861239999999995
+      },
+      "omitted": {
+        "wall_us": 46.16606418,
+        "cpu_us": 35.060919999999996
+      },
+      "omitted_over_normal": {
+        "wall_us": 0.9833157890112599,
+        "cpu_us": 0.9776828687463122
+      },
+      "saved_us": {
+        "wall_us": 0.7833133200000049,
+        "cpu_us": 0.8003199999999993
+      }
+    },
+    "parameterized-b": {
+      "normal": {
+        "wall_us": 51.4566775,
+        "cpu_us": 36.34406
+      },
+      "omitted": {
+        "wall_us": 47.223597500000004,
+        "cpu_us": 34.973279999999995
+      },
+      "omitted_over_normal": {
+        "wall_us": 0.9177350694669318,
+        "cpu_us": 0.9622832451850453
+      },
+      "saved_us": {
+        "wall_us": 4.233079999999994,
+        "cpu_us": 1.3707800000000034
+      }
+    }
+  },
+  "wheel": {
+    "filename": "ferrocopg-0.1.0-cp314-cp314-macosx_11_0_arm64.whl",
+    "sha256": "9df38f89e78f5fbc921eb60add9fe5c2e2ba6a84dcd987239138111e37523932",
+    "native_sha256": {
+      "ferrocopg/_rust/_ferrocopg.cpython-314-darwin.so": "81ecf7f6bd0e809c0849b38b4d9fb67026ef3904fca2a7a6e87766784d726dab"
+    }
+  },
+  "prior_separate_profile": {
+    "revision": "10f83f989544308698e56b4e2d72497ca762310a",
+    "operations": 10000,
+    "instrumented_total_seconds": 1.0388255180000003,
+    "helpers": {
+      "_update_transaction_state": {
+        "calls": 10000,
+        "self_seconds": 0.006041622,
+        "cumulative_seconds": 0.009953168
+      },
+      "_refresh_client_encoding": {
+        "calls": 10000,
+        "self_seconds": 0.0077377060000000004,
+        "cumulative_seconds": 0.024446100000000002
+      },
+      "_refresh_session_timeout": {
+        "calls": 10000,
+        "self_seconds": 0.002427451,
+        "cumulative_seconds": 0.003452273
+      }
+    },
+    "latency_evidence": false
+  },
+  "disposition": "Do not prioritize a standalone outcome-envelope implementation as the route to near parity. Preserve server-outcome design as a separate correctness/architecture proposal. Investigate removal of intermediate parameter representations next; this control does not test that larger boundary."
+}

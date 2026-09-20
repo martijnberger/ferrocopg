@@ -149,13 +149,20 @@ search for tiny transport optimizations.
    without a speed gain need a separately documented rationale, not a speed claim.
 4. The 5C.2 adapter-schema prototype `3e51f41f` is rejected after flat/mixed
    controls; production code is restored to `8eddc2ec`, with 82 installed checks
-   passing. Preserve its measurements and contract tests, not its cache. Inspect
-   **5C.3 server-reported execution outcomes** and the coarse execution boundary
-   next, first quantifying the opportunity. Record explicit dispositions for
-   other plan-reuse approaches; do not repeat rejected cache/transformer designs
+   passing. Preserve its measurements and contract tests, not its cache.
+   The 5C.3 helper-body ablation now quantifies a small, non-idle opportunity;
+   do not prioritize a standalone outcome envelope as the parity intervention.
+   Inspect native execution packets that remove intermediate parameter
+   representations next, preserving callback and mutable-buffer snapshot timing.
+   The parity report records contracts and both-order evidence. Record dispositions
+   for other plan-reuse approaches; do not repeat rejected cache/transformer designs
    or assume every hypothesis must be merged.
-5. Freeze the retained implementation and satisfy every Phase 5 completion gate
-   below on that candidate. Commit coherent slices with AI attribution and push
+5. Retained runtime is frozen at published `7bbc14eb` for acceptance workflow
+   `35511989284` (benchmark and full soak, currently queued). Checkpoint Tests
+   `35511889731` and Lint `35511889747` are pending. Do not restart live handles
+   or push over active Tests just to publish evidence-only commits.
+   Satisfy every Phase 5 completion gate below on that candidate. Commit coherent
+   slices with AI attribution and push
    the active development bookmark regularly. Keep `main` promotion, branch
    deletion, dependency replacement, and PyPI publication separate from this loop.
 
@@ -1363,8 +1370,11 @@ Definition of done:
 ### Phase 5: Reliability, performance attribution, and parity
 
 Status: in progress. Consolidated beta acceptance and the parity investigation
-are separate workstreams. The beta candidate is frozen at `7c1a644a`; diagnostic
-tools do not change its production implementation. No claim of an irreducible
+are separate workstreams. The earlier `7c1a644a` benchmark gate failed. The
+retained single-owner runtime is now frozen at `7bbc14eb` for full acceptance
+workflow `35511989284`; its production code matches green compatibility
+checkpoint `8eddc2ec`. Diagnostic tools do not change its production implementation.
+No claim of an irreducible
 Rust-client performance floor has been established.
 
 #### 5A: Establish the trustworthy beta baseline
@@ -1587,6 +1597,21 @@ not a compatible candidate or acceptance evidence. Measure normal/omitted in
 both orders before choosing the scope of a native outcome implementation.
 Profiled cumulative times of these non-overlapping helpers total about 3.6% of
 the parameterized profile; instrumentation cannot establish unprofiled savings.
+
+Disposition (2026-09-20): do not prioritize the standalone native outcome
+envelope as the route to near parity. Nine 50,000-operation samples in each
+order show constant-query wall savings of 1.089/0.999 us, but parameterized
+savings of 0.783/4.233 us with only 0.800/1.371 us CPU savings. These non-idle
+results do not establish a repeatable 8% gain or an upper bound on a larger
+redesign. The control intentionally omits behavior and is not a candidate;
+all 84 installed/accounting checks pass, including rejection of ablated reports
+by candidate accounting. Preserve `2026-09-20-bookkeeping-opportunity.json`.
+The implementation below remains deferred as a separate architecture/correctness
+proposal: live parameter and transaction events require per-request ownership,
+not a final shared status applied to every pipeline result. No transaction or
+pool speed improvement has been demonstrated. Next quantify removal of the
+intermediate Python tuple/native parameter representations as described in the
+parity report, without reusing arbitrary mutable adaptation callbacks.
 
 - [ ] Return owned results together with command/transaction status, setting
   changes, and ordered notices from the native boundary where supported.
@@ -3807,15 +3832,20 @@ the synchronous beta is established.
    custom callbacks, subclassing, metadata snapshots, resource lifetime,
    cancellation, and error ordering; private adapter layout is not a constraint.
 3. Do not restart rejected adapter-schema prototype `3e51f41f`: production code
-   is restored to `8eddc2ec`, with its tests and measurements retained. Inspect
-   5C.3 server-reported outcomes and coarse execution boundaries according to
-   the remaining profile, not as one unreviewable rewrite. Record explicit
+   is restored to `8eddc2ec`, with its tests and measurements retained.
+   The 5C.3 omission control shows a small opportunity and does not justify
+   prioritizing a standalone outcome envelope for parity. Quantify a native
+   execution packet eliminating intermediate parameter representations next;
+   preserve per-execution callbacks and buffer snapshot timing. Record explicit
    dispositions for remaining plan-reuse approaches rather than leaving them
    indefinitely open or declaring all plan reuse impossible from one cache.
    Direct Tokio/pristine upstream controls are needed only if a native-client
    floor becomes a suspected blocker.
-4. Freeze the retained production candidate and run three complete benchmarks
-   under `1.15` Python / `1.50` C, full soaks, and the supported compatibility/
+4. Follow acceptance workflow `35511989284` for frozen `7bbc14eb`: it will run
+   three complete benchmarks and full soaks; both jobs are currently queued.
+   Checkpoint Tests `35511889731` and Lint `35511889747` are pending.
+   Require three complete benchmarks under `1.15` Python / `1.50` C,
+   full soaks, and the supported compatibility/
    package matrix. Publish all raw evidence. Track Python parity/C <= `1.10`
    separately; neither waive failures nor turn the stretch goal into an endless
    implicit release blocker.

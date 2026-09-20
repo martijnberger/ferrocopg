@@ -189,6 +189,8 @@ class CodegenExperimentTests(unittest.TestCase):
             ("mode", "integration-profile"),
             ("acceptance_evidence", True),
             ("backend", "c"),
+            ("bookkeeping", "omit-helper-bodies"),
+            ("omitted_helper_bodies", ["_refresh_client_encoding"]),
             ("case", "adapter-fresh"),
             ("workload", "wrong"),
             ("iterations", 1),

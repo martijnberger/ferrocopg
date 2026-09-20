@@ -371,6 +371,74 @@ remain failed and are not replaced retroactively.
 
 ## Next experiments and decision rules
 
+### Execution bookkeeping opportunity (2026-09-20)
+
+The fixed-query diagnostic now supports `--bookkeeping omit-helper-bodies`.
+It omits only `_refresh_client_encoding`, `_refresh_session_timeout`, and
+`_update_transaction_state`, retaining their calls and all other API work.
+Only the Rust public-API control permits it; the connection must be idle,
+autocommit, and UTF-8. The script only executes its fixed scalar SELECTs and
+restores methods before connection cleanup, including on failure. Omission is
+not a compatible backend implementation. Candidate comparison accounting
+explicitly rejects reports carrying either the ablation mode or omitted helpers.
+
+The frozen installed control is production revision `8eddc2ec`, wheel SHA-256
+`9df38f89e78f5fbc921eb60add9fe5c2e2ba6a84dcd987239138111e37523932`.
+All eight controls use 1,000 warmups and nine samples of 50,000 operations,
+fresh public cursors, prepared binary results, and both measurement orders.
+Installed fingerprints and server settings match throughout. There are no
+overlapping builds, tests, or profilers. This Mac is **not idle**: the initial
+process snapshot was unavailable due to sandbox permissions; a post-run
+snapshot showed Ghostty 21.1%, WindowServer 18.0%, and node 6.5% CPU.
+
+| Workload | Omitted/normal wall a / b | Omitted/normal CPU a / b | Wall savings a / b |
+| --- | ---: | ---: | ---: |
+| Constant | 0.9731 / 0.9752 | 0.9722 / 0.9645 | 1.089 / 0.999 us |
+| Parameterized | 0.9833 / 0.9177 | 0.9777 / 0.9623 | 0.783 / 4.233 us |
+
+The reverse parameterized wall result is much larger than its CPU difference
+(1.371 us); do not advertise a repeatable 8.2% gain. Constant-query results
+suggest about 1 us of removable helper-body cost in this workload. The control
+does not quantify all outcome-related work, the cost of a replacement, or
+transaction/pool benefits. It is not a mathematical upper bound. The previous
+separate parameterized profile attributes 3.6% of instrumented cumulative time
+to these three non-overlapping helpers, consistent with investigating a small
+component rather than claiming the whole public API gap is removable here.
+[Raw samples, exact identities, and profile counts](performance/2026-09-20-bookkeeping-opportunity.json)
+preserve both orders and all caveats. All 84 installed/accounting checks pass.
+
+**Disposition:** do not prioritize a standalone native outcome envelope as the
+route to near parity. Retain it as a separate correctness/architecture proposal,
+not an implemented or performance-accepted change. `Client::parameter()` in the
+vendored Tokio client exposes startup parameters; live `ParameterStatus` updates
+are owned by the connection. Query consumers discard `ReadyForQuery` status.
+A proper design must retain per-request command/transaction/setting events,
+including errors, cancellation, and each intermediate pipeline operation.
+Copying a connection's final status onto all results would be incorrect.
+
+The next discriminating experiment should remove intermediate **parameter
+representations**, not cache mutable callback instances or merely move generic
+Python dispatch into Rust. `_convert_query_params()` currently turns the
+transformer's separate values/types/formats into Python tuples, then PyO3
+extracts another vector before `bound_params()` maps it into native parameters.
+Compare a single native execution packet against this path, preserving the
+existing Python adaptation callbacks and preparation policy. Capture mutable
+buffer contents at the current conversion point, before preparation can run
+notices or other callbacks; deferring the copy until execution can change values.
+Do not add a cache or assume an extra native builder call is free. Measure the
+packet construction and full fresh/reused query path before deciding retention.
+This larger boundary remains unimplemented and unproven.
+
+### Acceptance checkpoint
+
+The retained production implementation is frozen for full acceptance at
+`7bbc14eba9a573bf528317f0859a8734db589e19`; its runtime matches the green
+`8eddc2ec` compatibility checkpoint. [Workflow 35511989284](https://github.com/martijnberger/ferrocopg/actions/runs/35511989284)
+is queued for three complete benchmark runs and the full three-backend soak.
+Follow this handle rather than restarting it on observation timeouts. The
+separate checkpoint Tests `35511889731` and Lint `35511889747` are also pending.
+No final acceptance or scheduled-run success is claimed.
+
 ### Execution-plan prototype boundary
 
 Source inspection after the single-owner prototype narrows 5C.2. Placeholder
