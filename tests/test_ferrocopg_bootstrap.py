@@ -2750,9 +2750,7 @@ def test_backend_result_metadata_does_not_materialize_rows(is_tuples: bool) -> N
     assert shim.ntuples == 3
     assert module._result_rowcount(result, None) == (3 if is_tuples else -1)
     conn = SimpleNamespace(
-        adapters=psycopg.adapters,
-        pgconn=SimpleNamespace(_encoding="utf-8"),
-        _execution_adapters=module._pure_python_adapters,
+        adapters=psycopg.adapters, pgconn=SimpleNamespace(_encoding="utf-8")
     )
     cur = module.NoTlsCursorAdapter(conn)
     cur._set_result(module.BackendResultCursor([result]))

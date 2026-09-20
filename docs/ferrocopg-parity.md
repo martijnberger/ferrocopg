@@ -403,6 +403,44 @@ Use the existing four fresh/reused controls in both orders and all eleven
 workloads. Reject a second parse cache or another generic native-transformer
 port without new evidence; neither removes the repeated lifetime/setup work.
 
+### Rejected adapter-schema cache
+
+Prototype `3e51f41fd1fd8550c16aa4da86686e89313f8e24` introduced registration and
+type-registry generations, a 32-entry connection-local schema cache, and lazy
+execution-local adapter views. Mutating a view materialized its own map; every
+execution still constructed its own callback instances. It passes all 82
+installed checks and 4,749/4,749 supported synchronous source cases, including
+mutation, independent snapshots, bounded retention, and close-time cleanup.
+
+[Raw exploratory evidence](performance/2026-09-20-adapter-schema-rejected.json)
+compares its exact wheel against published `8eddc2ec` with identical native
+extension bytes. Each control uses 1,000 warmups and nine 5,000-operation
+samples, in baseline/candidate/candidate/baseline order. No builds or tests
+overlapped; this Mac was **not idle** (Ghostty and WindowServer were active).
+
+| Control | Wall a / b | CPU a / b |
+| --- | ---: | ---: |
+| Fresh constant | 0.997 / 1.141 | 0.999 / 1.098 |
+| Fresh parameterized | 1.008 / 0.992 | 1.004 / 1.004 |
+| Reused constant | 0.965 / 0.964 | 0.956 / 0.950 |
+| Reused parameterized | 0.991 / 1.007 | 0.983 / 1.016 |
+
+The large fresh-constant order difference limits confidence; it is not proof
+of a stable 14% regression. However, fresh and parameterized improvements are
+not repeatable, so retention is unjustified. A separate 10,000-operation profile
+confirms map construction falls from 20,000 to 10,000 calls, while adding 10,000
+schema lookups/views and increasing lock acquisitions from 10,000 to 20,000.
+This is not a failure to exercise the intended fast path: the simpler setup is
+offset by cache/view/locking work. Profile times are not latency estimates.
+
+**Disposition: rejected.** Production code is restored exactly to `8eddc2ec`;
+the three additional public-contract tests and evidence are retained. Broader
+plan reuse remains unproven, not disproven. Do not repeat this cache or waive
+callback/mutation/locking requirements to manufacture a gain. Inspect the
+coarser execution/outcome boundary next, and bound its opportunity before a new
+prototype. The rejected prototype's passing full source run does not replace
+the retained implementation's pending compatibility matrix or release gates.
+
 1. Reproduce the initial layer and integration comparisons on an otherwise idle
    dedicated runner, retaining both orders. Prioritize the integration gap now
    observed. If the native-client floor becomes a suspected blocker, add pinned
@@ -429,10 +467,11 @@ port without new evidence; neither removes the repeated lifetime/setup work.
    cannot close a ten-microsecond gap on its own. Reject flat/mixed changes and
    require a complete same-wheel comparison before retaining a performance claim.
 
-No production optimization is introduced by this investigation. Beta validation
-continues against frozen `7c1a644a`; changing probes or documentation does not
-change its artifact identity or convert a previous failure into a pass.
+The original `7c1a644a` beta checkpoint and all failed runs remain historical
+evidence, not acceptance of the newer integration. The current retained runtime
+is `8eddc2ec`; the schema-cache experiment is removed. Neither later probes nor
+documentation can change an earlier artifact's identity or failure verdict.
 
-Validation of the diagnostic tooling: both native probes build in release mode;
+Initial validation of the diagnostic tooling: both native probes build in release mode;
 all forward/reverse result checks pass; all 74 installed-wheel/accounting tests,
 Ruff, codespell, workspace Rust formatting, and mypy (239 source files) pass.

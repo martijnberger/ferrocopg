@@ -132,8 +132,8 @@ search for tiny transport optimizations.
    `8eddc2ec` is under Tests `35508454735`; its Lint `35508454729` passes.
    Public-contract tests are established and
    local diagnostics are recorded; do not restart 5C.1 from scratch or repeat
-   unchanged runs to select favorable samples. Validate both-order controls and
-   all eleven workloads before deciding retention. Do not require a pristine
+   unchanged runs to select favorable samples. Its both-order controls and all
+   eleven workloads have been validated. Do not require a pristine
    Tokio investigation before addressing the measured integration gap.
    Compatibility follow-ups `775299eb` / `87de5ef3` correct the new-test inventory
    and experimental async `nextset()` warning leak. Preserve those checkpoints;
@@ -144,9 +144,13 @@ search for tiny transport optimizations.
    Keep a prototype only with preserved public behavior and a repeatable benefit;
    reject flat/mixed performance-only changes. Architectural simplifications
    without a speed gain need a separately documented rationale, not a speed claim.
-4. Based on the remaining profile, proceed to **5C.2 reusable execution plans**,
-   then **5C.3 server-reported execution outcomes** if justified. These are ordered
-   hypotheses, not a requirement to merge all three regardless of their results.
+4. The 5C.2 adapter-schema prototype `3e51f41f` is rejected after flat/mixed
+   controls; production code is restored to `8eddc2ec`, with 82 installed checks
+   passing. Preserve its measurements and contract tests, not its cache. Inspect
+   **5C.3 server-reported execution outcomes** and the coarse execution boundary
+   next, first quantifying the opportunity. Record explicit dispositions for
+   other plan-reuse approaches; do not repeat rejected cache/transformer designs
+   or assume every hypothesis must be merged.
 5. Freeze the retained implementation and satisfy every Phase 5 completion gate
    below on that candidate. Commit coherent slices with AI attribution and push
    the active development bookmark regularly. Keep `main` promotion, branch
@@ -1519,7 +1523,7 @@ adapter snapshots, and post-execution loader replacement now passes on both
 frozen Rust wheels and official C. This establishes a contract, not a cache
 implementation or a retained performance claim.
 
-The first 5C.2 prototype now caches at most 32 connection-local pure adapter
+Rejected prototype `3e51f41f` cached at most 32 connection-local pure adapter
 schemas, keyed by adapter-registration and type-registry generations plus wire
 loader mapping. Copy-on-write children inherit a generation until modified.
 Each execution gets a lazy independent view; observing map internals/types or
@@ -1539,8 +1543,26 @@ validation now passes all 4,749/4,749 supported sync cases with zero errors unde
 the unchanged strict classifier (`/tmp/phase5-schema-full.xml` and its
 `-report.json`). Experimental async remains 511/622 and is not relabeled as
 supported. Both exact installed control/prototype wheels pass 82 checks, and
-configured mypy passes 239 source files. Exact-wheel measurements are next;
-do not retain this prototype merely because correctness checks pass.
+configured mypy passes 239 source files. These checks validate the rejected
+prototype, not a fresh acceptance run of the restored implementation.
+
+Disposition: reject this adapter-schema implementation and restore production
+code exactly to published `8eddc2ec`; retain its new contract tests and raw
+evidence. Local non-idle controls show fresh parameterized wall ratios of
+1.008/0.992 and CPU ratios of 1.004/1.004. Reused parameterized ratios are
+0.991/1.007 wall and 0.983/1.016 CPU. Reused constants improve about 3.6% wall,
+but that does not establish a repeatable general improvement. Fresh constants
+are 0.997/1.141 wall, with a large reverse-order machine variation. Do not claim
+the latter is a stable 14% regression or rerun to select a favorable sample.
+The separate profile confirms adapter-map construction fell from 20,000 to
+10,000 calls, but adds 10,000 schema lookups/views and doubles lock acquisitions
+to 20,000. The extra state/invalidation cost has no justified retention benefit.
+
+Evidence: `docs/performance/2026-09-20-adapter-schema-rejected.json`; exact
+installed baseline/prototype wheels have identical native bytes. Broader plan
+reuse is not proven impossible, but another map cache or generic transformer
+port needs new evidence. Inspect the coarser execution/outcome boundary in 5C.3
+next, with an opportunity budget before implementing it.
 
 - [ ] Separate reusable SQL/parameter-layout and result-decoding plans from
   execution values, mutable callbacks, cursor position, and errors.
@@ -3764,13 +3786,17 @@ the synchronous beta is established.
 1. Follow the resume instructions above. The existing `7c1a644a` CI checkpoint
    is terminal: its full soak passes, but the three-run benchmark fails despite
    runs 2/3 passing. Keep its evidence separate from any new integration candidate.
-2. Finish evaluating the frozen 5C.1 prototype `10f83f98` using the specific
-   comparison and compatibility handles in the resume instructions. Preserve
+2. Follow compatibility Tests `35508454735` for published `8eddc2ec`. Dedicated
+   comparison `35506310291` supports retaining single-owner state; its complete
+   reports pass the beta limits but do not satisfy three-run acceptance. Preserve
    custom callbacks, subclassing, metadata snapshots, resource lifetime,
    cancellation, and error ordering; private adapter layout is not a constraint.
-3. Decide retention from both-order controls and all eleven workloads, not the
-   modest local speedup alone. Proceed to 5C.2 reusable plans and conditionally 5C.3 server-reported
-   outcomes according to the remaining profile, not as one unreviewable rewrite.
+3. Do not restart rejected adapter-schema prototype `3e51f41f`: production code
+   is restored to `8eddc2ec`, with its tests and measurements retained. Inspect
+   5C.3 server-reported outcomes and coarse execution boundaries according to
+   the remaining profile, not as one unreviewable rewrite. Record explicit
+   dispositions for remaining plan-reuse approaches rather than leaving them
+   indefinitely open or declaring all plan reuse impossible from one cache.
    Direct Tokio/pristine upstream controls are needed only if a native-client
    floor becomes a suspected blocker.
 4. Freeze the retained production candidate and run three complete benchmarks

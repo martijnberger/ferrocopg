@@ -61,8 +61,6 @@ class AdaptersMap:
     __module__ = "psycopg.adapt"
 
     types: TypesRegistry
-    # Copies share a schema identity until either map registers a new adapter.
-    _generation: object
 
     _dumpers: dict[PyFormat, dict[type | str, type[Dumper]]]
     _dumpers_by_oid: list[dict[int, type[Dumper]]]
@@ -78,7 +76,6 @@ class AdaptersMap:
         self, template: AdaptersMap | None = None, types: TypesRegistry | None = None
     ):
         if template:
-            self._generation = template._generation
             self._dumpers = template._dumpers.copy()
             self._own_dumpers = _dumpers_shared.copy()
             template._own_dumpers = _dumpers_shared.copy()
@@ -94,7 +91,6 @@ class AdaptersMap:
             self.types = TypesRegistry(template.types)
 
         else:
-            self._generation = object()
             self._dumpers = {fmt: {} for fmt in PyFormat}
             self._own_dumpers = _dumpers_owned.copy()
 
@@ -146,8 +142,6 @@ class AdaptersMap:
         if _psycopg:
             dumper = self._get_optimised(dumper)
 
-        self._generation = object()
-
         # Register the dumper both as its format and as auto
         # so that the last dumper registered is used in auto (%s) format
         if cls:
@@ -186,8 +180,6 @@ class AdaptersMap:
 
         if _psycopg:
             loader = self._get_optimised(loader)
-
-        self._generation = object()
 
         if not self._own_loaders[(fmt := loader.format)]:
             self._loaders[fmt] = self._loaders[fmt].copy()
