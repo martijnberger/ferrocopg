@@ -240,12 +240,16 @@ The same topology serves every backend in both orders. Any direct-network
 comparison would be a new, explicitly labeled topology experiment, not a rerun
 to select more favorable numbers.
 
-Successor Lint `35527753918` passes. Tests `35527753862` is still active and is
-not an all-green checkpoint: job `106122790149`, `macos-14 (c, 3.11)`, fails
+Successor Lint `35527753918` passes. Tests `35527753862` is now terminal with
+56 passing jobs and one failure. All eight Rust configurations and the package
+job pass; [terminal metadata](performance/2026-09-20-matched-layer-successor-ci.json)
+preserves every job. This is not an all-green checkpoint: job `106122790149`,
+`macos-14 (c, 3.11)`, fails
 `tests/test_generators.py::test_cancel` with a cancellation-connection EOF after
 roughly 60 seconds. Both built-in retries also fail. Its complete terminal job
-log is retained in the archive. Other jobs must finish without interruption;
-the failure needs investigation, not a skip or tolerance change.
+log is retained in the archive. The publication hold is lifted because every
+job is terminal, not because this failure is waived. It needs investigation,
+not a skip or tolerance change.
 
 The subsequent CI follow-up adds failure-only service/version/server-setting
 and PostgreSQL log collection on macOS, retained for 90 days. All original

@@ -194,7 +194,9 @@ search for tiny transport optimizations.
    after explicitly allowing its size and is now published through `0ec45e1d`.
    Successor Tests `35524995303` passed all 57 jobs, and Lint `35524995299` passes.
    The queued diagnostic stack was then pushed at `0ec45e1d`; follow successor
-   Tests `35527753862` rather than cancelling it; Lint `35527753918` passes.
+   Tests `35527753862` is now terminal with 56 passes and one macOS C failure;
+   all eight Rust jobs and the package job pass. Terminal metadata is preserved
+   in `2026-09-20-matched-layer-successor-ci.json`. Lint `35527753918` passes.
    Do not restart live handles
    or push over active Tests just to publish evidence-only commits.
    The matched layer-matrix coordinator and opt-in `layer_matrix=true` dispatch
@@ -217,10 +219,11 @@ search for tiny transport optimizations.
    CPU is substantial but part of the workload topology. Native Rust/libpq
    ratios are 1.016-1.096 versus full Rust/C 1.335-1.407 across all six cases.
    This supports integration work, not a claim that every microsecond is removable.
-   Successor Tests `35527753862` remains live with a failed macOS C/3.11
+   Successor Tests `35527753862` is terminal with a failed macOS C/3.11
    cancellation test; both built-in retries fail too. Its terminal job log is
-   preserved in the matrix archive. Investigate without skipping the test or
-   cancelling other jobs; do not call this successor an all-green checkpoint.
+   preserved in the matrix archive. Investigate without skipping the test;
+   do not call this successor an all-green checkpoint. The publication hold is
+   lifted because all jobs are terminal, not because the failed test is waived.
    A follow-up adds only two failure-only macOS diagnostic steps: preserve
    Homebrew PostgreSQL service/log information, libpq version, and bounded
    server-setting queries as a 90-day artifact. Structural comparison confirms
