@@ -643,8 +643,15 @@ Do not mark 5B complete from this harness: dedicated-runner results must be
 independently analyzed, the protocol captures need causal interpretation rather
 than equating cycles with round trips, and the bottleneck table must distinguish
 observed costs from recoverable work.
-Compatibility run `35511889731` is now terminal success; publish the diagnostic
-tooling and dispatch attribution once, recording the exact revision and run.
+Compatibility run `35511889731` is now terminal success. The diagnostic tooling
+is published at `8955d0a66b16d01ea90c683f58ee6f18b9ead0f2` and dispatched once as
+[attribution run 35519527974](https://github.com/martijnberger/ferrocopg/actions/runs/35519527974).
+The attribution job is queued at this checkpoint, while acceptance and codegen
+jobs are correctly skipped. Follow this run without redispatching. Production
+Python/Rust sources and Cargo settings remain identical to frozen `7bbc14eb`;
+this tooling-only successor also starts Tests `35519509151` and Lint
+`35519509127`. A green diagnostic workflow alone will not close 5B: audit its
+raw reports and publish the measured bottleneck table and remaining limitations.
 
 ### Allocation observer effect
 

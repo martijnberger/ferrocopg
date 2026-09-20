@@ -174,6 +174,12 @@ search for tiny transport optimizations.
    including all eight Rust configurations and the installed-package job. Their raw reports
    independently recompute; preserve `2026-09-20-frozen-compatibility.json`
    and its raw XML/report archive. Lint `35511889747` passes.
+   Attribution tooling is now published at `8955d0a6`; diagnostic workflow
+   `35519527974` is dispatched for that exact revision. Only its attribution
+   job is queued; acceptance/codegen jobs are skipped. Follow this handle, not
+   another dispatch. Successor Tests `35519509151` and Lint `35519509127`
+   validate the tooling/documentation revision. Production Python/Rust sources
+   and Cargo settings remain identical to `7bbc14eb`.
    Do not restart live handles
    or push over active Tests just to publish evidence-only commits.
    Satisfy every Phase 5 completion gate below on that candidate. Commit coherent
@@ -1462,7 +1468,10 @@ statistics identities are checked, and all sites remain available in artifacts.
 Preserve `2026-09-20-allocation-observer-effect.json` and its raw-capture archive;
 do not optimize a profiler-created allocation as if it were ordinary driver work.
 See the parity report's dedicated-attribution section. Tests `35511889731`
-are terminal success; publish and dispatch the attribution slice once.
+are terminal success. Published attribution revision `8955d0a6` is now running
+through diagnostic workflow `35519527974` (queued at dispatch). Follow that
+handle and preserve all raw artifacts; do not redispatch it because of queue
+delay. Successor Tests `35519509151` and Lint `35519509127` are separate checks.
 The acceptance benchmark and soak `35511989284` are already terminal success
 and independently audited; do not restart them.
 
@@ -3943,8 +3952,9 @@ the synchronous beta is established.
    all three full-duration soaks and their resource budgets. Checkpoint Tests
    `35511889731` are terminal success with all 57 jobs passing; the eight Rust
    configurations and installed-package job have been independently audited.
-   Lint `35511889747` passes. Publish the pending attribution tooling and dispatch `attribution=true`
-   once and follow that exact run. Do not restart completed acceptance jobs.
+   Lint `35511889747` passes. Attribution tooling is pushed at `8955d0a6` and
+   dispatched once as `35519527974`; follow that exact run and successor Tests
+   `35519509151`/Lint `35519509127`. Do not restart completed acceptance jobs.
    Preserve this one-wheel benchmark evidence under `1.15` Python / `1.50` C.
    Preserve the full-soak and frozen-compatibility evidence archives. Publish
    and independently analyze the dedicated attribution artifacts before closing
