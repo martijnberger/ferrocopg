@@ -3123,6 +3123,31 @@ Development validation (not full acceptance):
   mypy (239 files), and actionlint pass. No manifest or compatibility denominator
   changes are needed because new regressions are in the installed-package suite.
 
+The subsequent full local harness completed in 266.30 seconds with pytest
+status 1. The unchanged classifier reports `4737/4741` synchronous cases
+passing, four failures, zero errors, 277 skips, and 242 manifested cases
+(`5018` total). All four failures are in the pool family:
+`test_concurrent_filling`, `test_reconnect`, `test_check_backoff`, and
+`test_sched`. Observed first 100 ms waits were about 110-113 ms, outside the
+existing tolerances. The standalone scheduler case does not use a database
+connection. Experimental async remains `505/620`, with 104 failures and 11
+errors; it is not folded into the supported synchronous gate. Artifacts:
+`/tmp/phase5-state-8f148-full.xml` and
+`/tmp/phase5-state-8f148-full-report.json`.
+
+An immediate four-case C/libpq control also fails all four timing assertions,
+with corresponding first waits of about 110-115 ms:
+`/tmp/phase5-state-8f148-c-timing.xml`. This supports local timing sensitivity,
+not a waiver or a passing Rust run. The strict zero-synchronous-regression gate
+remains failed locally. No assertion, manifest, floor, or retry policy changed.
+These temporary artifacts are development evidence, not durable release proof.
+
+The local installed-wheel cProfile probe completed before the full suite began.
+It confirms dispatch through `NativeTransformer.dump_sequence`; its
+`/tmp/phase5-state-8f148-parameterized.pstats` is an instrumented diagnostic,
+not comparable acceptance latency or proof of improvement over the earlier
+profile. No local timing overlapped local tests or builds.
+
 The optional Phase 5 workflow now accepts a full `comparison_baseline` SHA. It
 checks out that exact baseline separately and compares baseline/candidate wheels
 using their committed release settings, without inherited codegen overrides.
@@ -3144,7 +3169,7 @@ also passes. These do not cover full-duration prototype reliability or its
 performance acceptance.
 
 [Comparison `35477922181`](https://github.com/martijnberger/ferrocopg/actions/runs/35477922181)
-was dispatched once and confirmed live at 2026-09-20 00:21 UTC, running the
+was dispatched once and confirmed live at 2026-09-20 00:36 UTC, running the
 experimental comparison step. The normal acceptance job is correctly skipped
 for this explicit diagnostic invocation. Expected artifact:
 `phase5-candidate-experiment-8f14895d2e14d900d626b9fb5f21aa43254968f1`.
@@ -3283,6 +3308,10 @@ the synchronous beta is established.
    now passes all 57 jobs and lint. Dedicated both-order comparison `35477922181`
    is live; inspect that run rather than dispatching another. Its performance
    and full-duration candidate reliability are still unproven.
+   The full local prototype run now passes `4737/4741` synchronous cases; four
+   pool/scheduler timing assertions fail, and all four also fail the immediate
+   C/libpq control. Preserve the failed strict local gate and both artifacts;
+   do not rerun the full harness merely to obtain a passing timing sample.
    The notice-drain benchmark still fails four C/four Python comparisons in CI and five
    C/five Python comparisons locally. Preserve its failed local pool timing
    assertion and failed isolated C comparison; do not waive the strict gate.
