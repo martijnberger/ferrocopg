@@ -351,8 +351,9 @@ class FerrocopgAsyncCursor:
     async def fetchall(self) -> list[Any]:
         return await self.connection._run(self._cursor.fetchall)
 
-    async def nextset(self) -> bool | None:
-        return await self.connection._run(self._cursor.nextset)
+    def nextset(self) -> bool | None:
+        # Result navigation is synchronous in the public async cursor API too.
+        return self._cursor.nextset()
 
     async def scroll(self, value: int, mode: str = "relative") -> None:
         await self.connection._run(self._cursor.scroll, value, mode)

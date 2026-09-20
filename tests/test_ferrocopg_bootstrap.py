@@ -4673,6 +4673,7 @@ def test_ferrocopg_async_connection_facade(monkeypatch: pytest.MonkeyPatch) -> N
 
         cursor = await aconn.execute("select direct")
         assert await cursor.fetchone() == ["direct"]
+        assert cursor.nextset() is None
 
         async with aconn.transaction():
             async with aconn.cursor() as tx_cursor:
@@ -5757,6 +5758,12 @@ def test_backend_phase37_async_live(dsn: str) -> None:
         async with await psycopg.FerrocopgAsyncConnection.connect(dsn) as conn:
             result = await conn.execute("select %s::int4", (7,))
             assert await result.fetchone() == (7,)
+
+            result = await conn.execute("select 1; select 2")
+            assert await result.fetchone() == (1,)
+            assert result.nextset() is True
+            assert await result.fetchone() == (2,)
+            assert result.nextset() is None
 
             await conn.execute(
                 "create temp table ferrocopg_async37 (id int4 primary key, label text)"

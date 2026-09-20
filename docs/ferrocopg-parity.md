@@ -284,6 +284,31 @@ workloads. Do not infer a beta-gate pass from this local diagnostic or replace
 that run with duplicate dispatches. A final three-run gate, full soak,
 supported compatibility matrix, and scheduled-run evidence are still required.
 
+### Compatibility follow-up to the frozen prototype
+
+The first five available artifacts from Tests `35506169516` explain an exact
+inventory drift introduced by the public-callback controls in `8919d7d9`:
+two common-cursor tests each expand across three cursor classes, and one server
+test expands across two classes. This adds eight supported synchronous cases.
+Their async counterparts add two counted server cases and six cases covered by
+the existing experimental-async manifest. No exclusions were added. Accordingly,
+the committed inventory increases `sync.total` by eight, `async.total` by two,
+and `async.manifested` by six for every matrix key; `sync.manifested` stays 249.
+The downloaded Python 3.11/PostgreSQL 14, 16, 17; Python 3.12/PostgreSQL 16; and
+Python 3.14/PostgreSQL 18 JUnit reports independently confirm this exact delta.
+
+Reclassifying these unchanged reports with the corrected inventory passes four
+keys. Python 3.11/PostgreSQL 14 still fails the strict zero-regression gate:
+`test_preserves_autocommit[asyncio-pipeline=on-False]` receives two unraisable
+warnings from previously created `FerrocopgAsyncCursor.nextset` coroutines.
+The existing async server-cursor tests call this method synchronously, as the
+public API requires, but the experimental wrapper had declared it `async def`.
+The follow-up makes local result navigation synchronous, without a worker or
+warning suppression, and extends existing facade/live checks for both `True`
+and `None` outcomes. This does not expand supported native-async scope or change
+the frozen `10f83f98` performance comparison. The old failing report remains
+failed; the follow-up still needs its own compatibility run.
+
 ## Next experiments and decision rules
 
 1. Reproduce the initial layer and integration comparisons on an otherwise idle

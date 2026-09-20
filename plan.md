@@ -1455,6 +1455,17 @@ local evidence-only commits until that matrix finishes: the current `docs/*`
 push exclusion does not cover nested evidence and another push would cancel
 the exact-candidate matrix. This does not block local investigation or commits.
 
+The first five completed matrix artifacts expose stale inventory counts from
+the callback tests: exactly eight new sync cases, two counted async cases, and
+six already-manifested async cases. The follow-up corrects all eight inventory
+keys without changing exclusions, floors, or the zero-regression budget. Four
+available reports then pass; Python 3.11/PostgreSQL 14 still fails because an
+experimental async `nextset()` coroutine warning leaks into sync teardown.
+Its wrapper is corrected to match synchronous public result navigation, with
+existing facade/live tests extended. Preserve the original failure and require
+fresh successor CI; see the parity report's compatibility follow-up. The frozen
+performance comparison remains `10f83f98`, not this unmeasured successor.
+
 - [ ] Keep the public Connection/Cursor surface but replace the second cursor-like
   adapter and after-execute/after-fetch state copying with one authoritative
   execution state: active result, result index, row position, and lifecycle.
