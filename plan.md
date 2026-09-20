@@ -1420,10 +1420,18 @@ Dedicated attribution tooling is now implemented in `tools/phase5/attribution.py
 with an opt-in `attribution=true` Phase 5 workflow dispatch. It runs all native
 layers in both orders, then separates 72 ordinary timing workers from 108 CPU,
 allocation, and syscall workers across all eleven workloads plus pipeline.
+It now follows these with 66 plaintext protocol captures in both backend orders.
 Pinned Memray captures and whole-process strace counts are diagnostics, not
-acceptance or protocol-round-trip measurements. Eight accounting tests and real
-installed-wheel profiler smoke checks validate the harness; the full Linux run,
-protocol-level evidence, and resulting bottleneck table remain outstanding.
+acceptance. The separate protocol proxy records actual message flow, not general
+network RTTs. Initial local captures cover all 33 plaintext backend/workload
+combinations: scalar queries show one cycle; the parameterized Rust pipeline
+serializes its batch, corroborated by `NoTlsPipelineAdapter.sync()`; COPY adds
+prepare/close traffic. Preserve the raw streams and operation-boundary caveats
+in `2026-09-20-protocol-diagnostic.json` and its compressed archive. The dedicated
+Linux run, cross-order replication, and resulting bottleneck table remain
+outstanding. Prioritize scalar cost attribution and evaluate genuine native
+parameterized batching as a separate throughput opportunity, not a substitute
+for the scalar-query targets.
 See the parity report's dedicated-attribution section. Wait for active Tests
 `35511889731` to become terminal before pushing and dispatching this slice;
 continue following acceptance soak `35511989284` independently.

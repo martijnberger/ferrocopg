@@ -536,6 +536,8 @@ warmups. Prepared/parameterized operations use 10,000 iterations per sample;
 other workloads use 100. Subsequent, separate worker processes collect 36 CPU
 call profiles, 36 allocation captures, and 36 syscall traces. These instrumented
 runs never contribute ordinary latency samples or acceptance verdicts.
+After those 180 workers, 66 separate protocol-proxy workers cover both backend
+orders and all plaintext workloads (TLS connection measurement is excluded).
 
 Measurement boundaries are deliberate:
 
@@ -549,7 +551,8 @@ Measurement boundaries are deliberate:
   [Memray API](https://bloomberg.github.io/memray/api.html).
 - `strace -f -c` counts include imports, setup, warmup, operations, and cleanup.
   They preserve errors and poll/network/futex counts, but are not per-query
-  counts, scheduler wakeup counts, or measured PostgreSQL round trips.
+  counts, scheduler wakeup counts, or measured PostgreSQL round trips. The
+  separate protocol probe records actual ordered PostgreSQL message flow.
 - The pipeline workload includes eight queued queries, error propagation, and
   recovery. Its duration is not a single-query latency measurement.
 
@@ -561,20 +564,85 @@ wheel, package inventory, server configuration, and process snapshots are
 uploaded with hashes and 90-day retention.
 
 Local validation: eight new accounting tests cover these checks, complete
-180-worker sequencing with mocked subprocesses, timeout cleanup, and allocation
+180-worker plus 66-protocol-worker sequencing with mocked subprocesses, timeout cleanup, and allocation
 window boundaries. Real installed-wheel smoke runs exercised timing, C and Rust
 CPU profiles, C/Python allocations, and Rust pipeline/binary-COPY allocations.
 Eleven resulting worker/summary JSON files pass the same validators. These are
 tooling checks on the non-idle Mac, not comparative performance evidence. The
 complete Linux coordinator and strace capture still require remote execution.
-The complete installed-wheel suite passes all 94 tests; Ruff, formatting,
-codespell, and actionlint also pass.
+The initial harness passed all 94 installed-wheel tests. With protocol tracing,
+the complete suite passes 99 tests, including five parser/redaction/accounting
+tests and rejection of a malformed protocol worker after all other phases.
+Ruff, formatting, codespell, and actionlint also pass.
 
 Do not mark 5B complete from this harness: dedicated-runner results must be
-independently analyzed, protocol round trips still need a separate measurement,
-and the bottleneck table must distinguish observed costs from recoverable work.
+independently analyzed, the protocol captures need causal interpretation rather
+than equating cycles with round trips, and the bottleneck table must distinguish
+observed costs from recoverable work.
 Publish and dispatch after active compatibility run `35511889731` becomes
 terminal; do not cancel that run to publish diagnostic tooling.
+
+### Initial protocol evidence
+
+`tools/phase5/protocol_probe.py` is a diagnostic-only loopback proxy for an
+explicitly plaintext test DSN. It refuses TLS rather than downgrading it. The
+decoder handles arbitrary TCP fragmentation and records message types, byte
+lengths, Bind parameter/result formats, and transaction status. SQL text,
+statement names, row/parameter values, credentials, and cancellation keys are
+not exported. Startup ReadyForQuery responses are excluded from query-cycle
+counts. See PostgreSQL's [message flow](https://www.postgresql.org/docs/18/protocol-flow.html)
+and [message formats](https://www.postgresql.org/docs/18/protocol-message-formats.html).
+
+[Initial reports](performance/2026-09-20-protocol-diagnostic.json) cover 33
+backend/workload combinations and 99 observed operations, with ten warmups
+before each three-operation capture. They use the retained installed macOS
+wheel matching `8eddc2ec`, PostgreSQL 15.19, and official Psycopg 3.3.2. The
+[compressed archive](performance/2026-09-20-protocol-diagnostic.json.gz) preserves
+all original report bytes, their SHA-256 hashes, and the exact probe source.
+There are no timing samples: this local, one-order proxy run is not performance
+acceptance, an idle-runner replication, or a network-latency estimate.
+
+Findings from the ordered traces:
+
+- Prepared and unprepared scalar queries each complete one protocol cycle in
+  all three backends. Prepared Rust emits Bind/Execute/Sync; C and Python also
+  describe the portal. All use binary parameter and text result formats for
+  this workload. An extra scalar-query round trip is not the observed cause of
+  the integration gap.
+- The first Rust pipeline operation sends each of eight Bind/Execute/Sync
+  groups and receives ReadyForQuery before sending the next. Official backends
+  send all eight commands before their shared Sync. Source inspection confirms
+  `NoTlsPipelineAdapter.sync()` calls `_execute()` sequentially for the native
+  parameterized path. This is a real batching opportunity; it does not explain
+  prepared scalar latency or establish a safe implementation yet. A native batch
+  must preserve abort/error boundaries, preparation decisions, cursor ownership,
+  callback ordering, and recovery.
+- Rust COPY windows contain additional Parse/Describe and statement Close
+  traffic: seven completed cycles versus three in the official backends. Counts
+  alone are not seven versus three network round trips: COPY input/output have
+  additional protocol stages, and deferred cleanup can cross window boundaries.
+- Pool observations are `2, 2, 1` cycles for every backend: ten warmups across two
+  pooled connections have not removed the per-connection preparation transition.
+  Preserve that fact rather than relabeling all three samples steady-state.
+- Transactions show eight completed cycles for every backend, but Rust uses
+  extended-query messages for some commands where official backends use simple
+  Query messages. Multi-row operations show one cycle for each backend.
+
+Each operation window runs from immediately before the public call to its
+return. Complete response frames are recorded before forwarding, but background
+statement cleanup may cross windows; connection-close messages can arrive later.
+The full observed stream through the capture endpoint is retained for analysis;
+this does not promise capture of all traffic after connection close returns.
+Cross-direction ordering is the
+proxy's observed forwarding order, not packet timestamps or an RTT measurement.
+Repeated scalar or pipeline serialization is corroborated against source before
+claiming a causal dependency. TLS, pristine upstream, direct Tokio, and a binary
+result comparison remain outside this initial capture.
+
+Next: reproduce both orders on the dedicated runner, use the CPU/allocation
+evidence to prioritize the scalar gap, and evaluate a genuine parameterized
+batch boundary separately from scalar latency. Do not substitute a pipeline
+throughput improvement for the outstanding eleven-workload acceptance targets.
 
 ### Execution-plan prototype boundary
 

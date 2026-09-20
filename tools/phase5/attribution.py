@@ -21,6 +21,8 @@ from pathlib import Path
 
 from layer_probe import LAYERS, PUBLIC_LAYERS, QUERY
 from layer_probe import validate as validate_layer
+from protocol_probe import WORKLOADS as PROTOCOL_WORKLOADS
+from protocol_probe import validate as validate_protocol
 from query_profile import installed_files, positive
 from repeat_benchmark import identity
 from run import BACKENDS, driver_for, metadata
@@ -352,10 +354,11 @@ def coordinate(args):
         "identity": frozen,
         "status": "running",
         "workers": [],
+        "protocol_workers": [],
         "failures": [],
         "limitations": [
             "CPU profiles are main-thread only; allocator tracking includes background threads",
-            "syscall traces include process setup/warmup/cleanup; no measured protocol round trips yet",
+            "syscall traces include process setup/warmup/cleanup; protocol cycles are not general network round trips",
             "pipelining is throughput-oriented and must not be conflated with scalar query latency",
         ],
     }
@@ -485,6 +488,50 @@ def coordinate(args):
             save()
         if len(manifest["workers"]) != len(sequence) or identity(args.wheel) != frozen:
             raise ValueError("incomplete or changed attribution run")
+        for order, backends in (("forward", BACKENDS), ("reverse", BACKENDS[::-1])):
+            for name in PROTOCOL_WORKLOADS:
+                for backend in backends:
+                    if identity(args.wheel) != frozen:
+                        raise ValueError(
+                            "installed code changed before protocol capture"
+                        )
+                    output = args.output / f"protocol-{order}-{backend}-{name}.json"
+                    print(output.stem, flush=True)
+                    run_command(
+                        [
+                            sys.executable,
+                            str(Path(__file__).with_name("protocol_probe.py")),
+                            "--revision",
+                            args.revision,
+                            "--backend",
+                            backend,
+                            "--workload",
+                            name,
+                            "--output",
+                            str(output),
+                        ],
+                        output.with_suffix(".log"),
+                    )
+                    result = json.loads(output.read_text())
+                    validate_protocol(result, args.revision, backend, name)
+                    if (
+                        environment_identity(result) != environment
+                        or result["installed_file_sha256"] != fingerprints[backend]
+                    ):
+                        raise ValueError("protocol worker code or environment changed")
+                    manifest["protocol_workers"].append(
+                        {
+                            "report": output.name,
+                            "sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
+                        }
+                    )
+                    save()
+        if len(manifest["protocol_workers"]) != 2 * len(BACKENDS) * len(
+            PROTOCOL_WORKLOADS
+        ):
+            raise ValueError("incomplete protocol captures")
+        if identity(args.wheel) != frozen:
+            raise ValueError("installed code changed during protocol capture")
         manifest["environment"] = environment
         manifest["artifact_sha256"] = {
             str(path.relative_to(args.output)): hashlib.sha256(

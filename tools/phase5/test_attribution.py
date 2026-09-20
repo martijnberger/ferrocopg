@@ -13,6 +13,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import attribution as a
+import protocol_probe
 
 REVISION = "a" * 40
 TRACE = " 90.00 0.001000 10 100 2 recvfrom\n 10.00 0.000100 1 100 poll\n"
@@ -274,6 +275,37 @@ class AttributionTests(unittest.TestCase):
             )
 
             def run(command, output, **kwargs):
+                if Path(command[1]).name == "protocol_probe.py":
+                    backend, name = (
+                        command[command.index(flag) + 1]
+                        for flag in ("--backend", "--workload")
+                    )
+                    report = result(backend=backend, name=name)
+                    events = [
+                        dict(type="Z", direction="backend", bytes=6, connection=0)
+                    ] * 3
+                    report.update(
+                        mode="protocol-diagnostic",
+                        instrumented=True,
+                        iterations=3,
+                        events=events,
+                        probe_sha256="c" * 64,
+                        operations=[
+                            dict(
+                                index=i,
+                                begin=i,
+                                end=i + 1,
+                                **protocol_probe.summarize(events[i : i + 1]),
+                            )
+                            for i in range(3)
+                        ],
+                    )
+                    if failure == "protocol":
+                        report["operations"][0]["completed_query_cycles"] = 0
+                    Path(command[command.index("--output") + 1]).write_text(
+                        json.dumps(report)
+                    )
+                    return
                 if "--kind" not in command and "memray" not in command:
                     layers(args.output / "layers")
                     return
@@ -322,12 +354,13 @@ class AttributionTests(unittest.TestCase):
         self.assertEqual(manifest["status"], "completed")
         self.assertFalse(manifest["acceptance_evidence"])
         self.assertEqual(len(reports), 180)
+        self.assertEqual(len(manifest["protocol_workers"]), 66)
         self.assertTrue(all(r["kind"] == "timing" for r in reports[:72]))
         self.assertTrue(all(r["kind"] != "timing" for r in reports[72:]))
         self.assertTrue(manifest["artifact_sha256"])
 
     def test_failed_workers_and_missing_captures_preserve_failed_manifest(self):
-        for failure in ("worker", "missing-artifact"):
+        for failure in ("worker", "missing-artifact", "protocol"):
             with self.subTest(failure=failure):
                 status, manifest, _ = self.coordinate(failure)
                 self.assertEqual(status, 1)
