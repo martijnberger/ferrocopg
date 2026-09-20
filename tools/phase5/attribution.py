@@ -19,6 +19,7 @@ import sys
 import time
 from pathlib import Path
 
+from allocation_sites import validate as validate_allocation_sites
 from layer_probe import LAYERS, PUBLIC_LAYERS, QUERY
 from layer_probe import validate as validate_layer
 from protocol_probe import WORKLOADS as PROTOCOL_WORKLOADS
@@ -393,10 +394,11 @@ def coordinate(args):
             for name in WORKLOADS
             for backend in backends
         ] + [
-            (kind, "instrumented", backend, name)
+            (kind, order, backend, name)
             for kind in KINDS[1:]
+            for order, backends in (("forward", BACKENDS), ("reverse", BACKENDS[::-1]))
             for name in WORKLOADS
-            for backend in BACKENDS
+            for backend in backends
         ]
         environment, fingerprints = validate_layers(
             args.output / "layers", args.revision
@@ -481,6 +483,34 @@ def coordinate(args):
                 entry["allocation_summary"] = stats.name
                 entry["allocation_summary_sha256"] = hashlib.sha256(
                     stats.read_bytes()
+                ).hexdigest()
+                sites = output.with_suffix(".allocation-sites.json")
+                run_command(
+                    [
+                        sys.executable,
+                        str(Path(__file__).with_name("allocation_sites.py")),
+                        "--capture",
+                        str(output.with_suffix(".bin")),
+                        "--stats",
+                        str(stats),
+                        "--output",
+                        str(sites),
+                    ],
+                    output.with_suffix(".sites.log"),
+                )
+                allocation_sites = json.loads(sites.read_text())
+                validate_allocation_sites(
+                    allocation_sites, json.loads(stats.read_text())
+                )
+                if (
+                    allocation_sites["capture_sha256"] != entry["artifact_sha256"]
+                    or allocation_sites["stats_sha256"]
+                    != entry["allocation_summary_sha256"]
+                ):
+                    raise ValueError("allocation-site analysis input identity mismatch")
+                entry["allocation_sites"] = sites.name
+                entry["allocation_sites_sha256"] = hashlib.sha256(
+                    sites.read_bytes()
                 ).hexdigest()
             elif kind == "syscalls":
                 entry["syscalls"] = parse_syscalls(trace.read_text())

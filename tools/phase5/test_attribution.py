@@ -12,6 +12,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import allocation_sites
 import attribution as a
 import protocol_probe
 
@@ -275,6 +276,27 @@ class AttributionTests(unittest.TestCase):
             )
 
             def run(command, output, **kwargs):
+                if Path(command[1]).name == "allocation_sites.py":
+                    capture = Path(command[command.index("--capture") + 1])
+                    stats = Path(command[command.index("--stats") + 1])
+                    record = SimpleNamespace(
+                        allocator=6,
+                        n_allocations=3,
+                        size=128,
+                        native_stack_trace=lambda: [],
+                        stack_trace=lambda: [],
+                    )
+                    report = allocation_sites.summarize([record], allocations())
+                    report.update(
+                        capture_sha256=hashlib.sha256(capture.read_bytes()).hexdigest(),
+                        stats_sha256=hashlib.sha256(stats.read_bytes()).hexdigest(),
+                    )
+                    if failure == "allocation-sites":
+                        report["capture_sha256"] = "0" * 64
+                    Path(command[command.index("--output") + 1]).write_text(
+                        json.dumps(report)
+                    )
+                    return
                 if Path(command[1]).name == "protocol_probe.py":
                     backend, name = (
                         command[command.index(flag) + 1]
@@ -353,14 +375,24 @@ class AttributionTests(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertEqual(manifest["status"], "completed")
         self.assertFalse(manifest["acceptance_evidence"])
-        self.assertEqual(len(reports), 180)
+        self.assertEqual(len(reports), 288)
         self.assertEqual(len(manifest["protocol_workers"]), 66)
+        for kind in a.KINDS:
+            for name in a.WORKLOADS:
+                self.assertEqual(
+                    [
+                        r["backend"]
+                        for r in reports
+                        if r["kind"] == kind and r["workload"] == name
+                    ],
+                    [*a.BACKENDS, *a.BACKENDS[::-1]],
+                )
         self.assertTrue(all(r["kind"] == "timing" for r in reports[:72]))
         self.assertTrue(all(r["kind"] != "timing" for r in reports[72:]))
         self.assertTrue(manifest["artifact_sha256"])
 
     def test_failed_workers_and_missing_captures_preserve_failed_manifest(self):
-        for failure in ("worker", "missing-artifact", "protocol"):
+        for failure in ("worker", "missing-artifact", "protocol", "allocation-sites"):
             with self.subTest(failure=failure):
                 status, manifest, _ = self.coordinate(failure)
                 self.assertEqual(status, 1)

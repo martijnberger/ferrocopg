@@ -533,10 +533,11 @@ The coordinator first runs the eight layer probes in both orders, then 72
 uninstrumented workload workers: three backends, twelve workloads, and both
 backend orders. Each worker records nine wall/process-CPU samples after ten
 warmups. Prepared/parameterized operations use 10,000 iterations per sample;
-other workloads use 100. Subsequent, separate worker processes collect 36 CPU
-call profiles, 36 allocation captures, and 36 syscall traces. These instrumented
+other workloads use 100. Subsequent, separate worker processes collect 72 CPU
+call profiles, 72 allocation captures, and 72 syscall traces, in both backend
+orders. These instrumented
 runs never contribute ordinary latency samples or acceptance verdicts.
-After those 180 workers, 66 separate protocol-proxy workers cover both backend
+After those 288 workers, 66 separate protocol-proxy workers cover both backend
 orders and all plaintext workloads (TLS connection measurement is excluded).
 
 Measurement boundaries are deliberate:
@@ -564,7 +565,8 @@ wheel, package inventory, server configuration, and process snapshots are
 uploaded with hashes and 90-day retention.
 
 Local validation: eight new accounting tests cover these checks, complete
-180-worker plus 66-protocol-worker sequencing with mocked subprocesses, timeout cleanup, and allocation
+288-worker plus 66-protocol-worker sequencing with mocked subprocesses, timeout
+cleanup, and allocation
 window boundaries. Real installed-wheel smoke runs exercised timing, C and Rust
 CPU profiles, C/Python allocations, and Rust pipeline/binary-COPY allocations.
 Eleven resulting worker/summary JSON files pass the same validators. These are
@@ -575,12 +577,62 @@ the complete suite passes 99 tests, including five parser/redaction/accounting
 tests and rejection of a malformed protocol worker after all other phases.
 Ruff, formatting, codespell, and actionlint also pass.
 
+Allocation postprocessing now additionally runs `allocation_sites.py` on the
+capture machine while its native libraries remain available for symbolization.
+It preserves every site's counts and reconciles event/byte totals with canonical
+Memray statistics, retaining explicit unresolved-site and profiling-path classes.
+The coordinator rejects mismatched capture/summary hashes. This processing
+happens after ordinary timings and is not itself benchmark evidence.
+
 Do not mark 5B complete from this harness: dedicated-runner results must be
 independently analyzed, the protocol captures need causal interpretation rather
 than equating cycles with round trips, and the bottleneck table must distinguish
 observed costs from recoverable work.
 Publish and dispatch after active compatibility run `35511889731` becomes
 terminal; do not cancel that run to publish diagnostic tooling.
+
+### Allocation observer effect
+
+The first allocation smoke captures expose a substantial profiling effect.
+In CPython 3.14.6, `call_profile_func()` obtains a Python frame object before
+invoking the profile callback; see [the pinned interpreter source](https://github.com/python/cpython/blob/v3.14.6/Python/legacy_tracing.c#L34).
+Native allocation stacks identify the corresponding
+`_PyFrame_MakeAndSetFrameObject -> PyEval_GetFrame -> call_profile_func` path.
+For these earlier 1,000-operation prepared-query captures:
+
+| Backend | All captured allocation events | Recognized profiling frame events | Bytes in those frame events |
+| --- | ---: | ---: | ---: |
+| Rust | 281,117 | 144,000 | 32,680,000 |
+| C | 100,043 | 46,000 | 10,712,000 |
+| Python | 241,134 | 111,000 | 24,912,000 |
+
+These are instrumented allocation volumes, not live memory, unique object
+counts, or unprofiled driver allocation rates. The captures were smoke tests,
+not both-order comparisons. Do not subtract these frame events and call the
+remainder an unbiased workload estimate: monitoring also changes execution and
+can introduce other, unrecognized allocation paths. Ordinary instrumented
+interpreter opcodes around application allocations are not classified as
+profiling overhead merely because their names contain `INSTRUMENTED`.
+
+The conservative analyzer distinguishes recognized profiling-frame creation,
+monitoring setup, other instrumented allocations, and unresolved native sites.
+It retains all classes in canonical totals and validates them against all raw
+sites. Symbol availability and interpreter builds can change recognition; zero
+recognized overhead does not prove zero overhead. Python-site summaries alone
+would misleadingly attribute some of these events to property getters such as
+`closed`, which is why the native call path matters.
+
+[The readable evidence](performance/2026-09-20-allocation-observer-effect.json)
+includes canonical statistics, classes, identities, and the ten largest sites;
+[the archive](performance/2026-09-20-allocation-observer-effect.tar.gz) preserves
+the original three binary captures, worker reports, complete site reports, and
+the exact analyzer source. Archive members, input identities, and all counts
+were independently revalidated. This narrows interpretation of the forthcoming
+Linux attribution results; it does not establish a production optimization or
+change any ordinary timing or beta acceptance result.
+The complete installed-wheel suite passes 102 tests, including conservative
+classification, canonical-total reconciliation, changed-input rejection, and
+both-order orchestration checks. Ruff, formatting, codespell, and actionlint pass.
 
 ### Initial protocol evidence
 

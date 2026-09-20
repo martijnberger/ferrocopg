@@ -1418,8 +1418,9 @@ Rust-client performance floor has been established.
 
 Dedicated attribution tooling is now implemented in `tools/phase5/attribution.py`
 with an opt-in `attribution=true` Phase 5 workflow dispatch. It runs all native
-layers in both orders, then separates 72 ordinary timing workers from 108 CPU,
+layers in both orders, then separates 72 ordinary timing workers from 216 CPU,
 allocation, and syscall workers across all eleven workloads plus pipeline.
+Instrumentation now also runs both backend orders, separately from timing.
 It now follows these with 66 plaintext protocol captures in both backend orders.
 Pinned Memray captures and whole-process strace counts are diagnostics, not
 acceptance. The separate protocol proxy records actual message flow, not general
@@ -1432,6 +1433,14 @@ Linux run, cross-order replication, and resulting bottleneck table remain
 outstanding. Prioritize scalar cost attribution and evaluate genuine native
 parameterized batching as a separate throughput opportunity, not a substitute
 for the scalar-query targets.
+Allocation interpretation also needs the recorded observer-effect control:
+144,000 of 281,117 events in the Rust prepared-query smoke capture are frame
+objects materialized for profiling callbacks. `allocation_sites.py` records
+recognized native profiling paths without subtracting them from totals or
+claiming the remainder is an unprofiled allocation rate. Capture and canonical
+statistics identities are checked, and all sites remain available in artifacts.
+Preserve `2026-09-20-allocation-observer-effect.json` and its raw-capture archive;
+do not optimize a profiler-created allocation as if it were ordinary driver work.
 See the parity report's dedicated-attribution section. Wait for active Tests
 `35511889731` to become terminal before pushing and dispatching this slice;
 continue following acceptance soak `35511989284` independently.
