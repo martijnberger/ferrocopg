@@ -23,12 +23,33 @@ ROOT = Path(__file__).resolve().parents[2]
 PUBLIC_LAYERS = ("binding", "python", "c", "rust")
 LAYERS = ("libpq", "postgres", "postgres-wait", "session", *PUBLIC_LAYERS)
 QUERY = "select 42::int4"
+PARAM_QUERY = "select $1::int + 1"
+CASES = ("constant", "prepared", "unprepared")
+
+
+def validate_dsn(dsn: str) -> None:
+    from psycopg.conninfo import conninfo_to_dict
+
+    if conninfo_to_dict(dsn).get("sslmode") != "disable":
+        raise ValueError("matched native probes require explicit sslmode=disable")
+
+
+def parameter_protocol(cursor: Any) -> tuple[list[int], list[int]]:
+    # Official execute need not retain its optional query cache after dumping.
+    adapted = cursor._query if cursor._query is not None else cursor._tx
+    return list(adapted.types), list(adapted.formats)
 
 
 def public_probe(args: argparse.Namespace) -> dict[str, Any]:
     backend = "rust" if args.worker == "binding" else args.worker
     os.environ["PSYCOPG_IMPL"] = "python" if backend == "rust" else backend
     driver = driver_for(backend)
+    validate_dsn(os.environ["PHASE5_DSN"])
+    parameterized = args.case != "constant"
+    prepared = args.case != "unprepared"
+    binary = args.result_format == "binary"
+    query_text = PARAM_QUERY if parameterized else QUERY
+    expected = b"\0\0\0*" if binary else b"42"
     timings = []
     with ExitStack() as stack:
         if args.worker == "binding":
@@ -38,20 +59,47 @@ def public_probe(args: argparse.Namespace) -> dict[str, Any]:
                 environment = metadata(driver, observer, args)
             session = native.connect_no_tls_session(os.environ["PHASE5_DSN"])
             stack.callback(session.close)
-            statement = session.prepare_text(QUERY).statement_id
+            params = [(21, True, b"\0)")] if parameterized else []
+            statement = (
+                session.prepare_params(
+                    query_text, [21] if parameterized else []
+                ).statement_id
+                if prepared
+                else None
+            )
 
             def query() -> None:
-                result = session.run_prepared_params_format(statement, [], True)
-                if result.row_count != 1 or result.get_value(0, 0) != b"\0\0\0*":
+                result = (
+                    session.run_prepared_params_format(statement, params, binary)
+                    if prepared
+                    else session.run_params_format(query_text, params, binary)
+                )
+                if result.row_count != 1 or result.get_value(0, 0) != expected:
                     raise AssertionError("incorrect query result")
         else:
             conn = stack.enter_context(
                 driver.connect(os.environ["PHASE5_DSN"], autocommit=True)
             )
             environment = metadata(driver, conn, args)
+            query_text = query_text.replace("$1", "%s")
+            params = (41,) if parameterized else None
+            # Check actual adaptation/result formats outside the measured loop.
+            with conn.execute(
+                query_text, params, prepare=prepared, binary=binary
+            ) as check:
+                if check.fetchone() != (42,):
+                    raise AssertionError("incorrect setup query result")
+                if (
+                    check.pgresult.ftype(0) != 23
+                    or check.pgresult.fformat(0) != int(binary)
+                    or (parameterized and parameter_protocol(check) != ([21], [1]))
+                ):
+                    raise AssertionError("query parameter/result protocol mismatch")
 
             def query() -> None:
-                if conn.execute(QUERY, prepare=True, binary=True).fetchone() != (42,):
+                if conn.execute(
+                    query_text, params, prepare=prepared, binary=binary
+                ).fetchone() != (42,):
                     raise AssertionError("incorrect query result")
 
         for _ in range(1000):
@@ -68,6 +116,9 @@ def public_probe(args: argparse.Namespace) -> dict[str, Any]:
         "backend": args.worker,
         "iterations": args.iterations,
         "warmup": 1000,
+        "case": args.case,
+        "result_format": args.result_format,
+        "parameter_oids": [21] if parameterized else [],
         "wall_us": timings,
         "metadata": environment,
         "installed_file_sha256": {
@@ -76,7 +127,14 @@ def public_probe(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def validate(result: dict[str, Any], layer: str, iterations: int, samples: int) -> None:
+def validate(
+    result: dict[str, Any],
+    layer: str,
+    iterations: int,
+    samples: int,
+    case: str | None = None,
+    result_format: str | None = None,
+) -> None:
     if (
         result["backend"] != layer
         or result["iterations"] != iterations
@@ -85,6 +143,14 @@ def validate(result: dict[str, Any], layer: str, iterations: int, samples: int) 
         or any(not math.isfinite(n) or n <= 0 for n in result["wall_us"])
     ):
         raise ValueError(f"invalid {layer} diagnostic")
+    if case is not None and (
+        case not in CASES
+        or result_format not in ("binary", "text")
+        or result.get("case") != case
+        or result.get("result_format") != result_format
+        or result.get("parameter_oids") != ([21] if case != "constant" else [])
+    ):
+        raise ValueError(f"invalid {layer} query protocol")
 
 
 def main() -> int:
@@ -95,8 +161,12 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--iterations", type=positive, default=10000)
     parser.add_argument("--samples", type=positive, default=9)
+    parser.add_argument("--case", choices=CASES, default="constant")
+    parser.add_argument("--result-format", choices=("binary", "text"), default="binary")
     parser.add_argument("--worker", choices=PUBLIC_LAYERS, help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if not args.worker:
+        validate_dsn(os.environ["PHASE5_DSN"])
     if args.samples < 3:
         parser.error("at least three samples required")
     if args.output.exists():
@@ -114,9 +184,9 @@ def main() -> int:
         "python": sys.version,
         "platform": platform.platform(),
         "protocol": {
-            "query": QUERY,
-            "prepared": True,
-            "result_format": "binary",
+            "query": QUERY if args.case == "constant" else PARAM_QUERY,
+            "prepared": args.case != "unprepared",
+            "result_format": args.result_format,
             "in_flight": 1,
             "iterations": args.iterations,
             "samples": args.samples,
@@ -137,6 +207,12 @@ def main() -> int:
         "orders": {},
         "failures": [],
     }
+    if args.case != "constant" or args.result_format != "binary":
+        report["protocol"].update(
+            case=args.case,
+            parameter_oids=[21] if args.case != "constant" else [],
+            parameter_format="binary" if args.case != "constant" else None,
+        )
     try:
         for order, layers in (("forward", LAYERS), ("reverse", LAYERS[::-1])):
             measurements = report["orders"][order] = {}
@@ -157,6 +233,10 @@ def main() -> int:
                         str(args.iterations),
                         "--samples",
                         str(args.samples),
+                        "--case",
+                        args.case,
+                        "--result-format",
+                        args.result_format,
                     ]
                 else:
                     command = (
@@ -164,7 +244,12 @@ def main() -> int:
                         if layer == "libpq"
                         else [str(args.native_rust), layer]
                     )
-                    command += [str(args.iterations), str(args.samples)]
+                    command += [
+                        str(args.iterations),
+                        str(args.samples),
+                        args.case,
+                        args.result_format,
+                    ]
                 env = dict(os.environ)
                 env.pop("PSYCOPG_SOURCE_IMPL", None)
                 result = subprocess.run(
@@ -178,7 +263,14 @@ def main() -> int:
                 if layer not in PUBLIC_LAYERS:
                     output.write_text(result.stdout)
                 raw = json.loads(output.read_text())
-                validate(raw, layer, args.iterations, args.samples)
+                validate(
+                    raw,
+                    layer,
+                    args.iterations,
+                    args.samples,
+                    args.case,
+                    args.result_format,
+                )
                 measurements[layer] = {
                     "wall_us": raw["wall_us"],
                     "median_us": statistics.median(raw["wall_us"]),

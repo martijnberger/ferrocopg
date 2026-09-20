@@ -99,6 +99,48 @@ not an additive profiler breakdown or a proof that all overhead is removable.
 
 ## Initial evidence: 2026-09-20
 
+### Matched parameter/result-format probe extension
+
+The layer probe now also accepts `--case prepared` and `--case unprepared`
+for `select %s::int + 1`, `(41,)`, with `--result-format text|binary`.
+Native paths execute the matching `$1` query with binary `int2` (OID 21)
+parameters, using typed prepare or a typed unprepared extended query rather
+than silently adding a prepare round trip. The public paths assert their actual
+dumped parameter OIDs/formats and result OID/format outside timing. The existing
+`constant`/`binary` default remains available; constant text is an additional
+control. Explicit `sslmode=disable` is required so libpq/public paths cannot
+negotiate TLS while the native probes use plaintext.
+
+Rebuild both native probes before using the new options, then for example:
+
+```sh
+/tmp/phase5-env/bin/python tools/phase5/layer_probe.py \
+  --native-rust target/release/examples/layer_probe \
+  --native-libpq /tmp/phase5-libpq-layer-probe \
+  --revision "$revision" --case prepared --result-format text \
+  --output /tmp/phase5-prepared-text-layers
+```
+
+Run each case/format with a fresh output directory. Each invocation already
+performs all eight layers in both orders; keep builds, tests, and profiling
+outside timing. The new cases are not yet included in a completed dedicated
+runner matrix, and their local smoke timings must not be treated as performance
+evidence. The original constant-query dedicated evidence remains unchanged.
+
+[Smoke evidence](performance/2026-09-20-matched-layer-smoke.json) and
+[complete reports/source snapshots](performance/2026-09-20-matched-layer-smoke.json.gz)
+verify all 96 case/format/layer/order combinations on the unchanged installed
+baseline wheel, using only ten measured operations per sample and three samples
+after 1,000 warmups. This is correctness/protocol validation on a non-idle Mac,
+not a speed comparison. Both native probes build in release mode; all 107
+installed/accounting checks pass. Two failed attempts remain preserved: an
+early DSN-parser import selected the wrong backend, and official execute did
+not retain its optional query cache. Backend selection now precedes parser
+import, and parameter validation uses the actual retained dump state; both
+issues have regression tests. No production backend code changes in this slice.
+
+### Original constant-query diagnostic
+
 The [recorded diagnostic evidence](performance/2026-09-20-integration-diagnostic.json)
 contains all uninstrumented samples in both orders, package/executable/source
 fingerprints, and the top separately profiled functions. Production code is the

@@ -1494,6 +1494,13 @@ the original categories in the dedicated archive. The bottleneck table now
 records ownership, confidence, required savings, unknown recoverability, and
 next discriminating experiments. Complete the explicit next-step decision and instrumentation
 coverage audit. Direct GIL/poll/wakeup coverage is not supplied by strace totals.
+The native/public layer probes now support matched prepared and unprepared
+parameterized queries with text or binary results, retaining the constant-query
+default. All 96 local case/format/layer/order smoke checks and 107 harness tests
+pass; preserve `2026-09-20-matched-layer-smoke.json` and its full archive,
+including both corrected diagnostic failures. These short non-idle checks are
+not speed evidence. The next dedicated diagnostic must exercise the new matrix
+without replacing or relabeling the completed constant-query attribution run.
 The acceptance benchmark and soak `35511989284` are already terminal success
 and independently audited; do not restart them.
 
