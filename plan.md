@@ -89,8 +89,9 @@ Keep two explicitly different targets:
 
 - **Beta acceptance:** the approved per-workload Rust/Python <= `1.15` and
   Rust/C <= `1.50` ceilings, three complete frozen-wheel runs, and unchanged
-  compatibility and reliability gates. The candidate is `7c1a644a`; its runs
-  are not replaced or relabeled by this investigation.
+  compatibility and reliability gates. The retained candidate is `7bbc14eb`;
+  its completed benchmark/soak and compatibility evidence is recorded below.
+  Earlier failed `7c1a644a` runs remain preserved, not relabeled as passing.
 - **Engineering objective:** Python parity and C parity where practical;
   define near parity as <= `1.10` times C median duration per workload for
   research tracking. This 10% objective is not a newly tightened beta gate,
@@ -195,6 +196,12 @@ search for tiny transport optimizations.
    were started by the audit push; follow them rather than cancelling them.
    Do not restart live handles
    or push over active Tests just to publish evidence-only commits.
+   The matched layer-matrix coordinator and opt-in `layer_matrix=true` dispatch
+   are implemented, with all 112 Phase 5 tests passing locally. At the next safe
+   publication checkpoint, dispatch this new diagnostic once and follow its
+   exact handle; do not rerun the old attribution or acceptance workload. It
+   expands the native/public comparison to prepared/unprepared parameters and
+   text/binary results, but does not close GIL/wakeup or host-idleness gaps.
    Satisfy every Phase 5 completion gate below on that candidate. Commit coherent
    slices with AI attribution and push
    the active development bookmark regularly. Keep `main` promotion, branch
@@ -1501,6 +1508,12 @@ pass; preserve `2026-09-20-matched-layer-smoke.json` and its full archive,
 including both corrected diagnostic failures. These short non-idle checks are
 not speed evidence. The next dedicated diagnostic must exercise the new matrix
 without replacing or relabeling the completed constant-query attribution run.
+`tools/phase5/layer_matrix.py` and the `layer_matrix=true` workflow input now
+provide that six-case diagnostic, with both orders, 10,000 operations per sample,
+nine samples, immutable installed/source identities, raw-median validation,
+and partial-failure preservation. All 112 installed/accounting tests pass.
+Publish and follow one exact-revision run before making broader native-floor
+claims; no new dedicated timing result exists at this checkpoint.
 The acceptance benchmark and soak `35511989284` are already terminal success
 and independently audited; do not restart them.
 

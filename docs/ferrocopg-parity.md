@@ -139,6 +139,33 @@ not retain its optional query cache. Backend selection now precedes parser
 import, and parameter validation uses the actual retained dump state; both
 issues have regression tests. No production backend code changes in this slice.
 
+### Dedicated matched-layer matrix
+
+`tools/phase5/layer_matrix.py` coordinates all six case/format combinations,
+each with eight layers in both orders, nine samples of 10,000 operations, and
+1,000 warmups per worker. It validates the exact protocol, all raw sample
+medians, installed-code fingerprints, server/environment identity, and native
+binary/source hashes. Wheel and comparator identities are checked before and
+after every case. Failures retain partial results and cannot produce a completed
+manifest. The coordinator and its rejection cases pass in the 112-test Phase 5
+suite; the earlier live smoke checks validate the individual probe paths.
+
+After publishing the diagnostic revision, dispatch only this mode:
+
+```sh
+gh workflow run phase5.yml --repo martijnberger/ferrocopg \
+  --ref martijn/phase5-notice-lock -f layer_matrix=true
+```
+
+The workflow builds and tests the release wheel and both native probes before
+timing, skips acceptance/codegen jobs, and rejects conflicting diagnostic inputs.
+It preserves the wheel, executables, all reports/logs, and manifest in a
+`phase5-layer-matrix-<revision>` artifact for 90 days. Audit the exact revision
+and raw reports after completion; a dispatch or green workflow alone does not
+establish a performance conclusion. This extension has not yet completed a
+dedicated run. It does not measure GIL transitions or scheduler wakeups, nor
+does its before/after process inventory prove continuous host idleness.
+
 ### Original constant-query diagnostic
 
 The [recorded diagnostic evidence](performance/2026-09-20-integration-diagnostic.json)
