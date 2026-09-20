@@ -66,7 +66,16 @@ results for workflows that are still running.
   result-adaptation gaps. Do not expand into native async or a pool fork.
 - Keep upstream synchronization separate from the undecided upstreaming question.
 
-Latest investigation: Rust-owned transformer state `0f4f9612` is rejected.
+Latest investigation: lazy public cursor-result projection is also rejected.
+The initial shortcut improved local query pairs, but did not preserve deferred
+encoding snapshots or subclass descriptor hooks. The corrected implementation
+is flat/mixed for prepared queries and slower for parameterized queries in both
+orders. Production sources and the installed wheel are restored to `52b5bcd8`;
+retain two metadata compatibility regressions, not the discarded optimization.
+All 61 installed checks pass. The restored `52b5bcd8` checkpoint now also passes
+all 57 CI jobs and lint. See the result-projection investigation below.
+
+Previous investigation: Rust-owned transformer state `0f4f9612` is rejected.
 Dedicated comparison `35477922181` completed successfully at combined revision
 `8f14895d`, but prepared wall time is 0.5-1.1% worse and parameterized wall time
 is flat to 0.3% worse in both orders against `9d160e8e`; CPU time also worsens.
@@ -3216,6 +3225,63 @@ instrumented totals overlap and are not latency acceptance or proof of a gain.
 Profiles: `/tmp/phase5-state-8f148-transaction.pstats` and
 `/tmp/phase5-state-8f148-c-transaction.pstats`. Investigate broader query/cursor
 and internal-command result setup next, not another isolated dumper helper.
+
+#### Rejected lazy public cursor-result projection
+
+The default cursor must remain exactly `psycopg.Cursor`, and custom factories
+must remain unchanged. A separate backend-specific public cursor class would
+violate existing compatibility assertions. Instead, a prototype deferred the
+public cursor's PGresult projection until metadata was read, retaining its
+existing slots and setters. An installed cache probe confirmed that a normal
+parameterized execute/fetch could avoid creating native PGresult projections.
+
+The first local both-order measurements improved, but review found missing
+semantics: projection must retain the synchronization-time encoding even when
+another cursor changes client encoding before metadata is read, and subclass
+descriptor setters must still run. Its preliminary gains are therefore not
+evidence for a compatible optimization. Two retained installed regressions
+cover these cases, exact cursor type, metadata reads and slot writes, result
+identity across fetches and multiple result sets, query errors, closure, and
+saved-result lifetime. Both pass against the unchanged baseline as well.
+
+The corrected prototype snapshots projection inputs and preserves eager
+streaming/subclass descriptor behavior. All 61 installed checks and configured
+mypy pass. The earlier selected source run passed 754 Rust and 755 C/libpq
+cursor/COPY/pipeline/preparation cases, but those selected runs predate the
+final snapshot correction and are not full compatibility acceptance.
+
+Fresh corrected pairs use nine samples of 10,000 operations after 1,000 warmups,
+in baseline/candidate/candidate/baseline order. Builds, installations and tests
+do not overlap timings. All raw workers completed without failures. Durations
+below are microseconds per operation; they are local development evidence only.
+
+| Pair | Baseline wall | Candidate wall | Baseline CPU | Candidate CPU |
+| --- | ---: | ---: | ---: | ---: |
+| Prepared A | 46.382358 | 46.423433 | 35.821300 | 35.920500 |
+| Prepared B | 46.989308 | 46.038288 | 36.201100 | 35.515000 |
+| Parameterized A | 49.943200 | 50.379279 | 33.636600 | 33.839600 |
+| Parameterized B | 49.163842 | 49.885554 | 33.152400 | 33.810900 |
+
+Raw corrected measurements: `/tmp/phase5-lazy-checked-{baseline,candidate}-{prepared,parameterized}-{a,b}.json`.
+Baseline revision is `52b5bcd83ba463d89611cab39fbfc9c000981274`; candidate reports
+are explicitly labeled `lazy-projection-checked-development`, not a commit SHA.
+Corrected wheel SHA-256:
+`22b200142841fabbdb795eeb5e4c36c83073ed352b165cd361be038a1a1a3d95`.
+The preliminary, incomplete prototype uses separate
+`/tmp/phase5-lazy-projection-{baseline,candidate}-{prepared,parameterized}-{a,b}.json`
+files and must not be confused with the corrected measurements.
+
+Decision: remove all production changes and regenerate the synchronous cursor
+from its restored async source. Only the two compatibility regressions remain;
+the installed wheel is restored to the checked baseline and passes all 61 tests.
+Production sources and Cargo settings match `52b5bcd8`, whose
+[Tests `35484356823`](https://github.com/martijnberger/ferrocopg/actions/runs/35484356823)
+now passes all 57 jobs and
+[Lint `35484356810`](https://github.com/martijnberger/ferrocopg/actions/runs/35484356810)
+passes. No new performance acceptance or sustained-soak pass is claimed.
+Do not repeat this deferred-metadata shortcut without a materially different
+state-ownership design that preserves these contracts. Keep the failed full
+local gates and remaining complete benchmark limits visible.
 
 #### Phase 5 definition of done
 

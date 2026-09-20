@@ -13,6 +13,88 @@ import weakref
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_cursor_result_projection_identity_and_slot_writes(self):
+        import ferrocopg
+
+        observed = []
+
+        def factory(cur):
+            observed.append((cur.pgresult.nfields, cur.description[0].name))
+            return tuple
+
+        with ferrocopg.connect(
+            os.environ["PHASE5_DSN"], autocommit=True, prepare_threshold=None
+        ) as conn:
+            cur = conn.cursor(row_factory=factory)
+            self.assertIs(type(cur), ferrocopg.Cursor)
+            self.assertIsNone(cur.pgresult)
+            self.assertEqual(cur._results, [])
+            cur.execute("select i from generate_series(1, 3) i")
+            self.assertEqual(observed, [(1, "i")])
+            first = cur.pgresult
+            results = cur._results
+            self.assertIs(results[0], first)
+            self.assertIs(cur._results, results)
+            self.assertEqual(cur.fetchone(), (1,))
+            self.assertIs(cur.pgresult, first)
+            cur.pgresult = None
+            cur._results = []
+            self.assertIsNone(cur.pgresult)
+            self.assertEqual(cur._results, [])
+            self.assertEqual(cur.fetchone(), (2,))
+            self.assertIs(cur.pgresult, first)
+            self.assertIs(cur._results, results)
+            cur.execute("select 4 as value; select 5 as value")
+            self.assertIsNot(cur.pgresult, first)
+            self.assertEqual(cur.fetchone(), (4,))
+            self.assertTrue(cur.nextset())
+            self.assertEqual(cur.fetchone(), (5,))
+            self.assertIs(cur.pgresult, cur._results[1])
+            with self.assertRaises(ferrocopg.errors.DivisionByZero):
+                cur.execute("select 1 / 0")
+            self.assertIsNone(cur.pgresult)
+            self.assertEqual(cur._results, [])
+            cur.close()
+            self.assertIsNone(cur.pgresult)
+            self.assertEqual(cur._results, [])
+        self.assertEqual(first.get_value(2, 0), b"3")
+
+    def test_cursor_projection_preserves_encoding_and_subclass_descriptors(self):
+        import ferrocopg
+        from ferrocopg._cursor_base import BaseCursor
+
+        writes = []
+        slot = BaseCursor.__dict__["pgresult"]
+
+        class CustomCursor(ferrocopg.Cursor):
+            @property
+            def pgresult(self):
+                return slot.__get__(self)
+
+            @pgresult.setter
+            def pgresult(self, result):
+                writes.append(result)
+                slot.__set__(self, result)
+
+        with ferrocopg.connect(
+            os.environ["PHASE5_DSN"], autocommit=True, prepare_threshold=None
+        ) as conn:
+            cur = conn.execute('select 42 as "name\u00e9"')
+            conn.execute("set client_encoding to LATIN1")
+            self.assertEqual(cur.pgresult.fname(0), "name\u00e9".encode())
+            self.assertIs(cur._results[0], cur.pgresult)
+            conn.execute("set client_encoding to UTF8")
+            conn.cursor_factory = CustomCursor
+            custom = conn.execute("select 43")
+            self.assertIs(writes[-1], custom.pgresult)
+            self.assertEqual(custom.pgresult.get_value(0, 0), b"43")
+            count = len(writes)
+            self.assertEqual(custom.fetchone(), (43,))
+            self.assertGreater(len(writes), count)
+            self.assertIs(writes[-1], custom.pgresult)
+            custom.close()
+            self.assertIsNone(writes[-1])
+
     def test_copy_preflight_preserves_transaction_and_result_status(self):
         import ferrocopg
         from ferrocopg import sql
