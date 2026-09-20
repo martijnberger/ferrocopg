@@ -102,6 +102,12 @@ optimization plan, not a growing collection of speculative native rewrites.
 See [the parity investigation](docs/ferrocopg-parity.md) for the probe protocol,
 limitations, layer map, and decision rules. A lower-level API is a diagnostic
 control, not permission to remove Python-facing behavior from the product.
+The [bottleneck report](docs/ferrocopg-bottlenecks.md) now separates the measured
+gap, the savings required for near parity, and the still-unproven recoverable
+fraction for each ownership layer. Its remaining plan-reuse dispositions and
+next experiments supersede historical prototype instructions below. The user
+decision on continuing a bounded integration prototype versus explicitly
+deferring a larger redesign is pending; neither option waives remaining evidence.
 
 Initial matched diagnostics now point above the native client: vendored Rust
 `postgres` takes 18.8-18.9 us, native libpq 19.6 us, the Rust session 19.4-19.5 us,
@@ -1462,8 +1468,10 @@ combinations: scalar queries show one cycle; the parameterized Rust pipeline
 serializes its batch, corroborated by `NoTlsPipelineAdapter.sync()`; COPY adds
 prepare/close traffic. Preserve the raw streams and operation-boundary caveats
 in `2026-09-20-protocol-diagnostic.json` and its compressed archive. The dedicated
-Linux run and cross-order replication now pass independent accounting; the
-resulting bottleneck table remains outstanding. Prioritize scalar cost attribution and evaluate genuine native
+Linux run and cross-order replication now pass independent accounting. The
+bottleneck table and per-workload opportunity budget are now written in
+`docs/ferrocopg-bottlenecks.md`; additional recoverable fractions remain unproven,
+not equal to the observed gaps. Prioritize scalar cost attribution and evaluate genuine native
 parameterized batching as a separate throughput opportunity, not a substitute
 for the scalar-query targets.
 Allocation interpretation also needs the recorded observer-effect control:
@@ -1482,8 +1490,9 @@ also pass. Do not rerun completed measurements. The Linux allocation observer
 classification is now corrected for the exact observed eight-frame path;
 all 72 saved site reports reconcile with unchanged canonical totals, and 103
 tests pass. Preserve `2026-09-20-linux-allocation-reclassification.json` and
-the original categories in the dedicated archive. Finish the bottleneck table,
-remaining dispositions, and instrumentation
+the original categories in the dedicated archive. The bottleneck table now
+records ownership, confidence, required savings, unknown recoverability, and
+next discriminating experiments. Complete the explicit next-step decision and instrumentation
 coverage audit. Direct GIL/poll/wakeup coverage is not supplied by strace totals.
 The acceptance benchmark and soak `35511989284` are already terminal success
 and independently audited; do not restart them.
@@ -1515,6 +1524,10 @@ and independently audited; do not restart them.
   A constant, parameter-free SELECT is only the first isolation probe.
 - [ ] Publish a bottleneck table: measured cost, confidence/limitations, ownership
   layer, expected recoverable fraction, and the next discriminating experiment.
+  The report and derived opportunity-budget JSON now exist. Remaining fractions
+  are explicitly unknown, not fabricated from cumulative profiles or the full
+  gap. Keep this item open until publication and the recoverability/decision
+  requirements are resolved.
 
 #### 5C: Make bounded changes toward parity
 
@@ -1662,8 +1675,12 @@ to 20,000. The extra state/invalidation cost has no justified retention benefit.
 Evidence: `docs/performance/2026-09-20-adapter-schema-rejected.json`; exact
 installed baseline/prototype wheels have identical native bytes. Broader plan
 reuse is not proven impossible, but another map cache or generic transformer
-port needs new evidence. Inspect the coarser execution/outcome boundary in 5C.3
-next, with an opportunity budget before implementing it.
+port needs new evidence. The 5C.3 opportunity control and parameter-packet
+follow-up have since been completed. Do not restart either from this historical
+prototype description. The bottleneck report gives the current dispositions:
+no duplicate parser cache or generic shared mutable callbacks; broader immutable
+execution/decoding plans remain deferred pending an explicit coarse-boundary
+design and opportunity control.
 
 - [ ] Separate reusable SQL/parameter-layout and result-decoding plans from
   execution values, mutable callbacks, cursor position, and errors.

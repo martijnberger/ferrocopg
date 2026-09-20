@@ -1,0 +1,352 @@
+{
+  "mode": "derived-opportunity-budget",
+  "acceptance_evidence": false,
+  "source": "2026-09-20-dedicated-attribution.json",
+  "source_sha256": "b3fec9aa348fec30b2386a97cbdfe2b5f52caef10954b77ba630111ef9d193a1",
+  "source_revision": "8955d0a66b16d01ea90c683f58ee6f18b9ead0f2",
+  "formula": "target = min(official Python median, 1.10 * official C median); required fraction = max(0, 1 - target / Rust median)",
+  "rows": {
+    "connect_plain": {
+      "forward": {
+        "rust_wall_us": 4209.74149,
+        "c_wall_us": 7051.02914,
+        "python_wall_us": 7341.375279999999,
+        "rust_over_c": 0.5970392982945466,
+        "rust_over_python": 0.5734268211936443,
+        "wall_excess_vs_c_us": -2841.2876499999993,
+        "cpu_excess_vs_c_us": -2783.69978,
+        "engineering_target_us": 7341.375279999999,
+        "required_wall_reduction_us": 0,
+        "required_wall_reduction_fraction": 0,
+        "proven_additional_recoverable_fraction": null
+      },
+      "reverse": {
+        "rust_wall_us": 4219.809490000001,
+        "c_wall_us": 7161.501340000001,
+        "python_wall_us": 7396.53385,
+        "rust_over_c": 0.5892353138902017,
+        "rust_over_python": 0.5705117526096363,
+        "wall_excess_vs_c_us": -2941.69185,
+        "cpu_excess_vs_c_us": -2805.0230899999997,
+        "engineering_target_us": 7396.53385,
+        "required_wall_reduction_us": 0,
+        "required_wall_reduction_fraction": 0,
+        "proven_additional_recoverable_fraction": null
+      }
+    },
+    "connect_tls": {
+      "forward": {
+        "rust_wall_us": 6837.418790000001,
+        "c_wall_us": 10129.30437,
+        "python_wall_us": 10306.322590000002,
+        "rust_over_c": 0.6750136574284815,
+        "rust_over_python": 0.6634198309137148,
+        "wall_excess_vs_c_us": -3291.885579999999,
+        "cpu_excess_vs_c_us": -3315.8869200000013,
+        "engineering_target_us": 10306.322590000002,
+        "required_wall_reduction_us": 0,
+        "required_wall_reduction_fraction": 0,
+        "proven_additional_recoverable_fraction": null
+      },
+      "reverse": {
+        "rust_wall_us": 6816.363239999999,
+        "c_wall_us": 10270.43923,
+        "python_wall_us": 10530.42344,
+        "rust_over_c": 0.6636876074481187,
+        "rust_over_python": 0.64730191324576,
+        "wall_excess_vs_c_us": -3454.075990000001,
+        "cpu_excess_vs_c_us": -3356.2093300000006,
+        "engineering_target_us": 10530.42344,
+        "required_wall_reduction_us": 0,
+        "required_wall_reduction_fraction": 0,
+        "proven_additional_recoverable_fraction": null
+      }
+    },
+    "parameterized": {
+      "forward": {
+        "rust_wall_us": 182.10594819999997,
+        "c_wall_us": 130.05186339999997,
+        "python_wall_us": 172.4333835,
+        "rust_over_c": 1.400256354958156,
+        "rust_over_python": 1.0560945015615262,
+        "wall_excess_vs_c_us": 52.0540848,
+        "cpu_excess_vs_c_us": 46.675111599999994,
+        "engineering_target_us": 143.05704974,
+        "required_wall_reduction_us": 39.048898459999975,
+        "required_wall_reduction_fraction": 0.21442956062650997,
+        "proven_additional_recoverable_fraction": null
+      },
+      "reverse": {
+        "rust_wall_us": 183.773257,
+        "c_wall_us": 131.28857119999998,
+        "python_wall_us": 173.4365727,
+        "rust_over_c": 1.3997658388714342,
+        "rust_over_python": 1.0595992191213313,
+        "wall_excess_vs_c_us": 52.48468580000002,
+        "cpu_excess_vs_c_us": 46.8435437,
+        "engineering_target_us": 144.41742832,
+        "required_wall_reduction_us": 39.35582868,
+        "required_wall_reduction_fraction": 0.2141542753415966,
+        "proven_additional_recoverable_fraction": null
+      }
+    },
+    "prepared": {
+      "forward": {
+        "rust_wall_us": 165.5833657,
+        "c_wall_us": 117.9332348,
+        "python_wall_us": 159.8050289,
+        "rust_over_c": 1.4040432790706425,
+        "rust_over_python": 1.036158666844057,
+        "wall_excess_vs_c_us": 47.65013090000001,
+        "cpu_excess_vs_c_us": 44.5508769,
+        "engineering_target_us": 129.72655828,
+        "required_wall_reduction_us": 35.856807419999996,
+        "required_wall_reduction_fraction": 0.21654836685083756,
+        "proven_additional_recoverable_fraction": null
+      },
+      "reverse": {
+        "rust_wall_us": 163.35745789999999,
+        "c_wall_us": 118.7941594,
+        "python_wall_us": 157.7022926,
+        "rust_over_c": 1.3751303828831167,
+        "rust_over_python": 1.0358597532525662,
+        "wall_excess_vs_c_us": 44.56329849999999,
+        "cpu_excess_vs_c_us": 42.1003008,
+        "engineering_target_us": 130.67357534,
+        "required_wall_reduction_us": 32.68388255999997,
+        "required_wall_reduction_fraction": 0.20007585193941713,
+        "proven_additional_recoverable_fraction": null
+      }
+    },
+    "rows_tuple": {
+      "forward": {
+        "rust_wall_us": 669.5358799999999,
+        "c_wall_us": 516.0632,
+        "python_wall_us": 6661.96939,
+        "rust_over_c": 1.2973912497539057,
+        "rust_over_python": 0.10050119428723461,
+        "wall_excess_vs_c_us": 153.47267999999985,
+        "cpu_excess_vs_c_us": 214.28414999999995,
+        "engineering_target_us": 567.6695200000001,
+        "required_wall_reduction_us": 101.86635999999976,
+        "required_wall_reduction_fraction": 0.1521447364404127,
+        "proven_additional_recoverable_fraction": null
+      },
+      "reverse": {
+        "rust_wall_us": 657.37,
+        "c_wall_us": 516.92145,
+        "python_wall_us": 6685.18745,
+        "rust_over_c": 1.2717019191213674,
+        "rust_over_python": 0.09833232125749891,
+        "wall_excess_vs_c_us": 140.44854999999995,
+        "cpu_excess_vs_c_us": 213.19114999999996,
+        "engineering_target_us": 568.6135950000001,
+        "required_wall_reduction_us": 88.75640499999986,
+        "required_wall_reduction_fraction": 0.13501742549857743,
+        "proven_additional_recoverable_fraction": null
+      }
+    },
+    "rows_dict": {
+      "forward": {
+        "rust_wall_us": 1118.5188,
+        "c_wall_us": 980.25021,
+        "python_wall_us": 7237.18355,
+        "rust_over_c": 1.1410543844718992,
+        "rust_over_python": 0.15455166948197688,
+        "wall_excess_vs_c_us": 138.26859000000002,
+        "cpu_excess_vs_c_us": 210.48120000000006,
+        "engineering_target_us": 1078.275231,
+        "required_wall_reduction_us": 40.24356899999998,
+        "required_wall_reduction_fraction": 0.03597934071380826,
+        "proven_additional_recoverable_fraction": null
+      },
+      "reverse": {
+        "rust_wall_us": 1098.3541500000001,
+        "c_wall_us": 976.47772,
+        "python_wall_us": 7204.74266,
+        "rust_over_c": 1.1248122998648655,
+        "rust_over_python": 0.15244876907234325,
+        "wall_excess_vs_c_us": 121.87643000000014,
+        "cpu_excess_vs_c_us": 199.9506399999999,
+        "engineering_target_us": 1074.1254920000001,
+        "required_wall_reduction_us": 24.228657999999996,
+        "required_wall_reduction_fraction": 0.022059058091600026,
+        "proven_additional_recoverable_fraction": null
+      }
+    },
+    "rows_namedtuple": {
+      "forward": {
+        "rust_wall_us": 873.1221499999999,
+        "c_wall_us": 742.01156,
+        "python_wall_us": 6904.98978,
+        "rust_over_c": 1.1766961555154207,
+        "rust_over_python": 0.1264480003328839,
+        "wall_excess_vs_c_us": 131.1105899999999,
+        "cpu_excess_vs_c_us": 209.50033000000002,
+        "engineering_target_us": 816.2127160000001,
+        "required_wall_reduction_us": 56.909433999999806,
+        "required_wall_reduction_fraction": 0.06517923523071745,
+        "proven_additional_recoverable_fraction": null
+      },
+      "reverse": {
+        "rust_wall_us": 874.7052600000002,
+        "c_wall_us": 729.96192,
+        "python_wall_us": 6907.88681,
+        "rust_over_c": 1.1982888915630012,
+        "rust_over_python": 0.12662414484466636,
+        "wall_excess_vs_c_us": 144.74334000000022,
+        "cpu_excess_vs_c_us": 215.10744,
+        "engineering_target_us": 802.958112,
+        "required_wall_reduction_us": 71.74714800000015,
+        "required_wall_reduction_fraction": 0.08202437012897368,
+        "proven_additional_recoverable_fraction": null
+      }
+    },
+    "transaction": {
+      "forward": {
+        "rust_wall_us": 1253.67771,
+        "c_wall_us": 1044.78617,
+        "python_wall_us": 1201.79965,
+        "rust_over_c": 1.1999371220620194,
+        "rust_over_python": 1.0431669787888522,
+        "wall_excess_vs_c_us": 208.89153999999985,
+        "cpu_excess_vs_c_us": 179.41492999999997,
+        "engineering_target_us": 1149.2647870000003,
+        "required_wall_reduction_us": 104.41292299999964,
+        "required_wall_reduction_fraction": 0.08328529905824011,
+        "proven_additional_recoverable_fraction": null
+      },
+      "reverse": {
+        "rust_wall_us": 1263.14077,
+        "c_wall_us": 1040.7481699999998,
+        "python_wall_us": 1179.0326,
+        "rust_over_c": 1.2136853144791022,
+        "rust_over_python": 1.0713365940856936,
+        "wall_excess_vs_c_us": 222.39260000000013,
+        "cpu_excess_vs_c_us": 178.03599999999994,
+        "engineering_target_us": 1144.822987,
+        "required_wall_reduction_us": 118.31778299999996,
+        "required_wall_reduction_fraction": 0.0936695147604174,
+        "proven_additional_recoverable_fraction": null
+      }
+    },
+    "copy_text": {
+      "forward": {
+        "rust_wall_us": 6594.198270000001,
+        "c_wall_us": 5385.502439999999,
+        "python_wall_us": 12899.21111,
+        "rust_over_c": 1.2244351095308392,
+        "rust_over_python": 0.511209423100914,
+        "wall_excess_vs_c_us": 1208.6958300000015,
+        "cpu_excess_vs_c_us": 1007.2207099999991,
+        "engineering_target_us": 5924.052683999999,
+        "required_wall_reduction_us": 670.1455860000015,
+        "required_wall_reduction_fraction": 0.10162654481421918,
+        "proven_additional_recoverable_fraction": null
+      },
+      "reverse": {
+        "rust_wall_us": 6650.56593,
+        "c_wall_us": 5464.987409999999,
+        "python_wall_us": 12904.056550000001,
+        "rust_over_c": 1.216940759612839,
+        "rust_over_python": 0.5153856776921827,
+        "wall_excess_vs_c_us": 1185.578520000001,
+        "cpu_excess_vs_c_us": 967.4911400000001,
+        "engineering_target_us": 6011.486150999999,
+        "required_wall_reduction_us": 639.0797790000006,
+        "required_wall_reduction_fraction": 0.0960940445860674,
+        "proven_additional_recoverable_fraction": null
+      }
+    },
+    "copy_binary": {
+      "forward": {
+        "rust_wall_us": 5620.75473,
+        "c_wall_us": 5309.92955,
+        "python_wall_us": 11340.99289,
+        "rust_over_c": 1.0585365920721113,
+        "rust_over_python": 0.49561398940265095,
+        "wall_excess_vs_c_us": 310.8251799999998,
+        "cpu_excess_vs_c_us": 87.72275000000036,
+        "engineering_target_us": 5840.9225050000005,
+        "required_wall_reduction_us": 0,
+        "required_wall_reduction_fraction": 0,
+        "proven_additional_recoverable_fraction": null
+      },
+      "reverse": {
+        "rust_wall_us": 5552.29866,
+        "c_wall_us": 5374.950499999999,
+        "python_wall_us": 11334.765010000001,
+        "rust_over_c": 1.0329953103754168,
+        "rust_over_python": 0.48984682568200855,
+        "wall_excess_vs_c_us": 177.34816000000137,
+        "cpu_excess_vs_c_us": 25.422019999999975,
+        "engineering_target_us": 5912.4455499999995,
+        "required_wall_reduction_us": 0,
+        "required_wall_reduction_fraction": 0,
+        "proven_additional_recoverable_fraction": null
+      }
+    },
+    "pool": {
+      "forward": {
+        "rust_wall_us": 183.25986,
+        "c_wall_us": 141.26782,
+        "python_wall_us": 177.71898000000002,
+        "rust_over_c": 1.2972512777503045,
+        "rust_over_python": 1.0311777616549453,
+        "wall_excess_vs_c_us": 41.99204,
+        "cpu_excess_vs_c_us": 42.24713999999999,
+        "engineering_target_us": 155.39460200000002,
+        "required_wall_reduction_us": 27.865257999999983,
+        "required_wall_reduction_fraction": 0.1520532537785415,
+        "proven_additional_recoverable_fraction": null
+      },
+      "reverse": {
+        "rust_wall_us": 198.35959,
+        "c_wall_us": 128.04129,
+        "python_wall_us": 184.14088,
+        "rust_over_c": 1.549184563823123,
+        "rust_over_python": 1.077216476862715,
+        "wall_excess_vs_c_us": 70.3183,
+        "cpu_excess_vs_c_us": 54.56179000000001,
+        "engineering_target_us": 140.84541900000002,
+        "required_wall_reduction_us": 57.514170999999976,
+        "required_wall_reduction_fraction": 0.28994903145343254,
+        "proven_additional_recoverable_fraction": null
+      }
+    },
+    "pipeline": {
+      "forward": {
+        "rust_wall_us": 2038.9132700000002,
+        "c_wall_us": 772.3622,
+        "python_wall_us": 1298.2876199999998,
+        "rust_over_c": 2.6398408285646298,
+        "rust_over_python": 1.5704634617096638,
+        "wall_excess_vs_c_us": 1266.5510700000002,
+        "cpu_excess_vs_c_us": 676.03373,
+        "engineering_target_us": 849.5984200000001,
+        "required_wall_reduction_us": 1189.3148500000002,
+        "required_wall_reduction_fraction": 0.583308210064276,
+        "proven_additional_recoverable_fraction": null
+      },
+      "reverse": {
+        "rust_wall_us": 1995.19628,
+        "c_wall_us": 809.8358199999999,
+        "python_wall_us": 1272.03309,
+        "rust_over_c": 2.4637046555930313,
+        "rust_over_python": 1.5685097311422929,
+        "wall_excess_vs_c_us": 1185.3604599999999,
+        "cpu_excess_vs_c_us": 618.70429,
+        "engineering_target_us": 890.819402,
+        "required_wall_reduction_us": 1104.376878,
+        "required_wall_reduction_fraction": 0.5535179115309898,
+        "proven_additional_recoverable_fraction": null
+      }
+    }
+  },
+  "limitations": [
+    "Required savings are not predicted or proven savings.",
+    "No medians are pooled across orders or workloads.",
+    "CPU and wall differences are not additive components.",
+    "Pipeline is a separate diagnostic workload, not an added beta acceptance exception or substitute."
+  ]
+}

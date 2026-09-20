@@ -2,6 +2,11 @@
 
 ## Decision and scope
 
+For the current workload budget, ownership table, experiment dispositions, and
+remaining decision, see [Phase 5 bottlenecks](ferrocopg-bottlenecks.md). This
+investigation retains the chronological evidence, including failed prototypes;
+historical next-step text is not a request to repeat completed work.
+
 The fork exists to provide a trustworthy Rust backend behind Psycopg's proven
 API. Phase 5 now distinguishes beta acceptance from the work needed to approach
 performance parity. The approved beta ceilings remain 1.15 times Python and 1.50
@@ -719,9 +724,11 @@ and Python 111,000 of 241,134. These match the earlier macOS smoke counts.
 Events are not subtracted, and other instrumented sites are not ordinary
 allocation estimates. The original dedicated-run files remain unchanged.
 
-The full bottleneck table, remaining plan-reuse dispositions, explicit
-next optimization/deferral decision, and direct GIL/poll/wakeup coverage remain
-outstanding; syscall counts do not close those requirements by themselves.
+The [bottleneck report](ferrocopg-bottlenecks.md) now records measured costs,
+required savings, ownership/confidence, unknown recoverable fractions, and
+explicit dispositions for the remaining plan-reuse approaches. The next
+optimization/deferral decision and direct GIL/poll/wakeup coverage remain open;
+syscall counts do not close those requirements by themselves.
 
 ### Allocation observer effect
 
@@ -914,6 +921,12 @@ callback/mutation/locking requirements to manufacture a gain. Inspect the
 coarser execution/outcome boundary next, and bound its opportunity before a new
 prototype. The rejected prototype's passing full source run does not replace
 the retained implementation's pending compatibility matrix or release gates.
+
+### Historical investigation sequence
+
+The following sequence motivated the probes and experiments above. Use the
+current bottleneck report and active plan when resuming; do not rerun completed
+comparisons or rejected prototypes from this historical checklist.
 
 1. Reproduce the initial layer and integration comparisons on an otherwise idle
    dedicated runner, retaining both orders. Prioritize the integration gap now
