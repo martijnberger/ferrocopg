@@ -251,10 +251,12 @@ class TypesRegistry:
 
     def __init__(self, template: TypesRegistry | None = None):
         self._registry: dict[RegistryKey, TypeInfo]
+        self._generation: object
 
         # Make a shallow copy: it will become a proper copy if the registry
         # is edited.
         if template:
+            self._generation = template._generation
             self._registry = template._registry
             self._own_state = False
             template._own_state = False
@@ -262,10 +264,12 @@ class TypesRegistry:
             self.clear()
 
     def clear(self) -> None:
+        self._generation = object()
         self._registry = {}
         self._own_state = True
 
     def add(self, info: TypeInfo) -> None:
+        self._generation = object()
         self._ensure_own_state()
         if info.oid:
             self._registry[info.oid] = info

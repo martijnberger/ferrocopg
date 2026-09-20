@@ -126,14 +126,18 @@ search for tiny transport optimizations.
    baseline `8919d7d9`. Preserve the implementation and evidence checkpoints.
    Inspect current state with `jj`; never rewrite published work.
 2. Follow dedicated comparison `35506310291` and compatibility run
-   `35506169516` for that prototype. Public-contract tests are established and
+   `35506169516` for that prototype. Both are terminal: the comparison completed
+   and supports retaining 5C.1 as a development foundation; the original matrix
+   failed the stale inventory and one async-warning leak. The pushed follow-up
+   `8eddc2ec` is under Tests `35508454735`; its Lint `35508454729` passes.
+   Public-contract tests are established and
    local diagnostics are recorded; do not restart 5C.1 from scratch or repeat
    unchanged runs to select favorable samples. Validate both-order controls and
    all eleven workloads before deciding retention. Do not require a pristine
    Tokio investigation before addressing the measured integration gap.
    Compatibility follow-ups `775299eb` / `87de5ef3` correct the new-test inventory
    and experimental async `nextset()` warning leak. Preserve those checkpoints;
-   publish them after the old matrix is terminal, then follow their successor CI.
+   they are now published; follow their successor CI without cancelling it.
    Their local full run still fails three timing assertions; details and controls
    are in the parity report. Do not relabel the frozen comparison as testing them.
 3. Measure wall and CPU costs against the unchanged control in both orders.
@@ -1478,16 +1482,28 @@ zero sync errors, but still fails pool backoff, notification timing, and one
 poll-timing assertion. Isolated C and Rust controls both pass the latter two
 and fail backoff. Preserve every report; the strict full-run gate is not green.
 
-- [ ] Keep the public Connection/Cursor surface but replace the second cursor-like
+- [x] Keep the public Connection/Cursor surface but replace the second cursor-like
   adapter and after-execute/after-fetch state copying with one authoritative
   execution state: active result, result index, row position, and lifecycle.
-- [ ] Back public metadata with stable owned result handles. Capture encoding
+- [x] Back public metadata with stable owned result handles. Capture encoding
   and result-shape snapshots at execution. Preserve public `pgresult` behavior,
   custom cursor/row factories, navigation, errors, and detached result lifetimes.
-- [ ] Test observable contracts rather than asserting private `_results` or
+- [x] Test observable contracts rather than asserting private `_results` or
   adapter layout. Do not revive lazy properties that defer required snapshots.
-- [ ] Compare fresh/reused constant and parameterized queries, wall and CPU, in
+- [x] Compare fresh/reused constant and parameterized queries, wall and CPU, in
   both orders; then run all eleven workloads before retaining a speed claim.
+
+Disposition: retain 5C.1 as the development foundation, not final beta acceptance.
+Dedicated comparison `35506310291` is complete and independently recomputed.
+Prepared wall ratios are 0.9935/0.9826 and parameterized 0.9820/0.9856 in the two
+orders; CPU ratios improve in all four long controls. Smaller fresh/reused
+controls are mostly near-flat, so the speed claim is deliberately modest.
+Single-authority state ownership is an additional architectural rationale.
+Both complete eleven-workload reports pass the beta limits, but the candidate's
+complete prepared median is 2.3% slower than its baseline and only four workloads
+meet both near-parity objectives. Preserve all these observations in
+`docs/performance/2026-09-20-single-owner-dedicated.json`; one report per variant
+does not satisfy the three-run final-candidate gate or successor compatibility.
 
 **5C.2 Reusable execution plans (second, evidence-driven prototype)**
 
@@ -1502,6 +1518,29 @@ The first installed-wheel control for fresh callback contexts, parent/child
 adapter snapshots, and post-execution loader replacement now passes on both
 frozen Rust wheels and official C. This establishes a contract, not a cache
 implementation or a retained performance claim.
+
+The first 5C.2 prototype now caches at most 32 connection-local pure adapter
+schemas, keyed by adapter-registration and type-registry generations plus wire
+loader mapping. Copy-on-write children inherit a generation until modified.
+Each execution gets a lazy independent view; observing map internals/types or
+registering adapters materializes its own map. Actual dumper/loader constructors,
+instances, encoding, parameter values, result positions, and callbacks remain
+execution-local. Connection locking protects cache lifecycle; close clears it.
+No prepared-statement, SQL-layout, or mutable callback cache is introduced.
+
+Hypothesis: avoiding repeated adapter-map copies and normalization setup lowers
+fresh and reused execution CPU/wall costs without weakening callbacks. Success
+requires the existing both-order controls and all eleven workloads against the
+published `8eddc2ec` baseline; reject flat/mixed performance-only results. New
+controls cover constructor-local mutation, type-registry add/clear snapshots,
+bounded retention, and cleanup. The prototype installed wheel passes all 82
+Phase 5 checks, and 335/335 focused supported source cases pass. Full source
+validation now passes all 4,749/4,749 supported sync cases with zero errors under
+the unchanged strict classifier (`/tmp/phase5-schema-full.xml` and its
+`-report.json`). Experimental async remains 511/622 and is not relabeled as
+supported. Both exact installed control/prototype wheels pass 82 checks, and
+configured mypy passes 239 source files. Exact-wheel measurements are next;
+do not retain this prototype merely because correctness checks pass.
 
 - [ ] Separate reusable SQL/parameter-layout and result-decoding plans from
   execution values, mutable callbacks, cursor position, and errors.

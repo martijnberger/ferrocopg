@@ -13,7 +13,7 @@ import os
 import sys
 import threading
 import warnings
-from collections import deque
+from collections import OrderedDict, deque
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import timedelta, tzinfo
 from enum import Enum
@@ -50,6 +50,7 @@ from ._rmodule import _ferrocopg
 from ._tpc import Xid
 from ._tz import get_tzinfo
 from .abc import AdaptContext, Buffer, Loader, Params, Query
+from .abc import Dumper as DumperProto
 from .adapt import Dumper, RecursiveDumper, RecursiveLoader
 from .conninfo import (
     _param_escape,
@@ -540,6 +541,7 @@ def _install_wire_bytea_dumper(adapters: AdaptersMap) -> None:
         return
 
     # `register_dumper()` also changes `%s`; only `%t` needs this wire form.
+    adapters._generation = object()
     if not adapters._own_dumpers[PyFormat.TEXT]:
         adapters._dumpers[PyFormat.TEXT] = adapters._dumpers[PyFormat.TEXT].copy()
         adapters._own_dumpers[PyFormat.TEXT] = True
@@ -604,6 +606,49 @@ class _BackendAdaptersMap(AdaptersMap):
         return (
             _pure_loader_class(loader, self._originals) if loader is not None else None
         )
+
+
+class _PlannedBackendAdaptersMap(_BackendAdaptersMap):
+    """Execution-local view of a shared adapter schema, copied on observation."""
+
+    def __init__(self, schema: _BackendAdaptersMap):
+        self._schema = schema
+        self._materialized = False
+
+    def _materialize(self) -> None:
+        if not self._materialized:
+            self._materialized = True
+            super().__init__(self._schema, self._schema._text_loader_oids)
+
+    def __getattr__(self, name: str) -> Any:
+        if self.__dict__.get("_materialized") is False:
+            self._materialize()
+        return object.__getattribute__(self, name)
+
+    def get_dumper(self, cls: type, format: PyFormat) -> type[Dumper]:
+        if not self._materialized:
+            return self._schema.get_dumper(cls, format)
+        return super().get_dumper(cls, format)
+
+    def get_dumper_by_oid(self, oid: int, format: pq.Format) -> type[Dumper]:
+        if not self._materialized:
+            return self._schema.get_dumper_by_oid(oid, format)
+        return super().get_dumper_by_oid(oid, format)
+
+    def get_loader(self, oid: int, format: pq.Format) -> type[Loader] | None:
+        if not self._materialized:
+            return self._schema.get_loader(oid, format)
+        return super().get_loader(oid, format)
+
+    def register_dumper(
+        self, cls: type | str | None, dumper: type[DumperProto]
+    ) -> None:
+        self._materialize()
+        super().register_dumper(cls, dumper)
+
+    def register_loader(self, oid: int | str, loader: type[Loader]) -> None:
+        self._materialize()
+        super().register_loader(oid, loader)
 
 
 _pure_array_loader_classes: dict[type[Any], type[Any]] = {}
@@ -2615,7 +2660,7 @@ class NoTlsCursorAdapter:
                 tx = _BackendTransformer(
                     _AdaptContext(
                         self._conn,
-                        _pure_python_adapters(
+                        self._conn._execution_adapters(
                             self.adapters,
                             text_loader_oids=(
                                 _TEXT_WIRE_OIDS
@@ -3540,6 +3585,9 @@ class NoTlsConnectionAdapter:
         self._probe_cache: _BackendProbeLike | None = None
         self._prepared_ids: dict[bytes, int] = {}
         self._prepared_statusmessages: dict[int, str | None] = {}
+        self._adapter_schemas: OrderedDict[
+            tuple[object, object, frozenset[int]], _BackendAdaptersMap
+        ] = OrderedDict()
         self._in_transaction = False
         self._transaction_failed = False
         self._pipeline: NoTlsPipelineAdapter | None = None
@@ -3630,6 +3678,29 @@ class NoTlsConnectionAdapter:
             self._adapters = AdaptersMap(postgres.adapters)
             _install_wire_bytea_dumper(self._adapters)
         return self._adapters
+
+    def _execution_adapters(
+        self,
+        template: AdaptersMap,
+        *,
+        text_loader_oids: frozenset[int] = frozenset(),
+    ) -> AdaptersMap:
+        # Result setup also calls this outside execute's connection lock.
+        with self.lock:
+            if self._closed:
+                return _pure_python_adapters(
+                    template, text_loader_oids=text_loader_oids
+                )
+            key = (template._generation, template.types._generation, text_loader_oids)
+            schema = self._adapter_schemas.get(key)
+            if schema is None:
+                schema = _BackendAdaptersMap(template, text_loader_oids)
+                self._adapter_schemas[key] = schema
+                if len(self._adapter_schemas) > 32:
+                    self._adapter_schemas.popitem(last=False)
+            else:
+                self._adapter_schemas.move_to_end(key)
+        return _PlannedBackendAdaptersMap(schema)
 
     @property
     def connection(self) -> NoTlsConnectionAdapter:
@@ -3738,6 +3809,7 @@ class NoTlsConnectionAdapter:
             self._prepared = PrepareManager()
             self._prepared_ids.clear()
             self._prepared_statusmessages.clear()
+            self._adapter_schemas.clear()
             self._cancel_handle = None
             self._closed = True
             self._last_error_message = "NULL"
@@ -4560,7 +4632,7 @@ class NoTlsConnectionAdapter:
         tx = _BackendTransformer(
             _AdaptContext(
                 self,
-                _pure_python_adapters(adapters or self.adapters),
+                self._execution_adapters(adapters or self.adapters),
                 expose_connection=True,
             )
         )

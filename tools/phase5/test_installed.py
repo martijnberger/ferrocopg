@@ -14,6 +14,121 @@ import weakref
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_execution_schema_type_registry_snapshots(self):
+        import ferrocopg
+
+        import psycopg
+
+        for driver in (ferrocopg, psycopg):
+            with self.subTest(driver=driver.__name__):
+                Loader = importlib.import_module(f"{driver.__name__}.adapt").Loader
+                TypeInfo = importlib.import_module(f"{driver.__name__}.types").TypeInfo
+
+                class NamedLoader(Loader):
+                    format = driver.pq.Format.BINARY
+
+                    def __init__(self, oid, context):
+                        super().__init__(oid, context)
+                        self.label = context.adapters.types[oid].name
+
+                    def load(self, data):
+                        return (self.label, int.from_bytes(data, "big", signed=True))
+
+                with driver.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+                    conn.adapters.register_loader(23, NamedLoader)
+                    conn.adapters.types.add(TypeInfo("schema_one", 23, 0))
+                    before = conn.cursor(binary=True)
+                    self.assertEqual(
+                        conn.execute("select 41::int4", binary=True).fetchone(),
+                        (("schema_one", 41),),
+                    )
+                    conn.adapters.types.add(TypeInfo("schema_two", 23, 0))
+                    self.assertEqual(
+                        conn.execute("select 42::int4", binary=True).fetchone(),
+                        (("schema_two", 42),),
+                    )
+                    conn.adapters.types.clear()
+                    conn.adapters.types.add(TypeInfo("schema_three", 23, 0))
+                    self.assertEqual(
+                        conn.execute("select 43::int4", binary=True).fetchone(),
+                        (("schema_three", 43),),
+                    )
+                    before.execute("select 44::int4")
+                    self.assertEqual(before.fetchone(), (("schema_one", 44),))
+                    before.close()
+
+    def test_execution_schema_constructor_mutation_is_local(self):
+        import ferrocopg
+
+        import psycopg
+
+        for driver in (ferrocopg, psycopg):
+            with self.subTest(driver=driver.__name__):
+                adapt = importlib.import_module(f"{driver.__name__}.adapt")
+
+                class Value:
+                    pass
+
+                class LocalLoader(adapt.Loader):
+                    format = driver.pq.Format.BINARY
+
+                    def load(self, data):
+                        return ("local", int.from_bytes(data, "big", signed=True))
+
+                class MutatingDumper(adapt.Dumper):
+                    oid = 23
+                    format = driver.pq.Format.BINARY
+
+                    def __init__(self, cls, context):
+                        super().__init__(cls, context)
+                        context.adapters.register_loader(23, LocalLoader)
+
+                    def dump(self, value):
+                        return (42).to_bytes(4, "big", signed=True)
+
+                with driver.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+                    conn.adapters.register_dumper(Value, MutatingDumper)
+                    for _ in range(3):
+                        self.assertEqual(
+                            conn.execute(
+                                "select %s", (Value(),), binary=True
+                            ).fetchone(),
+                            (("local", 42),),
+                        )
+                        self.assertEqual(
+                            conn.execute("select 43::int4", binary=True).fetchone(),
+                            (43,),
+                        )
+
+    def test_execution_schema_bounds_and_releases_registry_snapshots(self):
+        import ferrocopg
+
+        import psycopg
+
+        for driver in (ferrocopg, psycopg):
+            with self.subTest(driver=driver.__name__):
+                TypeInfo = importlib.import_module(f"{driver.__name__}.types").TypeInfo
+                references = []
+                with driver.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+                    for i in range(64):
+                        info = TypeInfo(f"schema_{i}", 23, 0)
+                        references.append(weakref.ref(info))
+                        conn.adapters.types.clear()
+                        conn.adapters.types.add(info)
+                        self.assertEqual(
+                            conn.execute("select 42::int4", binary=True).fetchone(),
+                            (42,),
+                        )
+                    gc.collect()
+                    self.assertLessEqual(
+                        sum(reference() is not None for reference in references), 32
+                    )
+                gc.collect()
+                # The closed connection's public map still owns its last registration.
+                self.assertTrue(
+                    all(reference() is None for reference in references[:-1])
+                )
+
     def test_execution_plan_adapter_snapshots_and_callback_lifetimes(self):
         import ferrocopg
 

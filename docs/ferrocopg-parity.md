@@ -276,12 +276,38 @@ add 20,000 result-adoption/publication events. Total calls decrease from
 parameterized queries. Query conversion, execution bookkeeping, and loader
 setup remain substantial. Profile durations are not query latency evidence.
 
-**Disposition: pending, not accepted or rejected.** Dedicated comparison
+**Disposition: retained as the development foundation, not beta acceptance.** Dedicated comparison
 [35506310291](https://github.com/martijnberger/ferrocopg/actions/runs/35506310291)
-has started for this exact prototype and baseline. It includes both-order
+completed for this exact prototype and baseline. It includes both-order
 fresh/reused controls, the longer prepared/parameterized controls, and all eleven
-workloads. Do not infer a beta-gate pass from this local diagnostic or replace
-that run with duplicate dispatches. A final three-run gate, full soak,
+workloads. Raw samples, manifests, and complete worker reports are preserved in
+[the dedicated comparison evidence](performance/2026-09-20-single-owner-dedicated.json).
+The repository copy retains all sample totals and percentile summaries; large
+per-operation latency arrays remain in the linked, unmodified CI artifact.
+All medians, both-order ratios, wheel hashes, and both complete verdicts were
+independently recomputed after download. The baseline and candidate native
+extensions are byte-identical (SHA-256
+`6275e4a319d7e39ea9be94b6f34f2cf78ce7585ce4803ea6591e39c1062f9f8b`).
+
+| Long query control | Wall a / b | CPU a / b |
+| --- | ---: | ---: |
+| Prepared | 0.9935 / 0.9826 | 0.9809 / 0.9709 |
+| Parameterized | 0.9820 / 0.9856 | 0.9616 / 0.9739 |
+
+Each long control uses 10,000 warmups and nine 100,000-query samples. The smaller
+fresh/reused controls remain modest or near-flat: wall ratios span 0.977-0.997,
+and two first-order CPU ratios are slightly above one. Do not inflate this into
+a broad speed claim. Retention also has a separate architectural reason: one
+authoritative result/position state removes synchronization and duplicate
+initialization without narrowing the supported public cursor contract.
+
+Both complete reports pass all eleven beta workload limits. Candidate ratios
+are 1.034/1.322 for parameterized, 1.018/1.334 for prepared, and 1.017/1.267 for
+pool (Python/C). The complete Rust-to-Rust prepared median is 2.3% slower even
+though both long paired prepared controls improve; keep both observations.
+Only four candidate workloads meet both engineering near-parity targets in this
+report. This remains one complete report per variant in experiment mode, not
+three acceptance runs. A final three-run gate, full soak,
 supported compatibility matrix, and scheduled-run evidence are still required.
 
 ### Compatibility follow-up to the frozen prototype
