@@ -176,12 +176,76 @@ timing, skips acceptance/codegen jobs, and rejects conflicting diagnostic inputs
 It preserves the wheel, executables, all reports/logs, and manifest in a
 `phase5-layer-matrix-<revision>` artifact for 90 days. Audit the exact revision
 and raw reports after completion; a dispatch or green workflow alone does not
-establish a performance conclusion. Published revision `0ec45e1d` is now running
-this matrix in workflow `35527765141`; follow that handle, not a replacement
-dispatch. It does not measure GIL transitions or scheduler wakeups, nor
+establish a performance conclusion. Published revision `0ec45e1d` completed
+this matrix successfully in workflow `35527765141`; its independent audit is
+below. Do not redispatch the same completed measurements. It does not measure
+GIL transitions or scheduler wakeups, nor
 does its periodic sampling prove perfect host idleness. Review observer cost,
 all sampling intervals, and the existing before/after inventory when assessing
 the timing evidence; do not silently describe these measurements as observer-free.
+
+### Audited matched-layer results
+
+[Workflow `35527765141`](https://github.com/martijnberger/ferrocopg/actions/runs/35527765141)
+is terminal success at `0ec45e1dfa4196d1e8ea17cf6b76d3d227119de9`.
+Only the diagnostic job ran. Artifact `10610288540` preserves all six cases,
+eight layers, and both orders. An independent offline audit recomputes all 96
+worker medians from their nine raw samples, verifies all 210 result-file hashes,
+all six source/probe identities, unchanged worker environments/fingerprints,
+and all 92 installed implementation files against the actual wheel. Wheel
+SHA-256: `56a44a9a1cdee09fe0e79b6558218b0bb052c948089220e380b7b7cd51515d58`.
+The production runtime and release settings remain identical to `7bbc14eb`.
+
+The [readable audit](performance/2026-09-20-matched-layer-dedicated.json) and
+[229-file text/report/source archive](performance/2026-09-20-matched-layer-dedicated.json.gz)
+preserve all raw samples, host telemetry, the independent audit helper, terminal
+run metadata, and artifact identity. Executables and the wheel remain in the CI
+artifact, with their hashes retained in the archive; they are not embedded in
+the repository. API artifact digest:
+`149998eefaa63a934e3cd67d650b8bf1c9643562404b478115f8d750993faae3`.
+
+Ratios below retain the forward/reverse measurements separately:
+
+| Case | Result | Native Rust/libpq | Full Rust/C | Full Rust/Python |
+| --- | --- | --- | --- | --- |
+| Constant | Binary | 1.067 / 1.016 | 1.350 / 1.350 | 1.107 / 1.116 |
+| Constant | Text | 1.044 / 1.034 | 1.379 / 1.362 | 1.125 / 1.134 |
+| Prepared parameter | Binary | 1.051 / 1.032 | 1.407 / 1.405 | 1.076 / 1.080 |
+| Prepared parameter | Text | 1.057 / 1.019 | 1.377 / 1.396 | 1.074 / 1.060 |
+| Unprepared parameter | Binary | 1.096 / 1.089 | 1.335 / 1.383 | 1.114 / 1.126 |
+| Unprepared parameter | Text | 1.070 / 1.067 | 1.379 / 1.375 | 1.113 / 1.113 |
+
+The native prepared-parameter difference is 1.54-4.65 us, versus 49.53-53.43 us
+between the full Rust and C APIs. For unprepared parameters those differences
+are 6.67-9.72 us and 53.10-59.73 us respectively. Independent path differences
+are not additive costs or guaranteed removable work. Nevertheless, the larger
+API gap persists when parameter types, preparation, and text/binary output are
+matched. Replacing the Rust client is not justified by these scalar results.
+This is not a new beta acceptance run or a proof about other workloads/TLS.
+
+All 526 host-activity intervals reconcile, spanning 1,056.786 seconds. Maximum
+interval length is 2.025 seconds; one process observation was unavailable.
+Sampler thread CPU totals 9.030 seconds, averaging 0.83-0.92% of one core per
+case. Recorded system steal time is zero. Background runner/service CPU is
+small in these samples; there is no identified competing compiler/test runner.
+Names alone cannot prove process ownership, and short-lived activity can be
+missed. The sampled host is substantially better characterized than the earlier
+before/after-only run, but not proven perfectly idle or observer-free.
+
+`docker-proxy` accounts for 44.47-51.81% of one core per case, consistent with
+the published Docker port used by the workload. This is part of the measured
+network topology, not evidence of unrelated host contention. Do not subtract it
+from latency or extrapolate these ratios to a direct socket or remote database.
+The same topology serves every backend in both orders. Any direct-network
+comparison would be a new, explicitly labeled topology experiment, not a rerun
+to select more favorable numbers.
+
+Successor Lint `35527753918` passes. Tests `35527753862` is still active and is
+not an all-green checkpoint: job `106122790149`, `macos-14 (c, 3.11)`, fails
+`tests/test_generators.py::test_cancel` with a cancellation-connection EOF after
+roughly 60 seconds. Both built-in retries also fail. Its complete terminal job
+log is retained in the archive. Other jobs must finish without interruption;
+the failure needs investigation, not a skip or tolerance change.
 
 ### Marked-loop handoff instrumentation
 

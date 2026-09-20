@@ -201,7 +201,10 @@ search for tiny transport optimizations.
    are implemented, with all 112 Phase 5 tests passing locally. At the safe
    publication checkpoint, the new diagnostic was dispatched once as
    `35527765141` at `0ec45e1dfa4196d1e8ea17cf6b76d3d227119de9`. Its measurement
-   step is now running; follow that handle and audit its artifacts when terminal.
+   run is terminal success. Its independent audit verifies all 96 workers,
+   210 result files, six source/probe hashes, and the installed implementation
+   against the actual wheel. Preserve `2026-09-20-matched-layer-dedicated.json`
+   and its 229-file raw text/report archive; do not repeat completed measurements.
    Do not rerun the old attribution or acceptance workload. It
    expands the native/public comparison to prepared/unprepared parameters and
    text/binary results, but does not close GIL/wakeup or host-idleness gaps.
@@ -209,6 +212,15 @@ search for tiny transport optimizations.
    and records sampling gaps and observer CPU cost. All 116 tests pass. Assess
    these raw intervals on the dedicated runner; the local sampler smoke had
    measurable overhead and does not establish an idle or observer-free run.
+   The dedicated audit now covers 526 intervals: sampler CPU is 0.83-0.92% of
+   one core, background activity is small in the observations, and Docker proxy
+   CPU is substantial but part of the workload topology. Native Rust/libpq
+   ratios are 1.016-1.096 versus full Rust/C 1.335-1.407 across all six cases.
+   This supports integration work, not a claim that every microsecond is removable.
+   Successor Tests `35527753862` remains live with a failed macOS C/3.11
+   cancellation test; both built-in retries fail too. Its terminal job log is
+   preserved in the matrix archive. Investigate without skipping the test or
+   cancelling other jobs; do not call this successor an all-green checkpoint.
    The separate `handoff_trace.py` coordinator and `handoff_trace=true` workflow
    mode are now implemented locally. All 122 Phase 5 tests and three installed
    marked-worker smoke checks pass, but Linux BPF preflight/attachment and event
@@ -1520,14 +1532,17 @@ parameterized queries with text or binary results, retaining the constant-query
 default. All 96 local case/format/layer/order smoke checks and 107 harness tests
 pass; preserve `2026-09-20-matched-layer-smoke.json` and its full archive,
 including both corrected diagnostic failures. These short non-idle checks are
-not speed evidence. The next dedicated diagnostic must exercise the new matrix
+not speed evidence. The subsequent dedicated diagnostic exercises the new matrix
 without replacing or relabeling the completed constant-query attribution run.
 `tools/phase5/layer_matrix.py` and the `layer_matrix=true` workflow input now
 provide that six-case diagnostic, with both orders, 10,000 operations per sample,
 nine samples, immutable installed/source identities, raw-median validation,
 and partial-failure preservation. All 112 installed/accounting tests pass.
-Publish and follow one exact-revision run before making broader native-floor
-claims; no new dedicated timing result exists at this checkpoint.
+Workflow `35527765141` at published `0ec45e1d` now completes that exact matrix.
+Its independent audit verifies 96 worker reports and 210 result files; preserve
+`2026-09-20-matched-layer-dedicated.json` and its complete raw text/report archive.
+Native Rust stays within 1.10 of libpq on these scalar wall-time controls, while
+the full Rust/C ratios remain 1.335-1.407. No general irreducible floor is proven.
 The host-activity extension adds per-case process/system CPU sampling and
 observer-overhead accounting, bringing validation to 116 tests. This improves
 measurement-quality evidence beyond before/after snapshots without asserting

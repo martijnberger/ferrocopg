@@ -21,6 +21,19 @@ are available, not continuous host-idleness telemetry. Values below retain
 both orders as ranges; no favorable-order selection or cross-order averaging
 is used. These are diagnostics, not additional acceptance runs.
 
+The subsequent [matched scalar matrix](performance/2026-09-20-matched-layer-dedicated.json)
+at `0ec45e1d` independently verifies 96 native/public measurements spanning
+constant/prepared/unprepared queries and both text/binary output formats.
+Native Rust/libpq wall ratios are 1.016-1.096, while full Rust/C ratios are
+1.335-1.407. Prepared parameters show a 1.54-4.65 us native gap versus
+49.53-53.43 us at the full API. This broadens the earlier constant-query evidence
+without claiming a wholly removable gap or a universal native floor. Its
+periodic host records show small observed background activity, 0.83-0.92% of one
+core in sampler CPU, and substantial workload-related Docker proxy CPU. Preserve
+that topology and observer caveat; see the parity report for both orders and
+the complete raw archive. The workload budgets below still derive from the
+original all-workload attribution, not these different scalar controls.
+
 ## Required savings
 
 The [machine-readable opportunity budget](performance/2026-09-20-integration-opportunity-budget.json)

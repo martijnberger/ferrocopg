@@ -1,0 +1,1406 @@
+{
+  "mode": "independent-matched-layer-audit",
+  "acceptance_evidence": false,
+  "revision": "0ec45e1dfa4196d1e8ea17cf6b76d3d227119de9",
+  "manifest_sha256": "202bc6425231092bb4ac25d360c80c69815d3233f5d93ea6831e7a9518584ca9",
+  "artifact_files_verified": 210,
+  "worker_reports_verified": 96,
+  "wheel_sha256": "56a44a9a1cdee09fe0e79b6558218b0bb052c948089220e380b7b7cd51515d58",
+  "wheel_implementation_files_verified": 92,
+  "sources_verified": {
+    "/home/runner/work/ferrocopg/ferrocopg/target/release/examples/layer_probe": "aff4a457df0b18c91a7cb074b118cf9627197c7883d301988a830ed31332ba61",
+    "/tmp/phase5-libpq-probe": "85b01a293e308d0e156b2d8a89427d95ddaf893daf32185617b778b8e6070148",
+    "/home/runner/work/ferrocopg/ferrocopg/Cargo.lock": "668ac2bbf560c6eb57b4128546d0c9e987ea47e1940a308021ca0e5fa63d7ae6",
+    "/home/runner/work/ferrocopg/ferrocopg/crates/ferrocopg-postgres/examples/layer_probe.rs": "176a042d8a7a9398b5de9836820a95b66f345bc7a82ec800465799de801aa621",
+    "/home/runner/work/ferrocopg/ferrocopg/tools/phase5/libpq_probe.c": "2356001de8c13aad75506103e21ea3993285f52d42d285fc059a80032ef389c2",
+    "/home/runner/work/ferrocopg/ferrocopg/tools/phase5/layer_probe.py": "2b0e07aa1dc6ca6567fb2e971aaba7bd4638932b5a98c6ee26bb97bf668cdfc6"
+  },
+  "environment": {
+    "python": "3.14.7 (main, Aug  6 2026, 02:19:46) [GCC 13.3.0]",
+    "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "server": "PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+    "server_settings": {
+      "fsync": "on",
+      "max_connections": "100",
+      "shared_buffers": "16384",
+      "ssl": "on",
+      "synchronous_commit": "on"
+    }
+  },
+  "comparisons": [
+    {
+      "case": "constant",
+      "format": "binary",
+      "order": "forward",
+      "median_us": {
+        "libpq": 77.2418138,
+        "postgres": 82.3854808,
+        "postgres-wait": 83.8959403,
+        "session": 84.45127360000001,
+        "binding": 87.7644229,
+        "python": 147.1770501,
+        "c": 120.6865332,
+        "rust": 162.8870416
+      },
+      "native_rust_over_libpq": 1.066591742826215,
+      "public_rust_over_c": 1.3496704005082814,
+      "public_rust_over_python": 1.1067421278611427
+    },
+    {
+      "case": "constant",
+      "format": "binary",
+      "order": "reverse",
+      "median_us": {
+        "libpq": 80.5971989,
+        "postgres": 81.9228779,
+        "postgres-wait": 81.2774455,
+        "session": 80.85532979999999,
+        "binding": 87.5975072,
+        "python": 144.90490770000002,
+        "c": 119.8598138,
+        "rust": 161.76803080000002
+      },
+      "native_rust_over_libpq": 1.0164482018989869,
+      "public_rust_over_c": 1.3496436017323432,
+      "public_rust_over_python": 1.1163737196183314
+    },
+    {
+      "case": "constant",
+      "format": "text",
+      "order": "forward",
+      "median_us": {
+        "libpq": 78.9123436,
+        "postgres": 82.42302430000001,
+        "postgres-wait": 82.2691208,
+        "session": 84.6833949,
+        "binding": 90.4661177,
+        "python": 145.88014679999998,
+        "c": 119.0683159,
+        "rust": 164.15723110000002
+      },
+      "native_rust_over_libpq": 1.0444883593597898,
+      "public_rust_over_c": 1.3786810526308957,
+      "public_rust_over_python": 1.1252883596632084
+    },
+    {
+      "case": "constant",
+      "format": "text",
+      "order": "reverse",
+      "median_us": {
+        "libpq": 80.1933746,
+        "postgres": 82.92743569999999,
+        "postgres-wait": 80.7620667,
+        "session": 83.6043981,
+        "binding": 91.1612134,
+        "python": 146.0306047,
+        "c": 121.5645198,
+        "rust": 165.6125693
+      },
+      "native_rust_over_libpq": 1.0340933538916068,
+      "public_rust_over_c": 1.3623429728712668,
+      "public_rust_over_python": 1.13409493605966
+    },
+    {
+      "case": "prepared",
+      "format": "binary",
+      "order": "forward",
+      "median_us": {
+        "libpq": 79.4598573,
+        "postgres": 83.509934,
+        "postgres-wait": 84.5853294,
+        "session": 84.2191157,
+        "binding": 91.20739590000001,
+        "python": 171.475342,
+        "c": 131.1584976,
+        "rust": 184.58435939999998
+      },
+      "native_rust_over_libpq": 1.0509700978282528,
+      "public_rust_over_c": 1.407338165483835,
+      "public_rust_over_python": 1.0764484108741417
+    },
+    {
+      "case": "prepared",
+      "format": "binary",
+      "order": "reverse",
+      "median_us": {
+        "libpq": 80.9983645,
+        "postgres": 83.6055424,
+        "postgres-wait": 84.83647380000001,
+        "session": 84.3994605,
+        "binding": 89.9441113,
+        "python": 169.5735565,
+        "c": 130.3112001,
+        "rust": 183.1009816
+      },
+      "native_rust_over_libpq": 1.0321880314015477,
+      "public_rust_over_c": 1.405105481796572,
+      "public_rust_over_python": 1.079773199189816
+    },
+    {
+      "case": "prepared",
+      "format": "text",
+      "order": "forward",
+      "median_us": {
+        "libpq": 81.3250334,
+        "postgres": 85.9755707,
+        "postgres-wait": 86.8753373,
+        "session": 85.9120944,
+        "binding": 93.75374129999999,
+        "python": 168.39531820000002,
+        "c": 131.2803207,
+        "rust": 180.8119443
+      },
+      "native_rust_over_libpq": 1.057184572887,
+      "public_rust_over_c": 1.3772966377282774,
+      "public_rust_over_python": 1.0737349840406667
+    },
+    {
+      "case": "prepared",
+      "format": "text",
+      "order": "reverse",
+      "median_us": {
+        "libpq": 80.2160286,
+        "postgres": 81.756073,
+        "postgres-wait": 83.7868114,
+        "session": 83.6414076,
+        "binding": 90.8632068,
+        "python": 170.2074651,
+        "c": 129.23425650000001,
+        "rust": 180.4237373
+      },
+      "native_rust_over_libpq": 1.0191987116150998,
+      "public_rust_over_c": 1.396098388974753,
+      "public_rust_over_python": 1.0600224684269737
+    },
+    {
+      "case": "unprepared",
+      "format": "binary",
+      "order": "forward",
+      "median_us": {
+        "libpq": 101.6309061,
+        "postgres": 111.35576300000001,
+        "postgres-wait": 111.0804041,
+        "session": 113.2470487,
+        "binding": 120.7163176,
+        "python": 190.0654545,
+        "c": 158.603251,
+        "rust": 211.70766329999998
+      },
+      "native_rust_over_libpq": 1.095687987770484,
+      "public_rust_over_c": 1.334825496735877,
+      "public_rust_over_python": 1.113867135176845
+    },
+    {
+      "case": "unprepared",
+      "format": "binary",
+      "order": "reverse",
+      "median_us": {
+        "libpq": 100.6427044,
+        "postgres": 109.5546588,
+        "postgres-wait": 109.68912950000002,
+        "session": 111.6822604,
+        "binding": 122.13972749999999,
+        "python": 191.5740393,
+        "c": 155.945416,
+        "rust": 215.6723031
+      },
+      "native_rust_over_libpq": 1.088550426512585,
+      "public_rust_over_c": 1.3829986711504236,
+      "public_rust_over_python": 1.125790863355252
+    },
+    {
+      "case": "unprepared",
+      "format": "text",
+      "order": "forward",
+      "median_us": {
+        "libpq": 101.1863613,
+        "postgres": 108.2296801,
+        "postgres-wait": 108.7439243,
+        "session": 110.0973757,
+        "binding": 122.465967,
+        "python": 189.48451699999998,
+        "c": 152.94367300000002,
+        "rust": 210.97642199999999
+      },
+      "native_rust_over_libpq": 1.0696073928295313,
+      "public_rust_over_c": 1.3794387035546083,
+      "public_rust_over_python": 1.1134230138708379
+    },
+    {
+      "case": "unprepared",
+      "format": "text",
+      "order": "reverse",
+      "median_us": {
+        "libpq": 100.2476699,
+        "postgres": 106.91597889999998,
+        "postgres-wait": 109.88411129999999,
+        "session": 112.07559750000001,
+        "binding": 122.06563890000001,
+        "python": 191.5426919,
+        "c": 155.0046498,
+        "rust": 213.1455976
+      },
+      "native_rust_over_libpq": 1.066518344083726,
+      "public_rust_over_c": 1.3750916367671442,
+      "public_rust_over_python": 1.1127837636910647
+    }
+  ],
+  "host_activity": {
+    "constant-binary": {
+      "sha256": "7c04243dc2a3f681f028eb46d9b846da68851a12a2a83d779181f805cab1e907",
+      "intervals": 78,
+      "elapsed_seconds": 155.708769512,
+      "unavailable_process_observations": 0.0,
+      "new_process_observations": 37.0,
+      "disappeared_process_observations": 44.0,
+      "maximum_interval_seconds": 2.024715771999979,
+      "observer_thread_cpu_seconds": 1.3524733869999999,
+      "observer_average_one_core_percent": 0.8685916607258071,
+      "system_cpu_seconds": {
+        "user": 59.079999999999984,
+        "nice": 0.0,
+        "system": 68.21000000000001,
+        "idle": 416.03,
+        "iowait": 0.8399999999999963,
+        "irq": 0.0,
+        "softirq": 32.849999999999994,
+        "steal": 0.0,
+        "guest": 0.0,
+        "guest_nice": 0.0
+      },
+      "process_cpu_seconds_by_name": {
+        "docker-proxy": 80.57,
+        "python": 40.59000000000003,
+        "postgres": 30.85,
+        "layer_probe": 8.66,
+        "phase5-libpq-probe": 2.3600000000000003,
+        "Runner.Worker": 0.6400000000000006,
+        "python3": 0.58,
+        "provjobd418238304": 0.27000000000000046,
+        "Runner.Listener": 0.1499999999999999,
+        "containerd": 0.08999999999999997,
+        "chronyd": 0.05,
+        "kworker/u16:3-events_unbound": 0.030000000000000027,
+        "hv_kvp_daemon": 0.030000000000000013,
+        "kworker/0:1-events": 0.029999999999999916,
+        "dockerd": 0.020000000000000462,
+        "khugepaged": 0.02,
+        "kworker/2:1-events": 0.019999999999999997,
+        "hosted-compute-agent": 0.01999999999999999,
+        "kworker/u16:1-ext4-rsv-conversion": 0.019999999999999962,
+        "systemd": 0.019999999999999574,
+        "systemd-resolved": 0.010000000000000009,
+        "kworker/u16:1-flush-259:0": 0.010000000000000009,
+        "kworker/1:1-mm_percpu_wq": 0.010000000000000009,
+        "systemd-journald": 0.010000000000000009,
+        "kworker/u16:1-events_power_efficient": 0.010000000000000009,
+        "rcu_sched": 0.010000000000000009,
+        "haveged": 0.010000000000000009,
+        "kworker/u16:3-flush-259:0": 0.010000000000000009,
+        "kworker/u16:0-events_unbound": 0.010000000000000009,
+        "migration/2": 0.010000000000000009,
+        "jbd2/nvme0n1p1-8": 0.010000000000000009,
+        "kworker/1:1-events": 0.010000000000000009,
+        "kworker/3:0-mm_percpu_wq": 0.010000000000000002,
+        "containerd-shim-runc-v2": 0.010000000000000002,
+        "multipathd": 0.010000000000000002,
+        "packagekitd": 0.01,
+        "kworker/3:1H-kblockd": 0.01,
+        "ksoftirqd/1": 0.01,
+        "ksoftirqd/0": 0.009999999999999998,
+        "rsyslogd": 0.009999999999999995,
+        "kworker/u16:2-events_power_efficient": 0.009999999999999898
+      },
+      "largest_process_intervals": [
+        {
+          "unix_time": 1789927635.982608,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.84470447901504
+        },
+        {
+          "unix_time": 1789927767.0863855,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.8036601756297
+        },
+        {
+          "unix_time": 1789927783.24798,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.7502431428463
+        },
+        {
+          "unix_time": 1789927771.120345,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.54970551461075
+        },
+        {
+          "unix_time": 1789927781.2248216,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.52045808282423
+        },
+        {
+          "unix_time": 1789927637.9976604,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.5144574834744
+        },
+        {
+          "unix_time": 1789927777.186904,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.29307211559275
+        },
+        {
+          "unix_time": 1789927775.1649132,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.28955642741975
+        },
+        {
+          "unix_time": 1789927785.270246,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.28432339901217
+        },
+        {
+          "unix_time": 1789927642.0376651,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.28233628073015
+        },
+        {
+          "unix_time": 1789927765.064895,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.2767483220902
+        },
+        {
+          "unix_time": 1789927779.2099566,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.25931764196234
+        },
+        {
+          "unix_time": 1789927633.9623973,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.04013165697837
+        },
+        {
+          "unix_time": 1789927644.054831,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.95109546898102
+        },
+        {
+          "unix_time": 1789927656.1649532,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.8287217270738
+        },
+        {
+          "unix_time": 1789927652.1241136,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.725224042290485
+        },
+        {
+          "unix_time": 1789927763.0423908,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.591425188551085
+        },
+        {
+          "unix_time": 1789927769.106393,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.36610255551551
+        },
+        {
+          "unix_time": 1789927646.0693214,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.043222850564675
+        },
+        {
+          "unix_time": 1789927650.099797,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.03736493347339
+        }
+      ],
+      "idle_verdict": null,
+      "limitations": [
+        "sampling can miss processes that start and exit between snapshots",
+        "new and exited processes lack complete interval CPU accounting",
+        "process names and parent PIDs do not prove workload ownership",
+        "the observer adds overhead; its thread CPU time is recorded",
+        "observer thread CPU excludes the initial coordinating-thread snapshot",
+        "no automatic idle verdict; review all intervals and system CPU deltas"
+      ]
+    },
+    "constant-text": {
+      "sha256": "5055b02df0c9860a1d853938469c5fe57dd539d9d8cb95763bdc0999f2b8d298",
+      "intervals": 78,
+      "elapsed_seconds": 157.062517653,
+      "unavailable_process_observations": 0.0,
+      "new_process_observations": 34.0,
+      "disappeared_process_observations": 33.0,
+      "maximum_interval_seconds": 2.0245902579999893,
+      "observer_thread_cpu_seconds": 1.443897122,
+      "observer_average_one_core_percent": 0.9193136233751318,
+      "system_cpu_seconds": {
+        "user": 59.25,
+        "nice": 0.0,
+        "system": 68.22,
+        "idle": 421.43000000000006,
+        "iowait": 0.07000000000000028,
+        "irq": 0.0,
+        "softirq": 32.61,
+        "steal": 0.0,
+        "guest": 0.0,
+        "guest_nice": 0.0
+      },
+      "process_cpu_seconds_by_name": {
+        "docker-proxy": 81.37,
+        "python": 40.66000000000003,
+        "postgres": 31.529999999999998,
+        "layer_probe": 9.110000000000001,
+        "phase5-libpq-probe": 1.92,
+        "Runner.Worker": 0.3799999999999999,
+        "provjobd418238304": 0.25,
+        "Runner.Listener": 0.18000000000000016,
+        "python3": 0.10000000000000009,
+        "containerd": 0.09999999999999998,
+        "hv_kvp_daemon": 0.06,
+        "chronyd": 0.04000000000000001,
+        "systemd": 0.020000000000000462,
+        "kworker/0:1-events": 0.020000000000000018,
+        "kworker/3:0-events": 0.020000000000000004,
+        "kworker/u16:0-flush-259:0": 0.019999999999999962,
+        "kworker/u16:3-events_power_efficient": 0.010000000000000009,
+        "php-fpm8.3": 0.010000000000000009,
+        "kworker/2:1-events": 0.010000000000000009,
+        "kworker/1:1-events": 0.010000000000000009,
+        "hosted-compute-agent": 0.010000000000000009,
+        "polkitd": 0.010000000000000009,
+        "kworker/u16:1-flush-259:0": 0.010000000000000009,
+        "dbus-daemon": 0.010000000000000009,
+        "khugepaged": 0.010000000000000002,
+        "kcompactd0": 0.01,
+        "hv_balloon": 0.01,
+        "ksoftirqd/2": 0.009999999999999998,
+        "rcu_sched": 0.009999999999999981,
+        "dockerd": 0.009999999999999787
+      },
+      "largest_process_intervals": [
+        {
+          "unix_time": 1789927803.9477224,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 65.52908115588998
+        },
+        {
+          "unix_time": 1789927939.1925037,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 65.26691622088727
+        },
+        {
+          "unix_time": 1789927793.8481286,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 65.22692548924192
+        },
+        {
+          "unix_time": 1789927937.1700397,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.94264549364277
+        },
+        {
+          "unix_time": 1789927916.9900365,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.77543737408466
+        },
+        {
+          "unix_time": 1789927795.8705072,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.77519978053513
+        },
+        {
+          "unix_time": 1789927797.8939924,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.7397911892472
+        },
+        {
+          "unix_time": 1789927931.1163695,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.53379566323837
+        },
+        {
+          "unix_time": 1789927933.1346197,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.41223902741099
+        },
+        {
+          "unix_time": 1789927805.9704235,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.27049749325698
+        },
+        {
+          "unix_time": 1789927941.206761,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.04346026944813
+        },
+        {
+          "unix_time": 1789927935.152875,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.91657791378893
+        },
+        {
+          "unix_time": 1789927923.0544991,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.7833523538865
+        },
+        {
+          "unix_time": 1789927789.8064625,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.77321200129524
+        },
+        {
+          "unix_time": 1789927927.0867162,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.53482513970171
+        },
+        {
+          "unix_time": 1789927929.101921,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.51710151759509
+        },
+        {
+          "unix_time": 1789927801.9333496,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.50804455432898
+        },
+        {
+          "unix_time": 1789927791.8244245,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.43032945197253
+        },
+        {
+          "unix_time": 1789927807.991909,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.319770647400034
+        },
+        {
+          "unix_time": 1789927814.0598698,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.31280681519289
+        }
+      ],
+      "idle_verdict": null,
+      "limitations": [
+        "sampling can miss processes that start and exit between snapshots",
+        "new and exited processes lack complete interval CPU accounting",
+        "process names and parent PIDs do not prove workload ownership",
+        "the observer adds overhead; its thread CPU time is recorded",
+        "observer thread CPU excludes the initial coordinating-thread snapshot",
+        "no automatic idle verdict; review all intervals and system CPU deltas"
+      ]
+    },
+    "prepared-binary": {
+      "sha256": "177cbbce5ccb441a34de7a1e8d52952eba56c1ee21a94f73311c3398bf29952e",
+      "intervals": 84,
+      "elapsed_seconds": 167.48198348699998,
+      "unavailable_process_observations": 0.0,
+      "new_process_observations": 34.0,
+      "disappeared_process_observations": 37.0,
+      "maximum_interval_seconds": 2.0237208329999703,
+      "observer_thread_cpu_seconds": 1.4378541,
+      "observer_average_one_core_percent": 0.8585127009267877,
+      "system_cpu_seconds": {
+        "user": 67.46000000000004,
+        "nice": 0.0,
+        "system": 69.71000000000001,
+        "idle": 451.6500000000001,
+        "iowait": 0.00999999999999801,
+        "irq": 0.0,
+        "softirq": 33.60000000000001,
+        "steal": 0.0,
+        "guest": 0.0,
+        "guest_nice": 0.0
+      },
+      "process_cpu_seconds_by_name": {
+        "docker-proxy": 82.30000000000001,
+        "python": 48.44000000000002,
+        "postgres": 32.63,
+        "layer_probe": 9.7,
+        "phase5-libpq-probe": 1.89,
+        "Runner.Worker": 0.41999999999999993,
+        "provjobd418238304": 0.2699999999999996,
+        "containerd": 0.1100000000000001,
+        "python3": 0.09999999999999998,
+        "Runner.Listener": 0.08999999999999986,
+        "chronyd": 0.05999999999999997,
+        "hv_kvp_daemon": 0.05000000000000002,
+        "kworker/0:1-events": 0.030000000000000027,
+        "kworker/1:1-events": 0.020000000000000018,
+        "containerd-shim-runc-v2": 0.020000000000000004,
+        "multipathd": 0.019999999999999997,
+        "kworker/2:1-events": 0.01999999999999999,
+        "hosted-compute-agent": 0.01999999999999999,
+        "kworker/u16:1-events_power_efficient": 0.019999999999999962,
+        "systemd": 0.019999999999999768,
+        "dockerd": 0.019999999999999574,
+        "kworker/u16:1-mlx5_fc": 0.010000000000000009,
+        "kworker/u16:3-mlx5_fc": 0.010000000000000009,
+        "rcu_sched": 0.010000000000000009,
+        "systemd-resolved": 0.010000000000000009,
+        "systemd-logind": 0.010000000000000009,
+        "kworker/u16:2-flush-259:0": 0.010000000000000009,
+        "khugepaged": 0.009999999999999995,
+        "kworker/3:0-events": 0.009999999999999988,
+        "dbus-daemon": 0.009999999999999981
+      },
+      "largest_process_intervals": [
+        {
+          "unix_time": 1789928108.3857946,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 65.81523027403414
+        },
+        {
+          "unix_time": 1789928086.1904335,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.76143632697156
+        },
+        {
+          "unix_time": 1789927947.0020015,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.55890374341352
+        },
+        {
+          "unix_time": 1789927951.0328674,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.51994694808533
+        },
+        {
+          "unix_time": 1789927965.166667,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.27782402388705
+        },
+        {
+          "unix_time": 1789928104.3509648,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.27758782215358
+        },
+        {
+          "unix_time": 1789928110.3972156,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.13376563846339
+        },
+        {
+          "unix_time": 1789928106.364986,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.050966122355
+        },
+        {
+          "unix_time": 1789927957.0835962,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.04746011724009
+        },
+        {
+          "unix_time": 1789928094.2591279,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.56117835991025
+        },
+        {
+          "unix_time": 1789928092.2453208,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.550732260852826
+        },
+        {
+          "unix_time": 1789927953.0471897,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.54493224528528
+        },
+        {
+          "unix_time": 1789927949.0179863,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.492537355512034
+        },
+        {
+          "unix_time": 1789927961.1224895,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.472711462043506
+        },
+        {
+          "unix_time": 1789928090.2311816,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.40743953326036
+        },
+        {
+          "unix_time": 1789927963.1441963,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.312844896074004
+        },
+        {
+          "unix_time": 1789927969.2109342,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.306284699416025
+        },
+        {
+          "unix_time": 1789927955.069465,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.29505136542015
+        },
+        {
+          "unix_time": 1789927959.1058753,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.29493775048963
+        },
+        {
+          "unix_time": 1789927967.1890178,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.29266046758254
+        }
+      ],
+      "idle_verdict": null,
+      "limitations": [
+        "sampling can miss processes that start and exit between snapshots",
+        "new and exited processes lack complete interval CPU accounting",
+        "process names and parent PIDs do not prove workload ownership",
+        "the observer adds overhead; its thread CPU time is recorded",
+        "observer thread CPU excludes the initial coordinating-thread snapshot",
+        "no automatic idle verdict; review all intervals and system CPU deltas"
+      ]
+    },
+    "prepared-text": {
+      "sha256": "6df77bc20684193fae0369855054b0805fb062e0327e757593514e5085514a4b",
+      "intervals": 83,
+      "elapsed_seconds": 167.17854158700004,
+      "unavailable_process_observations": 1.0,
+      "new_process_observations": 35.0,
+      "disappeared_process_observations": 33.0,
+      "maximum_interval_seconds": 2.0235264389999656,
+      "observer_thread_cpu_seconds": 1.382328143,
+      "observer_average_one_core_percent": 0.8268574004042462,
+      "system_cpu_seconds": {
+        "user": 67.02000000000004,
+        "nice": 0.0,
+        "system": 70.07999999999998,
+        "idle": 450.75,
+        "iowait": 0.020000000000003126,
+        "irq": 0.0,
+        "softirq": 33.480000000000004,
+        "steal": 0.0,
+        "guest": 0.0,
+        "guest_nice": 0.0
+      },
+      "process_cpu_seconds_by_name": {
+        "docker-proxy": 82.24999999999994,
+        "python": 47.13999999999999,
+        "postgres": 32.79999999999999,
+        "layer_probe": 9.719999999999999,
+        "phase5-libpq-probe": 1.92,
+        "Runner.Worker": 0.41000000000000014,
+        "provjobd418238304": 0.28000000000000025,
+        "python3": 0.11000000000000007,
+        "containerd": 0.08999999999999986,
+        "Runner.Listener": 0.08000000000000007,
+        "chronyd": 0.040000000000000036,
+        "hv_kvp_daemon": 0.03,
+        "php-fpm8.3": 0.020000000000000018,
+        "kworker/u16:2-events_power_efficient": 0.020000000000000018,
+        "kworker/2:1-events": 0.020000000000000004,
+        "kworker/1:1-events": 0.019999999999999962,
+        "systemd-journald": 0.019999999999999962,
+        "kworker/u16:1-kvfree_rcu_reclaim": 0.010000000000000009,
+        "kworker/0:1-mm_percpu_wq": 0.010000000000000009,
+        "kworker/3:0-mm_percpu_wq": 0.010000000000000009,
+        "hosted-compute-agent": 0.010000000000000009,
+        "rcu_sched": 0.010000000000000009,
+        "kworker/u16:3-events_power_efficient": 0.010000000000000009,
+        "kworker/0:1-events": 0.010000000000000009,
+        "khugepaged": 0.010000000000000009,
+        "containerd-shim-runc-v2": 0.009999999999999988,
+        "systemd": 0.009999999999999787,
+        "dockerd": 0.009999999999999787
+      },
+      "largest_process_intervals": [
+        {
+          "unix_time": 1789928122.685192,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.88222152708839
+        },
+        {
+          "unix_time": 1789928114.6147473,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.54612542659568
+        },
+        {
+          "unix_time": 1789928120.6661494,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.25861754945164
+        },
+        {
+          "unix_time": 1789928273.9481888,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.04876622615802
+        },
+        {
+          "unix_time": 1789928275.9624472,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 64.04342268768879
+        },
+        {
+          "unix_time": 1789928261.8608568,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.57527902274774
+        },
+        {
+          "unix_time": 1789928271.9340985,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.54982110633694
+        },
+        {
+          "unix_time": 1789928140.8452835,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.5496581437492
+        },
+        {
+          "unix_time": 1789928118.6430745,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.54133853935995
+        },
+        {
+          "unix_time": 1789928126.720619,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.51782923483662
+        },
+        {
+          "unix_time": 1789928132.780652,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.4902744583266
+        },
+        {
+          "unix_time": 1789928253.7991238,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.46140867266058
+        },
+        {
+          "unix_time": 1789928249.7648835,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.322064072137984
+        },
+        {
+          "unix_time": 1789928116.6286376,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.06203811817868
+        },
+        {
+          "unix_time": 1789928263.8749902,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.05440539396696
+        },
+        {
+          "unix_time": 1789928136.8172507,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 63.033480042830014
+        },
+        {
+          "unix_time": 1789928265.8935628,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 62.915749377331856
+        },
+        {
+          "unix_time": 1789928257.8340871,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 62.84031627883701
+        },
+        {
+          "unix_time": 1789928128.7429593,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 62.798525492794454
+        },
+        {
+          "unix_time": 1789928267.9067597,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 62.587012338992466
+        }
+      ],
+      "idle_verdict": null,
+      "limitations": [
+        "sampling can miss processes that start and exit between snapshots",
+        "new and exited processes lack complete interval CPU accounting",
+        "process names and parent PIDs do not prove workload ownership",
+        "the observer adds overhead; its thread CPU time is recorded",
+        "observer thread CPU excludes the initial coordinating-thread snapshot",
+        "no automatic idle verdict; review all intervals and system CPU deltas"
+      ]
+    },
+    "unprepared-binary": {
+      "sha256": "1b0e8088955d2415038b95e077e4fd1bb90dea900bbe8088c07c1ab5d9b59e22",
+      "intervals": 102,
+      "elapsed_seconds": 205.65381198600005,
+      "unavailable_process_observations": 0.0,
+      "new_process_observations": 33.0,
+      "disappeared_process_observations": 35.0,
+      "maximum_interval_seconds": 2.023512035000067,
+      "observer_thread_cpu_seconds": 1.718443858,
+      "observer_average_one_core_percent": 0.8356002942055768,
+      "system_cpu_seconds": {
+        "user": 97.78999999999996,
+        "nice": 0.0,
+        "system": 76.46999999999997,
+        "idle": 557.0999999999999,
+        "iowait": 0.00999999999999801,
+        "irq": 0.0,
+        "softirq": 37.31,
+        "steal": 0.0,
+        "guest": 0.0,
+        "guest_nice": 0.0
+      },
+      "process_cpu_seconds_by_name": {
+        "docker-proxy": 91.45000000000005,
+        "postgres": 58.45999999999998,
+        "python": 53.370000000000026,
+        "layer_probe": 11.269999999999998,
+        "phase5-libpq-probe": 2.4800000000000004,
+        "Runner.Worker": 0.4999999999999991,
+        "provjobd418238304": 0.34999999999999964,
+        "Runner.Listener": 0.24999999999999978,
+        "containerd": 0.13000000000000012,
+        "python3": 0.1299999999999999,
+        "hv_kvp_daemon": 0.08000000000000002,
+        "chronyd": 0.06,
+        "kworker/0:1-events": 0.030000000000000027,
+        "dockerd": 0.020000000000000462,
+        "kworker/1:1-mm_percpu_wq": 0.020000000000000018,
+        "hosted-compute-agent": 0.020000000000000018,
+        "kworker/u16:2-events_power_efficient": 0.020000000000000018,
+        "multipathd": 0.020000000000000004,
+        "kworker/2:1-events": 0.020000000000000004,
+        "systemd": 0.010000000000000231,
+        "kworker/u16:3-events_power_efficient": 0.010000000000000009,
+        "hv_balloon": 0.01,
+        "kcompactd0": 0.01,
+        "kworker/u16:4-events_unbound": 0.01,
+        "kworker/3:0-events": 0.009999999999999995,
+        "khugepaged": 0.009999999999999995,
+        "kworker/3:0-mm_percpu_wq": 0.009999999999999995,
+        "polkitd": 0.009999999999999995,
+        "dbus-daemon": 0.009999999999999981,
+        "rcu_sched": 0.009999999999999981
+      },
+      "largest_process_intervals": [
+        {
+          "unix_time": 1789928382.782897,
+          "pid": 6751,
+          "name": "python",
+          "one_core_percent": 56.882253465755284
+        },
+        {
+          "unix_time": 1789928283.9426908,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 56.08301679727374
+        },
+        {
+          "unix_time": 1789928281.9278207,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 56.04938238672074
+        },
+        {
+          "unix_time": 1789928481.6107042,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 55.9695005608565
+        },
+        {
+          "unix_time": 1789928287.9721828,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 55.59080608277149
+        },
+        {
+          "unix_time": 1789928479.5917473,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 55.565458913433375
+        },
+        {
+          "unix_time": 1789928477.576107,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 55.46138083789223
+        },
+        {
+          "unix_time": 1789928388.8249564,
+          "pid": 6751,
+          "name": "python",
+          "one_core_percent": 55.12438544187965
+        },
+        {
+          "unix_time": 1789928372.6932664,
+          "pid": 6744,
+          "name": "python",
+          "one_core_percent": 55.08675584891113
+        },
+        {
+          "unix_time": 1789928296.0485437,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 54.990125698081684
+        },
+        {
+          "unix_time": 1789928378.743446,
+          "pid": 6744,
+          "name": "python",
+          "one_core_percent": 54.946872500124236
+        },
+        {
+          "unix_time": 1789928483.550552,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 54.64346891055314
+        },
+        {
+          "unix_time": 1789928386.8113286,
+          "pid": 6751,
+          "name": "python",
+          "one_core_percent": 54.64092744581449
+        },
+        {
+          "unix_time": 1789928392.8529122,
+          "pid": 6751,
+          "name": "python",
+          "one_core_percent": 54.63184908069106
+        },
+        {
+          "unix_time": 1789928396.8806906,
+          "pid": 6751,
+          "name": "python",
+          "one_core_percent": 54.6248529520035
+        },
+        {
+          "unix_time": 1789928332.3681242,
+          "pid": 6732,
+          "name": "python",
+          "one_core_percent": 54.61374695076437
+        },
+        {
+          "unix_time": 1789928294.0299997,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 54.60843288053856
+        },
+        {
+          "unix_time": 1789928463.4571717,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 54.606024224455794
+        },
+        {
+          "unix_time": 1789928376.7233126,
+          "pid": 6744,
+          "name": "python",
+          "one_core_percent": 54.587435152310206
+        },
+        {
+          "unix_time": 1789928425.1146915,
+          "pid": 6765,
+          "name": "python",
+          "one_core_percent": 54.57999512097537
+        }
+      ],
+      "idle_verdict": null,
+      "limitations": [
+        "sampling can miss processes that start and exit between snapshots",
+        "new and exited processes lack complete interval CPU accounting",
+        "process names and parent PIDs do not prove workload ownership",
+        "the observer adds overhead; its thread CPU time is recorded",
+        "observer thread CPU excludes the initial coordinating-thread snapshot",
+        "no automatic idle verdict; review all intervals and system CPU deltas"
+      ]
+    },
+    "unprepared-text": {
+      "sha256": "f0c98becb7dec18547fd0576127fbbec0690bb491afeeb483c99ae45f1cf0060",
+      "intervals": 101,
+      "elapsed_seconds": 203.70043772500003,
+      "unavailable_process_observations": 0.0,
+      "new_process_observations": 33.0,
+      "disappeared_process_observations": 34.0,
+      "maximum_interval_seconds": 2.023930760000212,
+      "observer_thread_cpu_seconds": 1.694563117,
+      "observer_average_one_core_percent": 0.8318897769319948,
+      "system_cpu_seconds": {
+        "user": 95.56999999999994,
+        "nice": 0.0,
+        "system": 76.89999999999998,
+        "idle": 551.9199999999996,
+        "iowait": 0.0,
+        "irq": 0.0,
+        "softirq": 36.69,
+        "steal": 0.0,
+        "guest": 0.0,
+        "guest_nice": 0.0
+      },
+      "process_cpu_seconds_by_name": {
+        "docker-proxy": 90.60999999999996,
+        "postgres": 57.279999999999994,
+        "python": 52.369999999999976,
+        "layer_probe": 11.360000000000001,
+        "phase5-libpq-probe": 2.49,
+        "Runner.Worker": 0.4800000000000004,
+        "provjobd418238304": 0.33000000000000007,
+        "containerd": 0.1299999999999999,
+        "python3": 0.1200000000000001,
+        "chronyd": 0.07,
+        "hv_kvp_daemon": 0.06,
+        "Runner.Listener": 0.050000000000000044,
+        "kworker/u16:2-events_power_efficient": 0.020000000000000018,
+        "kworker/1:1-events": 0.020000000000000018,
+        "kworker/3:0-events": 0.020000000000000004,
+        "hosted-compute-agent": 0.019999999999999962,
+        "dockerd": 0.019999999999999574,
+        "systemd": 0.010000000000000231,
+        "kworker/u16:3-kvfree_rcu_reclaim": 0.010000000000000009,
+        "containerd-shim-runc-v2": 0.010000000000000009,
+        "migration/1": 0.010000000000000009,
+        "kworker/0:1-mm_percpu_wq": 0.010000000000000009,
+        "kworker/2:1-mm_percpu_wq": 0.010000000000000009,
+        "kworker/u16:3-events_power_efficient": 0.010000000000000009,
+        "rcu_sched": 0.010000000000000009,
+        "ksoftirqd/0": 0.010000000000000002,
+        "kworker/u16:4-kvfree_rcu_reclaim": 0.01,
+        "kworker/u16:4-events_power_efficient": 0.009999999999999998,
+        "khugepaged": 0.009999999999999995,
+        "multipathd": 0.009999999999999995,
+        "php-fpm8.3": 0.009999999999999981,
+        "haveged": 0.009999999999999981,
+        "kworker/0:1-events": 0.009999999999999898
+      },
+      "largest_process_intervals": [
+        {
+          "unix_time": 1789928681.3403838,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 56.95897729016954
+        },
+        {
+          "unix_time": 1789928683.3551676,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 56.581703573959786
+        },
+        {
+          "unix_time": 1789928491.7618663,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 55.85872742553454
+        },
+        {
+          "unix_time": 1789928487.7188733,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 55.56007000416222
+        },
+        {
+          "unix_time": 1789928489.738906,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 55.444659224017435
+        },
+        {
+          "unix_time": 1789928590.5759728,
+          "pid": 6837,
+          "name": "python",
+          "one_core_percent": 55.376328064579916
+        },
+        {
+          "unix_time": 1789928584.522264,
+          "pid": 6823,
+          "name": "python",
+          "one_core_percent": 54.96289484183209
+        },
+        {
+          "unix_time": 1789928673.262733,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 54.95068579911361
+        },
+        {
+          "unix_time": 1789928685.375982,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 54.928354191311435
+        },
+        {
+          "unix_time": 1789928540.1602306,
+          "pid": 6813,
+          "name": "python",
+          "one_core_percent": 54.62702673687574
+        },
+        {
+          "unix_time": 1789928602.677653,
+          "pid": 6837,
+          "name": "python",
+          "one_core_percent": 54.62298698197853
+        },
+        {
+          "unix_time": 1789928578.4662745,
+          "pid": 6823,
+          "name": "python",
+          "one_core_percent": 54.62137131782963
+        },
+        {
+          "unix_time": 1789928576.452411,
+          "pid": 6823,
+          "name": "python",
+          "one_core_percent": 54.59998120927144
+        },
+        {
+          "unix_time": 1789928493.7766497,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 54.5964327778751
+        },
+        {
+          "unix_time": 1789928568.3868427,
+          "pid": 6823,
+          "name": "python",
+          "one_core_percent": 54.59452417598023
+        },
+        {
+          "unix_time": 1789928544.1922455,
+          "pid": 6813,
+          "name": "python",
+          "one_core_percent": 54.5858652825634
+        },
+        {
+          "unix_time": 1789928574.4377582,
+          "pid": 6823,
+          "name": "python",
+          "one_core_percent": 54.585041756023124
+        },
+        {
+          "unix_time": 1789928570.4022052,
+          "pid": 6823,
+          "name": "python",
+          "one_core_percent": 54.58075525787368
+        },
+        {
+          "unix_time": 1789928679.321385,
+          "pid": 2329,
+          "name": "docker-proxy",
+          "one_core_percent": 54.51639979140091
+        },
+        {
+          "unix_time": 1789928596.6278749,
+          "pid": 6837,
+          "name": "python",
+          "one_core_percent": 54.49855049858786
+        }
+      ],
+      "idle_verdict": null,
+      "limitations": [
+        "sampling can miss processes that start and exit between snapshots",
+        "new and exited processes lack complete interval CPU accounting",
+        "process names and parent PIDs do not prove workload ownership",
+        "the observer adds overhead; its thread CPU time is recorded",
+        "observer thread CPU excludes the initial coordinating-thread snapshot",
+        "no automatic idle verdict; review all intervals and system CPU deltas"
+      ]
+    }
+  },
+  "limitations": [
+    "independent paths are not additive or wholly recoverable costs",
+    "sampler adds overhead and can miss short-lived activity",
+    "comparator fingerprints are cross-checked, not rebuilt from absent comparator wheels"
+  ],
+  "workflow": 35527765141,
+  "artifact_id": 10610288540,
+  "artifact_api_digest": "sha256:149998eefaa63a934e3cd67d650b8bf1c9643562404b478115f8d750993faae3",
+  "artifact_api_size": 4432177,
+  "raw_archive": "2026-09-20-matched-layer-dedicated.json.gz",
+  "raw_archive_sha256": "6c3ecaf54888d503cf1778b2f10cfc09d820580b7b589167f1d02426029ac3b1",
+  "embedded_text_files": 229,
+  "binary_artifacts_not_embedded": {
+    "home/runner/work/ferrocopg/ferrocopg/target/release/examples/layer_probe": {
+      "sha256": "aff4a457df0b18c91a7cb074b118cf9627197c7883d301988a830ed31332ba61",
+      "size": 1959152
+    },
+    "tmp/phase5-attribution-wheels/ferrocopg-0.1.0-cp314-cp314-manylinux_2_38_x86_64.whl": {
+      "sha256": "56a44a9a1cdee09fe0e79b6558218b0bb052c948089220e380b7b7cd51515d58",
+      "size": 3154195
+    },
+    "tmp/phase5-libpq-probe": {
+      "sha256": "85b01a293e308d0e156b2d8a89427d95ddaf893daf32185617b778b8e6070148",
+      "size": 17304
+    }
+  },
+  "compatibility_note": "Successor Tests 35527753862 is not terminal. macos-14 (c, 3.11) fails test_generators.py::test_cancel in the full suite and both built-in retries; preserve the log, do not relabel the overall workflow green."
+}
