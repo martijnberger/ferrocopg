@@ -66,18 +66,16 @@ results for workflows that are still running.
   result-adaptation gaps. Do not expand into native async or a pool fork.
 - Keep upstream synchronization separate from the undecided upstreaming question.
 
-Latest investigation: `0f4f9612` prototypes Rust-owned transformer state rather
-than the rejected dispatcher over Python-owned attributes. Registered adapters,
-callbacks, cache replacement, namespace isolation, and garbage collection remain
-required. The prototype passes 59 installed/accounting checks and selected
-source scopes of 3004 synchronous cases and 2998 C-coexistence synchronous cases.
-The combined revision `8f14895d` also passes its complete 57-job CI matrix and
-lint. Dedicated comparison `35477922181` is live against baseline `9d160e8e`;
-performance and sustained candidate acceptance remain unproven. Inspect that
-same runner's both-order results before retaining this as an optimization. The comparison
-tooling labels each wheel and every measurement with its own revision; it does
-not relabel baseline measurements as candidate evidence. See the prototype
-section below for scope and validation.
+Latest investigation: Rust-owned transformer state `0f4f9612` is rejected.
+Dedicated comparison `35477922181` completed successfully at combined revision
+`8f14895d`, but prepared wall time is 0.5-1.1% worse and parameterized wall time
+is flat to 0.3% worse in both orders against `9d160e8e`; CPU time also worsens.
+Both complete reports still fail acceptance. The production prototype is removed
+without rewriting history; retain its lifecycle regressions and exact-revision
+comparison tooling. Its 57-job CI pass does not justify retaining an optimization
+without a measured benefit. The complete local run passes `4737/4741` synchronous
+cases; all four timing failures reproduce with C/libpq, without waiving the
+strict failed gate. See the rejected-prototype section for raw evidence.
 
 Previous investigation: dedicated-runner codegen experiment `35458601176` at
 `0cb289d7` produced complete, independently revalidated artifacts, although the
@@ -112,8 +110,8 @@ different measured mechanism.
 
 Current candidate boundary: the latest completed CI reliability checkpoint is
 `9d160e8e`, notice-drain production code plus the ThinLTO release profile.
-The working candidate adds the Rust-owned transformer prototype `0f4f9612`;
-that checkpoint's full validation does not cover the prototype. The active
+Production sources are restored to that checkpoint after rejecting the
+Rust-owned transformer prototype; its regression tests and tooling remain. The active
 branch remains `martijn/phase5-notice-lock`. Notice draining
 passes its complete 57-job CI matrix and full three-backend soak, but not its
 benchmark or strict local compatibility gate. The discarded dispatcher's
@@ -3068,16 +3066,15 @@ A fresh instrumented 10,000-query installed-wheel profile is retained at
 3.318 seconds. Query conversion accounts for 0.567 s cumulative, first-row
 transformer setup 0.259 s, and cursor construction 0.191 s. These overlapping,
 instrumented values are diagnostic, not unprofiled latency or acceptance.
-The next mechanism to investigate is broader query/adaptation state ownership
-and lifecycle, retaining actual registered constructors, callbacks, cache
-replacement, custom contexts, and error ordering. A native-owned transformer
-prototype must differ from the rejected dispatcher, which still repeatedly
-accessed Python-owned state. Do not repeat that dispatcher or the already
+That profile motivated broader query/adaptation state ownership and lifecycle,
+retaining registered constructors, callbacks, cache replacement, custom contexts,
+and error ordering. The distinct native-owned transformer experiment below is
+now also rejected after dedicated measurements. Do not repeat either port or the already
 rejected duplicate-COPY-preflight shortcut merely because they appear in this
 profile. Any new implementation still needs equal-length, both-order installed
 measurements on a dedicated runner before being retained as an optimization.
 
-#### Rust-owned transformer prototype
+#### Rejected Rust-owned transformer prototype
 
 `0f4f96129b9cc391c5cb90007a3cd3b8345254f0` moves transformer cache references,
 connection/context state, parameter metadata, and dumper/loader dispatch into
@@ -3169,16 +3166,56 @@ also passes. These do not cover full-duration prototype reliability or its
 performance acceptance.
 
 [Comparison `35477922181`](https://github.com/martijnberger/ferrocopg/actions/runs/35477922181)
-was dispatched once and confirmed live at 2026-09-20 00:36 UTC, running the
-experimental comparison step. The normal acceptance job is correctly skipped
-for this explicit diagnostic invocation. Expected artifact:
+completed successfully in 44m49s. The normal acceptance job is correctly skipped
+for this explicit diagnostic invocation. Published artifact `10595970583`:
 `phase5-candidate-experiment-8f14895d2e14d900d626b9fb5f21aa43254968f1`.
-No local benchmark or profiler is running alongside it. The next action is to
-inspect this existing run and independently verify its manifest, wheel hashes,
-each revision-labeled pair, and both complete reports. Do not claim a gain,
-dispatch duplicates, or begin sustained candidate acceptance before inspecting
-this experiment. If the paired result is flat or mixed,
-reject the production prototype without rewriting published history.
+Downloaded under `/tmp/phase5-state-8f148-ci-comparison/phase5-codegen-results`.
+The completed manifest, all eight raw long-query measurements and their revision
+labels, both wheel hashes, and both complete reports were independently checked.
+Each complete report has all 33 successful workers and an unchanged recomputed
+gate verdict. Both wheels pass all 59 installed/accounting checks before timing.
+
+| Long-query pair | Candidate/baseline wall | Candidate/baseline CPU |
+| --- | ---: | ---: |
+| Prepared A | 1.004765 | 1.005883 |
+| Prepared B | 1.010802 | 1.019313 |
+| Parameterized A | 1.000717 | 1.015638 |
+| Parameterized B | 1.003038 | 1.006419 |
+
+Baseline wheel SHA-256:
+`a0c4f0f4c10da41c52a920efaeba9ff57db14f2e21c20668b430388af939eee9`.
+Candidate wheel SHA-256:
+`7aba923c2a2a224b487ae9813f380f8fd9b6e6060d1dea3ee8da978d3f25e4f0`.
+The baseline complete report passes 8/11 workloads against both comparators,
+failing parameterized, prepared, and pool. The prototype passes 9/11, but still
+fails parameterized/Python (1.057506), prepared/Python (1.112569), and prepared/C
+(1.411071). A one-report pool pass does not override the longer query pairs or
+close acceptance; workload passes cannot be combined across revisions or runs.
+
+Decision: the native transformer production changes are removed in a forward commit.
+Keep the lifecycle regressions and exact-candidate comparison tooling. Do not
+repeat the rejected state port or dispatch a sustained soak for it. Production
+Rust/Python sources and Cargo configuration are restored byte-for-byte to
+`9d160e8e`. The rebuilt restored development wheel passes all 59 installed checks,
+including retained lifecycle regressions; its MRO uses the Python transformer and
+the native module no longer exports `NativeTransformer`. Wheel:
+`/tmp/ferrocopg-phase5-state-restored-wheels/ferrocopg-0.1.0-cp314-cp314-macosx_11_0_arm64.whl`,
+SHA-256 `924f3af85c5b6b31047f901b8bc668a0d1891bfb91ef6bb60c12cfa63a0e11ca`.
+The source extension is rebuilt as well: adaptation/bootstrap tests pass 287
+cases with 10 documented skips (`/tmp/phase5-state-restored-adapt.xml`). Rust
+formatting, Ruff checks/formatting, and codespell pass. This targeted check does
+not replace the failed full local gate or establish fresh full-duration evidence.
+The experiment changes no acceptance thresholds.
+
+A subsequent local transaction diagnostic profiles the unchanged workload for
+5,000 iterations after 1,000 warmups, sequentially for the installed prototype
+and official C backend. Rust executes five internal commands and three public
+queries per iteration; `_exec_command` consumes 0.958 cumulative seconds and
+first-row transformer setup 0.149 seconds across the run. These inclusive,
+instrumented totals overlap and are not latency acceptance or proof of a gain.
+Profiles: `/tmp/phase5-state-8f148-transaction.pstats` and
+`/tmp/phase5-state-8f148-c-transaction.pstats`. Investigate broader query/cursor
+and internal-command result setup next, not another isolated dumper helper.
 
 #### Phase 5 definition of done
 
@@ -3305,9 +3342,10 @@ the synchronous beta is established.
    do not rerun completed workflows merely to seek different benchmark ratios.
    Use this completed reliability checkpoint as the baseline for the
    Rust-owned transformer prototype `0f4f9612`. The combined `8f14895d` matrix
-   now passes all 57 jobs and lint. Dedicated both-order comparison `35477922181`
-   is live; inspect that run rather than dispatching another. Its performance
-   and full-duration candidate reliability are still unproven.
+   passes all 57 jobs and lint, but completed comparison `35477922181` shows
+   no query gain in either order. The production prototype is removed; retain
+   its regressions and comparison tools; do not dispatch another comparison or
+   full-duration soak for this discarded implementation.
    The full local prototype run now passes `4737/4741` synchronous cases; four
    pool/scheduler timing assertions fail, and all four also fail the immediate
    C/libpq control. Preserve the failed strict local gate and both artifacts;

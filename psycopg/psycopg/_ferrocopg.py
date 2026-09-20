@@ -13,7 +13,7 @@ import os
 import sys
 import threading
 import warnings
-from collections import defaultdict, deque
+from collections import deque
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import timedelta, tzinfo
 from enum import Enum
@@ -21,7 +21,7 @@ from functools import cache, partial
 from math import ceil
 from time import monotonic
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, NamedTuple, ParamSpec, Protocol, TypeVar, cast
+from typing import Any, NamedTuple, ParamSpec, Protocol, TypeVar, cast
 from warnings import warn
 from weakref import ReferenceType, ref
 
@@ -380,37 +380,7 @@ class _AdaptContext:
         return self._connection
 
 
-if TYPE_CHECKING or not (_ferrocopg and hasattr(_ferrocopg, "NativeTransformer")):
-    _BackendTransformerBase = AdaptTransformer
-else:
-
-    class _BackendTransformerBase(_ferrocopg.NativeTransformer):
-        _transformer_api = (
-            postgres,
-            defaultdict,
-            pq.Format.TEXT,
-            PyFormat.TEXT,
-            e,
-        )
-        connection = AdaptTransformer.connection
-        adapters = AdaptTransformer.adapters
-        encoding = AdaptTransformer.encoding
-        pgresult = AdaptTransformer.pgresult
-        set_pgresult = AdaptTransformer.set_pgresult
-        set_dumper_types = AdaptTransformer.set_dumper_types
-        set_loader_types = AdaptTransformer.set_loader_types
-        load_row = AdaptTransformer.load_row
-        load_rows = AdaptTransformer.load_rows
-        load_sequence = AdaptTransformer.load_sequence
-
-        @classmethod
-        def from_context(cls, context: AdaptContext | None) -> Any:
-            if isinstance(context, (_BackendTransformerBase, AdaptTransformer)):
-                return context
-            return cls(context)
-
-
-class _BackendTransformer(_BackendTransformerBase):
+class _BackendTransformer(AdaptTransformer):
     """Keep connection-free dumpers/loaders on the backend wire encoding."""
 
     _copy_formats: list[PyFormat] | None = None
