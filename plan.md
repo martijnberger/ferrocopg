@@ -170,8 +170,8 @@ search for tiny transport optimizations.
    eight scenarios, resource budgets, and cleanup. All 94 package files match
    the benchmark wheel byte-for-byte, including the native extension. Preserve
    `2026-09-20-retained-full-soak.json` and its complete report archive.
-   Checkpoint Tests `35511889731` remain live overall, but all eight supported
-   Rust configurations and the installed-package job pass. Their raw reports
+   Checkpoint Tests `35511889731` are terminal success with all 57 jobs passing,
+   including all eight Rust configurations and the installed-package job. Their raw reports
    independently recompute; preserve `2026-09-20-frozen-compatibility.json`
    and its raw XML/report archive. Lint `35511889747` passes.
    Do not restart live handles
@@ -1428,8 +1428,8 @@ Rust-client performance floor has been established.
   JUnit classifications independently recompute with zero supported synchronous
   failures/errors; package checks cover Rust-only use, official Psycopg
   coexistence, and uninstall isolation. See the frozen-compatibility evidence.
-  The wider upstream workflow is still running; do not interrupt it with a push
-  or describe the whole workflow as green before it finishes.
+  The wider upstream workflow is now terminal success: all 57 jobs pass, and
+  the terminal metadata is retained alongside the raw compatibility reports.
 - [x] Align the README with the completed synchronous contract, staged-package
   usage, official async delegation, and experimental Rust async status. Remove
   obsolete Phase 4 gap claims without removing the raw libpq/socket boundaries.
@@ -1461,8 +1461,8 @@ claiming the remainder is an unprofiled allocation rate. Capture and canonical
 statistics identities are checked, and all sites remain available in artifacts.
 Preserve `2026-09-20-allocation-observer-effect.json` and its raw-capture archive;
 do not optimize a profiler-created allocation as if it were ordinary driver work.
-See the parity report's dedicated-attribution section. Wait for active Tests
-`35511889731` to become terminal before pushing and dispatching this slice.
+See the parity report's dedicated-attribution section. Tests `35511889731`
+are terminal success; publish and dispatch the attribution slice once.
 The acceptance benchmark and soak `35511989284` are already terminal success
 and independently audited; do not restart them.
 
@@ -3941,10 +3941,9 @@ the synchronous beta is established.
 4. Acceptance workflow `35511989284` for frozen `7bbc14eb` is terminal success:
    three complete benchmarks and all 99 workers independently recompute, as do
    all three full-duration soaks and their resource budgets. Checkpoint Tests
-   `35511889731` remain live overall, but all eight Rust configurations and the
-   installed-package job pass and have been independently audited. Lint
-   `35511889747` passes. Wait for the wider Tests workflow to finish before
-   pushing the pending attribution tooling; then dispatch `attribution=true`
+   `35511889731` are terminal success with all 57 jobs passing; the eight Rust
+   configurations and installed-package job have been independently audited.
+   Lint `35511889747` passes. Publish the pending attribution tooling and dispatch `attribution=true`
    once and follow that exact run. Do not restart completed acceptance jobs.
    Preserve this one-wheel benchmark evidence under `1.15` Python / `1.50` C.
    Preserve the full-soak and frozen-compatibility evidence archives. Publish

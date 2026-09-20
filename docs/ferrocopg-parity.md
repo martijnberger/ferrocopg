@@ -516,9 +516,9 @@ This establishes the three-run **beta benchmark gate**, not near parity. Plain
 connection, TLS connection, and binary COPY meet both engineering targets in
 all three reports; dictionary rows do so only in run 2. The remaining workloads
 still exceed at least one near-parity objective. The separate checkpoint Tests
-`35511889731` remain live overall; its eight Rust compatibility jobs and package
-job pass, and Lint `35511889747` passes. Follow existing handles rather than
-restarting them. The final combined acceptance audit,
+`35511889731` are now terminal success with all 57 jobs passing, including the
+eight Rust compatibility jobs and package job. Lint `35511889747` also passes.
+Do not restart completed acceptance. The final combined acceptance audit,
 scheduled-run proof, and remaining attribution work are still outstanding.
 
 The [frozen compatibility audit](performance/2026-09-20-frozen-compatibility.json)
@@ -538,8 +538,9 @@ Its wheel SHA-256 is
 the artifact is `10607112769`. Namespace/member hashes are independently checked.
 This smoke job resolved official Psycopg 3.3.6, unlike the pinned 3.3.2 benchmark
 comparator; its wheel is not the CPython 3.14 performance wheel. This proves the
-supported synchronous and package-boundary gates at the frozen revision, not a
-terminal result for the wider workflow or Phase 6's full platform wheel matrix.
+supported synchronous and package-boundary gates at the frozen revision, not
+Phase 6's full platform wheel matrix. The archive also retains the wider
+workflow's terminal metadata: all 57 jobs completed successfully.
 
 The full soak artifact is `10607420931`. [The audit summary](performance/2026-09-20-retained-full-soak.json)
 records independently recomputed resource budgets, worker identities, coverage,
@@ -642,8 +643,8 @@ Do not mark 5B complete from this harness: dedicated-runner results must be
 independently analyzed, the protocol captures need causal interpretation rather
 than equating cycles with round trips, and the bottleneck table must distinguish
 observed costs from recoverable work.
-Publish and dispatch after active compatibility run `35511889731` becomes
-terminal; do not cancel that run to publish diagnostic tooling.
+Compatibility run `35511889731` is now terminal success; publish the diagnostic
+tooling and dispatch attribution once, recording the exact revision and run.
 
 ### Allocation observer effect
 

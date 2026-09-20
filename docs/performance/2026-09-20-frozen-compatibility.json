@@ -1,7 +1,7 @@
 {
   "revision": "7bbc14eba9a573bf528317f0859a8734db589e19",
   "workflow": "https://github.com/martijnberger/ferrocopg/actions/runs/35511889731",
-  "scope": "Supported synchronous matrix and installed-package boundary; the wider workflow is not yet terminal.",
+  "scope": "Supported synchronous matrix and installed-package boundary, independently recomputed; complete 57-job workflow also terminal success.",
   "supported_sync_and_package_status": "success",
   "workflow_status_at_observation": "in_progress",
   "workflow_conclusion_at_observation": "",
@@ -1883,13 +1883,16 @@
   },
   "raw_archive": {
     "path": "2026-09-20-frozen-compatibility.json.gz",
-    "sha256": "76a7068443e82aa1ed398f5afe060b265690f4677e43d39d213600a69eccd757",
-    "files": 41
+    "sha256": "a0bdd15bff9fb0b33307d7dc5aaf89b6daff52841f8c6612223e5a06fdb084a5",
+    "files": 42
   },
   "limitations": [
     "Experimental native async failures remain in the original reports and are outside the first release support contract.",
     "This CPython 3.11 package smoke does not replace the Phase 6 platform wheel matrix.",
     "The independent benchmark used pinned official Psycopg 3.3.2; the package smoke resolved official Psycopg 3.3.6.",
     "The unchanged production sources and classifier inputs match the frozen revision; diagnostic-only successors require their own CI."
-  ]
+  ],
+  "workflow_status": "completed",
+  "workflow_conclusion": "success",
+  "all_57_jobs_passed": true
 }
