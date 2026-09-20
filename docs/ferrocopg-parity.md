@@ -520,6 +520,62 @@ still exceed at least one near-parity objective. The separate checkpoint Tests
 rather than restarting them. The soak, final combined acceptance audit,
 scheduled-run proof, and remaining attribution work are still outstanding.
 
+### Dedicated attribution harness
+
+`tools/phase5/attribution.py` extends the layer probes with all eleven public
+benchmark workloads plus the existing pipeline/recovery workload. The optional
+`attribution=true` dispatch of `.github/workflows/phase5.yml` uses a separate
+dedicated Linux runner and concurrency group. It does not run or replace the
+acceptance jobs. Build and install all artifacts, including pinned Memray
+`1.20.0`, before measurement; the ordinary acceptance environment is unchanged.
+
+The coordinator first runs the eight layer probes in both orders, then 72
+uninstrumented workload workers: three backends, twelve workloads, and both
+backend orders. Each worker records nine wall/process-CPU samples after ten
+warmups. Prepared/parameterized operations use 10,000 iterations per sample;
+other workloads use 100. Subsequent, separate worker processes collect 36 CPU
+call profiles, 36 allocation captures, and 36 syscall traces. These instrumented
+runs never contribute ordinary latency samples or acceptance verdicts.
+
+Measurement boundaries are deliberate:
+
+- CPU call profiles use main-thread CPU time, excluding setup and warmup.
+  Native internals are folded into their caller and background-thread CPU is not
+  attributed by this profile; ordinary samples separately record process CPU.
+- Allocation captures include native and Python allocator events on all threads
+  during warmed operations. They exclude workload setup/cleanup. Allocator
+  layers are not distinct Python-object counts, and total allocated bytes are
+  not retained memory or evidence of a leak. See the
+  [Memray API](https://bloomberg.github.io/memray/api.html).
+- `strace -f -c` counts include imports, setup, warmup, operations, and cleanup.
+  They preserve errors and poll/network/futex counts, but are not per-query
+  counts, scheduler wakeup counts, or measured PostgreSQL round trips.
+- The pipeline workload includes eight queued queries, error propagation, and
+  recovery. Its duration is not a single-query latency measurement.
+
+The coordinator verifies wheel and comparator identities throughout, compares
+layer medians against their raw files, checks profiler capture presence and
+allocation histogram totals, and preserves failed manifests. Timeouts terminate
+the owned process group. Reports, raw profiler files, strace output, executables,
+wheel, package inventory, server configuration, and process snapshots are
+uploaded with hashes and 90-day retention.
+
+Local validation: eight new accounting tests cover these checks, complete
+180-worker sequencing with mocked subprocesses, timeout cleanup, and allocation
+window boundaries. Real installed-wheel smoke runs exercised timing, C and Rust
+CPU profiles, C/Python allocations, and Rust pipeline/binary-COPY allocations.
+Eleven resulting worker/summary JSON files pass the same validators. These are
+tooling checks on the non-idle Mac, not comparative performance evidence. The
+complete Linux coordinator and strace capture still require remote execution.
+The complete installed-wheel suite passes all 94 tests; Ruff, formatting,
+codespell, and actionlint also pass.
+
+Do not mark 5B complete from this harness: dedicated-runner results must be
+independently analyzed, protocol round trips still need a separate measurement,
+and the bottleneck table must distinguish observed costs from recoverable work.
+Publish and dispatch after active compatibility run `35511889731` becomes
+terminal; do not cancel that run to publish diagnostic tooling.
+
 ### Execution-plan prototype boundary
 
 Source inspection after the single-owner prototype narrows 5C.2. Placeholder

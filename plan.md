@@ -1416,6 +1416,18 @@ Rust-client performance floor has been established.
 
 #### 5B: Attribute latency and establish the achievable floor
 
+Dedicated attribution tooling is now implemented in `tools/phase5/attribution.py`
+with an opt-in `attribution=true` Phase 5 workflow dispatch. It runs all native
+layers in both orders, then separates 72 ordinary timing workers from 108 CPU,
+allocation, and syscall workers across all eleven workloads plus pipeline.
+Pinned Memray captures and whole-process strace counts are diagnostics, not
+acceptance or protocol-round-trip measurements. Eight accounting tests and real
+installed-wheel profiler smoke checks validate the harness; the full Linux run,
+protocol-level evidence, and resulting bottleneck table remain outstanding.
+See the parity report's dedicated-attribution section. Wait for active Tests
+`35511889731` to become terminal before pushing and dispatching this slice;
+continue following acceptance soak `35511989284` independently.
+
 - [x] Add and run initial native libpq, vendored `postgres`, Rust session, PyO3,
   and public API probes, plus fresh/reused cursor controls and separate profiles.
   Preserve raw samples and explicitly label non-idle local results diagnostic.
