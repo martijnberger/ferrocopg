@@ -75,6 +75,7 @@ class AsyncServerCursor(
                     withhold=withhold,
                     factory_name=type(self).__name__,
                     query_cls=self._query_cls,
+                    owner=self,
                 )
 
     async def close(self) -> None:

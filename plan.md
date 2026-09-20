@@ -1404,6 +1404,20 @@ Rust-client performance floor has been established.
 
 **5C.1 Single-owner cursor/result state (first prototype)**
 
+Public-callback prerequisite (2026-09-20): row factories now receive the public
+synchronous cursor, including current metadata, rather than the private adapter.
+Eight context/timing controls pass against both Rust and C; the full harness
+passes all 579 synchronous cursor cases. The installed release wheel passes all
+74 Phase 5 tests (SHA-256
+`daa3b3934450deb23be366586329d51d49d6281b0ff84ae4383db316122e1a2e`).
+This is a correctness baseline, not the ownership/performance prototype below.
+The full local strict gate still fails: 4,747/4,749 synchronous cases pass;
+`test_check_backoff` fails in isolated Rust and C controls, while
+`test_multi_hosts` fails in the full run but passes in both isolated controls.
+Preserve `/tmp/phase5-public-cursor-context-v2.xml`, its `-report.json`, and
+`/tmp/phase5-public-owner-{c,rust}-timing.xml`; no tolerance or manifest was
+changed. Experimental native async remains outside the supported sync gate.
+
 - [ ] Keep the public Connection/Cursor surface but replace the second cursor-like
   adapter and after-execute/after-fetch state copying with one authoritative
   execution state: active result, result index, row position, and lifecycle.
@@ -3636,10 +3650,10 @@ the synchronous beta is established.
 
 ## Immediate Next Actions
 
-1. Follow the resume instructions above. Refresh the existing `7c1a644a` CI
-   checkpoint; its three-run benchmark is a failure despite runs 2/3 passing.
-   Keep its evidence separate from any new integration candidate.
-2. Establish public-contract tests and idle-runner query controls, then implement
+1. Follow the resume instructions above. The existing `7c1a644a` CI checkpoint
+   is terminal: its full soak passes, but the three-run benchmark fails despite
+   runs 2/3 passing. Keep its evidence separate from any new integration candidate.
+2. Extend the public-contract baseline and establish idle-runner controls, then implement
    5C.1 single-owner cursor/result state. Preserve custom callbacks, subclassing,
    metadata snapshots, resource lifetime, cancellation, and error ordering;
    private Cython/adapter layout is not a constraint.
@@ -3654,7 +3668,8 @@ the synchronous beta is established.
    separately; neither waive failures nor turn the stretch goal into an endless
    implicit release blocker.
 5. Confirm scheduled reliability coverage separately; manual dispatch does not
-   prove the schedule ran. Do not delete superseded bookmarks without approval.
+   prove the schedule ran. The 2026-09-20 check still lists no scheduled run.
+   Do not delete superseded bookmarks without approval.
 6. Mark Phase 5 complete only after its full definition of done. Report readiness
    for Phase 6 wheel validation; do not expand this goal loop into publication.
    Keep the Rust default, explicit libpq fallback, synchronous-first scope, and

@@ -16,8 +16,11 @@ pure-Python comparator to locate libpq.
 ```sh
 uv sync --locked --no-default-groups --group rust
 uv run --no-sync python tools/stage_ferrocopg.py /tmp/phase5-stage
-uv run --no-sync maturin build --release \
-  --manifest-path /tmp/phase5-stage/Cargo.toml --out /tmp/phase5-wheels
+workspace=$PWD
+(
+  cd /tmp/phase5-stage
+  "$workspace/.venv/bin/maturin" build --release --out /tmp/phase5-wheels
+)
 uv venv /tmp/phase5-env --python 3.14
 uv pip install --python /tmp/phase5-env/bin/python \
   -r tools/phase5/requirements.txt /tmp/phase5-wheels/*.whl
@@ -60,8 +63,8 @@ fails a correctness check. Each workload's median Rust duration must be no more
 than 1.15 times the Python median and no more than 1.50 times the C median.
 These beta ceilings were explicitly approved on 2026-09-20 and are recorded as
 policy `beta-2026-09-20` in new reports. All eleven workloads must pass both
-limits in every one of the three runs. Python parity and no more than 1.25 times
-C remain longer-term optimization goals, not beta blockers. Existing reports
+limits in every one of the three runs. Python parity and no more than 1.10 times
+C are the current near-parity engineering objectives, not beta blockers. Existing reports
 retain their original verdicts; the new policy does not retroactively turn an
 old failure into acceptance. Compatibility, soak duration, and resource budgets
 are unchanged. No candidate has yet passed the revised three-run gate.

@@ -53,6 +53,27 @@ async def test_init_params(aconn):
         assert cur.withhold is True
 
 
+async def test_row_factory_public_cursor_context(aconn):
+    calls = []
+    async with aconn.cursor("public_context") as cur:
+
+        def factory(context):
+            assert context is cur
+            assert context.name == "public_context"
+            assert context.connection is aconn
+            assert context.pgresult.nfields == 1
+            calls.append(context.description[0].name)
+            return tuple
+
+        cur.row_factory = factory
+        await cur.execute("select generate_series(1, 3) as value")
+        assert calls == ["value"]
+        assert await cur.fetchone() == (1,)
+        cur.row_factory = factory
+        assert await cur.fetchmany(1) == [(2,)]
+        assert await cur.fetchall() == [(3,)]
+
+
 @pytest.mark.crdb_skip("cursor invalid name")
 async def test_funny_name(aconn):
     cur = aconn.cursor("1-2-3")

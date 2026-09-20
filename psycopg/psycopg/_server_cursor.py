@@ -72,6 +72,7 @@ class ServerCursor(ServerCursorMixin["Connection[Any]", Row], Cursor[Row]):
                 withhold=withhold,
                 factory_name=type(self).__name__,
                 query_cls=self._query_cls,
+                owner=self,
             )
 
     def close(self) -> None:

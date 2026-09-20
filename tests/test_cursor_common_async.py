@@ -649,6 +649,35 @@ async def test_row_factory_none(aconn):
     assert r == (1, 2)
 
 
+async def test_row_factory_public_cursor_context(aconn):
+    calls = []
+    cur = aconn.cursor()
+
+    def factory(context):
+        assert context is cur
+        assert context.connection is aconn
+        assert context.adapters is cur.adapters
+        assert context.pgresult.nfields == len(context.description)
+        calls.append(tuple(column.name for column in context.description))
+        return tuple
+
+    cur.row_factory = factory
+    assert calls == []
+    await cur.execute("select 1 as first; select 2 as second")
+    assert calls == [("first",)]
+    assert await cur.fetchone() == (1,)
+    assert calls == [("first",)]
+    assert cur.nextset()
+    assert calls == [("first",), ("second",)]
+    assert await cur.fetchone() == (2,)
+    await cur.set_result(0)
+    assert calls == [("first",), ("second",), ("first",)]
+    cur.row_factory = factory
+    assert calls == [("first",), ("second",), ("first",), ("first",)]
+    assert await cur.fetchone() == (1,)
+    assert len(calls) == 4
+
+
 async def test_bad_row_factory(aconn):
     def broken_factory(cur):
         1 / 0
@@ -667,6 +696,23 @@ async def test_bad_row_factory(aconn):
     await cur.execute("select 1")
     with pytest.raises(ZeroDivisionError):
         await cur.fetchone()
+
+
+async def test_stream_row_factory_public_cursor_context(aconn):
+    cur = aconn.cursor()
+
+    def factory(context):
+        assert context is cur
+        assert context.pgresult.nfields == 1
+        assert context.description[0].name == "value"
+        return tuple
+
+    cur.row_factory = factory
+    assert await alist(cur.stream("select generate_series(1, 3) as value")) == [
+        (1,),
+        (2,),
+        (3,),
+    ]
 
 
 async def test_scroll(aconn):

@@ -59,6 +59,7 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
                     row_factory=cast(Any, self._row_factory),
                     query_cls=self._query_cls,
                     adapters=self._adapters,
+                    owner=self,
                 )
 
     if False:  # ASYNC
@@ -119,6 +120,7 @@ class AsyncCursor(BaseCursor["AsyncConnection[Any]", Row]):
         if False:  # ASYNC
             if self._ferrocopg_cursor is not None:
                 self._ferrocopg_cursor.row_factory = row_factory
+                return
         if self.pgresult:
             self._make_row = row_factory(self)
 

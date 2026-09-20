@@ -1971,8 +1971,10 @@ class NoTlsCursorAdapter:
         row_factory: RowFactory = list_row,
         query_cls: type[PostgresQuery] = PostgresQuery,
         adapters: AdaptersMap | None = None,
+        owner: Any | None = None,
     ):
         self._conn = conn
+        self._owner = ref(owner) if owner is not None else None
         self._result: BackendResultCursor | None = None
         self._closed = False
         self._row_factory = row_factory
@@ -2012,6 +2014,8 @@ class NoTlsCursorAdapter:
     def row_factory(self, row_factory: RowFactory) -> None:
         self._row_factory = row_factory
         self._make_row = None
+        if self._result is not None and row_factory not in _LEGACY_ROW_FACTORIES:
+            self._init_row_factory(self._result)
 
     @property
     def adapters(self) -> AdaptersMap:
@@ -2210,6 +2214,8 @@ class NoTlsCursorAdapter:
             self._result = BackendResultCursor(results, statuses, encodings)
             if not results:
                 self._rowcount_override = 0
+            elif self._row_factory not in _LEGACY_ROW_FACTORIES:
+                self._init_row_factory(self._result)
         else:
             self._rowcount_override = total
             if statuses:
@@ -2321,7 +2327,7 @@ class NoTlsCursorAdapter:
         self, current: _ResultSetLike
     ) -> _BackendTransformer:
         if self._make_row is None:
-            self._make_row = cast(RowMaker, self._row_factory(self))
+            self._make_row = self._make_row_maker()
         tx = self._result_transformer
         if tx is None:
             wire_format = current.wire_format
@@ -2374,6 +2380,8 @@ class NoTlsCursorAdapter:
             self._make_row = None
             self._result_transformer = None
             self._rownumber = 0
+            if self._row_factory not in _LEGACY_ROW_FACTORIES:
+                self._init_row_factory(result)
         return rv
 
     def set_result(self, index: int) -> NoTlsCursorAdapter:
@@ -2386,6 +2394,8 @@ class NoTlsCursorAdapter:
         self._make_row = None
         self._result_transformer = None
         self._rownumber = 0
+        if self._row_factory not in _LEGACY_ROW_FACTORIES:
+            self._init_row_factory(result)
         return self
 
     def setinputsizes(self, sizes: object) -> None:
@@ -2494,7 +2504,17 @@ class NoTlsCursorAdapter:
         if result.current_result is None:
             raise e.ProgrammingError("no result available")
         if self._make_row is None:
-            self._make_row = cast(RowMaker, self._row_factory(self))
+            self._make_row = self._make_row_maker()
+
+    def _make_row_maker(self) -> RowMaker:
+        if self._owner is None:
+            return cast(RowMaker, self._row_factory(self))
+        owner = self._owner()
+        if owner is None:
+            raise e.InterfaceError("the cursor is no longer available")
+        # Callbacks see the public cursor, including the result just selected.
+        owner._sync_ferrocopg_cursor()
+        return cast(RowMaker, self._row_factory(owner))
 
     def _make_row_for_result(self, result: BackendResultCursor) -> RowMaker:
         current = result.current_result
@@ -2511,7 +2531,7 @@ class NoTlsCursorAdapter:
             return make_legacy_row
 
         if self._make_row is None:
-            self._make_row = cast(RowMaker, row_factory(self))
+            self._make_row = self._make_row_maker()
         make_row = self._make_row
 
         def make_typed_row(row: Sequence[object]) -> object:
@@ -2619,8 +2639,11 @@ class NoTlsServerCursorAdapter(NoTlsCursorAdapter):
         withhold: bool = False,
         factory_name: str = "ServerCursor",
         query_cls: type[PostgresQuery] = PostgresQuery,
+        owner: Any | None = None,
     ):
-        super().__init__(conn, row_factory=row_factory, query_cls=query_cls)
+        super().__init__(
+            conn, row_factory=row_factory, query_cls=query_cls, owner=owner
+        )
         self._name = name
         self._scrollable = scrollable
         self._withhold = withhold
@@ -2796,6 +2819,8 @@ class NoTlsServerCursorAdapter(NoTlsCursorAdapter):
         self._result = BackendResultCursor([result], [None])
         self._make_row = None
         self._result_transformer = None
+        if self._row_factory not in _LEGACY_ROW_FACTORIES:
+            self._init_row_factory(self._result)
 
     def _ensure_described(self) -> None:
         self._check_closed()

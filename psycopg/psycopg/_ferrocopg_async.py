@@ -29,6 +29,8 @@ def _backend_cursor(cursor: Any) -> NoTlsCursorAdapter:
         return cast(NoTlsCursorAdapter, cursor)
     cursor._ferrocopg_cursor = None
     cursor._closed = True
+    # The experimental async facade takes over this adapter's lifetime.
+    hosted._owner = None
     return cast(NoTlsCursorAdapter, hosted)
 
 

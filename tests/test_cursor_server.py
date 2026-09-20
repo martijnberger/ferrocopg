@@ -51,6 +51,27 @@ def test_init_params(conn):
         assert cur.withhold is True
 
 
+def test_row_factory_public_cursor_context(conn):
+    calls = []
+    with conn.cursor("public_context") as cur:
+
+        def factory(context):
+            assert context is cur
+            assert context.name == "public_context"
+            assert context.connection is conn
+            assert context.pgresult.nfields == 1
+            calls.append(context.description[0].name)
+            return tuple
+
+        cur.row_factory = factory
+        cur.execute("select generate_series(1, 3) as value")
+        assert calls == ["value"]
+        assert cur.fetchone() == (1,)
+        cur.row_factory = factory
+        assert cur.fetchmany(1) == [(2,)]
+        assert cur.fetchall() == [(3,)]
+
+
 @pytest.mark.crdb_skip("cursor invalid name")
 def test_funny_name(conn):
     cur = conn.cursor("1-2-3")

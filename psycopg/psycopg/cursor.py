@@ -54,6 +54,7 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
                 row_factory=cast(Any, self._row_factory),
                 query_cls=self._query_cls,
                 adapters=self._adapters,
+                owner=self,
             )
 
     def _sync_ferrocopg_cursor(self) -> None:
@@ -105,6 +106,7 @@ class Cursor(BaseCursor["Connection[Any]", Row]):
         self._row_factory = row_factory
         if self._ferrocopg_cursor is not None:
             self._ferrocopg_cursor.row_factory = row_factory
+            return
         if self.pgresult:
             self._make_row = row_factory(self)
 

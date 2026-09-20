@@ -217,6 +217,19 @@ Step 1 alone is unlikely to close the full gap: in the parameterized controls,
 reaching C +10% would require roughly 11.6-14.5 us (25-31%) less total duration.
 Plan reuse and query bookkeeping therefore need separate measured follow-ups.
 
+### Public callback ownership baseline
+
+The first contract check found an existing mismatch: synchronous row factories
+received `NoTlsCursorAdapter`, not the public cursor. Tests against C confirm
+that factories see the exact public cursor and its selected result metadata,
+and that selecting a result or replacing a factory initializes the row maker
+before fetching. Client, raw, server, and streaming cursor controls cover this
+boundary. The compatibility fix uses a weak public-owner reference and preserves
+the experimental async facade's explicit ownership transfer. It is not a speed
+optimization: until state ownership is consolidated, publishing metadata before
+the callback still requires synchronization. Use the corrected behavior as the
+control for 5C.1; do not claim gains from skipping or changing callbacks.
+
 ## Next experiments and decision rules
 
 1. Reproduce the initial layer and integration comparisons on an otherwise idle

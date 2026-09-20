@@ -18,8 +18,9 @@ class InstalledPoolTests(unittest.TestCase):
 
         observed = []
 
-        def factory(cur):
-            observed.append((cur.pgresult.nfields, cur.description[0].name))
+        def factory(context):
+            self.assertIs(context, cur)
+            observed.append((context.pgresult.nfields, context.description[0].name))
             return tuple
 
         with ferrocopg.connect(
