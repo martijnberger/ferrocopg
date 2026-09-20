@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 from attribution import environment_identity, run_command
+from host_activity import HostActivity
 from layer_probe import CASES, LAYERS, PARAM_QUERY, PUBLIC_LAYERS, QUERY, ROOT, validate
 from repeat_benchmark import identity
 
@@ -113,6 +114,7 @@ def coordinate(args):
             "independent paths are not additive or entirely recoverable costs",
             "one scalar query in flight; no claim about TLS or pipeline throughput",
             "native/binding paths do not implement all public adaptation and factory behavior",
+            "host activity is sampled every two seconds with observer overhead; not a proof of perfect idleness",
         ],
     }
 
@@ -138,30 +140,31 @@ def coordinate(args):
             name = f"{case}-{fmt}"
             output = args.output / name
             print(name, flush=True)
-            run_command(
-                [
-                    sys.executable,
-                    str(ROOT / "tools/phase5/layer_probe.py"),
-                    "--revision",
-                    args.revision,
-                    "--native-rust",
-                    str(args.native_rust),
-                    "--native-libpq",
-                    str(args.native_libpq),
-                    "--case",
-                    case,
-                    "--result-format",
-                    fmt,
-                    "--iterations",
-                    "10000",
-                    "--samples",
-                    "9",
-                    "--output",
-                    str(output),
-                ],
-                args.output / f"{name}.log",
-                timeout=1800,
-            )
+            with HostActivity(args.output / f"{name}-host-activity.jsonl"):
+                run_command(
+                    [
+                        sys.executable,
+                        str(ROOT / "tools/phase5/layer_probe.py"),
+                        "--revision",
+                        args.revision,
+                        "--native-rust",
+                        str(args.native_rust),
+                        "--native-libpq",
+                        str(args.native_libpq),
+                        "--case",
+                        case,
+                        "--result-format",
+                        fmt,
+                        "--iterations",
+                        "10000",
+                        "--samples",
+                        "9",
+                        "--output",
+                        str(output),
+                    ],
+                    args.output / f"{name}.log",
+                    timeout=1800,
+                )
             unchanged()
             current, files = validate_case(output, args.revision, case, fmt, sources)
             if environment is None:

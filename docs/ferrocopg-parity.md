@@ -150,6 +150,20 @@ after every case. Failures retain partial results and cannot produce a completed
 manifest. The coordinator and its rejection cases pass in the 112-test Phase 5
 suite; the earlier live smoke checks validate the individual probe paths.
 
+The subsequent host-activity extension brings that suite to 116 passing tests.
+For each case, a separate coordinator thread samples system CPU counters and
+process CPU deltas approximately every two seconds throughout both orders.
+The JSONL record retains initial counters, active/new/disappeared processes,
+unavailable-process counts, actual interval lengths, and the observer thread's
+own CPU time. It records process names/PIDs, not arguments or environments.
+Sampling failure fails the diagnostic rather than silently omitting telemetry.
+The Mac live smoke produced three intervals over 3.31 seconds with 0.316 seconds
+of observer thread CPU, so this observer is not presumed free. Its Linux cost
+must be assessed from the new artifact; the smoke is not performance evidence.
+CPU activity by processes that start and exit between samples can be missed,
+and the initial snapshot's coordinating-thread CPU is outside the thread total.
+No threshold or automatic host-idleness verdict is introduced.
+
 After publishing the diagnostic revision, dispatch only this mode:
 
 ```sh
@@ -164,7 +178,9 @@ It preserves the wheel, executables, all reports/logs, and manifest in a
 and raw reports after completion; a dispatch or green workflow alone does not
 establish a performance conclusion. This extension has not yet completed a
 dedicated run. It does not measure GIL transitions or scheduler wakeups, nor
-does its before/after process inventory prove continuous host idleness.
+does its periodic sampling prove perfect host idleness. Review observer cost,
+all sampling intervals, and the existing before/after inventory when assessing
+the timing evidence; do not silently describe these measurements as observer-free.
 
 ### Original constant-query diagnostic
 

@@ -202,6 +202,10 @@ search for tiny transport optimizations.
    exact handle; do not rerun the old attribution or acceptance workload. It
    expands the native/public comparison to prepared/unprepared parameters and
    text/binary results, but does not close GIL/wakeup or host-idleness gaps.
+   Its host-activity extension now samples process/system CPU during every case
+   and records sampling gaps and observer CPU cost. All 116 tests pass. Assess
+   these raw intervals on the dedicated runner; the local sampler smoke had
+   measurable overhead and does not establish an idle or observer-free run.
    Satisfy every Phase 5 completion gate below on that candidate. Commit coherent
    slices with AI attribution and push
    the active development bookmark regularly. Keep `main` promotion, branch
@@ -1514,6 +1518,10 @@ nine samples, immutable installed/source identities, raw-median validation,
 and partial-failure preservation. All 112 installed/accounting tests pass.
 Publish and follow one exact-revision run before making broader native-floor
 claims; no new dedicated timing result exists at this checkpoint.
+The host-activity extension adds per-case process/system CPU sampling and
+observer-overhead accounting, bringing validation to 116 tests. This improves
+measurement-quality evidence beyond before/after snapshots without asserting
+perfect idleness or zero observer cost. Sampling failures fail the diagnostic.
 The acceptance benchmark and soak `35511989284` are already terminal success
 and independently audited; do not restart them.
 

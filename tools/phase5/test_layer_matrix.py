@@ -4,6 +4,7 @@ import copy
 import json
 import tempfile
 import unittest
+from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -162,8 +163,16 @@ class LayerMatrixTests(unittest.TestCase):
                 ),
             ),
             patch.object(matrix, "run_command", side_effect=command),
+            patch.object(
+                matrix, "HostActivity", side_effect=lambda p: nullcontext()
+            ) as activity,
         ):
             status = matrix.coordinate(args)
+        self.assertEqual(activity.call_count, len(calls))
+        self.assertEqual(
+            [call.args[0].name for call in activity.call_args_list],
+            [f"{case}-{fmt}-host-activity.jsonl" for case, fmt in calls],
+        )
         return status, json.loads((args.output / "manifest.json").read_text()), calls
 
     def test_coordinator_preserves_all_cases_and_artifacts(self):
