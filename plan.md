@@ -108,8 +108,11 @@ Initial matched diagnostics now point above the native client: vendored Rust
 the direct PyO3 binding 21.7 us, and the full Rust API 41.0-41.6 us for prepared
 binary `select 42::int4` in both orders. A separate fresh/reused cursor matrix
 and profiles identify duplicate cursor state synchronization, adapter-map
-construction, and repeated query/loader setup. The preferred next prototype is
-a single-owner cursor/result integration, not another isolated FFI helper.
+construction, and repeated query/loader setup. The single-owner cursor/result
+integration has since been retained with modest dedicated-runner gains; it is
+not an unstarted prototype. Complete the broader dedicated attribution before
+choosing another execution/adaptation rewrite, rather than adding an isolated
+FFI helper on the strength of these initial profiles.
 These are non-idle local diagnostics, not beta acceptance or a general verdict
 on pristine upstream. Preserve their limitations and raw samples in the report.
 
@@ -167,7 +170,10 @@ search for tiny transport optimizations.
    eight scenarios, resource budgets, and cleanup. All 94 package files match
    the benchmark wheel byte-for-byte, including the native extension. Preserve
    `2026-09-20-retained-full-soak.json` and its complete report archive.
-   Checkpoint Tests `35511889731` remain live and Lint `35511889747` passes.
+   Checkpoint Tests `35511889731` remain live overall, but all eight supported
+   Rust configurations and the installed-package job pass. Their raw reports
+   independently recompute; preserve `2026-09-20-frozen-compatibility.json`
+   and its raw XML/report archive. Lint `35511889747` passes.
    Do not restart live handles
    or push over active Tests just to publish evidence-only commits.
    Satisfy every Phase 5 completion gate below on that candidate. Commit coherent
@@ -181,7 +187,7 @@ optimization-first strategy. Report a measured architectural limit and request
 a scope/deferral decision if the evidence no longer supports useful progress;
 do not silently relax limits or claim that beta acceptance proves near parity.
 
-Latest frozen-candidate benchmark checkpoint: workflow `35497418189`, artifact
+Historical main-candidate benchmark checkpoint: workflow `35497418189`, artifact
 `10601482794`, completed all three comparisons for `7c1a644a`. Runs 2 and 3 pass
 every beta limit. Run 1 fails parameterized/Python (`1.184`), parameterized/C
 (`1.573`), and prepared/Python (`1.158`); therefore the repeated benchmark gate
@@ -3932,12 +3938,18 @@ the synchronous beta is established.
    indefinitely open or declaring all plan reuse impossible from one cache.
    Direct Tokio/pristine upstream controls are needed only if a native-client
    floor becomes a suspected blocker.
-4. Follow acceptance workflow `35511989284` for frozen `7bbc14eb`: three complete
-   benchmarks pass and all 99 workers independently recompute; full soaks are
-   running. Checkpoint Tests `35511889731` are live and Lint `35511889747` passes.
+4. Acceptance workflow `35511989284` for frozen `7bbc14eb` is terminal success:
+   three complete benchmarks and all 99 workers independently recompute, as do
+   all three full-duration soaks and their resource budgets. Checkpoint Tests
+   `35511889731` remain live overall, but all eight Rust configurations and the
+   installed-package job pass and have been independently audited. Lint
+   `35511889747` passes. Wait for the wider Tests workflow to finish before
+   pushing the pending attribution tooling; then dispatch `attribution=true`
+   once and follow that exact run. Do not restart completed acceptance jobs.
    Preserve this one-wheel benchmark evidence under `1.15` Python / `1.50` C.
-   Require the full soaks and supported compatibility/
-   package matrix. Publish all raw evidence. Track Python parity/C <= `1.10`
+   Preserve the full-soak and frozen-compatibility evidence archives. Publish
+   and independently analyze the dedicated attribution artifacts before closing
+   5B. Track Python parity/C <= `1.10`
    separately; neither waive failures nor turn the stretch goal into an endless
    implicit release blocker.
 5. Confirm scheduled reliability coverage separately; manual dispatch does not
