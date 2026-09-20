@@ -484,6 +484,36 @@ jobs:
       - name: Run tests
         run: uv run --no-sync ./tools/ci/ci_test.sh
 
+      - name: Collect PostgreSQL diagnostics on macOS failure
+        if: failure()
+        continue-on-error: true
+        shell: bash
+        run: |
+          mkdir -p macos-postgres-diagnostics
+          prefix=$(brew --prefix)
+          brew services info "postgresql@${PG_VERSION}" \
+            > macos-postgres-diagnostics/service.txt 2>&1 || true
+          "$prefix/opt/postgresql@${PG_VERSION}/bin/pg_config" --version \
+            > macos-postgres-diagnostics/libpq-version.txt 2>&1 || true
+          PGCONNECT_TIMEOUT=5 PGOPTIONS='-c statement_timeout=5000' \
+            "$prefix/opt/postgresql@${PG_VERSION}/bin/psql" "$PSYCOPG_TEST_DSN" -X -At \
+            -c "SELECT name, setting FROM pg_settings WHERE name IN ('authentication_timeout', 'ssl', 'log_destination', 'logging_collector', 'log_directory', 'log_filename') ORDER BY name" \
+            > macos-postgres-diagnostics/server-settings.txt 2>&1 || true
+          for log in "$prefix/var/log/postgresql@${PG_VERSION}"*.log; do
+            if [ -f "$log" ]; then
+              cp "$log" macos-postgres-diagnostics/
+            fi
+          done
+
+      - name: Preserve macOS PostgreSQL failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-postgres-${{ matrix.impl }}-${{ matrix.python }}-${{ github.run_attempt }}
+          path: macos-postgres-diagnostics/
+          retention-days: 90
+          if-no-files-found: error
+
 
   # }}}
 

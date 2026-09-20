@@ -221,6 +221,14 @@ search for tiny transport optimizations.
    cancellation test; both built-in retries fail too. Its terminal job log is
    preserved in the matrix archive. Investigate without skipping the test or
    cancelling other jobs; do not call this successor an all-green checkpoint.
+   A follow-up adds only two failure-only macOS diagnostic steps: preserve
+   Homebrew PostgreSQL service/log information, libpq version, and bounded
+   server-setting queries as a 90-day artifact. Structural comparison confirms
+   every original test/job setting is unchanged. The collector passes a local
+   PG15 smoke test, but that is not a reproduction of the PG18.6 cancellation
+   failure. Actionlint finds only the six pre-existing constant-true conditions;
+   checking with that existing warning excluded passes. Publish this alongside
+   the handoff tracer when current CI is terminal, preserving the original failure.
    The separate `handoff_trace.py` coordinator and `handoff_trace=true` workflow
    mode are now implemented locally. All 122 Phase 5 tests and three installed
    marked-worker smoke checks pass, but Linux BPF preflight/attachment and event

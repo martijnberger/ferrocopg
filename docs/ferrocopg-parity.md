@@ -247,6 +247,15 @@ roughly 60 seconds. Both built-in retries also fail. Its complete terminal job
 log is retained in the archive. Other jobs must finish without interruption;
 the failure needs investigation, not a skip or tolerance change.
 
+The subsequent CI follow-up adds failure-only service/version/server-setting
+and PostgreSQL log collection on macOS, retained for 90 days. All original
+test commands, assertions, retry behavior, and job settings remain unchanged.
+The collector's read-only PG15 smoke succeeds locally; it cannot reproduce
+the failed runner's PG18.6/libpq18.6 environment. Six existing `if: true`
+conditions remain the only actionlint warnings. The original runner's missing
+server logs cannot be recovered by this follow-up, so the cancellation failure
+is unresolved rather than attributed to an unproven cause.
+
 ### Marked-loop handoff instrumentation
 
 `tools/phase5/handoff_trace.py` adds a separate Linux-only diagnostic. It uses
