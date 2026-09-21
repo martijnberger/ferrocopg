@@ -1,6 +1,7 @@
 # Native execution boundary
 
-Status: concrete Phase 5 prototype design, not implemented or performance-accepted.
+Status: preparation-state core implemented; complete query boundary not yet
+implemented or performance-accepted.
 The retained runtime remains `7bbc14eb` / `8eddc2ec`. This document does not
 supersede the compatibility contract, beta limits, or the Phase 5 completion audit.
 
@@ -123,14 +124,29 @@ row count, and position. These establish contracts, not a native implementation.
 The same controls also pass against official pure Python. All 124 Phase 5
 tooling/installed checks pass with the frozen installed Rust wheel.
 
-The next implementation step is the native preparation state machine and its
-differential operation corpus, before connecting it to `execute_query`. Cover
-get/add/validate/clear independently, not only successful execute sequences:
-pipeline reservation and errors separate these transitions. Compare names,
-counts, LRU order, close queues, threshold/max changes, malformed/multiple/error
-results, and invalidating command statuses with the existing Python manager.
-Then integrate the same owner into the complete ordinary-query boundary; do not
-ship an unused second cache or benchmark it as a completed execution path.
+The first implementation slice is `6d1e2313`: Rust-owned `PreparationState`,
+with a separate `NativePreparationState` Python test adapter. The core contains
+no Python references or callback calls. Its ordered state uses hash lookup and
+an ordered recency index; query keys are shared between indexes rather than
+duplicating their buffers. It is not connected to the public query path yet.
+
+[Source/wheel evidence](performance/2026-09-21-native-preparation-state.json) and
+the [raw source/test archive](performance/2026-09-21-native-preparation-state.json.gz)
+preserve the exact release wheel and all 92 installed code-file checks. Six
+differential tests compare independent get/add/validate/clear transitions with
+the Python manager, including 5,000 seeded steps with state checked after each.
+Explicit cases cover reservation, command-status boundaries, error/multiple
+results, LRU order, gradual eviction, close queues, detached inspection views,
+and mutable input ownership. All 130 Phase 5 checks pass on this prototype wheel.
+Cargo check/format, Ruff, and codespell pass; Clippy is unavailable in the pinned
+toolchain. These are not full compatibility, benchmark, or soak acceptance.
+
+Before public routing, handle arbitrary Python integer settings and counter
+overflow explicitly: the test adapter currently accepts i64 settings and the
+core uses u64 counts/names. Do not introduce those narrower limits into the
+public API. Then integrate this same owner, native statement IDs, buffer
+snapshots, events, and result publication into `execute_query`. Do not ship an
+unused second cache or benchmark this primitive as a completed execution path.
 
 Compare an exact installed baseline and prototype with both backend orders and
 fresh/reused constant/parameterized controls. Capture ordinary CPU/wall samples

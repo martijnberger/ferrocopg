@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "source_revision": "6d1e23134202eb1f7fabc84c7862f77bbd7885f5",
+  "acceptance_evidence": false,
+  "status": "native core and differential adapter implemented; public routing unchanged",
+  "wheel": {
+    "name": "ferrocopg-0.1.0-cp314-cp314-macosx_11_0_arm64.whl",
+    "sha256": "8a63c250d4b50436f7e603aca30707d7a96ed93b8f30a336fbd3655e4bbc273f",
+    "native_sha256": "103cd192cd4cf15ac5e216dd3cda29821eb02efcfd567a37ed070d57fe03fe18",
+    "installed_code_files_verified": 92
+  },
+  "source_sha256": {
+    "crates/ferrocopg-python/src/preparing.rs": "635ffb8cf2bc4eaa86d25b9a25f4ee3a60ae9148d90ea0ce8148ece2fa0ea037",
+    "crates/ferrocopg-python/src/lib.rs": "faefca53ce68c9ea60c893474ec59da8aefa472ad01826e9c32aa61d444dc4f9",
+    "tools/phase5/test_preparation_state.py": "68cc8b317e1f23d8f0a3fd6aa735cc12236aa7fd5548cd2f0ea593ab66586b45",
+    "psycopg/psycopg/_preparing.py": "7c35122400335ddd975a74c1957293fa9bc39b4ba178aca8997898a90161fc08",
+    "Cargo.toml": "05fe27d4c3010325ca45e4877ec41f2e3b830b4b7f55d3ba698bfad3dc2bf57c",
+    "Cargo.lock": "668ac2bbf560c6eb57b4128546d0c9e987ea47e1940a308021ca0e5fa63d7ae6"
+  },
+  "build": {
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)\nbinary: rustc\ncommit-hash: e408947bfd200af42db322daf0fadfe7e26d3bd1\ncommit-date: 2026-03-25\nhost: aarch64-apple-darwin\nrelease: 1.94.1\nLLVM version: 21.1.8\n",
+    "release_profile": {
+      "lto": "thin",
+      "codegen-units": 1
+    },
+    "locked": true,
+    "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]"
+  },
+  "verification": {
+    "phase5_tests": 130,
+    "differential_tests": 6,
+    "seeded_steps": 5000,
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "checks_after_every_transition": true,
+    "pure_python_selected_differential_tests": 6,
+    "cargo_check": "pass",
+    "cargo_fmt": "pass",
+    "ruff": "pass",
+    "codespell": "pass",
+    "clippy": "unavailable in pinned 1.94.1 toolchain"
+  },
+  "coverage": [
+    "preparation threshold and explicit policy",
+    "value-dependent OID keys",
+    "names and counts in LRU order",
+    "gradual eviction and disabled preparation",
+    "independent pipeline reservation/add/validate transitions",
+    "failure discard and exact command-status boundaries",
+    "individual-close versus close-all queue semantics",
+    "detached snapshots and copied mutable inputs"
+  ],
+  "limitations": [
+    "No public query uses this state yet; this is not a performance candidate.",
+    "No benchmark, full source compatibility matrix, or soak was run for this slice.",
+    "The test adapter settings are i64 and counters u64; arbitrary Python integer settings and overflow policy must be addressed before public routing.",
+    "Native statement IDs, execution buffer ownership, events, and result publication are not integrated into the new operation yet.",
+    "Frozen acceptance evidence does not apply automatically to this changed wheel."
+  ],
+  "archive": {
+    "path": "2026-09-21-native-preparation-state.json.gz",
+    "sha256": "76c3d00050d941d3c6c26da3b521c2b2e65280312649ed7273203566581f8a7c",
+    "text_files": 9
+  }
+}

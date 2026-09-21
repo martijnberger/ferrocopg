@@ -1791,12 +1791,26 @@ differential tests, and retention/rejection rules are documented. Two new instal
 Rust/C controls pass for value-dependent prepared OIDs with alternating result
 formats and for outer-result ownership during reentrant loader queries. This is
 a design and contract checkpoint, not an implemented or retained native path.
-The same controls pass against official pure Python, and all 124 Phase 5 checks
-pass against the installed frozen Rust wheel. Next implement the native
-preparation state machine with differential transition tests, then integrate
-that same owner into the complete ordinary-query boundary. Do not retain an
-unused second cache or benchmark a packet-only subset. Implementation and full
-candidate verification below remain open.
+At that checkpoint the same controls pass against official pure Python, and all
+124 Phase 5 checks pass against the installed frozen Rust wheel. The next slice
+below implements the preparation state machine before integration into the
+complete ordinary-query boundary. Do not retain an unused second cache or
+benchmark a packet-only subset. Full integration and candidate verification
+remain open.
+
+Native preparation-state slice `6d1e2313` is now implemented, with no public
+query-routing change. A pure Rust owner is separate from the Python differential
+adapter; no Python callback/reference is retained by the core. Six tests cover
+5,000 seeded transition steps plus explicit reservation, validation, LRU,
+close-queue, and buffer-ownership cases against `PrepareManager`. The release
+wheel passes all 130 Phase 5 checks; all 92 installed code files match the wheel.
+Preserve `2026-09-21-native-preparation-state.json` and its raw source/test archive.
+Cargo check/format and Python lint/format/spell checks pass; Clippy is unavailable
+in the pinned toolchain. This changed native wheel does not inherit frozen
+acceptance and has not been benchmarked or soaked. Before routing public calls,
+address arbitrary Python integer settings/counter overflow, then integrate the
+same owner with native statement IDs and the complete execution/result boundary.
+The test adapter's fixed-width limits must not become public API regressions.
 
 - [ ] Separate reusable SQL/parameter-layout and result-decoding plans from
   execution values, mutable callbacks, cursor position, and errors.
