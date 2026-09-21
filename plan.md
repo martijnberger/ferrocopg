@@ -1781,6 +1781,23 @@ no duplicate parser cache or generic shared mutable callbacks; broader immutable
 execution/decoding plans remain deferred pending an explicit coarse-boundary
 design and opportunity control.
 
+The concrete next boundary is now specified in
+`docs/ferrocopg-execution-boundary.md`: one native ordinary-query operation owns
+parameter snapshots, prepared-state selection/maintenance, and result completion,
+without a separate packet-constructor boundary or a generic Transformer port.
+Python adaptation/callback construction remains explicit; no removed cost or
+speedup is assumed for it. Ownership, invalidation, fallbacks, required preparation
+differential tests, and retention/rejection rules are documented. Two new installed
+Rust/C controls pass for value-dependent prepared OIDs with alternating result
+formats and for outer-result ownership during reentrant loader queries. This is
+a design and contract checkpoint, not an implemented or retained native path.
+The same controls pass against official pure Python, and all 124 Phase 5 checks
+pass against the installed frozen Rust wheel. Next implement the native
+preparation state machine with differential transition tests, then integrate
+that same owner into the complete ordinary-query boundary. Do not retain an
+unused second cache or benchmark a packet-only subset. Implementation and full
+candidate verification below remain open.
+
 - [ ] Separate reusable SQL/parameter-layout and result-decoding plans from
   execution values, mutable callbacks, cursor position, and errors.
 - [ ] Define ownership and explicit invalidation for adapter registrations,

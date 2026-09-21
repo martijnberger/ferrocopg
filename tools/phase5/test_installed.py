@@ -15,6 +15,70 @@ from unittest.mock import patch
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_execution_plan_keeps_value_types_and_result_formats_dynamic(self):
+        import ferrocopg
+
+        import psycopg
+
+        for driver in (ferrocopg, psycopg):
+            with self.subTest(driver=driver.__name__):
+                with driver.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+                    query = "select %s::int8 as execution_plan_value"
+                    with conn.cursor() as cur:
+                        for value in (41, 40000, 1 << 40, 42):
+                            for binary in (False, True):
+                                cur.execute(
+                                    query, (value,), prepare=True, binary=binary
+                                )
+                                self.assertEqual(cur.fetchone(), (value,))
+                                self.assertEqual(cur.description[0].type_code, 20)
+                                self.assertEqual(cur.pgresult.fformat(0), int(binary))
+                    prepared = conn.execute(
+                        "select parameter_types::text from pg_prepared_statements "
+                        "where statement = %s",
+                        ("select $1::int8 as execution_plan_value",),
+                        prepare=False,
+                    ).fetchall()
+                    self.assertEqual(
+                        sorted(row[0] for row in prepared),
+                        ["{bigint}", "{integer}", "{smallint}"],
+                    )
+
+    def test_execution_result_survives_reentrant_loader_queries(self):
+        import ferrocopg
+
+        import psycopg
+
+        for driver in (ferrocopg, psycopg):
+            with self.subTest(driver=driver.__name__):
+                Loader = importlib.import_module(f"{driver.__name__}.adapt").Loader
+                with driver.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+                    calls = []
+
+                    class QueryingLoader(Loader):
+                        def load(self, data):
+                            value = int(data)
+                            calls.append(value)
+                            return conn.execute(
+                                "select %s::int4", (value + 100,), prepare=True
+                            ).fetchone()[0]
+
+                    with conn.cursor() as cur:
+                        cur.adapters.register_loader(23, QueryingLoader)
+                        cur.execute(
+                            "select i::int4 from generate_series(41, 42) i",
+                            prepare=True,
+                        )
+                        result = cur.pgresult
+                        self.assertEqual(cur.fetchall(), [(141,), (142,)])
+                        self.assertEqual(calls, [41, 42])
+                        self.assertIs(cur.pgresult, result)
+                        self.assertEqual(result.get_value(0, 0), b"41")
+                        self.assertEqual(result.get_value(1, 0), b"42")
+                        self.assertEqual(cur.rowcount, 2)
+                        self.assertEqual(cur.rownumber, 2)
+                    self.assertEqual(conn.execute("select 43").fetchone(), (43,))
+
     def test_parameter_buffers_are_snapshotted_before_preparation(self):
         import ferrocopg
         from ferrocopg.adapt import Dumper

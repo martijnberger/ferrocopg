@@ -132,8 +132,11 @@ impossibility or silently accepting a rejected prototype:
 | Native parameterized batch | Recommended independent experiment, not yet implemented or retained | Keep its hypothesis separate from scalar parity and validate error/recovery semantics before timing. |
 | Transport replacement or more compiler tuning | Not the next priority | A matched native-layer blocker or a controlled compiler experiment with sufficient opportunity. |
 
-The next scalar proposal should specify one coarse execution boundary, its
-per-operation ownership, and an exact list of removed dispatch/setup work.
+The [native execution boundary design](ferrocopg-execution-boundary.md) specifies
+one coarse operation, its ownership/invalidation rules, retained callbacks, and
+an exact list of removed dispatch/setup work. It is not implemented or accepted.
+Two new installed controls preserve dynamic prepared parameter types/result
+formats and outer-result ownership across reentrant loader queries on Rust/C.
 Built-in fast paths must still respect registered adapter overrides, cursor
 subclasses, factories, encoding snapshots, signals, cancellation, notices,
 reentrancy, and results that outlive the connection. Require both fresh/reused
