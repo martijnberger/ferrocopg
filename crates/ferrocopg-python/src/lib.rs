@@ -1,5 +1,6 @@
 mod adapt;
 mod bootstrap;
+mod preparing;
 mod python_helpers;
 
 use crate::python_helpers::{
@@ -443,6 +444,7 @@ fn _ferrocopg(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
         psycopg_import(py, "_py_transformer")?.getattr("Transformer")?,
     )?;
     bootstrap::register(m)?;
+    preparing::register(m)?;
     m.add_class::<ConnectGenerator>()?;
     m.add_class::<SendGenerator>()?;
     m.add_class::<FetchGenerator>()?;
