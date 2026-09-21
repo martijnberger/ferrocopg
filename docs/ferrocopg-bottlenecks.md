@@ -100,8 +100,20 @@ Prepared strace workers record 1,884-1,891 Rust `epoll_wait` calls versus 1,013
 `poll` and eight `epoll_wait` calls for C. These cover the whole child process,
 including imports, warmup, setup, and cleanup; they are not exact per-query
 poll or wakeup counts. Nonblocking `connect` errors are retained, not interpreted
-as failed workload operations. Direct GIL transitions and scheduler wakeups
-remain unmeasured. Protocol cycle counts likewise are not general network RTTs.
+as failed workload operations. Protocol cycle counts likewise are not general
+network RTTs.
+
+The subsequent [marked-loop audit](performance/2026-09-21-handoff-dedicated.json)
+counts exactly 1,000 prepared binary queries after warmup in both orders. Rust
+records 1,000 explicit SaveThread/RestoreThread pairs, C 9,000, and Python 28,000.
+Rust records 2,000 epoll entries versus 1,000 poll entries for each comparator;
+all three record approximately one scheduler wakeup per query (C reverse: 999).
+No PyGILState Ensure/Release calls occur in these regions. This rules against
+excess explicit interpreter handoff count as the scalar bottleneck, not against
+all GIL-related costs. Counts do not measure wait duration or recoverable time.
+Preserve the single blocking-I/O interpreter release; prioritize removing Python
+orchestration at a coarser boundary. Direct event coverage for other workloads
+and polling-duration attribution remain open.
 
 ## Decisions and open work
 

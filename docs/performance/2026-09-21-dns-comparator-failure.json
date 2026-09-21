@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "classification": "comparator test assumes a fixed weighted-random SRV order",
+  "run_url": "https://github.com/martijnberger/ferrocopg/actions/runs/35530927817",
+  "head_sha": "6c868a2bbf484c7509eaf66147d66c568a7a2077",
+  "conclusion": "failure",
+  "successful_jobs": 56,
+  "failed_job": {
+    "id": 106131252979,
+    "name": "linux (c, 3.10, min, postgres:15)"
+  },
+  "seed": 4161095808,
+  "failed_tests": [
+    "tests/test_dns_srv.py::test_srv",
+    "tests/test_dns_srv.py::test_srv_async"
+  ],
+  "observed_order": [
+    1,
+    3,
+    4,
+    2
+  ],
+  "expected_order": [
+    1,
+    4,
+    3,
+    2
+  ],
+  "interpretation": "Both orders are possible in the existing weighted selection. The two built-in retries keep the failing seed. This run is not green. The previous macOS C cancellation failure did not recur; its cause remains unknown.",
+  "correction": "Test-only: force upper-bound draws for fixed-order resolution cases and add explicit zero, cumulative-boundary, boundary-plus-one and upper-bound cases. Production DNS behavior and CI assertions are unchanged.",
+  "local_checks": [
+    {
+      "backend": "c",
+      "seed": 4161095808,
+      "scope": "test_dns_srv.py",
+      "passed": 24
+    },
+    {
+      "backend": "python",
+      "seed": 4161095808,
+      "scope": "test_dns_srv.py and test_dns.py",
+      "passed": 25
+    },
+    {
+      "backend": "c",
+      "seed": 1,
+      "scope": "test_dns_srv.py and test_dns.py",
+      "passed": 25
+    }
+  ],
+  "limitations": "Local checks use CPython 3.14 and dnspython 2.8.0, not the failed Linux minimum-dependency CPython 3.10 environment. Successor CI is required.",
+  "archive": {
+    "path": "2026-09-21-dns-comparator-failure.json.gz",
+    "sha256": "3974696b3ca4fccdbe05fcb5a24f5478e0a183978f549f17221aa791c256d3ec",
+    "uncompressed_bytes": 432872
+  }
+}

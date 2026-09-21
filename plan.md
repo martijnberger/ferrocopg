@@ -240,14 +240,40 @@ search for tiny transport optimizations.
    preserve `2026-09-20-handoff-first-failure.json` and its complete raw archive.
    Do not salvage its counts. The focused correction initializes the active
    flag and uses `-k`, retaining update/output helper checks and strict warning
-   rejection. All 122 Phase 5 tests pass. Publish after current Tests becomes
-   terminal, then dispatch the corrected diagnostic once; its counts still
-   require a clean Linux run and independent audit. Do not restart completed
-   scalar or acceptance measurements. Successor Tests `35530927817` is live,
-   and Lint `35530927844` passes; do not push over the active Tests run.
+   rejection. All 122 Phase 5 tests pass. The correction is published at
+   `2724906c7fca3d148305fc0ee1c8e55ada465a22`; corrected diagnostic
+   `35559748459` is terminal success and independently audited. Preserve
+   `2026-09-21-handoff-dedicated.json` and its 36-file raw text/source archive:
+   six workers, 24 result-file hashes, and 92 installed Rust code files match.
+   Per prepared query, Rust records one explicit interpreter release/acquire
+   pair versus C's nine and Python's 28, in both orders. Rust has two epoll
+   entries versus one poll for comparators, but their blocking duration is not
+   measured. Scheduler wakeups are approximately one per query for all three.
+   Do not optimize away the single blocking-I/O interpreter release or infer
+   latency savings from counts. Focus the next bounded design on coarser native
+   execution/adaptation/result orchestration. All-workload event coverage and
+   the final measurement-quality assessment remain open. Do not restart
+   completed scalar or acceptance measurements.
+   Tests `35530927817` is terminal: 56 jobs pass, including every Rust job and
+   the previously failing macOS C configuration. One Linux C/3.10 minimum-dependency
+   job fails its synchronous/asynchronous DNS SRV tests: weighted random selection
+   returns a valid order different from the test's fixed expectation. Both retries
+   retain the same seed. Preserve `2026-09-21-dns-comparator-failure.json` and its
+   complete raw CI/log archive. The test-only correction fixes the draw for the
+   fixed-order resolution cases and adds explicit weighted-selection boundary
+   cases; production DNS behavior is unchanged. Local C and Python tests pass,
+   but are not the original CPython 3.10 minimum-dependency environment.
+   The macOS cancellation cause remains unknown; non-recurrence is not a fix.
+   Lint `35530927844` passes. New Tests `35559745584` is live, Lint `35559745444`
+   passes, and the completed diagnostic all target `2724906c`; do not push over
+   active Tests.
+   As of 2026-09-21 04:08 UTC the weekly workflow is active but the schedule-event
+   listing is still empty. Scheduled execution remains unverified, not replaced
+   by the manual acceptance run.
    Three installed marked-worker smoke checks pass. Missing tracepoints, absent exported Python
    APIs, tracer warnings, and missing region markers must fail rather than be
-   treated as zero events. Do not count this as completed GIL/wakeup evidence.
+   treated as zero events. The audited Linux run supplies prepared-scalar event
+   evidence only; it does not close all-workload GIL/wakeup coverage.
    Satisfy every Phase 5 completion gate below on that candidate. Commit coherent
    slices with AI attribution and push
    the active development bookmark regularly. Keep `main` promotion, branch

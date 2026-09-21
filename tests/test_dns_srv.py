@@ -43,7 +43,6 @@ samples_ok = [
 ]
 
 
-@pytest.mark.flakey("random weight order, might cause wrong order")
 @pytest.mark.parametrize("conninfo, want, env", samples_ok)
 def test_srv(conninfo, want, env, fake_srv, setpgenv):
     setpgenv(env)
@@ -111,6 +110,9 @@ def afake_srv(monkeypatch):
 def get_fake_srv_function(monkeypatch):
     import_dnspython()
 
+    # These resolution tests expect one order, not a random weighted sample.
+    monkeypatch.setattr(psycopg._dns, "randint", lambda low, high: high)
+
     from dns.exception import DNSException
     from dns.rdtypes.IN.A import A
     from dns.rdtypes.IN.SRV import SRV
@@ -145,3 +147,32 @@ def get_fake_srv_function(monkeypatch):
         return rv
 
     return fake_srv_
+
+
+@pytest.mark.parametrize(
+    "draws, bounds, expected",
+    [
+        ([0, 65790, 255], [65790, 65790, 255], [1, 2, 4, 3]),
+        ([255, 65535, 0], [65790, 65535, 0], [1, 3, 4, 2]),
+        ([256, 255, 0], [65790, 255, 0], [1, 4, 3, 2]),
+        ([65790, 255, 0], [65790, 255, 0], [1, 4, 3, 2]),
+    ],
+)
+def test_srv_weight_boundaries(monkeypatch, draws, bounds, expected):
+    fake = get_fake_srv_function(monkeypatch)
+    calls = []
+
+    def draw(low, high):
+        value = draws[len(calls)]
+        calls.append((low, high))
+        assert low <= value <= high
+        return value
+
+    monkeypatch.setattr(psycopg._dns, "randint", draw)
+    entries = psycopg._dns.Rfc2782Resolver().sort_rfc2782(
+        fake("_pg._tcp.bar.com", "SRV")
+    )
+    assert [str(entry.target) for entry in entries] == [
+        f"db{number}.example.com." for number in expected
+    ]
+    assert calls == [(0, high) for high in bounds]

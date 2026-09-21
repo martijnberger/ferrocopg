@@ -302,9 +302,8 @@ All 122 Phase 5 tests pass locally, including region/count/identity rejection
 and partial-failure preservation. The C markers compile with warnings as errors,
 and all three installed marked-query workers pass their live Mac smoke checks
 at diagnostic source snapshot `0e8d3bfa882c19ad20715a8b29561f020dd44b67`.
-Those local checks do not exercise BPF. Validated event collection and an
-independent raw-count audit remain outstanding; this tooling does not yet close
-the handoff/wakeup requirement or cover non-scalar workloads.
+Those local checks do not exercise BPF. The successful Linux collection and
+independent audit below now cover this scalar case, not non-scalar workloads.
 The tooling and completed matrix evidence are now published at
 `6c868a2bbf484c7509eaf66147d66c568a7a2077`. Handoff diagnostic
 [workflow `35530943059`](https://github.com/martijnberger/ferrocopg/actions/runs/35530943059)
@@ -327,9 +326,31 @@ this program; it does not dereference arbitrary user/kernel pointers. Strict
 warning/output rejection, complete marker checks, and identity validation stay
 unchanged. Regression tests assert the invocation, and all 122 tests pass.
 This is not permission to reinterpret the noisy first capture as valid data.
-The corrected revision still needs a clean Linux run after publication.
-Successor Tests `35530927817` is live; Lint `35530927844` passes. Preserve that
-live run before pushing the correction.
+The corrected revision `2724906c7fca3d148305fc0ee1c8e55ada465a22` completes
+[workflow `35559748459`](https://github.com/martijnberger/ferrocopg/actions/runs/35559748459)
+successfully. The [independent audit](performance/2026-09-21-handoff-dedicated.json)
+and [36-file raw text/source archive](performance/2026-09-21-handoff-dedicated.json.gz)
+validate all six workers, all 24 result-file hashes, all 92 installed Rust package
+code files against the actual wheel, both orders, protocol/environment identity,
+clean tracer logs, and exactly one marker region per worker. Binary artifacts
+remain in GitHub artifact `10622010767`; wheel and marker hashes are preserved.
+
+| Count per 1,000 prepared queries | Python forward/reverse | C forward/reverse | Rust forward/reverse |
+| --- | --- | --- | --- |
+| SaveThread entries / RestoreThread returns | 28,000 / 28,000 in each order | 9,000 / 9,000 in each order | 1,000 / 1,000 in each order |
+| Poll-family syscall entries | 1,000 / 1,000 (`poll`) | 1,000 / 1,000 (`poll`) | 2,000 / 2,000 (`epoll_wait`) |
+| Scheduler wakeups | 1,000 / 1,000 | 1,000 / 999 | 1,000 / 1,000 |
+| Switch in (switch out matches) | 1,001 / 1,000 | 1,000 / 1,000 | 1,001 / 1,000 |
+
+No worker records PyGILState Ensure/Release calls or new-task wakeups inside the
+region. These are observed counts under tracing, not every internal GIL switch.
+Rust does not have an excess of explicit interpreter release/acquire calls here;
+removing the remaining blocking-I/O release is not the next optimization.
+Two epoll entries do not establish two blocking waits or a redundant round trip.
+Their durations and recoverable cost are unknown. Prioritize a coarse native
+execution/adaptation/result boundary over more handoff micro-optimization, while
+preserving Python callbacks and invalidation contracts. This evidence does not
+complete the all-workload coverage requirement or establish ordinary timings.
 
 ### Original constant-query diagnostic
 
