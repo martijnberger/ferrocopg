@@ -141,12 +141,21 @@ and mutable input ownership. All 130 Phase 5 checks pass on this prototype wheel
 Cargo check/format, Ruff, and codespell pass; Clippy is unavailable in the pinned
 toolchain. These are not full compatibility, benchmark, or soak acceptance.
 
-Before public routing, handle arbitrary Python integer settings and counter
-overflow explicitly: the test adapter currently accepts i64 settings and the
-core uses u64 counts/names. Do not introduce those narrower limits into the
-public API. Then integrate this same owner, native statement IDs, buffer
-snapshots, events, and result publication into `execute_query`. Do not ship an
-unused second cache or benchmark this primitive as a completed execution path.
+Follow-up `08238dcc` removes the fixed-width integer restriction. Settings use
+native arbitrary-precision values; ordinary counters remain inline and promote
+only at overflow. The internal LRU clock compacts without changing recency.
+Four Rust tests exercise counter/name overflow, huge settings, and recency
+compaction. The expanded Python differential test includes positive/negative
+values through `2**20000`; all 131 Phase 5 checks pass on the new release wheel.
+Only four supporting packages were added to the lockfile, with no existing
+dependency version changes. See the
+[integer and CI audit](performance/2026-09-24-preparation-and-ci-audit.json) and
+[raw source/report archive](performance/2026-09-24-preparation-and-ci-audit.json.gz).
+
+Next integrate this same owner, native statement IDs, buffer snapshots, events,
+and result publication into `execute_query`. Public query routing is still
+unchanged. Do not ship an unused second cache or benchmark this primitive as a
+completed execution path; no performance gain has yet been demonstrated.
 
 Compare an exact installed baseline and prototype with both backend orders and
 fresh/reused constant/parameterized controls. Capture ordinary CPU/wall samples

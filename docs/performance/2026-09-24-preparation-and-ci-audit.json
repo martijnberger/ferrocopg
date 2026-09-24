@@ -1,0 +1,238 @@
+{
+  "schema_version": 1,
+  "acceptance_evidence": false,
+  "native_integer_slice": {
+    "source_revision": "08238dcc306a587af4c9c7fa215b8bd388782cb1",
+    "source_sha256": {
+      "Cargo.toml": "05fe27d4c3010325ca45e4877ec41f2e3b830b4b7f55d3ba698bfad3dc2bf57c",
+      "Cargo.lock": "85908853088b6f9a9f6fc2431882e042c12b73c3860d3c97c3cea798013f15ad",
+      "crates/ferrocopg-python/Cargo.toml": "9771f24ed6cd1fb48ec13bdb0bfd64a8c04c38d543b571d591d79f985f2980c4",
+      "crates/ferrocopg-python/src/preparing.rs": "1362540439e360cba8c7ede47315f350da734925b84d130ea50e3d0e9703cde5",
+      "tools/phase5/test_preparation_state.py": "66f0e4a6373b49dd9bd1ab220b3551e0d4d9a748ca16ad3f7877fd2423480e15",
+      "tests/test_dns_srv.py": "299d02f69eda4766c7519d9779edf8780d4f4c81d4e02c7214b54dd5c45aa5bd"
+    },
+    "wheel_sha256": "5b7d9834f03e0d2d4e8379b1b9b77d59f36fee093343fd068f14dc77a149f276",
+    "native_sha256": "a96afef20b48042efe212d3f71a4d43a21ad1f0351e2c12ae46d0d4ab4920b6a",
+    "installed_code_files_verified": 92,
+    "phase5_checks": 131,
+    "rust_overflow_checks": 4,
+    "differential_checks": 7,
+    "seeded_steps": 5000,
+    "public_routing_changed": false,
+    "limitations": [
+      "No full source compatibility, benchmark, or soak acceptance for this wheel.",
+      "Initial full suite failed because the old temporary database was unavailable; the final suite passed on a new UTF-8 database on localhost port 55436."
+    ]
+  },
+  "compatibility_drift": {
+    "run_url": "https://github.com/martijnberger/ferrocopg/actions/runs/35921487851",
+    "conclusion": "failure",
+    "all_eight_raw_reports_recomputed": true,
+    "lanes": [
+      {
+        "key": "py3.12-pg16",
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 194,
+          "total": 4817
+        },
+        "expected_total": 4813
+      },
+      {
+        "key": "py3.13-pg17",
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 194,
+          "total": 4817
+        },
+        "expected_total": 4813
+      },
+      {
+        "key": "py3.14-pg18",
+        "sync": {
+          "errors": 0,
+          "executed": 4656,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4656,
+          "rate": 1.0,
+          "skipped": 196,
+          "total": 4852
+        },
+        "expected_total": 4848
+      },
+      {
+        "key": "py3.11-pg14",
+        "sync": {
+          "errors": 0,
+          "executed": 4483,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4483,
+          "rate": 1.0,
+          "skipped": 334,
+          "total": 4817
+        },
+        "expected_total": 4813
+      },
+      {
+        "key": "py3.11-pg15",
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 194,
+          "total": 4817
+        },
+        "expected_total": 4813
+      },
+      {
+        "key": "py3.11-pg17",
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 194,
+          "total": 4817
+        },
+        "expected_total": 4813
+      },
+      {
+        "key": "py3.11-pg18",
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 194,
+          "total": 4817
+        },
+        "expected_total": 4813
+      },
+      {
+        "key": "py3.11-pg16",
+        "sync": {
+          "errors": 0,
+          "executed": 4623,
+          "failed": 0,
+          "manifested": 249,
+          "passed": 4623,
+          "rate": 1.0,
+          "skipped": 194,
+          "total": 4817
+        },
+        "expected_total": 4813
+      }
+    ],
+    "correction_revision": "983250c6",
+    "correction": "All four DNS boundary assertions now execute inside the existing SRV case; frozen denominators, floors, manifests, and regression budgets are unchanged.",
+    "local_dns_cases": 21,
+    "successor_ci_required": true
+  },
+  "scheduled_reliability": {
+    "run_url": "https://github.com/martijnberger/ferrocopg/actions/runs/35581426803",
+    "event": "schedule",
+    "revision": "7c1a644a343087aeeb52720901f91841b445cbd2",
+    "overall_conclusion": "failure",
+    "soak_conclusion": "success",
+    "workers": [
+      {
+        "backend": "rust",
+        "elapsed_seconds": 1800.043479678,
+        "resource_samples": 2057,
+        "operations": {
+          "churn": 41180,
+          "transaction": 41180,
+          "cancel": 41180,
+          "copy_text": 41180,
+          "copy_binary": 41180,
+          "pipeline": 41180,
+          "pool": 41180,
+          "pool_contention": 41180
+        },
+        "cleanup": {
+          "rss_bytes": 57143296,
+          "threads": 1,
+          "sockets": 1,
+          "fds": 5,
+          "driver_objects": 630,
+          "sessions": 0
+        }
+      },
+      {
+        "backend": "python",
+        "elapsed_seconds": 1801.4409935740002,
+        "resource_samples": 1330,
+        "operations": {
+          "churn": 26640,
+          "transaction": 26640,
+          "cancel": 26640,
+          "copy_text": 26640,
+          "copy_binary": 26640,
+          "pipeline": 26640,
+          "pool": 26640,
+          "pool_contention": 26640
+        },
+        "cleanup": {
+          "rss_bytes": 44261376,
+          "threads": 1,
+          "sockets": 1,
+          "fds": 5,
+          "driver_objects": 323,
+          "sessions": 0
+        }
+      },
+      {
+        "backend": "c",
+        "elapsed_seconds": 1800.6317945699998,
+        "resource_samples": 2048,
+        "operations": {
+          "churn": 41000,
+          "transaction": 41000,
+          "cancel": 41000,
+          "copy_text": 41000,
+          "copy_binary": 41000,
+          "pipeline": 41000,
+          "pool": 41000,
+          "pool_contention": 41000
+        },
+        "cleanup": {
+          "rss_bytes": 45449216,
+          "threads": 1,
+          "sockets": 1,
+          "fds": 5,
+          "driver_objects": 322,
+          "sessions": 0
+        }
+      }
+    ],
+    "soak_wheel_sha256": "8f5cea7d20b189b45bbbbec8b2dbc16e605d9652f1f06c19a6c9b970f6f9ca18",
+    "benchmark_failures": [
+      "run-2: prepared: rust/python=1.154 exceeds 1.15"
+    ],
+    "scope": "Confirms scheduled soak execution on older main, not candidate acceptance. Benchmark failure is preserved; its timings have not been independently audited here."
+  },
+  "archive": {
+    "path": "2026-09-24-preparation-and-ci-audit.json.gz",
+    "sha256": "d3307af5445a11ed565c970a2f77b59ec11e9f9684e9e0f4631cadace38479e3",
+    "text_files": 261
+  }
+}

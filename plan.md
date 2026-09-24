@@ -264,12 +264,25 @@ search for tiny transport optimizations.
    cases; production DNS behavior is unchanged. Local C and Python tests pass,
    but are not the original CPython 3.10 minimum-dependency environment.
    The macOS cancellation cause remains unknown; non-recurrence is not a fix.
-   Lint `35530927844` passes. New Tests `35559745584` is live, Lint `35559745444`
-   passes, and the completed diagnostic all target `2724906c`; do not push over
-   active Tests.
-   As of 2026-09-21 04:08 UTC the weekly workflow is active but the schedule-event
-   listing is still empty. Scheduled execution remains unverified, not replaced
-   by the manual acceptance run.
+   Tests `35559745584` completed all 57 jobs successfully; Lint `35559745444`
+   also passed at `2724906c`. The queued design, test, native preparation core,
+   and evidence checkpoints were then published through `31164d3a`.
+   Its successor Tests `35921487851` is terminal failure: all eight Rust lanes
+   have zero supported-sync failures/errors but four extra collected DNS cases.
+   Independent recomputation of every raw JUnit report confirms only the
+   denominator drift. Correction `983250c6` executes all four new weight-boundary
+   assertions inside the existing SRV case; no assertion, baseline, floor,
+   manifest, or regression budget is weakened. Local DNS checks pass 21 cases
+   including the original failing seed. Successor CI must verify the correction.
+   Native preparation integer follow-up `08238dcc` preserves arbitrary-size
+   settings and counter growth; four Rust tests and all 131 Phase 5 checks pass
+   on its release wheel. Public execution routing is not switched yet. Continue
+   the complete native boundary, not a standalone cache/packet benchmark.
+   Preserve `2026-09-24-preparation-and-ci-audit.json` and its raw archive.
+   Scheduled workflow `35581426803` now proves scheduled soak execution on older
+   main `7c1a644a`: all three backends exceed 1,800 seconds, all eight scenarios
+   run, and independently recomputed resources/cleanup pass. Its benchmark job
+   fails and remains failed; this does not validate the retained or new candidate.
    Three installed marked-worker smoke checks pass. Missing tracepoints, absent exported Python
    APIs, tracer warnings, and missing region markers must fail rather than be
    treated as zero events. The audited Linux run supplies prepared-scalar event
@@ -1520,6 +1533,11 @@ Rust-client performance floor has been established.
   three-run benchmark wheel. See the retained-full-soak evidence and parity report.
 - [ ] Confirm scheduled soak execution and publish final-candidate reproducible
   results; a passing earlier CI run does not validate later code.
+  The scheduled-execution portion is now verified: event `schedule`, run
+  `35581426803`, older main `7c1a644a`. Raw reports prove three full-duration
+  soaks, all eight scenarios, and clean resource/cleanup checks. The same run's
+  benchmark fails. Preserve the September 24 audit; final-candidate publication
+  and any new retained implementation's acceptance remain separate requirements.
 - [x] Revalidate the complete supported synchronous compatibility matrix and
   installed-package boundary after the performance changes. Frozen `7bbc14eb`,
   Tests `35511889731`: all eight Rust jobs and the package job pass. All raw
@@ -1811,6 +1829,12 @@ acceptance and has not been benchmarked or soaked. Before routing public calls,
 address arbitrary Python integer settings/counter overflow, then integrate the
 same owner with native statement IDs and the complete execution/result boundary.
 The test adapter's fixed-width limits must not become public API regressions.
+Follow-up `08238dcc` now removes those limits: arbitrary-size integer settings,
+inline counters with overflow promotion, and recency-clock compaction are
+verified by four Rust tests and seven Python differential tests, including the
+5,000-step corpus and values through `2**20000`. All 131 Phase 5 checks pass on
+the changed release wheel. Public routing remains unchanged; integration with
+statement IDs, execution ownership, and result publication is the next step.
 
 - [ ] Separate reusable SQL/parameter-layout and result-decoding plans from
   execution values, mutable callbacks, cursor position, and errors.
