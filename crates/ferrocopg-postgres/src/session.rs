@@ -323,6 +323,8 @@ impl SyncNoTlsSession {
             wire_format,
         )?;
         result.is_tuples = is_tuples;
+        result.command_tag = rows.take_command_tag();
+        result.transaction_status = rows.transaction_status();
         Ok(result)
     }
 
@@ -641,6 +643,8 @@ impl SyncNoTlsSession {
                         rows_affected,
                         is_tuples,
                         wire_format,
+                        command_tag: None,
+                        transaction_status: None,
                     });
                 }
                 _ => {
@@ -685,26 +689,22 @@ impl SyncNoTlsSession {
         refs: &[&(dyn postgres::types::ToSql + Sync)],
         wire_format: WireFormat,
     ) -> Result<ResultSet, ProbeError> {
-        if statement.columns().is_empty() {
-            let rows_affected = self
-                .client_mut()?
-                .execute(statement, &refs)
-                .map_err(ProbeError::Query)?;
-            Ok(ResultSet {
-                columns: Vec::new(),
-                column_descriptions: Vec::new(),
-                rows: Vec::new(),
-                rows_affected,
-                is_tuples: false,
-                wire_format,
-            })
-        } else {
-            let rows = self
-                .client_mut()?
-                .query_with_result_format(statement, &refs, wire_format == WireFormat::Binary)
-                .map_err(ProbeError::Query)?;
-            result_set_from_statement_rows(statement, rows, wire_format)
-        }
+        let (rows, affected, command_tag, transaction_status) = self
+            .client_mut()?
+            .query_with_result_metadata(statement, refs, wire_format == WireFormat::Binary)
+            .map_err(ProbeError::Query)?;
+        let is_tuples = !statement.columns().is_empty() || !rows.is_empty();
+        let rows_affected = affected.unwrap_or(rows.len() as u64);
+        let mut result = result_set_from_descriptions_rows(
+            statement_description(statement).columns,
+            rows,
+            rows_affected,
+            wire_format,
+        )?;
+        result.is_tuples = is_tuples;
+        result.command_tag = command_tag;
+        result.transaction_status = transaction_status;
+        Ok(result)
     }
 }
 
@@ -748,16 +748,6 @@ fn text_query_result(rows: Vec<postgres::Row>) -> Result<TextQueryResult, ProbeE
     Ok(TextQueryResult { columns, rows })
 }
 
-fn result_set_from_statement_rows(
-    statement: &postgres::Statement,
-    rows: Vec<postgres::Row>,
-    wire_format: WireFormat,
-) -> Result<ResultSet, ProbeError> {
-    let column_descriptions = statement_description(statement).columns;
-    let rows_affected = rows.len() as u64;
-    result_set_from_descriptions_rows(column_descriptions, rows, rows_affected, wire_format)
-}
-
 fn result_set_from_descriptions_rows(
     column_descriptions: Vec<StatementColumn>,
     rows: Vec<postgres::Row>,
@@ -776,6 +766,8 @@ fn result_set_from_descriptions_rows(
         rows_affected,
         is_tuples: true,
         wire_format,
+        command_tag: None,
+        transaction_status: None,
     })
 }
 

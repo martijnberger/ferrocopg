@@ -3,6 +3,7 @@ use crate::{
     CancelToken, Config, CopyInWriter, CopyOutReader, Notifications, RowIter, Statement,
     ToStatement, Transaction, TransactionBuilder,
 };
+use futures_util::StreamExt;
 use futures_util::future::join_all;
 use std::task::Poll;
 use std::time::Duration;
@@ -178,6 +179,35 @@ impl Client {
     {
         self.connection
             .block_on(self.client.query_with_result_format(query, params, binary))
+    }
+
+    /// Collects rows and their protocol outcome in one runtime entry.
+    pub fn query_with_result_metadata<T>(
+        &mut self,
+        query: &T,
+        params: &[&(dyn ToSql + Sync)],
+        binary: bool,
+    ) -> Result<(Vec<Row>, Option<u64>, Option<String>, Option<u8>), Error>
+    where
+        T: ?Sized + ToStatement,
+    {
+        self.connection.block_on(async {
+            let stream = self
+                .client
+                .query_raw_with_result_format(query, params.iter().copied(), binary)
+                .await?;
+            let mut stream = std::pin::pin!(stream);
+            let mut rows = Vec::new();
+            while let Some(row) = stream.next().await.transpose()? {
+                rows.push(row);
+            }
+            Ok((
+                rows,
+                stream.rows_affected(),
+                stream.as_mut().take_command_tag(),
+                stream.transaction_status(),
+            ))
+        })
     }
 
     /// Executes a statement which returns a single row, returning it.

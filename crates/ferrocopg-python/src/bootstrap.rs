@@ -167,6 +167,10 @@ struct BackendResultSet {
     is_tuples: bool,
     #[pyo3(get)]
     wire_format: u8,
+    #[pyo3(get)]
+    command_tag: Option<String>,
+    #[pyo3(get)]
+    transaction_status: Option<u8>,
 }
 
 #[pyclass(module = "ferrocopg_rust._ferrocopg", frozen)]
@@ -1220,6 +1224,8 @@ impl From<ferrocopg_postgres::ResultSet> for BackendResultSet {
             rows: result.rows,
             rows_affected: result.rows_affected,
             is_tuples: result.is_tuples,
+            command_tag: result.command_tag,
+            transaction_status: result.transaction_status,
             wire_format: match result.wire_format {
                 ferrocopg_postgres::WireFormat::Text => 0,
                 ferrocopg_postgres::WireFormat::Binary => 1,

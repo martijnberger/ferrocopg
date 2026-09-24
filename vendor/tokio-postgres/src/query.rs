@@ -70,6 +70,8 @@ where
         statement,
         responses,
         rows_affected: None,
+        command_tag: None,
+        transaction_status: None,
     })
 }
 
@@ -120,6 +122,8 @@ where
                     statement: Statement::unnamed(vec![], vec![]),
                     responses,
                     rows_affected: None,
+                    command_tag: None,
+                    transaction_status: None,
                 });
             }
             Message::RowDescription(row_description) => {
@@ -141,6 +145,8 @@ where
                     statement: Statement::unnamed(vec![], columns),
                     responses,
                     rows_affected: None,
+                    command_tag: None,
+                    transaction_status: None,
                 });
             }
             _ => return Err(Error::unexpected_message()),
@@ -217,6 +223,8 @@ pub async fn query_portal(
         statement: portal.statement().clone(),
         responses,
         rows_affected: None,
+        command_tag: None,
+        transaction_status: None,
     })
 }
 
@@ -397,6 +405,8 @@ pin_project! {
         statement: Statement,
         responses: Responses,
         rows_affected: Option<u64>,
+        command_tag: Option<String>,
+        transaction_status: Option<u8>,
     }
 }
 
@@ -412,9 +422,14 @@ impl Stream for RowStream {
                 }
                 Message::CommandComplete(body) => {
                     *this.rows_affected = Some(extract_row_affected(&body)?);
+                    *this.command_tag = Some(body.tag().map_err(Error::parse)?.to_owned());
                 }
-                Message::EmptyQueryResponse | Message::PortalSuspended => {}
-                Message::ReadyForQuery(_) => return Poll::Ready(None),
+                Message::EmptyQueryResponse => *this.command_tag = Some(String::new()),
+                Message::PortalSuspended => {}
+                Message::ReadyForQuery(body) => {
+                    *this.transaction_status = Some(body.status());
+                    return Poll::Ready(None);
+                }
                 _ => return Poll::Ready(Some(Err(Error::unexpected_message()))),
             }
         }
@@ -432,6 +447,21 @@ impl RowStream {
     /// This function will return `None` until the stream has been exhausted.
     pub fn rows_affected(&self) -> Option<u64> {
         self.rows_affected
+    }
+
+    /// The server's command tag, or an empty string for an empty query.
+    pub fn command_tag(&self) -> Option<&str> {
+        self.command_tag.as_deref()
+    }
+
+    /// Transfers the command tag to an owned execution result without copying it.
+    pub fn take_command_tag(self: Pin<&mut Self>) -> Option<String> {
+        self.project().command_tag.take()
+    }
+
+    /// The ReadyForQuery status for this operation, available after exhaustion.
+    pub fn transaction_status(&self) -> Option<u8> {
+        self.transaction_status
     }
 }
 

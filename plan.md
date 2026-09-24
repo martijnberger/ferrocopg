@@ -283,6 +283,14 @@ search for tiny transport optimizations.
    on its release wheel. Public execution routing is not switched yet. Continue
    the complete native boundary, not a standalone cache/packet benchmark.
    Preserve `2026-09-24-preparation-and-ci-audit.json` and its raw archive.
+   Follow-up `b3a0da06` publishes those checkpoints and the DNS typing fix.
+   Successor Lint `35960615267` passes; Tests `35960615386` is still live, so do
+   not interrupt it with another push. The next local implementation retains
+   exact command tags and per-operation transaction status in native extended
+   results, with one runtime entry for prepared collection and transferred tag
+   ownership. All 132 installed Phase 5 checks and 32 Rust unit tests pass.
+   See `2026-09-24-native-outcome-checks.md`. This is an execution-boundary
+   prerequisite, not a completed native executor or performance acceptance.
    Scheduled workflow `35581426803` now proves scheduled soak execution on older
    main `7c1a644a`: all three backends exceed 1,800 seconds, all eight scenarios
    run, and independently recomputed resources/cleanup pass. Its benchmark job

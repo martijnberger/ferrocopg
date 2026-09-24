@@ -15,6 +15,87 @@ from unittest.mock import patch
     os.environ.get("PHASE5_DSN"), "requires an installed wheel and DSN"
 )
 class InstalledPoolTests(unittest.TestCase):
+    def test_extended_results_keep_exact_server_outcomes(self):
+        from ferrocopg import errors
+        from ferrocopg._rust import _ferrocopg as native
+
+        for prepared in (False, True):
+            for binary in (False, True):
+                with self.subTest(prepared=prepared, binary=binary):
+                    session = native.connect_session(os.environ["PHASE5_DSN"])
+                    retained = []
+                    statements = {}
+
+                    def run(query, tag, transaction=ord("I"), affected=0, params=()):
+                        if prepared:
+                            if query not in statements:
+                                statements[query] = session.prepare_params(
+                                    query, [value[0] for value in params]
+                                )
+                            result = session.run_prepared_params_format(
+                                statements[query].statement_id, list(params), binary
+                            )
+                        else:
+                            result = session.run_params_format(
+                                query, list(params), binary
+                            )
+                        self.assertEqual(result.command_tag, tag)
+                        self.assertEqual(result.transaction_status, transaction)
+                        self.assertEqual(result.rows_affected, affected)
+                        self.assertEqual(result.wire_format, int(binary))
+                        retained.append((result, tag, transaction, affected))
+                        return result
+
+                    try:
+                        run("-- only a comment", "")
+                        run(
+                            "select $1::int4",
+                            "SELECT 1",
+                            affected=1,
+                            params=[(23, True, struct.pack("!i", 42))],
+                        )
+                        run(
+                            "create temporary table outcome_test (i int)",
+                            "CREATE TABLE",
+                        )
+                        run(
+                            "with data as (select 42) insert into outcome_test "
+                            "select * from data returning i",
+                            "INSERT 0 1",
+                            affected=1,
+                        )
+                        run(
+                            "/* leading comment */ select i from outcome_test",
+                            "SELECT 1",
+                            affected=1,
+                        )
+                        run("select i from outcome_test where false", "SELECT 0")
+                        run("begin", "BEGIN", ord("T"))
+                        run("savepoint outcome_save", "SAVEPOINT", ord("T"))
+                        if prepared:
+                            for query in ("rollback to outcome_save", "commit"):
+                                statements[query] = session.prepare_params(query, [])
+                        with self.assertRaises(errors.DivisionByZero) as failure:
+                            session.run_params_format("select 1 / 0", [], binary)
+                        self.assertEqual(failure.exception.sqlstate, "22012")
+                        run("rollback to outcome_save", "ROLLBACK", ord("T"))
+                        run("commit", "COMMIT")
+                        run("begin", "BEGIN", ord("T"))
+                        with self.assertRaises(errors.DivisionByZero) as failure:
+                            session.run_params_format("select 1 / 0", [], binary)
+                        self.assertEqual(failure.exception.sqlstate, "22012")
+                        # PostgreSQL rolls back an aborted transaction on COMMIT.
+                        run("commit", "ROLLBACK")
+                        run("truncate outcome_test", "TRUNCATE TABLE")
+                        run("drop table outcome_test", "DROP TABLE")
+                    finally:
+                        session.close()
+
+                    for result, tag, transaction, affected in retained:
+                        self.assertEqual(result.command_tag, tag)
+                        self.assertEqual(result.transaction_status, transaction)
+                        self.assertEqual(result.rows_affected, affected)
+
     def test_execution_plan_keeps_value_types_and_result_formats_dynamic(self):
         import ferrocopg
 

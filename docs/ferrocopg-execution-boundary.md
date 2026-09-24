@@ -1,6 +1,7 @@
 # Native execution boundary
 
-Status: preparation-state core implemented; complete query boundary not yet
+Status: preparation-state core and extended-query outcome metadata implemented;
+complete query boundary not yet
 implemented or performance-accepted.
 The retained runtime remains `7bbc14eb` / `8eddc2ec`. This document does not
 supersede the compatibility contract, beta limits, or the Phase 5 completion audit.
@@ -151,6 +152,17 @@ Only four supporting packages were added to the lockfile, with no existing
 dependency version changes. See the
 [integer and CI audit](performance/2026-09-24-preparation-and-ci-audit.json) and
 [raw source/report archive](performance/2026-09-24-preparation-and-ci-audit.json.gz).
+
+The native outcome follow-up now retains each successful extended operation's
+actual `CommandComplete` tag (including the empty-query response) and
+`ReadyForQuery` transaction status in the owned result. Prepared collection keeps
+one runtime entry; command tags transfer without an extra string copy. This
+supplies server evidence for preparation invalidation and result publication,
+including `WITH ... INSERT` and `COMMIT` returning `ROLLBACK` after an error.
+Simple-query fallback metadata remains explicitly absent, not guessed. Error
+outcomes and notice ownership still need the complete execution boundary.
+See the [local checks](performance/2026-09-24-native-outcome-checks.md).
+The public Python status projection and query routing have not switched yet.
 
 Next integrate this same owner, native statement IDs, buffer snapshots, events,
 and result publication into `execute_query`. Public query routing is still

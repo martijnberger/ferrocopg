@@ -134,6 +134,9 @@ pub struct ResultSet {
     pub rows_affected: u64,
     pub is_tuples: bool,
     pub wire_format: WireFormat,
+    /// Exact extended-query outcome, not reconstructed from SQL text.
+    pub command_tag: Option<String>,
+    pub transaction_status: Option<u8>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

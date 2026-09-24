@@ -25,6 +25,21 @@ impl<'a> RowIter<'a> {
         self.it.rows_affected()
     }
 
+    /// Returns the server's command tag, including an empty-query response.
+    pub fn command_tag(&self) -> Option<&str> {
+        self.it.command_tag()
+    }
+
+    /// Transfers the command tag to an owned execution result without copying it.
+    pub fn take_command_tag(&mut self) -> Option<String> {
+        self.it.as_mut().take_command_tag()
+    }
+
+    /// Returns the ReadyForQuery status after this iterator is exhausted.
+    pub fn transaction_status(&self) -> Option<u8> {
+        self.it.transaction_status()
+    }
+
     /// Returns information about the columns produced by the query.
     pub fn columns(&self) -> &[Column] {
         self.it.columns()
