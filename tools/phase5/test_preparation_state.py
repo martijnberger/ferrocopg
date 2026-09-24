@@ -109,6 +109,30 @@ class PreparationStateTests(unittest.TestCase):
         self.configure(-1, 0)
         self.execute(queries[0])
 
+    def test_arbitrary_precision_integer_settings(self):
+        query = SimpleNamespace(query=b"select $1", types=(21,))
+        settings = (
+            -(1 << 20000),
+            -(1 << 63) - 1,
+            0,
+            1 << 63,
+            (1 << 64) - 1,
+            1 << 64,
+            1 << 20000,
+        )
+        for index, threshold in enumerate((None, *settings)):
+            # Avoid decimal conversion of huge integers in subtest diagnostics.
+            with self.subTest(index=index):
+                self.clear()
+                self.configure(threshold, 1 << 20000)
+                for prepare in (None, False, True):
+                    self.execute(query, prepare)
+                for maximum in settings:
+                    self.configure(threshold, maximum)
+                    decision = self.get(query, True)
+                    self.add(query, decision)
+                    self.validate(query, decision, [(2, b"SELECT 1")])
+
     def test_command_status_boundaries_and_result_validation(self):
         query = SimpleNamespace(query=b"select 42", types=())
         commands = [

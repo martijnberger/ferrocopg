@@ -1,15 +1,88 @@
 //! Preparation transitions for the execution-boundary prototype.
 //! Not routed into public queries until the complete native operation is ready.
 
+use num_bigint::{BigInt, BigUint, Sign};
 use pyo3::exceptions::{PyIndexError, PyKeyError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
 use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::fmt;
 use std::sync::Arc;
 
 const NO: u8 = 1;
 const YES: u8 = 2;
 const SHOULD: u8 = 3;
+
+#[derive(Clone)]
+enum Counter {
+    Small(u64),
+    Large(BigUint),
+}
+
+impl Default for Counter {
+    fn default() -> Self {
+        Self::Small(0)
+    }
+}
+
+impl Counter {
+    fn increment(&mut self) {
+        match self {
+            Self::Small(value) => {
+                *self = match value.checked_add(1) {
+                    Some(next) => Self::Small(next),
+                    None => Self::Large(BigUint::from(*value) + 1u8),
+                };
+            }
+            Self::Large(value) => *value += 1u8,
+        }
+    }
+
+    fn as_biguint(&self) -> BigUint {
+        match self {
+            Self::Small(value) => BigUint::from(*value),
+            Self::Large(value) => value.clone(),
+        }
+    }
+}
+
+impl fmt::Display for Counter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Small(value) => value.fmt(f),
+            Self::Large(value) => value.fmt(f),
+        }
+    }
+}
+
+struct IntegerSetting {
+    value: BigInt,
+    small: Option<u64>,
+}
+
+impl IntegerSetting {
+    fn new(value: BigInt) -> Self {
+        let small = u64::try_from(&value).ok();
+        Self { value, small }
+    }
+
+    fn reached(&self, count: &Counter) -> bool {
+        if self.value.sign() == Sign::Minus {
+            return true;
+        }
+        match count {
+            Counter::Small(count) => self.small.is_some_and(|limit| *count >= limit),
+            Counter::Large(count) => count >= self.value.magnitude(),
+        }
+    }
+
+    fn exceeded_by(&self, size: usize) -> bool {
+        self.value.sign() == Sign::Minus
+            || self
+                .small
+                .is_some_and(|limit| size as u128 > u128::from(limit))
+    }
+}
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 struct Key {
@@ -38,6 +111,16 @@ impl<T> Ordered<T> {
     fn insert_last(&mut self, key: Key, value: T) {
         self.remove(&key);
         let key = Arc::new(key);
+        if self.clock == u128::MAX {
+            // Recency is relative: compact without changing observable order.
+            let old_order = std::mem::take(&mut self.order);
+            for (index, key) in old_order.into_values().enumerate() {
+                let position = index as u128 + 1;
+                self.values.get_mut(&key).expect("ordered key exists").1 = position;
+                self.order.insert(position, key);
+            }
+            self.clock = self.order.len() as u128;
+        }
         self.clock += 1;
         self.order.insert(self.clock, Arc::clone(&key));
         self.values.insert(key, (value, self.clock));
@@ -66,11 +149,11 @@ impl<T> Ordered<T> {
 }
 
 pub(crate) struct PreparationState {
-    prepare_threshold: Option<i64>,
-    prepared_max: i64,
-    counts: Ordered<u64>,
+    prepare_threshold: Option<IntegerSetting>,
+    prepared_max: IntegerSetting,
+    counts: Ordered<Counter>,
     names: Ordered<Vec<u8>>,
-    next_name: u64,
+    next_name: Counter,
     to_flush: VecDeque<Option<Vec<u8>>>,
 }
 
@@ -96,17 +179,17 @@ fn invalidates(command: &[u8]) -> bool {
 impl PreparationState {
     fn new() -> Self {
         Self {
-            prepare_threshold: Some(5),
-            prepared_max: 100,
+            prepare_threshold: Some(IntegerSetting::new(BigInt::from(5))),
+            prepared_max: IntegerSetting::new(BigInt::from(100)),
             counts: Ordered::default(),
             names: Ordered::default(),
-            next_name: 0,
+            next_name: Counter::default(),
             to_flush: VecDeque::new(),
         }
     }
 
     fn get(&mut self, key: &Key, prepare: Option<bool>) -> (u8, Vec<u8>) {
-        let Some(threshold) = self.prepare_threshold else {
+        let Some(threshold) = self.prepare_threshold.as_ref() else {
             return (NO, Vec::new());
         };
         if prepare == Some(false) {
@@ -115,10 +198,10 @@ impl PreparationState {
         if let Some(name) = self.names.get(key).filter(|name| !name.is_empty()) {
             return (YES, name.clone());
         }
-        let count = self.counts.get(key).copied().unwrap_or(0);
-        if i128::from(count) >= i128::from(threshold) || prepare == Some(true) {
+        let count = self.counts.get(key).unwrap_or(&Counter::Small(0));
+        if threshold.reached(count) || prepare == Some(true) {
             let name = format!("_pg3_{}", self.next_name);
-            self.next_name += 1;
+            self.next_name.increment();
             (SHOULD, name.into_bytes())
         } else {
             (NO, Vec::new())
@@ -129,11 +212,12 @@ impl PreparationState {
         if self.prepare_threshold.is_none() {
             return false;
         }
-        if let Some(count) = self.counts.remove(&key) {
+        if let Some(mut count) = self.counts.remove(&key) {
             if prep == SHOULD {
                 self.names.insert_last(key, name);
             } else {
-                self.counts.insert_last(key, count + 1);
+                count.increment();
+                self.counts.insert_last(key, count);
             }
             false
         } else if let Some(name) = self.names.remove(&key) {
@@ -143,7 +227,7 @@ impl PreparationState {
             if prep == SHOULD {
                 self.names.insert_last(key, name);
             } else {
-                self.counts.insert_last(key, 1);
+                self.counts.insert_last(key, Counter::Small(1));
             }
             true
         }
@@ -161,10 +245,10 @@ impl PreparationState {
         if results.len() != 1 || !matches!(results[0].0, 1 | 2) {
             self.discard(key);
         } else {
-            if self.counts.values.len() as i128 > i128::from(self.prepared_max) {
+            if self.prepared_max.exceeded_by(self.counts.values.len()) {
                 self.counts.pop_first()?;
             }
-            if self.names.values.len() as i128 > i128::from(self.prepared_max) {
+            if self.prepared_max.exceeded_by(self.names.values.len()) {
                 self.to_flush.push_back(Some(self.names.pop_first()?));
             }
         }
@@ -206,23 +290,26 @@ impl NativePreparationState {
     }
 
     #[getter]
-    fn prepare_threshold(&self) -> Option<i64> {
-        self.state.prepare_threshold
+    fn prepare_threshold(&self) -> Option<BigInt> {
+        self.state
+            .prepare_threshold
+            .as_ref()
+            .map(|setting| setting.value.clone())
     }
 
     #[setter]
-    fn set_prepare_threshold(&mut self, value: Option<i64>) {
-        self.state.prepare_threshold = value;
+    fn set_prepare_threshold(&mut self, value: Option<BigInt>) {
+        self.state.prepare_threshold = value.map(IntegerSetting::new);
     }
 
     #[getter]
-    fn prepared_max(&self) -> i64 {
-        self.state.prepared_max
+    fn prepared_max(&self) -> BigInt {
+        self.state.prepared_max.value.clone()
     }
 
     #[setter]
-    fn set_prepared_max(&mut self, value: i64) {
-        self.state.prepared_max = value;
+    fn set_prepared_max(&mut self, value: BigInt) {
+        self.state.prepared_max = IntegerSetting::new(value);
     }
 
     #[pyo3(signature = (query, types, prepare=None))]
@@ -278,7 +365,13 @@ impl NativePreparationState {
             self.state
                 .counts
                 .entries()
-                .map(|(key, count)| (PyBytes::new(py, &key.query), key.types.clone(), *count))
+                .map(|(key, count)| {
+                    (
+                        PyBytes::new(py, &key.query),
+                        key.types.clone(),
+                        count.as_biguint(),
+                    )
+                })
                 .collect::<Vec<_>>(),
         )?;
         result.set_item(
@@ -303,13 +396,89 @@ impl NativePreparationState {
                 .map(|name| name.as_ref().map(|name| PyBytes::new(py, name)))
                 .collect::<Vec<_>>(),
         )?;
-        result.set_item("next_name", self.state.next_name)?;
-        result.set_item("prepare_threshold", self.state.prepare_threshold)?;
-        result.set_item("prepared_max", self.state.prepared_max)?;
+        result.set_item("next_name", self.state.next_name.as_biguint())?;
+        result.set_item(
+            "prepare_threshold",
+            self.state
+                .prepare_threshold
+                .as_ref()
+                .map(|setting| &setting.value),
+        )?;
+        result.set_item("prepared_max", &self.state.prepared_max.value)?;
         Ok(result)
     }
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<NativePreparationState>()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn key(query: &[u8]) -> Key {
+        Key {
+            query: query.to_vec(),
+            types: vec![21],
+        }
+    }
+
+    #[test]
+    fn counts_promote_without_changing_threshold_decisions() {
+        let mut state = PreparationState::new();
+        let key = key(b"select $1");
+        let limit = BigInt::from(u64::MAX) + 2u8;
+        state.prepare_threshold = Some(IntegerSetting::new(limit.clone()));
+        state
+            .counts
+            .insert_last(key.clone(), Counter::Small(u64::MAX));
+        assert_eq!(state.get(&key, None).0, NO);
+        assert!(!state.add(key.clone(), NO, Vec::new()));
+        assert_eq!(state.get(&key, None).0, NO);
+        assert!(!state.add(key.clone(), NO, Vec::new()));
+        assert_eq!(state.get(&key, None).0, SHOULD);
+        assert_eq!(
+            state.counts.get(&key).unwrap().as_biguint(),
+            *limit.magnitude()
+        );
+    }
+
+    #[test]
+    fn statement_names_remain_unique_across_machine_word_limit() {
+        let mut state = PreparationState::new();
+        state.next_name = Counter::Small(u64::MAX);
+        let key = key(b"select $1");
+        assert_eq!(state.get(&key, Some(true)).1, b"_pg3_18446744073709551615");
+        assert_eq!(state.get(&key, Some(true)).1, b"_pg3_18446744073709551616");
+        assert_eq!(state.get(&key, Some(true)).1, b"_pg3_18446744073709551617");
+    }
+
+    #[test]
+    fn recency_compaction_preserves_touch_and_eviction_order() {
+        let mut values = Ordered::default();
+        values.insert_last(key(b"a"), 1);
+        values.insert_last(key(b"b"), 2);
+        values.insert_last(key(b"c"), 3);
+        values.clock = u128::MAX;
+        values.insert_last(key(b"b"), 4);
+        assert_eq!(values.clock, 3);
+        assert_eq!(values.pop_first(), Some(1));
+        assert_eq!(values.pop_first(), Some(3));
+        assert_eq!(values.pop_first(), Some(4));
+        assert!(values.values.is_empty());
+        assert!(values.order.is_empty());
+    }
+
+    #[test]
+    fn integer_settings_compare_without_narrowing() {
+        let huge = BigInt::from(1u8) << 20000usize;
+        let positive = IntegerSetting::new(huge.clone());
+        let negative = IntegerSetting::new(-huge);
+        assert!(!positive.reached(&Counter::Small(u64::MAX)));
+        assert!(!positive.exceeded_by(usize::MAX));
+        assert!(negative.reached(&Counter::Small(0)));
+        assert!(negative.exceeded_by(0));
+        assert!(positive.reached(&Counter::Large(positive.value.magnitude().clone())));
+    }
 }
