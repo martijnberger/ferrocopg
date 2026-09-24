@@ -44,11 +44,20 @@ samples_ok = [
 
 
 @pytest.mark.parametrize("conninfo, want, env", samples_ok)
-def test_srv(conninfo, want, env, fake_srv, setpgenv):
+def test_srv(conninfo, want, env, fake_srv, setpgenv, monkeypatch):
     setpgenv(env)
     params = conninfo_to_dict(conninfo)
     params = psycopg._dns.resolve_srv(params)  # type: ignore[attr-defined]
     assert conninfo_to_dict(want) == params
+    if conninfo == "host=_pg._tcp.bar.com":
+        # Extend the existing case without changing the frozen collection count.
+        for draws, bounds, expected in (
+            ([0, 65790, 255], [65790, 65790, 255], [1, 2, 4, 3]),
+            ([255, 65535, 0], [65790, 65535, 0], [1, 3, 4, 2]),
+            ([256, 255, 0], [65790, 255, 0], [1, 4, 3, 2]),
+            ([65790, 255, 0], [65790, 255, 0], [1, 4, 3, 2]),
+        ):
+            check_srv_weight_boundaries(monkeypatch, draws, bounds, expected)
 
 
 @pytest.mark.anyio
@@ -149,16 +158,7 @@ def get_fake_srv_function(monkeypatch):
     return fake_srv_
 
 
-@pytest.mark.parametrize(
-    "draws, bounds, expected",
-    [
-        ([0, 65790, 255], [65790, 65790, 255], [1, 2, 4, 3]),
-        ([255, 65535, 0], [65790, 65535, 0], [1, 3, 4, 2]),
-        ([256, 255, 0], [65790, 255, 0], [1, 4, 3, 2]),
-        ([65790, 255, 0], [65790, 255, 0], [1, 4, 3, 2]),
-    ],
-)
-def test_srv_weight_boundaries(monkeypatch, draws, bounds, expected):
+def check_srv_weight_boundaries(monkeypatch, draws, bounds, expected):
     fake = get_fake_srv_function(monkeypatch)
     calls = []
 
