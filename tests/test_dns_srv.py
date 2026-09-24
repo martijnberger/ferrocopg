@@ -160,7 +160,7 @@ def get_fake_srv_function(monkeypatch):
 
 def check_srv_weight_boundaries(monkeypatch, draws, bounds, expected):
     fake = get_fake_srv_function(monkeypatch)
-    calls = []
+    calls: list[tuple[int, int]] = []
 
     def draw(low, high):
         value = draws[len(calls)]
@@ -169,7 +169,7 @@ def check_srv_weight_boundaries(monkeypatch, draws, bounds, expected):
         return value
 
     monkeypatch.setattr(psycopg._dns, "randint", draw)
-    entries = psycopg._dns.Rfc2782Resolver().sort_rfc2782(
+    entries = psycopg._dns.Rfc2782Resolver().sort_rfc2782(  # type: ignore[attr-defined]
         fake("_pg._tcp.bar.com", "SRV")
     )
     assert [str(entry.target) for entry in entries] == [

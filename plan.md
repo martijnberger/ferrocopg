@@ -274,6 +274,10 @@ search for tiny transport optimizations.
    assertions inside the existing SRV case; no assertion, baseline, floor,
    manifest, or regression budget is weakened. Local DNS checks pass 21 cases
    including the original failing seed. Successor CI must verify the correction.
+   Lint `35921487869` also failed on two new DNS test typing errors. The follow-up
+   annotates the recorded draw pairs and uses the existing optional-DNS-module
+   attribute suppression. All 239 mypy sources and 21 seeded DNS tests now pass
+   locally; Ruff check/format pass. This is not a successor CI verdict.
    Native preparation integer follow-up `08238dcc` preserves arbitrary-size
    settings and counter growth; four Rust tests and all 131 Phase 5 checks pass
    on its release wheel. Public execution routing is not switched yet. Continue
