@@ -1,4 +1,4 @@
-//! Preparation transitions for the execution-boundary prototype.
+//! Native preparation and execution ownership for the boundary prototype.
 //! Not routed into public queries until the complete native operation is ready.
 
 use num_bigint::{BigInt, BigUint, Sign};
@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::fmt;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 const NO: u8 = 1;
 const YES: u8 = 2;
@@ -55,6 +55,7 @@ impl fmt::Display for Counter {
     }
 }
 
+#[derive(Clone)]
 struct IntegerSetting {
     value: BigInt,
     small: Option<u64>,
@@ -90,7 +91,7 @@ struct Key {
     types: Vec<u32>,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct Ordered<T> {
     values: HashMap<Arc<Key>, (T, u128)>,
     order: BTreeMap<u128, Arc<Key>>,
@@ -148,6 +149,7 @@ impl<T> Ordered<T> {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct PreparationState {
     prepare_threshold: Option<IntegerSetting>,
     prepared_max: IntegerSetting,
@@ -155,6 +157,177 @@ pub(crate) struct PreparationState {
     names: Ordered<Vec<u8>>,
     next_name: Counter,
     to_flush: VecDeque<Option<Vec<u8>>>,
+}
+
+pub(crate) enum ExecutionError {
+    Backend(ferrocopg_postgres::ProbeError),
+    EmptyCache,
+}
+
+impl From<ferrocopg_postgres::ProbeError> for ExecutionError {
+    fn from(error: ferrocopg_postgres::ProbeError) -> Self {
+        Self::Backend(error)
+    }
+}
+
+pub(crate) struct ExecutionState {
+    preparation: PreparationState,
+    statements: HashMap<Vec<u8>, u64>,
+    configuration: Option<Arc<ExecutionConfiguration>>,
+}
+
+pub(crate) struct ExecutionConfiguration {
+    threshold: Option<BigInt>,
+    maximum: BigInt,
+}
+
+pub(crate) type SharedExecutionConfiguration = Mutex<Arc<ExecutionConfiguration>>;
+
+impl ExecutionConfiguration {
+    pub(crate) fn new(threshold: Option<BigInt>, maximum: BigInt) -> Self {
+        Self { threshold, maximum }
+    }
+}
+
+impl ExecutionState {
+    pub(crate) fn new() -> Self {
+        Self {
+            preparation: PreparationState::new(),
+            statements: HashMap::new(),
+            configuration: None,
+        }
+    }
+
+    pub(crate) fn sync_configuration(
+        &mut self,
+        source: &SharedExecutionConfiguration,
+    ) -> Result<(), ferrocopg_postgres::ProbeError> {
+        let configuration = Arc::clone(&*source.lock().map_err(|_| {
+            ferrocopg_postgres::ProbeError::BadParam(
+                "execution configuration mutex is poisoned".to_owned(),
+            )
+        })?);
+        if self
+            .configuration
+            .as_ref()
+            .is_some_and(|current| Arc::ptr_eq(current, &configuration))
+        {
+            return Ok(());
+        }
+        self.preparation.prepare_threshold =
+            configuration.threshold.clone().map(IntegerSetting::new);
+        self.preparation.prepared_max = IntegerSetting::new(configuration.maximum.clone());
+        self.configuration = Some(configuration);
+        Ok(())
+    }
+
+    pub(crate) fn snapshot(&self) -> NativePreparationState {
+        NativePreparationState {
+            state: self.preparation.clone(),
+        }
+    }
+
+    pub(crate) fn forget(&mut self) {
+        self.preparation.clear();
+        self.preparation.to_flush.clear();
+        self.statements.clear();
+    }
+
+    pub(crate) fn clear(&mut self, session: &mut ferrocopg_postgres::SyncNoTlsSession) {
+        self.preparation.clear();
+        self.maintain(session);
+    }
+
+    fn maintain(&mut self, session: &mut ferrocopg_postgres::SyncNoTlsSession) {
+        while let Some(name) = self.preparation.to_flush.pop_front() {
+            if let Some(name) = name {
+                if let Some(id) = self.statements.remove(&name) {
+                    let _ = session.close_prepared(id);
+                }
+            } else {
+                for (_, id) in self.statements.drain() {
+                    let _ = session.close_prepared(id);
+                }
+            }
+        }
+    }
+
+    pub(crate) fn execute(
+        &mut self,
+        session: &mut ferrocopg_postgres::SyncNoTlsSession,
+        configuration: &SharedExecutionConfiguration,
+        query: &str,
+        params: &[ferrocopg_postgres::BoundParam],
+        prepare: Option<bool>,
+        format: ferrocopg_postgres::WireFormat,
+    ) -> Result<ferrocopg_postgres::ResultSet, ExecutionError> {
+        self.sync_configuration(configuration)?;
+        let key = Key {
+            query: query.as_bytes().to_vec(),
+            types: params.iter().map(|param| param.oid).collect(),
+        };
+        let (decision, name) = self.preparation.get(&key, prepare);
+        let id = match decision {
+            SHOULD => {
+                let statement = session.prepare_params(query, &key.types)?;
+                self.statements.insert(name.clone(), statement.statement_id);
+                Some(statement.statement_id)
+            }
+            YES => Some(*self.statements.get(&name).ok_or_else(|| {
+                ferrocopg_postgres::ProbeError::BadParam(
+                    "native prepared statement has no execution owner".to_owned(),
+                )
+            })?),
+            _ => None,
+        };
+        let result = match id {
+            Some(id) => session.run_prepared_params_format(id, params, format),
+            None => session.run_params_format(query, params, format),
+        };
+        // A signal handler may have changed policy during I/O, before caching.
+        self.sync_configuration(configuration)?;
+        let result = match result {
+            Ok(result) => result,
+            Err(error) => {
+                if decision == SHOULD {
+                    if let Some(id) = self.statements.remove(&name) {
+                        let _ = session.close_prepared(id);
+                    }
+                }
+                return Err(error.into());
+            }
+        };
+        if self.preparation.add(key.clone(), decision, name.clone()) {
+            let status = if result.command_tag.as_deref() == Some("") {
+                0
+            } else if result.is_tuples {
+                2
+            } else {
+                1
+            };
+            self.preparation
+                .validate(
+                    &key,
+                    decision,
+                    &[(
+                        status,
+                        result
+                            .command_tag
+                            .as_ref()
+                            .map(|tag| tag.as_bytes().to_vec()),
+                    )],
+                )
+                .ok_or(ExecutionError::EmptyCache)?;
+        }
+        // Invalid/empty results must not leave an untracked server statement.
+        if decision == SHOULD && self.preparation.names.get(&key).is_none() {
+            if let Some(id) = self.statements.remove(&name) {
+                let _ = session.close_prepared(id);
+            }
+        }
+        self.maintain(session);
+        Ok(result)
+    }
 }
 
 fn check_preparation(prep: u8) -> PyResult<()> {
@@ -276,7 +449,7 @@ impl PreparationState {
 // Only this adapter allocates Python inspection values. The executor will use
 // PreparationState directly, without another Python cache or callback owner.
 #[pyclass(module = "ferrocopg_rust._ferrocopg")]
-struct NativePreparationState {
+pub(crate) struct NativePreparationState {
     state: PreparationState,
 }
 

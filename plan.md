@@ -106,9 +106,10 @@ control, not permission to remove Python-facing behavior from the product.
 The [bottleneck report](docs/ferrocopg-bottlenecks.md) now separates the measured
 gap, the savings required for near parity, and the still-unproven recoverable
 fraction for each ownership layer. Its remaining plan-reuse dispositions and
-next experiments supersede historical prototype instructions below. The user
-decision on continuing a bounded integration prototype versus explicitly
-deferring a larger redesign is pending; neither option waives remaining evidence.
+next experiments supersede historical prototype instructions below. Continue the
+bounded native execution prototype. A larger-redesign or deferral decision
+remains explicit if that prototype is flat or mixed; neither option waives
+remaining evidence.
 
 Initial matched diagnostics now point above the native client: vendored Rust
 `postgres` takes 18.8-18.9 us, native libpq 19.6 us, the Rust session 19.4-19.5 us,
@@ -291,6 +292,16 @@ search for tiny transport optimizations.
    ownership. All 132 installed Phase 5 checks and 32 Rust unit tests pass.
    See `2026-09-24-native-outcome-checks.md`. This is an execution-boundary
    prerequisite, not a completed native executor or performance acceptance.
+   The subsequent local native `execute_query` now combines buffer ownership,
+   the preparation core and statement IDs, execution/maintenance, owned results,
+   errors, notices, and opt-in notification capture. Transaction preflight runs
+   after snapshots and outside the session guard. Cold policy updates use a
+   separate short-lived lock so signal handlers can change settings during I/O.
+   All 142 installed checks and 32 Rust tests pass; preserve
+   `2026-09-24-native-execution-checks.md`. Public routing, shared compatibility
+   preparation views, result projection, and exact-candidate performance gates
+   remain unfinished. Continue that integration; do not time the private entry
+   as if the Python-facing operation were complete.
    Scheduled workflow `35581426803` now proves scheduled soak execution on older
    main `7c1a644a`: all three backends exceed 1,800 seconds, all eight scenarios
    run, and independently recomputed resources/cleanup pass. Its benchmark job

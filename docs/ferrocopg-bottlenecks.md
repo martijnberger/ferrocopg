@@ -134,7 +134,9 @@ impossibility or silently accepting a rejected prototype:
 
 The [native execution boundary design](ferrocopg-execution-boundary.md) specifies
 one coarse operation, its ownership/invalidation rules, retained callbacks, and
-an exact list of removed dispatch/setup work. It is not implemented or accepted.
+an exact list of dispatch/setup work to remove. The private native operation is
+now implemented and locally tested; public routing/result publication and
+performance acceptance remain unfinished.
 Two new installed controls preserve dynamic prepared parameter types/result
 formats and outer-result ownership across reentrant loader queries on Rust/C.
 Built-in fast paths must still respect registered adapter overrides, cursor
@@ -145,8 +147,8 @@ Stop flat/mixed performance-only changes instead of expanding the prototype
 indefinitely. A larger native integration remains an experiment, not a promised
 20-22% speedup.
 
-The user decision between continuing that bounded prototype and deferring a
-larger redesign is pending. Neither option waives remaining Phase 5 evidence:
+Continue the bounded prototype. A larger redesign or deferral requires an
+explicit decision if its results are flat or mixed. Neither option waives remaining Phase 5 evidence:
 the instrumentation/measurement-quality assessment, scheduled reliability proof,
 complete publication of artifacts, and final requirement-by-requirement audit
 remain open. Keep the approved beta policy and supported Python interface

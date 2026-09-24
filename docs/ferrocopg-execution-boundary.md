@@ -1,8 +1,7 @@
 # Native execution boundary
 
-Status: preparation-state core and extended-query outcome metadata implemented;
-complete query boundary not yet
-implemented or performance-accepted.
+Status: native ordinary-query operation implemented and locally tested;
+public cursor routing/result publication not yet integrated or performance-accepted.
 The retained runtime remains `7bbc14eb` / `8eddc2ec`. This document does not
 supersede the compatibility contract, beta limits, or the Phase 5 completion audit.
 
@@ -29,7 +28,7 @@ justified lifecycle design can preserve their observable behavior.
 
 ## Entry point and stages
 
-The proposed internal entry point is `native_session.execute_query(...)`, called
+The prototype internal entry point is `native_session.execute_query(...)`, called
 once with the converted query's existing byte buffer, parameter values/types/
 formats, execution encoding, result format, and preparation policy. It is not a
 public Psycopg API. There is no separately constructed native packet on the hot
@@ -159,15 +158,45 @@ actual `CommandComplete` tag (including the empty-query response) and
 one runtime entry; command tags transfer without an extra string copy. This
 supplies server evidence for preparation invalidation and result publication,
 including `WITH ... INSERT` and `COMMIT` returning `ROLLBACK` after an error.
-Simple-query fallback metadata remains explicitly absent, not guessed. Error
-outcomes and notice ownership still need the complete execution boundary.
+Simple-query fallback metadata remains explicitly absent, not guessed. At that
+checkpoint, error outcomes and notice ownership were still missing.
 See the [local checks](performance/2026-09-24-native-outcome-checks.md).
 The public Python status projection and query routing have not switched yet.
 
-Next integrate this same owner, native statement IDs, buffer snapshots, events,
-and result publication into `execute_query`. Public query routing is still
-unchanged. Do not ship an unused second cache or benchmark this primitive as a
-completed execution path; no performance gain has yet been demonstrated.
+The subsequent native operation now calls the same preparation core directly,
+owns logical-name/statement-ID mappings, performs prepare/execute/maintenance,
+and returns owned result/error/notice data after releasing the session guard.
+Notification capture is explicit so a caller without notification handlers does
+not consume the connection's pending notifications. Error references participate
+in Python GC. Query bytes and separate adapted values/types/formats enter the
+operation without a Python triple-list or separate native packet.
+
+An optional Python preflight runs after buffer snapshots but before any session
+guard; this preserves the existing transaction-setup hook ordering. Cold
+preparation policy uses a separate short-lived lock and immutable configuration
+identity, with refresh before selection and after I/O. A signal handler can
+change policy without waiting on its own query's session lock. The operation
+continues to use the established signal/cancellation mechanism.
+
+All 142 installed Phase 5 checks and 32 Rust unit tests pass locally. The ten new
+live controls include reference preparation transitions and server statement
+counts, dynamic settings/types/formats, failed prepare/execute cleanup,
+invalidation, mutable-buffer snapshots, preflight re-entry/failure, error cycles,
+retained results/notices, opt-in notifications, cancellation, and signal/error
+ownership with a queued query. See the
+[native operation checks](performance/2026-09-24-native-execution-checks.md).
+
+Next wire the public ordinary-query path to this operation, with one native
+preparation owner shared by the compatibility views and explicit fallback paths.
+Public preparation setters/getters must not introduce an I/O-lock dependency.
+Move public result projection onto the owned outcome, preserve error-normalizing
+and notice/notification callback order, and remove the superseded Python request
+and preparation scaffolding rather than retaining both paths on the hot path.
+Public routing is still unchanged; unusual encodings, pipeline, COPY, and
+client/server cursors retain their existing implementation. The prototype does
+not yet capture a failed operation's ReadyForQuery state in an owned result.
+Do not ship an unused second cache or benchmark this private entry as a completed
+Python-facing execution path. No performance gain has yet been demonstrated.
 
 Compare an exact installed baseline and prototype with both backend orders and
 fresh/reused constant/parameterized controls. Capture ordinary CPU/wall samples

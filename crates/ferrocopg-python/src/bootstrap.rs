@@ -1,5 +1,7 @@
-use pyo3::exceptions::{PyIndexError, PyValueError};
+use num_bigint::BigInt;
+use pyo3::exceptions::{PyBaseException, PyIndexError, PyKeyError, PyValueError};
 use pyo3::prelude::*;
+use pyo3::pyclass::{PyTraverseError, PyVisit};
 use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 use pyo3::wrap_pyfunction;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -8,6 +10,10 @@ use std::sync::{Arc, Mutex, TryLockError};
 use std::thread;
 use std::time::Duration;
 
+use crate::preparing::{
+    ExecutionConfiguration, ExecutionError, ExecutionState, NativePreparationState,
+    SharedExecutionConfiguration,
+};
 use crate::python_helpers::psycopg_import;
 
 #[derive(Clone)]
@@ -502,12 +508,54 @@ struct BackendSyncNoTlsCancelHandle {
 
 #[pyclass(module = "ferrocopg_rust._ferrocopg")]
 struct BackendSyncNoTlsSession {
-    inner: Arc<Mutex<ferrocopg_postgres::SyncNoTlsSession>>,
+    inner: Arc<Mutex<OwnedSession>>,
+    configuration: SharedExecutionConfiguration,
     signal_error: Arc<Mutex<Option<PyErr>>>,
     wait_callback: Arc<dyn Fn() + Sync + Send>,
     used_password: bool,
     backend_pid: Option<i32>,
     client_encoding: Option<String>,
+}
+
+struct OwnedSession {
+    session: ferrocopg_postgres::SyncNoTlsSession,
+    execution: ExecutionState,
+}
+
+#[pyclass(module = "ferrocopg_rust._ferrocopg")]
+struct BackendExecutionOutcome {
+    #[pyo3(get)]
+    result: Option<Py<BackendResultSet>>,
+    #[pyo3(get)]
+    error: Option<Py<PyBaseException>>,
+    #[pyo3(get)]
+    encoding: String,
+    notices: Vec<ferrocopg_postgres::PostgresDiagnostic>,
+    #[pyo3(get)]
+    notifications: Vec<BackendNotification>,
+}
+
+#[pymethods]
+impl BackendExecutionOutcome {
+    #[getter]
+    fn notices(&self, py: Python<'_>) -> PyResult<Vec<Py<PyDict>>> {
+        self.notices
+            .iter()
+            .map(|notice| backend_diagnostic_info(py, notice).map(Bound::unbind))
+            .collect()
+    }
+
+    fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
+        visit.call(&self.result)?;
+        visit.call(&self.error)
+    }
+
+    fn __clear__(&mut self) {
+        self.result = None;
+        self.error = None;
+        self.notices.clear();
+        self.notifications.clear();
+    }
 }
 
 impl BackendSyncNoTlsSession {
@@ -533,7 +581,14 @@ impl BackendSyncNoTlsSession {
             }
         });
         Self {
-            inner: Arc::new(Mutex::new(session)),
+            inner: Arc::new(Mutex::new(OwnedSession {
+                session,
+                execution: ExecutionState::new(),
+            })),
+            configuration: Mutex::new(Arc::new(ExecutionConfiguration::new(
+                Some(BigInt::from(5)),
+                BigInt::from(100),
+            ))),
             signal_error,
             wait_callback,
             used_password,
@@ -824,7 +879,36 @@ where
         + Send
         + 'static,
 {
-    let (result, signal_error) = py.detach(|| {
+    let (result, signal_error) =
+        with_owned_session(py, session, move |inner| f(&mut inner.session));
+    finish_owned_session(py, result, signal_error)
+}
+
+fn finish_owned_session<T>(
+    py: Python<'_>,
+    result: Result<T, BackendThreadError>,
+    signal_error: Option<PyErr>,
+) -> PyResult<T> {
+    if let Some(err) = signal_error {
+        return Err(err);
+    }
+    match result {
+        Ok(value) => Ok(value),
+        Err(BackendThreadError::Runtime(message)) => Err(backend_runtime_error(message)),
+        Err(BackendThreadError::Backend(err)) => Err(backend_py_error(py, err)),
+    }
+}
+
+fn with_owned_session<T, F>(
+    py: Python<'_>,
+    session: &BackendSyncNoTlsSession,
+    f: F,
+) -> (Result<T, BackendThreadError>, Option<PyErr>)
+where
+    T: Send,
+    F: FnOnce(&mut OwnedSession) -> Result<T, ferrocopg_postgres::ProbeError> + Send,
+{
+    py.detach(|| {
         let mut inner = match session.inner.lock() {
             Ok(inner) => inner,
             Err(_) => {
@@ -836,24 +920,16 @@ where
                 );
             }
         };
-        inner.set_wait_callback(Some(Arc::clone(&session.wait_callback)));
+        inner
+            .session
+            .set_wait_callback(Some(Arc::clone(&session.wait_callback)));
         let result = f(&mut inner).map_err(BackendThreadError::Backend);
-        inner.set_wait_callback(None);
+        inner.session.set_wait_callback(None);
         // Transfer the error before unlocking: another operation must never
         // consume or overwrite the exception from this operation.
         let signal_error = session.signal_error.lock().unwrap().take();
         (result, signal_error)
-    });
-
-    if let Some(err) = signal_error {
-        return Err(err);
-    }
-
-    match result {
-        Ok(value) => Ok(value),
-        Err(BackendThreadError::Runtime(message)) => Err(backend_runtime_error(message)),
-        Err(BackendThreadError::Backend(err)) => Err(backend_py_error(py, err)),
-    }
+    })
 }
 
 fn with_cancel_handle<T, F>(
@@ -1339,6 +1415,160 @@ impl BackendSyncNoTlsCancelHandle {
 
 #[pymethods]
 impl BackendSyncNoTlsSession {
+    #[pyo3(signature = (prepare_threshold, prepared_max))]
+    fn configure_execution(
+        &self,
+        prepare_threshold: Option<BigInt>,
+        prepared_max: BigInt,
+    ) -> PyResult<()> {
+        let configuration = Arc::new(ExecutionConfiguration::new(prepare_threshold, prepared_max));
+        *self
+            .configuration
+            .lock()
+            .map_err(|_| backend_runtime_error("execution configuration mutex is poisoned"))? =
+            configuration;
+        Ok(())
+    }
+
+    fn execution_preparation_snapshot(&self, py: Python<'_>) -> PyResult<NativePreparationState> {
+        let (result, signal) = with_owned_session(py, self, |inner| {
+            inner.execution.sync_configuration(&self.configuration)?;
+            Ok(inner.execution.snapshot())
+        });
+        finish_owned_session(py, result, signal)
+    }
+
+    fn clear_execution_prepared(&self, py: Python<'_>) -> PyResult<()> {
+        let (result, signal) = with_owned_session(py, self, |inner| {
+            inner.execution.clear(&mut inner.session);
+            Ok(())
+        });
+        finish_owned_session(py, result, signal)
+    }
+
+    #[pyo3(signature = (query, values, types, formats, *, binary=false, prepare=None, encoding="utf-8", capture_notifications=false, preflight=None))]
+    fn execute_query(
+        &self,
+        py: Python<'_>,
+        query: Vec<u8>,
+        values: Vec<Option<Vec<u8>>>,
+        types: Vec<u32>,
+        formats: Vec<u8>,
+        binary: bool,
+        prepare: Option<bool>,
+        encoding: &str,
+        capture_notifications: bool,
+        preflight: Option<Py<PyAny>>,
+    ) -> PyResult<BackendExecutionOutcome> {
+        if values.len() != types.len() || values.len() != formats.len() {
+            return Err(PyValueError::new_err(
+                "parameter values, types, and formats differ in length",
+            ));
+        }
+        if formats.iter().any(|format| *format > 1) {
+            return Err(PyValueError::new_err(
+                "parameter format must be text (0) or binary (1)",
+            ));
+        }
+        if !matches!(encoding, "utf-8" | "ascii") || (encoding == "ascii" && !query.is_ascii()) {
+            return Err(PyValueError::new_err(
+                "native execution requires UTF8 or ASCII query encoding",
+            ));
+        }
+        let query = String::from_utf8(query)
+            .map_err(|_| PyValueError::new_err("query is not valid UTF8"))?;
+        let params: Vec<_> = values
+            .into_iter()
+            .zip(types)
+            .zip(formats)
+            .map(|((value, oid), format)| ferrocopg_postgres::BoundParam {
+                oid,
+                value,
+                format: if format == 1 {
+                    ferrocopg_postgres::ParamFormat::Binary
+                } else {
+                    ferrocopg_postgres::ParamFormat::Text
+                },
+            })
+            .collect();
+        // Preserve snapshot-before-BEGIN ordering without retaining a packet or
+        // holding native state across Python transaction hooks.
+        if let Some(preflight) = preflight {
+            preflight.call0(py)?;
+        }
+        // All Python-owned buffers have been copied before releasing the GIL.
+        let (outcome, signal) = with_owned_session(py, self, move |inner| {
+            let result = inner.execution.execute(
+                &mut inner.session,
+                &self.configuration,
+                &query,
+                &params,
+                prepare,
+                wire_format(binary),
+            );
+            let notices = inner.session.drain_notices();
+            let notifications = if capture_notifications {
+                inner.session.drain_notifications()
+            } else {
+                Ok(Vec::new())
+            };
+            Ok((result, notices, notifications))
+        });
+        let (result, notices, notifications) = match outcome {
+            Ok(outcome) => outcome,
+            Err(BackendThreadError::Runtime(message)) => {
+                return Err(backend_runtime_error(message));
+            }
+            Err(BackendThreadError::Backend(error)) => return Err(backend_py_error(py, error)),
+        };
+        // Construct Python errors/diagnostics only after releasing native guards.
+        let (result, mut error) = match result {
+            Ok(result) => (Some(result), None),
+            Err(ExecutionError::Backend(error)) => (None, Some(backend_py_error(py, error))),
+            Err(ExecutionError::EmptyCache) => {
+                (None, Some(PyKeyError::new_err("dictionary is empty")))
+            }
+        };
+        let notices = match notices {
+            Ok(notices) => notices,
+            Err(notice_error) => {
+                if error.is_none() {
+                    error = Some(backend_py_error(py, notice_error));
+                }
+                Vec::new()
+            }
+        };
+        let notifications = match notifications {
+            Ok(notifications) => notifications
+                .into_iter()
+                .map(BackendNotification::from)
+                .collect(),
+            Err(notification_error) => {
+                if error.is_none() {
+                    error = Some(backend_py_error(py, notification_error));
+                }
+                Vec::new()
+            }
+        };
+        if signal.is_some() {
+            error = signal;
+        }
+        let result = if error.is_none() {
+            result
+                .map(|result| Py::new(py, BackendResultSet::from(result)))
+                .transpose()?
+        } else {
+            None
+        };
+        Ok(BackendExecutionOutcome {
+            result,
+            error: error.map(|error| error.into_value(py)),
+            encoding: encoding.to_owned(),
+            notices,
+            notifications,
+        })
+    }
+
     fn used_password(&self) -> PyResult<bool> {
         Ok(self.used_password)
     }
@@ -1356,6 +1586,7 @@ impl BackendSyncNoTlsSession {
                         "backend session mutex is poisoned",
                     )
                 })?
+                .session
                 .parameter(name))
         })
     }
@@ -1368,7 +1599,7 @@ impl BackendSyncNoTlsSession {
     #[getter]
     fn closed(&self) -> PyResult<bool> {
         match self.inner.try_lock() {
-            Ok(inner) => Ok(inner.closed()),
+            Ok(inner) => Ok(inner.session.closed()),
             Err(TryLockError::WouldBlock) => Ok(false),
             Err(TryLockError::Poisoned(_)) => {
                 Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
@@ -1380,14 +1611,13 @@ impl BackendSyncNoTlsSession {
 
     fn close(&self, py: Python<'_>) -> PyResult<()> {
         py.detach(|| {
-            self.inner
-                .lock()
-                .map_err(|_| {
-                    PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                        "backend session mutex is poisoned",
-                    )
-                })?
-                .close();
+            let mut inner = self.inner.lock().map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    "backend session mutex is poisoned",
+                )
+            })?;
+            inner.session.close();
+            inner.execution.forget();
             Ok(())
         })
     }
@@ -1607,11 +1837,11 @@ impl BackendSyncNoTlsSession {
         // Draining buffered notices does no I/O. Only release the GIL when
         // waiting for a query which may need it to check signals and finish.
         let notices = match self.inner.try_lock() {
-            Ok(session) => session.drain_notices(),
+            Ok(inner) => inner.session.drain_notices(),
             Err(TryLockError::WouldBlock) => py.detach(|| {
                 self.inner
                     .lock()
-                    .map(|session| session.drain_notices())
+                    .map(|inner| inner.session.drain_notices())
                     .map_err(|_| backend_runtime_error("backend session mutex is poisoned"))
             })?,
             Err(TryLockError::Poisoned(_)) => {
@@ -1753,6 +1983,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<BackendNotification>()?;
     m.add_class::<BackendTextQueryResult>()?;
     m.add_class::<BackendResultSet>()?;
+    m.add_class::<BackendExecutionOutcome>()?;
     m.add_class::<BackendPgResult>()?;
     m.add_class::<BackendSimpleQueryMessage>()?;
     m.add_class::<BackendSimpleQueryResult>()?;
