@@ -361,8 +361,19 @@ search for tiny transport optimizations.
    No timing has been collected for this runtime; earlier passing numerical
    benchmark reports do not transfer to it. The user requested publishing this
    revisable checkpoint to main, without declaring Phase 5 complete or releasing
-   to PyPI. Next audit the dedicated comparison, assess remaining fallback and
-   signal-state ownership, and satisfy the unchanged exact-candidate final gates.
+   to PyPI. The subsequent signal-state follow-up fixes public INTRANS state
+   after a custom signal exception replaces a cancelled operation reporting
+   INERROR. Exception identity and notice ordering remain intact; cancellation
+   policy is unchanged. All 163 installed checks, 448 focused source checks
+   (30 skipped), and 239-source mypy checks pass. See
+   `2026-09-26-signal-state-local.md`, including the explicit C/Python control
+   difference for arbitrary signal exceptions and the original failed control.
+   Main `1bab4336` lint passes; Tests `36232554216` and Phase 5 `36232554264`
+   remain pending/live. Predecessor Tests `36230544349` is terminal cancelled,
+   not a full pass. Its soak and dedicated comparison `36231026807` remain live.
+   Hold follow-up publication while both existing bookmark Tests runs are live.
+   Next audit the dedicated comparison, assess remaining fallback ownership,
+   and satisfy the unchanged exact-candidate final gates.
    Tests `36227989975` on published `d957b508` is now complete: all 57 jobs pass;
    Lint `36227989984` passes. These parent runs do not validate the latest slice.
    The user explicitly approved publishing the current unfinished integration to

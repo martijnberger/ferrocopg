@@ -1722,6 +1722,7 @@ class NoTlsSessionAdapter:
         self._session = session
         self.encoding = "utf-8"
         self.error_handler: Callable[[BaseException], None] | None = None
+        self.transaction_status_handler: Callable[[int], None] | None = None
         self.notice_handler: (
             Callable[[Sequence[dict[int, bytes | None]]], None] | None
         ) = None
@@ -1865,6 +1866,14 @@ class NoTlsSessionAdapter:
                     self.error_handler(ex)
             elif isinstance(ex, KeyboardInterrupt) and self.error_handler is not None:
                 self.error_handler(ex)
+            if (
+                outcome is not None
+                and outcome.transaction_status is not None
+                and self.transaction_status_handler is not None
+            ):
+                # The completed native operation owns this state even when a
+                # signal exception replaces its database error or result.
+                self.transaction_status_handler(outcome.transaction_status)
             try:
                 if outcome is not None:
                     self._publish_owned_events(outcome)
@@ -3727,6 +3736,7 @@ class NoTlsConnectionAdapter:
         self._idle_transaction_timeout_active = False
         self._session.notice_handler = self._dispatch_notices
         self._session.error_handler = self._on_backend_error
+        self._session.transaction_status_handler = self._set_transaction_status
         self._cancel_handle: _CancelHandleLike | None = None
         self._ensure_cancel_handle()
         try:
@@ -4843,6 +4853,11 @@ class NoTlsConnectionAdapter:
         elif not failed and normalized.startswith(("begin", "start transaction")):
             self._in_transaction = True
             self._transaction_failed = False
+
+    def _set_transaction_status(self, status: int) -> None:
+        if status in (73, 84, 69):
+            self._in_transaction = status != 73
+            self._transaction_failed = status == 69
 
     def _check_closed(self) -> None:
         if self.closed:

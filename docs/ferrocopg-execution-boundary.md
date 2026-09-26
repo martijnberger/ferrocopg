@@ -7,6 +7,9 @@ The latest follow-up retains operation-owned transaction status on recoverable
 extended-query errors and serializes pipeline reservations with queue publication.
 See the [correctness checkpoint](performance/2026-09-26-error-outcome-local.md);
 it has not inherited performance acceptance from the preceding runtime.
+The [signal-state follow-up](performance/2026-09-26-signal-state-local.md)
+also publishes that status when a custom signal exception replaces a native
+outcome, before publishing its notices. Cancellation policy remains unchanged.
 The retained runtime remains `7bbc14eb` / `8eddc2ec`. This document does not
 supersede the compatibility contract, beta limits, or the Phase 5 completion audit.
 

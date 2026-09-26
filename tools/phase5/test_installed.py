@@ -324,6 +324,91 @@ class InstalledPoolTests(unittest.TestCase):
                         conn.info.transaction_status, driver.pq.TransactionStatus.IDLE
                     )
 
+    @unittest.skipIf(os.name == "nt", "requires POSIX signal delivery")
+    def test_signal_exception_publishes_server_transaction_status(self):
+        code = """
+import os
+import signal
+import threading
+import time
+import psycopg
+import ferrocopg
+
+class Interrupted(RuntimeError):
+    pass
+
+failures = []
+previous = signal.getsignal(signal.SIGINT)
+try:
+    with psycopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as observer:
+        for driver in (psycopg, ferrocopg):
+            for autocommit in (True, False):
+                for exception in (KeyboardInterrupt, Interrupted):
+                    with driver.connect(
+                        os.environ["PHASE5_DSN"], autocommit=autocommit
+                    ) as conn:
+                        expected = exception("owned interruption")
+                        notice_states = []
+                        conn.add_notice_handler(
+                            lambda notice: notice_states.append(conn.info.transaction_status)
+                        )
+                        def interrupt(signum, frame):
+                            raise expected
+                        signal.signal(signal.SIGINT, interrupt)
+                        worker_errors = []
+                        def send_signal():
+                            try:
+                                deadline = time.monotonic() + 5
+                                while not observer.execute(
+                                    "select state = 'active' and wait_event = 'PgSleep' "
+                                    "from pg_stat_activity where pid = %s",
+                                    (conn.info.backend_pid,),
+                                ).fetchone()[0]:
+                                    assert time.monotonic() < deadline, "query did not sleep"
+                                    time.sleep(0.005)
+                                os.kill(os.getpid(), signal.SIGINT)
+                            except BaseException as error:
+                                worker_errors.append(error)
+                        worker = threading.Thread(target=send_signal, daemon=True)
+                        worker.start()
+                        try:
+                            conn.execute(
+                                "do $$ begin raise notice 'signal state'; "
+                                "perform pg_sleep(10); end $$", prepare=True
+                            )
+                        except BaseException as error:
+                            assert error is expected, (type(error), error)
+                        else:
+                            raise AssertionError("signal exception was not raised")
+                        worker.join(5)
+                        assert not worker.is_alive(), "signal worker did not finish"
+                        assert not worker_errors, worker_errors
+                        wanted = (driver.pq.TransactionStatus.IDLE if autocommit
+                                  else driver.pq.TransactionStatus.INERROR)
+                        actual = conn.info.transaction_status
+                        if driver is ferrocopg:
+                            assert notice_states == [actual], notice_states
+                        # Official Psycopg only cancels KeyboardInterrupt here.
+                        # The Rust boundary drains cancellation for any raised
+                        # signal exception; assert its actual completed state.
+                        if driver is psycopg and exception is Interrupted:
+                            assert actual == driver.pq.TransactionStatus.ACTIVE
+                            conn.close()
+                            continue
+                        if actual != wanted:
+                            failures.append((driver.__name__, autocommit,
+                                             exception.__name__, actual.name, wanted.name))
+                        conn.rollback()
+                        assert conn.execute("select 42").fetchone() == (42,)
+finally:
+    signal.signal(signal.SIGINT, previous)
+assert not failures, failures
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True, timeout=60
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_pipeline_reservation_and_enqueue_share_connection_lock(self):
         from concurrent.futures import ThreadPoolExecutor
 
