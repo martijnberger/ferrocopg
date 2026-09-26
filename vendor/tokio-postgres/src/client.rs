@@ -41,6 +41,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 pub struct Responses {
     receiver: mpsc::Receiver<BackendMessages>,
     cur: BackendMessages,
+    pending_error: Option<Error>,
 }
 
 impl Responses {
@@ -61,6 +62,133 @@ impl Responses {
 
     pub async fn next(&mut self) -> Result<Message, Error> {
         future::poll_fn(|cx| self.poll_next(cx)).await
+    }
+
+    // Only use for requests which already include Sync. COPY negotiation must
+    // still be able to return before the frontend sends its completion message.
+    pub(crate) fn poll_next_complete(
+        &mut self,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<Message, Error>> {
+        loop {
+            match ready!(self.poll_next(cx)) {
+                Err(error)
+                    if error.as_db_error().is_some_and(|error| {
+                        error.parsed_severity() == Some(crate::error::Severity::Error)
+                    }) =>
+                {
+                    self.pending_error.get_or_insert(error);
+                }
+                Err(error) => return Poll::Ready(Err(self.pending_error.take().unwrap_or(error))),
+                Ok(Message::ReadyForQuery(body)) if self.pending_error.is_some() => {
+                    let mut error = self.pending_error.take().unwrap();
+                    error.set_transaction_status(body.status());
+                    return Poll::Ready(Err(error));
+                }
+                Ok(_) if self.pending_error.is_some() => {}
+                message => return Poll::Ready(message),
+            }
+        }
+    }
+
+    pub(crate) async fn next_complete(&mut self) -> Result<Message, Error> {
+        future::poll_fn(|cx| self.poll_next_complete(cx)).await
+    }
+}
+
+#[cfg(test)]
+mod response_completion_tests {
+    use super::*;
+    use crate::codec::{BackendMessage, PostgresCodec};
+    use futures_util::task::noop_waker;
+    use tokio_util::codec::Decoder;
+
+    fn message(tag: u8, body: &[u8]) -> BackendMessages {
+        let mut bytes = BytesMut::new();
+        bytes.extend_from_slice(&[tag]);
+        bytes.extend_from_slice(&((body.len() + 4) as u32).to_be_bytes());
+        bytes.extend_from_slice(body);
+        match PostgresCodec.decode(&mut bytes).unwrap().unwrap() {
+            BackendMessage::Normal { messages, .. } => messages,
+            _ => panic!("expected an operation response"),
+        }
+    }
+
+    fn response() -> (mpsc::Sender<BackendMessages>, Responses) {
+        let (sender, receiver) = mpsc::channel(1);
+        (
+            sender,
+            Responses {
+                receiver,
+                cur: BackendMessages::empty(),
+                pending_error: None,
+            },
+        )
+    }
+
+    fn database_error() -> BackendMessages {
+        message(b'E', b"SERROR\0VERROR\0C22012\0Mdivision by zero\0\0")
+    }
+
+    #[test]
+    fn error_waits_for_its_fragmented_ready_message() {
+        for status in [b'I', b'T', b'E'] {
+            let (mut sender, mut responses) = response();
+            let waker = noop_waker();
+            let mut cx = Context::from_waker(&waker);
+            sender.try_send(database_error()).unwrap();
+            assert!(responses.poll_next_complete(&mut cx).is_pending());
+            sender.try_send(message(b'Z', &[status])).unwrap();
+            let Poll::Ready(Err(error)) = responses.poll_next_complete(&mut cx) else {
+                panic!("expected the original completed error");
+            };
+            assert_eq!(error.code().unwrap().code(), "22012");
+            assert_eq!(error.as_db_error().unwrap().message(), "division by zero");
+            assert_eq!(error.transaction_status(), Some(status));
+            assert!(responses.pending_error.is_none());
+        }
+    }
+
+    #[test]
+    fn missing_completion_preserves_error_without_guessing_status() {
+        let (mut sender, mut responses) = response();
+        sender.try_send(database_error()).unwrap();
+        drop(sender);
+        let waker = noop_waker();
+        let mut cx = Context::from_waker(&waker);
+        let Poll::Ready(Err(error)) = responses.poll_next_complete(&mut cx) else {
+            panic!("expected original error on disconnect");
+        };
+        assert_eq!(error.code().unwrap().code(), "22012");
+        assert_eq!(error.transaction_status(), None);
+    }
+
+    #[test]
+    fn ordinary_response_path_does_not_wait_for_sync() {
+        let (mut sender, mut responses) = response();
+        sender.try_send(database_error()).unwrap();
+        let waker = noop_waker();
+        let mut cx = Context::from_waker(&waker);
+        let Poll::Ready(Err(error)) = responses.poll_next(&mut cx) else {
+            panic!("expected immediate error without completion opt-in");
+        };
+        assert_eq!(error.transaction_status(), None);
+    }
+
+    #[test]
+    fn fatal_response_does_not_wait_for_completion_or_channel_close() {
+        for severity in ["FATAL", "PANIC"] {
+            let (mut sender, mut responses) = response();
+            let body = format!("S{severity}\0V{severity}\0C57P01\0Mshutdown\0\0");
+            sender.try_send(message(b'E', body.as_bytes())).unwrap();
+            let waker = noop_waker();
+            let mut cx = Context::from_waker(&waker);
+            let Poll::Ready(Err(error)) = responses.poll_next_complete(&mut cx) else {
+                panic!("fatal errors must not wait for ReadyForQuery");
+            };
+            assert_eq!(error.code().unwrap().code(), "57P01");
+            assert_eq!(error.transaction_status(), None);
+        }
     }
 }
 
@@ -103,6 +231,7 @@ impl InnerClient {
         Ok(Responses {
             receiver,
             cur: BackendMessages::empty(),
+            pending_error: None,
         })
     }
 

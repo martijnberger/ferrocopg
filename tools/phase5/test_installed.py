@@ -259,6 +259,111 @@ class InstalledPoolTests(unittest.TestCase):
             self.assertEqual(conn._prepared._names, {})
             self.assertEqual(conn.execute("select 42").fetchone(), (42,))
 
+    def test_server_transaction_status_after_failed_commit(self):
+        import ferrocopg
+
+        import psycopg
+
+        for driver in (psycopg, ferrocopg):
+            for prepare in (False, True):
+                with self.subTest(driver=driver.__name__, prepare=prepare):
+                    with driver.connect(
+                        os.environ["PHASE5_DSN"], autocommit=True
+                    ) as conn:
+                        conn.execute(
+                            "create temporary table deferred_outcome "
+                            "(i int unique deferrable initially deferred)"
+                        )
+                        conn.execute("begin", prepare=prepare)
+                        conn.execute("insert into deferred_outcome values (1), (1)")
+                        self.assertEqual(
+                            conn.info.transaction_status,
+                            driver.pq.TransactionStatus.INTRANS,
+                        )
+                        with self.assertRaises(driver.errors.UniqueViolation):
+                            conn.execute("commit", prepare=prepare)
+                        self.assertEqual(
+                            conn.info.transaction_status,
+                            driver.pq.TransactionStatus.IDLE,
+                        )
+                        self.assertEqual(
+                            conn.execute(
+                                "select count(*) from deferred_outcome"
+                            ).fetchone(),
+                            (0,),
+                        )
+
+    def test_server_transaction_status_handles_commented_boundaries(self):
+        import ferrocopg
+
+        import psycopg
+
+        for driver in (psycopg, ferrocopg):
+            with self.subTest(driver=driver.__name__):
+                with driver.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+                    conn.execute("/* transaction */ begin")
+                    self.assertEqual(
+                        conn.info.transaction_status,
+                        driver.pq.TransactionStatus.INTRANS,
+                    )
+                    conn.execute("savepoint recover_here")
+                    with self.assertRaises(driver.errors.DivisionByZero):
+                        conn.execute("select 1 / 0")
+                    self.assertEqual(
+                        conn.info.transaction_status,
+                        driver.pq.TransactionStatus.INERROR,
+                    )
+                    conn.execute("/* recover */ rollback to savepoint recover_here")
+                    self.assertEqual(
+                        conn.info.transaction_status,
+                        driver.pq.TransactionStatus.INTRANS,
+                    )
+                    self.assertEqual(conn.execute("select 42").fetchone(), (42,))
+                    conn.execute("/* finish */ commit")
+                    self.assertEqual(
+                        conn.info.transaction_status, driver.pq.TransactionStatus.IDLE
+                    )
+
+    def test_pipeline_reservation_and_enqueue_share_connection_lock(self):
+        from concurrent.futures import ThreadPoolExecutor
+
+        import ferrocopg
+
+        with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+            conn.prepare_threshold = 0
+            make_plan = conn._make_pipeline_prepare_plan
+            execute = conn._execute
+            reservations = []
+
+            def reserve(*args):
+                self.assertTrue(conn.lock._lock._is_owned())
+                result = make_plan(*args)
+                reservations.append(result)
+                return result
+
+            def execute_locked(*args, **kwargs):
+                self.assertTrue(conn.lock._lock._is_owned())
+                return execute(*args, **kwargs)
+
+            with (
+                patch.object(conn, "_make_pipeline_prepare_plan", reserve),
+                patch.object(conn, "_execute", execute_locked),
+            ):
+                with conn.pipeline() as pipeline:
+                    with ThreadPoolExecutor(max_workers=4) as workers:
+                        cursors = list(
+                            workers.map(
+                                lambda i: conn.execute("select %s::int4", (i,)),
+                                range(16),
+                            )
+                        )
+                    self.assertEqual(
+                        [item[4] for item in pipeline.result_queue], reservations
+                    )
+                    with ThreadPoolExecutor(max_workers=4) as workers:
+                        rows = list(workers.map(lambda cur: cur.fetchone(), cursors))
+                    self.assertEqual(rows, [(i,) for i in range(16)])
+
     def test_public_queries_use_one_native_preparation_owner(self):
         import ferrocopg
 

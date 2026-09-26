@@ -132,6 +132,7 @@ class ExecutionBoundaryTests(unittest.TestCase):
         self.assertIs(outcome.set_result(-1), outcome)
         self.assertEqual(outcome._pos, 0)
         self.assertEqual(list(outcome.results()), [outcome])
+        self.assertEqual(outcome.transaction_status, ord("I"))
         with self.assertRaises(IndexError):
             outcome.set_result(1)
         pgresults = outcome.pgresults("utf-8", 0)
@@ -153,6 +154,76 @@ class ExecutionBoundaryTests(unittest.TestCase):
         del owner, outcome
         gc.collect()
         self.assertIsNone(reference())
+
+    def test_failed_operations_own_ready_for_query_status(self):
+        import ferrocopg as psycopg
+
+        retained = []
+        for prepare in (False, True):
+            for query in (
+                b"select from",
+                b"select 10 / i from generate_series(1, 0, -1) i",
+            ):
+                with self.subTest(prepare=prepare, query=query):
+                    self.query(b"rollback", prepare=False)
+                    idle = self.execute(query, prepare=prepare)
+                    self.assertIsInstance(idle.error, psycopg.Error)
+                    self.assertEqual(idle.transaction_status, ord("I"))
+                    self.assertEqual(idle.error._ferrocopg_transaction_status, ord("I"))
+                    self.query(b"begin", prepare=False)
+                    failed = self.execute(query, prepare=prepare)
+                    self.assertIsInstance(failed.error, psycopg.Error)
+                    self.assertEqual(failed.transaction_status, ord("E"))
+                    self.assertEqual(
+                        failed.error._ferrocopg_transaction_status, ord("E")
+                    )
+                    self.assertIsNone(failed.result)
+                    retained.append((idle, failed))
+                    self.query(b"rollback", prepare=False)
+                    self.assertEqual(self.query(b"select 42").get_value(0, 0), b"42")
+        self.session.close()
+        for idle, failed in retained:
+            self.assertEqual(idle.transaction_status, ord("I"))
+            self.assertEqual(failed.transaction_status, ord("E"))
+
+    def test_bind_errors_own_completion_status(self):
+        from ferrocopg import errors
+
+        for prepare in (False, True):
+            with self.subTest(prepare=prepare):
+                query = b"select $1::int4"
+                self.query(query, [b"42"], [23], [0], prepare=prepare)
+                idle = self.execute(query, [b"invalid"], [23], [0], prepare=prepare)
+                self.assertIsInstance(idle.error, errors.InvalidTextRepresentation)
+                self.assertEqual(idle.transaction_status, ord("I"))
+                self.query(b"begin", prepare=False)
+                failed = self.execute(query, [b"invalid"], [23], [0], prepare=prepare)
+                self.assertIsInstance(failed.error, errors.InvalidTextRepresentation)
+                self.assertEqual(failed.transaction_status, ord("E"))
+                self.query(b"rollback", prepare=False)
+                self.assertEqual(idle.transaction_status, ord("I"))
+                self.assertEqual(failed.transaction_status, ord("E"))
+
+    def test_preflight_failure_has_no_execution_status(self):
+        def failed():
+            raise ValueError("preflight")
+
+        result = self.execute(b"select 42", preflight=failed, own_preflight_errors=True)
+        self.assertTrue(result.preflight_failed)
+        self.assertIsNone(result.transaction_status)
+
+    def test_fatal_shutdown_preserves_error_without_transaction_status(self):
+        from ferrocopg import errors
+
+        outcome = self.execute(
+            b"select pg_terminate_backend($1)",
+            [str(self.session.backend_pid()).encode()],
+            [23],
+            [0],
+        )
+        self.assertIsInstance(outcome.error, errors.AdminShutdown)
+        self.assertIsNone(outcome.result)
+        self.assertIsNone(outcome.transaction_status)
 
     def test_reserved_and_immediate_queries_share_reference_preparation_state(self):
         from ferrocopg._preparing import PrepareManager
@@ -593,6 +664,7 @@ class ExecutionBoundaryTests(unittest.TestCase):
         self.assertEqual(failures, [])
         self.assertIsInstance(outcome.error, errors.QueryCanceled)
         self.assertIsNone(outcome.result)
+        self.assertEqual(outcome.transaction_status, ord("I"))
         self.assertEqual(
             [n[pq.DiagnosticField.MESSAGE_PRIMARY] for n in outcome.notices],
             [b"cancelling"],
@@ -655,10 +727,12 @@ try:
             assert not failures, failures
             assert outcome.error is expected, "exception changed operation or identity"
             assert outcome.result is None
+            assert outcome.transaction_status == ord("I")
             primary = pq.DiagnosticField.MESSAGE_PRIMARY
             assert [n[primary] for n in outcome.notices] == [b"interrupted"]
             assert len(queued) == 1
             assert queued[0].error is None
+            assert queued[0].transaction_status == ord("I")
             assert queued[0].notices == []
             assert queued[0].result.get_value(0, 0) == b"42"
             assert session.execution_preparation_snapshot().snapshot()["names"] == []

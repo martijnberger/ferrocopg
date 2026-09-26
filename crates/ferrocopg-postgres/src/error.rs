@@ -63,6 +63,13 @@ impl fmt::Display for ProbeError {
 }
 
 impl ProbeError {
+    pub fn transaction_status(&self) -> Option<u8> {
+        match self {
+            Self::Query(err) => err.transaction_status(),
+            _ => None,
+        }
+    }
+
     pub fn diagnostic(&self) -> Option<PostgresDiagnostic> {
         match self {
             Self::Parse(err) => err.as_db_error().map(postgres_diagnostic),

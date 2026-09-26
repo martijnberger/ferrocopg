@@ -84,6 +84,11 @@ class IntegrationProfileTests(unittest.TestCase):
             with bookkeeping_control(conn, "omit-helper-bodies"):
                 for name in BOOKKEEPING_HELPERS:
                     self.assertIsNone(getattr(conn, name)("select 42::int4"))
+                self.assertIsNone(
+                    conn._update_transaction_state(
+                        "select 42::int4", transaction_status=ord("I")
+                    )
+                )
                 raise RuntimeError("execution failed")
         for name in BOOKKEEPING_HELPERS:
             self.assertNotIn(name, vars(conn))

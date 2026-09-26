@@ -350,8 +350,19 @@ search for tiny transport optimizations.
    Dedicated comparison `36231026807` is dispatched at `bcd8ded9`, against
    `d957b508`; the candidate runtime remains identical to `12f139ce`. It is queued
    at the latest check. Follow that handle rather than dispatching a duplicate.
-   Next audit the dedicated comparison, complete remaining outcome/error-state
-   ownership, and satisfy the unchanged final gates.
+   The subsequent correctness checkpoint retains operation-owned ReadyForQuery
+   status on recoverable extended-query errors and publishes server transaction
+   state on success/failure. Fatal errors do not wait for completion. Pipeline
+   reservation and queue publication now share the connection lock, preventing
+   consumers from overtaking their preparation owner during a GIL release.
+   See `2026-09-26-error-outcome-local.md` and its preserved failed/passing logs.
+   The corrected wheel passes 162 installed checks, 32 workspace Rust tests,
+   9 vendored unit tests, and 1,315 focused source checks (53 skipped).
+   No timing has been collected for this runtime; earlier passing numerical
+   benchmark reports do not transfer to it. The user requested publishing this
+   revisable checkpoint to main, without declaring Phase 5 complete or releasing
+   to PyPI. Next audit the dedicated comparison, assess remaining fallback and
+   signal-state ownership, and satisfy the unchanged exact-candidate final gates.
    Tests `36227989975` on published `d957b508` is now complete: all 57 jobs pass;
    Lint `36227989984` passes. These parent runs do not validate the latest slice.
    The user explicitly approved publishing the current unfinished integration to

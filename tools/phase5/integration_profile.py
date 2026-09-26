@@ -44,7 +44,7 @@ def bookkeeping_control(conn, mode):
         if not callable(getattr(conn, name)):
             raise ValueError(f"missing bookkeeping helper: {name}")
 
-    def omitted(query):
+    def omitted(query, **kwargs):
         pass
 
     try:

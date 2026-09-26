@@ -67,17 +67,17 @@ pub async fn prepare(
     let buf = encode(client, &name, query, types)?;
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
-    match responses.next().await? {
+    match responses.next_complete().await? {
         Message::ParseComplete => {}
         _ => return Err(Error::unexpected_message()),
     }
 
-    let parameter_description = match responses.next().await? {
+    let parameter_description = match responses.next_complete().await? {
         Message::ParameterDescription(body) => body,
         _ => return Err(Error::unexpected_message()),
     };
 
-    let row_description = match responses.next().await? {
+    let row_description = match responses.next_complete().await? {
         Message::RowDescription(body) => Some(body),
         Message::NoData => None,
         _ => return Err(Error::unexpected_message()),

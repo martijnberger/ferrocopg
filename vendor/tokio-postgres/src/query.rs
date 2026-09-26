@@ -115,7 +115,7 @@ where
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
     loop {
-        match responses.next().await? {
+        match responses.next_complete().await? {
             Message::ParseComplete | Message::BindComplete | Message::ParameterDescription(_) => {}
             Message::NoData => {
                 return Ok(RowStream {
@@ -281,7 +281,7 @@ where
 async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
-    match responses.next().await? {
+    match responses.next_complete().await? {
         Message::BindComplete => {}
         _ => return Err(Error::unexpected_message()),
     }
@@ -415,8 +415,18 @@ impl Stream for RowStream {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
+        if this.transaction_status.is_some() {
+            return Poll::Ready(None);
+        }
         loop {
-            match ready!(this.responses.poll_next(cx)?) {
+            let message = match ready!(this.responses.poll_next_complete(cx)) {
+                Ok(message) => message,
+                Err(error) => {
+                    *this.transaction_status = error.transaction_status();
+                    return Poll::Ready(Some(Err(error)));
+                }
+            };
+            match message {
                 Message::DataRow(body) => {
                     return Poll::Ready(Some(Ok(Row::new(this.statement.clone(), body)?)));
                 }

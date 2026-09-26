@@ -1575,6 +1575,8 @@ def backend_session(conninfo: str) -> _NoTlsSessionLike | None:
 class BackendResultCursor:
     """Small cursor-like wrapper over ferrocopg backend result sets."""
 
+    transaction_status: int | None = None
+
     def __init__(
         self,
         results: Sequence[_ResultSetLike],
@@ -2586,13 +2588,10 @@ class NoTlsCursorAdapter:
         if self._pipeline_error is not None:
             raise self._pipeline_error
         pipeline = self._conn._pipeline
-        if (
-            self._result is None
-            and self._pipeline_autosync
-            and pipeline is not None
-            and pipeline.is_queued(self)
-        ):
-            pipeline.sync()
+        if self._result is None and self._pipeline_autosync and pipeline is not None:
+            with self._conn.lock:
+                if self._result is None and pipeline.is_queued(self):
+                    pipeline.sync()
         if self._pipeline_error is not None:
             raise self._pipeline_error
         if self._result is None:
@@ -3507,21 +3506,30 @@ class NoTlsPipelineAdapter:
         *,
         autosync: bool = True,
     ) -> None:
-        self._check_open()
-        if params is None and isinstance(query, (str, bytes)):
-            text = query.decode(cursor._encoding) if isinstance(query, bytes) else query
-            if len(_split_extended_statements(text)) != 1:
-                raise e.SyntaxError(
-                    "cannot insert multiple commands into a prepared statement"
+        # Reserving native state can release the GIL. Keep reservation order and
+        # queue order identical so consumers cannot overtake their preparation.
+        with self._conn.lock:
+            self._check_open()
+            if params is None and isinstance(query, (str, bytes)):
+                text = (
+                    query.decode(cursor._encoding)
+                    if isinstance(query, bytes)
+                    else query
                 )
-        cursor._pipeline_error = None
-        cursor._pipeline_autosync = autosync
-        if self._aborted:
-            cursor._pipeline_error = e.PipelineAborted("pipeline aborted")
-            return
-        self._conn._ensure_transaction()
-        plan = self._conn._make_pipeline_prepare_plan(query, params, prepare, cursor)
-        self.result_queue.append((query, cursor, params, prepare, plan))
+                if len(_split_extended_statements(text)) != 1:
+                    raise e.SyntaxError(
+                        "cannot insert multiple commands into a prepared statement"
+                    )
+            cursor._pipeline_error = None
+            cursor._pipeline_autosync = autosync
+            if self._aborted:
+                cursor._pipeline_error = e.PipelineAborted("pipeline aborted")
+                return
+            self._conn._ensure_transaction()
+            plan = self._conn._make_pipeline_prepare_plan(
+                query, params, prepare, cursor
+            )
+            self.result_queue.append((query, cursor, params, prepare, plan))
 
     def is_queued(self, cursor: NoTlsCursorAdapter) -> bool:
         return any(
@@ -3549,6 +3557,10 @@ class NoTlsPipelineAdapter:
         return cur
 
     def sync(self) -> None:
+        with self._conn.lock:
+            self._sync()
+
+    def _sync(self) -> None:
         self._check_open()
         self._conn._pipeline_sync_count += 1
         if not self.result_queue:
@@ -4324,7 +4336,9 @@ class NoTlsConnectionAdapter:
         diag = getattr(ex, "diag", None)
         severity = getattr(diag, "severity", None)
         self._last_error_message = f"{severity}: {ex}" if severity else str(ex)
-        if self._in_transaction:
+        if (status := getattr(ex, "_ferrocopg_transaction_status", None)) is not None:
+            self._update_transaction_state("", transaction_status=status)
+        elif self._in_transaction:
             self._transaction_failed = True
 
     def _dispatch_notices(self, notices: Sequence[dict[int, bytes | None]]) -> None:
@@ -4408,7 +4422,9 @@ class NoTlsConnectionAdapter:
             )
             self._refresh_client_encoding(query)
             self._refresh_session_timeout(query)
-            self._update_transaction_state(query)
+            self._update_transaction_state(
+                query, transaction_status=result.transaction_status
+            )
             return result
         params = converted
         self._ensure_transaction()
@@ -4499,7 +4515,9 @@ class NoTlsConnectionAdapter:
 
         self._refresh_client_encoding(query)
         self._refresh_session_timeout(query)
-        self._update_transaction_state(query)
+        self._update_transaction_state(
+            query, transaction_status=result.transaction_status
+        )
         return result
 
     def _set_client_encoding(self, encoding: str) -> None:
@@ -4805,7 +4823,17 @@ class NoTlsConnectionAdapter:
         if not self._autocommit and not self._in_transaction:
             self.begin()
 
-    def _update_transaction_state(self, query: str, *, failed: bool = False) -> None:
+    def _update_transaction_state(
+        self,
+        query: str,
+        *,
+        failed: bool = False,
+        transaction_status: int | None = None,
+    ) -> None:
+        if transaction_status in (73, 84, 69):  # ReadyForQuery: I, T, E.
+            self._in_transaction = transaction_status != 73
+            self._transaction_failed = transaction_status == 69
+            return
         normalized = query.lstrip().lower()
         if normalized.startswith(("commit", "rollback")) and not normalized.startswith(
             "rollback to"

@@ -378,6 +378,7 @@ enum Kind {
 struct ErrorInner {
     kind: Kind,
     cause: Option<Box<dyn error::Error + Sync + Send>>,
+    transaction_status: Option<u8>,
 }
 
 /// An error communicating with the Postgres server.
@@ -427,6 +428,16 @@ impl error::Error for Error {
 }
 
 impl Error {
+    /// The operation's ReadyForQuery status, if its error response was drained.
+    /// Missing completion, transport, and local errors do not infer a status.
+    pub fn transaction_status(&self) -> Option<u8> {
+        self.0.transaction_status
+    }
+
+    pub(crate) fn set_transaction_status(&mut self, status: u8) {
+        self.0.transaction_status = Some(status);
+    }
+
     /// Consumes the error, returning its cause.
     pub fn into_source(self) -> Option<Box<dyn error::Error + Sync + Send>> {
         self.0.cause
@@ -461,7 +472,11 @@ impl Error {
     }
 
     fn new(kind: Kind, cause: Option<Box<dyn error::Error + Sync + Send>>) -> Error {
-        Error(Box::new(ErrorInner { kind, cause }))
+        Error(Box::new(ErrorInner {
+            kind,
+            cause,
+            transaction_status: None,
+        }))
     }
 
     pub(crate) fn closed() -> Error {

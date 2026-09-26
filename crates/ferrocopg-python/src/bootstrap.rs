@@ -543,6 +543,8 @@ struct BackendExecutionOutcome {
     #[pyo3(get)]
     preflight_failed: bool,
     #[pyo3(get)]
+    transaction_status: Option<u8>,
+    #[pyo3(get)]
     encoding: Option<String>,
     #[pyo3(get)]
     statusmessage: Option<Py<PyString>>,
@@ -977,19 +979,24 @@ fn backend_py_error(py: Python<'_>, err: ferrocopg_postgres::ProbeError) -> PyEr
         return backend_runtime_error(message);
     };
 
-    if let Some(sqlstate) = backend_error_sqlstate(&err) {
-        if let Ok(exc_type) = errors
-            .getattr("lookup")
-            .and_then(|lookup| lookup.call1((sqlstate,)))
-        {
-            return psycopg_error_from_type(py, &exc_type, &message, info.as_ref());
-        }
+    let exc_type = backend_error_sqlstate(&err)
+        .and_then(|sqlstate| {
+            errors
+                .getattr("lookup")
+                .and_then(|lookup| lookup.call1((sqlstate,)))
+                .ok()
+        })
+        .or_else(|| errors.getattr(backend_fallback_error_name(&err)).ok());
+    let error = match exc_type {
+        Some(exc_type) => psycopg_error_from_type(py, &exc_type, &message, info.as_ref()),
+        None => backend_runtime_error(message),
+    };
+    if let Some(status) = err.transaction_status() {
+        let _ = error
+            .value(py)
+            .setattr("_ferrocopg_transaction_status", status);
     }
-
-    match errors.getattr(backend_fallback_error_name(&err)) {
-        Ok(exc_type) => psycopg_error_from_type(py, &exc_type, &message, info.as_ref()),
-        Err(_) => backend_runtime_error(message),
-    }
+    error
 }
 
 fn map_backend_result<T>(
@@ -1722,6 +1729,7 @@ impl BackendSyncNoTlsSession {
                     result: None,
                     error: Some(error.into_value(py)),
                     preflight_failed: true,
+                    transaction_status: None,
                     encoding: Some(encoding.to_owned()),
                     statusmessage: None,
                     position: 0,
@@ -1758,6 +1766,11 @@ impl BackendSyncNoTlsSession {
             Err(BackendThreadError::Backend(error)) => return Err(backend_py_error(py, error)),
         };
         // Construct Python errors/diagnostics only after releasing native guards.
+        let transaction_status = match &result {
+            Ok(result) => result.transaction_status,
+            Err(ExecutionError::Backend(error)) => error.transaction_status(),
+            _ => None,
+        };
         let (result, mut error) = match result {
             Ok(result) => (Some(result), None),
             Err(ExecutionError::Backend(error)) => (None, Some(backend_py_error(py, error))),
@@ -1811,6 +1824,7 @@ impl BackendSyncNoTlsSession {
             result,
             error: error.map(|error| error.into_value(py)),
             preflight_failed: false,
+            transaction_status,
             encoding: Some(encoding.to_owned()),
             statusmessage,
             position: 0,
