@@ -57,6 +57,11 @@ Concurrent filling remains a Rust-side failure in this pair. Do not replace the
 failed complete run with the targeted passes, loosen tolerances, add exclusions,
 or fork the pool implementation to hide these observations.
 
+The subsequent [driver-free timer controls](2026-09-26-host-timer-diagnostic.md)
+reproduce comparable lateness in two CPython builds and native C/pthreads.
+They establish host-level delay without a database driver, not a passing
+compatibility gate or complete attribution of every pool failure.
+
 ## Reproduction and evidence
 
 The full command uses the owned local test server (trust authentication; literal

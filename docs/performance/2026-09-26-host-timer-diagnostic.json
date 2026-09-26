@@ -1,0 +1,1491 @@
+{
+  "acceptance_evidence": false,
+  "reports": {
+    "default": {
+      "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]",
+      "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+      "groups": [
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "sleep",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.020999999999999,
+          "max_overshoot_ms": 5.035958999999999,
+          "over_5ms": 5,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "sleep",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 7.222707999999995,
+          "max_overshoot_ms": 10.049749999999996,
+          "over_5ms": 4,
+          "over_10ms": 2
+        },
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "event",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.029791,
+          "max_overshoot_ms": 5.069249999999999,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "event",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 6.395417,
+          "max_overshoot_ms": 9.747624999999996,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "lock",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 1.8208749999999996,
+          "max_overshoot_ms": 5.053459,
+          "over_5ms": 2,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "lock",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 10.051874999999988,
+          "max_overshoot_ms": 10.090874999999999,
+          "over_5ms": 4,
+          "over_10ms": 3
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "lock",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 3.8382499999999995,
+          "max_overshoot_ms": 5.063458,
+          "over_5ms": 1,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "lock",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 9.19308299999999,
+          "max_overshoot_ms": 10.068874999999991,
+          "over_5ms": 4,
+          "over_10ms": 2
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "event",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.053999999999999,
+          "max_overshoot_ms": 5.12225,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "event",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 9.090374999999998,
+          "max_overshoot_ms": 10.082207999999996,
+          "over_5ms": 4,
+          "over_10ms": 1
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "sleep",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 3.565083,
+          "max_overshoot_ms": 5.028791999999999,
+          "over_5ms": 1,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "sleep",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 9.053708999999992,
+          "max_overshoot_ms": 10.048874999999999,
+          "over_5ms": 5,
+          "over_10ms": 2
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "sleep",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 4.112583,
+          "max_overshoot_ms": 5.036249999999999,
+          "over_5ms": 2,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "sleep",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 3.5801249999999896,
+          "max_overshoot_ms": 9.059874999999995,
+          "over_5ms": 1,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "event",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.042332999999999,
+          "max_overshoot_ms": 5.062875,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "event",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 10.090833999999994,
+          "max_overshoot_ms": 10.103749999999994,
+          "over_5ms": 5,
+          "over_10ms": 3
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "lock",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.056125,
+          "max_overshoot_ms": 5.067917,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "lock",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 7.193832999999997,
+          "max_overshoot_ms": 10.060666999999995,
+          "over_5ms": 4,
+          "over_10ms": 2
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "lock",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 4.612292,
+          "max_overshoot_ms": 5.043541,
+          "over_5ms": 2,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "lock",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 5.906291999999993,
+          "max_overshoot_ms": 10.05516699999999,
+          "over_5ms": 5,
+          "over_10ms": 2
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "event",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.0498330000000005,
+          "max_overshoot_ms": 5.088582999999999,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "event",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 6.682874999999991,
+          "max_overshoot_ms": 10.089166999999996,
+          "over_5ms": 3,
+          "over_10ms": 1
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "sleep",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.033708,
+          "max_overshoot_ms": 5.044083999999999,
+          "over_5ms": 4,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "sleep",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 7.495499999999988,
+          "max_overshoot_ms": 10.04820899999999,
+          "over_5ms": 4,
+          "over_10ms": 2
+        }
+      ],
+      "samples": 120
+    },
+    "homebrew314": {
+      "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+      "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+      "groups": [
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "sleep",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.009333999999999,
+          "max_overshoot_ms": 5.0165,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "sleep",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 10.05049999999999,
+          "max_overshoot_ms": 10.057125,
+          "over_5ms": 5,
+          "over_10ms": 4
+        },
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "event",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.056458,
+          "max_overshoot_ms": 5.0802499999999995,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "event",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 10.066040999999998,
+          "max_overshoot_ms": 10.094207999999993,
+          "over_5ms": 5,
+          "over_10ms": 3
+        },
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "lock",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.038417,
+          "max_overshoot_ms": 5.0729169999999995,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "lock",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 8.70370799999999,
+          "max_overshoot_ms": 10.086040999999991,
+          "over_5ms": 5,
+          "over_10ms": 2
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "lock",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.041499999999999,
+          "max_overshoot_ms": 5.061916999999999,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "lock",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 6.907916,
+          "max_overshoot_ms": 10.047207999999989,
+          "over_5ms": 4,
+          "over_10ms": 2
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "event",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 3.650832999999999,
+          "max_overshoot_ms": 5.056500000000001,
+          "over_5ms": 2,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "event",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 10.066458,
+          "max_overshoot_ms": 10.091083000000001,
+          "over_5ms": 5,
+          "over_10ms": 5
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "sleep",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.019958999999999,
+          "max_overshoot_ms": 5.077165999999999,
+          "over_5ms": 4,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "sleep",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 8.254207999999998,
+          "max_overshoot_ms": 10.047583,
+          "over_5ms": 3,
+          "over_10ms": 1
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "sleep",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.022374999999999,
+          "max_overshoot_ms": 5.031707999999999,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "sleep",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 5.069166,
+          "max_overshoot_ms": 10.050291999999988,
+          "over_5ms": 3,
+          "over_10ms": 1
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "event",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 3.3650420000000003,
+          "max_overshoot_ms": 5.054042,
+          "over_5ms": 1,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "event",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 7.925249999999995,
+          "max_overshoot_ms": 10.097207999999997,
+          "over_5ms": 3,
+          "over_10ms": 1
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "lock",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.0443750000000005,
+          "max_overshoot_ms": 5.056125,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "lock",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 8.50920799999999,
+          "max_overshoot_ms": 10.050416999999992,
+          "over_5ms": 4,
+          "over_10ms": 1
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "lock",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 1.952166,
+          "max_overshoot_ms": 5.133417,
+          "over_5ms": 1,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "lock",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 5.597167,
+          "max_overshoot_ms": 7.495332999999993,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "event",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.048583000000001,
+          "max_overshoot_ms": 5.0971660000000005,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "event",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 6.257374999999995,
+          "max_overshoot_ms": 10.10499999999999,
+          "over_5ms": 4,
+          "over_10ms": 2
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "sleep",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 2.043125,
+          "max_overshoot_ms": 4.481667,
+          "over_5ms": 0,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "sleep",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 10.039416999999995,
+          "max_overshoot_ms": 10.04374999999999,
+          "over_5ms": 4,
+          "over_10ms": 3
+        }
+      ],
+      "samples": 120
+    },
+    "latency0": {
+      "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]",
+      "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+      "groups": [
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "sleep",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.016583,
+          "max_overshoot_ms": 5.025375,
+          "over_5ms": 4,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "sleep",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 10.02716699999999,
+          "max_overshoot_ms": 10.060832999999992,
+          "over_5ms": 4,
+          "over_10ms": 3
+        },
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "event",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.074749999999999,
+          "max_overshoot_ms": 5.123124999999999,
+          "over_5ms": 4,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "event",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 7.339040999999991,
+          "max_overshoot_ms": 10.06708399999999,
+          "over_5ms": 3,
+          "over_10ms": 2
+        },
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "lock",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.024875,
+          "max_overshoot_ms": 5.060292,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "lock",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 7.363749999999988,
+          "max_overshoot_ms": 10.062999999999988,
+          "over_5ms": 4,
+          "over_10ms": 2
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "lock",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 3.5509170000000005,
+          "max_overshoot_ms": 5.045667,
+          "over_5ms": 1,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "lock",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 7.6574160000000004,
+          "max_overshoot_ms": 10.06291699999999,
+          "over_5ms": 4,
+          "over_10ms": 1
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "event",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 4.318667,
+          "max_overshoot_ms": 5.048834,
+          "over_5ms": 2,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "event",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 3.9101669999999924,
+          "max_overshoot_ms": 10.084916,
+          "over_5ms": 1,
+          "over_10ms": 1
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "sleep",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.028332999999999,
+          "max_overshoot_ms": 5.053291,
+          "over_5ms": 4,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "sleep",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 8.552749999999998,
+          "max_overshoot_ms": 10.061832999999993,
+          "over_5ms": 3,
+          "over_10ms": 2
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "sleep",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.038582999999999,
+          "max_overshoot_ms": 5.048584,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "sleep",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 6.918124999999997,
+          "max_overshoot_ms": 9.92133299999999,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "event",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.04575,
+          "max_overshoot_ms": 5.0875,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "event",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 7.401374999999987,
+          "max_overshoot_ms": 10.069707999999997,
+          "over_5ms": 5,
+          "over_10ms": 1
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "lock",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.049625000000001,
+          "max_overshoot_ms": 5.056458,
+          "over_5ms": 4,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "lock",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 6.092666999999996,
+          "max_overshoot_ms": 10.085957999999993,
+          "over_5ms": 3,
+          "over_10ms": 2
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "lock",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 4.802582999999999,
+          "max_overshoot_ms": 5.071124999999999,
+          "over_5ms": 2,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "lock",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 5.28245899999999,
+          "max_overshoot_ms": 10.064541999999996,
+          "over_5ms": 4,
+          "over_10ms": 1
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "event",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 3.4579999999999993,
+          "max_overshoot_ms": 5.121707999999999,
+          "over_5ms": 1,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "event",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 7.619207999999988,
+          "max_overshoot_ms": 10.11404199999999,
+          "over_5ms": 5,
+          "over_10ms": 1
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "sleep",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.028167,
+          "max_overshoot_ms": 5.052957999999999,
+          "over_5ms": 4,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "sleep",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 9.910124999999992,
+          "max_overshoot_ms": 10.06837499999999,
+          "over_5ms": 4,
+          "over_10ms": 2
+        }
+      ],
+      "samples": 120
+    },
+    "latency1": {
+      "python": "3.14.6 (main, Aug  4 2026, 19:23:56) [Clang 22.1.3 ]",
+      "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+      "groups": [
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "sleep",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.020459,
+          "max_overshoot_ms": 5.0245,
+          "over_5ms": 5,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "sleep",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 9.987082999999993,
+          "max_overshoot_ms": 10.053207999999994,
+          "over_5ms": 4,
+          "over_10ms": 2
+        },
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "event",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.0335,
+          "max_overshoot_ms": 5.1892499999999995,
+          "over_5ms": 5,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "event",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 10.067291999999991,
+          "max_overshoot_ms": 10.134833999999996,
+          "over_5ms": 4,
+          "over_10ms": 3
+        },
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "lock",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.056,
+          "max_overshoot_ms": 5.061707999999999,
+          "over_5ms": 4,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "forward",
+          "wait": "lock",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 7.683416999999998,
+          "max_overshoot_ms": 10.061249999999994,
+          "over_5ms": 4,
+          "over_10ms": 2
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "lock",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.079833000000001,
+          "max_overshoot_ms": 5.653166,
+          "over_5ms": 5,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "lock",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 5.7351659999999995,
+          "max_overshoot_ms": 10.069041,
+          "over_5ms": 3,
+          "over_10ms": 1
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "event",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.05275,
+          "max_overshoot_ms": 5.05675,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "event",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 5.1955839999999895,
+          "max_overshoot_ms": 10.06658399999999,
+          "over_5ms": 3,
+          "over_10ms": 1
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "sleep",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 3.4893749999999994,
+          "max_overshoot_ms": 5.035875000000001,
+          "over_5ms": 1,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "reverse",
+          "wait": "sleep",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 8.851791999999998,
+          "max_overshoot_ms": 10.042457999999991,
+          "over_5ms": 3,
+          "over_10ms": 2
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "sleep",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 3.5654580000000005,
+          "max_overshoot_ms": 5.039958,
+          "over_5ms": 1,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "sleep",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 5.0135409999999965,
+          "max_overshoot_ms": 10.052707999999994,
+          "over_5ms": 3,
+          "over_10ms": 2
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "event",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.052,
+          "max_overshoot_ms": 5.108791,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "event",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 9.839458999999994,
+          "max_overshoot_ms": 10.065749999999998,
+          "over_5ms": 4,
+          "over_10ms": 2
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "lock",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.039624999999999,
+          "max_overshoot_ms": 5.075791999999999,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "forward",
+          "wait": "lock",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 10.06629099999999,
+          "max_overshoot_ms": 10.076665999999998,
+          "over_5ms": 4,
+          "over_10ms": 3
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "lock",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.044125,
+          "max_overshoot_ms": 5.052625,
+          "over_5ms": 5,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "lock",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 6.352666999999992,
+          "max_overshoot_ms": 10.065959,
+          "over_5ms": 3,
+          "over_10ms": 2
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "event",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.067583000000001,
+          "max_overshoot_ms": 5.100832999999999,
+          "over_5ms": 4,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "event",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 10.064082999999988,
+          "max_overshoot_ms": 10.091749999999996,
+          "over_5ms": 4,
+          "over_10ms": 3
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "sleep",
+          "delay_ms": 10.0,
+          "median_overshoot_ms": 5.029709,
+          "max_overshoot_ms": 5.050457999999999,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "reverse",
+          "wait": "sleep",
+          "delay_ms": 100.0,
+          "median_overshoot_ms": 9.251334,
+          "max_overshoot_ms": 10.042249999999989,
+          "over_5ms": 4,
+          "over_10ms": 2
+        }
+      ],
+      "samples": 120
+    },
+    "native": {
+      "groups": [
+        {
+          "thread": "main",
+          "order": "0",
+          "wait": "nanosleep",
+          "delay_ms": 10,
+          "median_overshoot_ms": 4.756,
+          "max_overshoot_ms": 5.028,
+          "over_5ms": 2,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "0",
+          "wait": "nanosleep",
+          "delay_ms": 100,
+          "median_overshoot_ms": 10.037999999999991,
+          "max_overshoot_ms": 10.056999999999997,
+          "over_5ms": 5,
+          "over_10ms": 3
+        },
+        {
+          "thread": "main",
+          "order": "0",
+          "wait": "condition_relative",
+          "delay_ms": 10,
+          "median_overshoot_ms": 2.0829999999999997,
+          "max_overshoot_ms": 5.0360000000000005,
+          "over_5ms": 2,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "0",
+          "wait": "condition_relative",
+          "delay_ms": 100,
+          "median_overshoot_ms": 9.104000000000001,
+          "max_overshoot_ms": 10.059,
+          "over_5ms": 4,
+          "over_10ms": 2
+        },
+        {
+          "thread": "main",
+          "order": "0",
+          "wait": "condition_absolute",
+          "delay_ms": 10,
+          "median_overshoot_ms": 3.244,
+          "max_overshoot_ms": 5.037999999999999,
+          "over_5ms": 2,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "0",
+          "wait": "condition_absolute",
+          "delay_ms": 100,
+          "median_overshoot_ms": 6.370999999999988,
+          "max_overshoot_ms": 10.038999999999993,
+          "over_5ms": 3,
+          "over_10ms": 2
+        },
+        {
+          "thread": "main",
+          "order": "1",
+          "wait": "condition_absolute",
+          "delay_ms": 10,
+          "median_overshoot_ms": 5.053,
+          "max_overshoot_ms": 5.058999999999999,
+          "over_5ms": 4,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "1",
+          "wait": "condition_absolute",
+          "delay_ms": 100,
+          "median_overshoot_ms": 6.6179999999999986,
+          "max_overshoot_ms": 10.046,
+          "over_5ms": 4,
+          "over_10ms": 2
+        },
+        {
+          "thread": "main",
+          "order": "1",
+          "wait": "condition_relative",
+          "delay_ms": 10,
+          "median_overshoot_ms": 3.167999999999999,
+          "max_overshoot_ms": 5.0329999999999995,
+          "over_5ms": 1,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "1",
+          "wait": "condition_relative",
+          "delay_ms": 100,
+          "median_overshoot_ms": 7.900999999999991,
+          "max_overshoot_ms": 10.056999999999997,
+          "over_5ms": 4,
+          "over_10ms": 1
+        },
+        {
+          "thread": "main",
+          "order": "1",
+          "wait": "nanosleep",
+          "delay_ms": 10,
+          "median_overshoot_ms": 5.032,
+          "max_overshoot_ms": 5.048,
+          "over_5ms": 4,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "1",
+          "wait": "nanosleep",
+          "delay_ms": 100,
+          "median_overshoot_ms": 8.472999999999994,
+          "max_overshoot_ms": 10.034999999999988,
+          "over_5ms": 5,
+          "over_10ms": 1
+        },
+        {
+          "thread": "worker",
+          "order": "0",
+          "wait": "nanosleep",
+          "delay_ms": 10,
+          "median_overshoot_ms": 4.1259999999999994,
+          "max_overshoot_ms": 5.029000000000001,
+          "over_5ms": 2,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "0",
+          "wait": "nanosleep",
+          "delay_ms": 100,
+          "median_overshoot_ms": 7.439999999999988,
+          "max_overshoot_ms": 10.03699999999999,
+          "over_5ms": 4,
+          "over_10ms": 2
+        },
+        {
+          "thread": "worker",
+          "order": "0",
+          "wait": "condition_relative",
+          "delay_ms": 10,
+          "median_overshoot_ms": 1.9439999999999995,
+          "max_overshoot_ms": 5.029999999999999,
+          "over_5ms": 1,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "0",
+          "wait": "condition_relative",
+          "delay_ms": 100,
+          "median_overshoot_ms": 5.037,
+          "max_overshoot_ms": 10.052999999999992,
+          "over_5ms": 3,
+          "over_10ms": 1
+        },
+        {
+          "thread": "worker",
+          "order": "0",
+          "wait": "condition_absolute",
+          "delay_ms": 10,
+          "median_overshoot_ms": 5.023999999999999,
+          "max_overshoot_ms": 5.034999999999999,
+          "over_5ms": 4,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "0",
+          "wait": "condition_absolute",
+          "delay_ms": 100,
+          "median_overshoot_ms": 2.5419999999999887,
+          "max_overshoot_ms": 10.050999999999991,
+          "over_5ms": 2,
+          "over_10ms": 1
+        },
+        {
+          "thread": "worker",
+          "order": "1",
+          "wait": "condition_absolute",
+          "delay_ms": 10,
+          "median_overshoot_ms": 5.030999999999999,
+          "max_overshoot_ms": 5.042,
+          "over_5ms": 4,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "1",
+          "wait": "condition_absolute",
+          "delay_ms": 100,
+          "median_overshoot_ms": 4.247000000000001,
+          "max_overshoot_ms": 10.026999999999994,
+          "over_5ms": 2,
+          "over_10ms": 1
+        },
+        {
+          "thread": "worker",
+          "order": "1",
+          "wait": "condition_relative",
+          "delay_ms": 10,
+          "median_overshoot_ms": 5.025,
+          "max_overshoot_ms": 5.0329999999999995,
+          "over_5ms": 4,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "1",
+          "wait": "condition_relative",
+          "delay_ms": 100,
+          "median_overshoot_ms": 5.110999999999991,
+          "max_overshoot_ms": 10.03699999999999,
+          "over_5ms": 3,
+          "over_10ms": 1
+        },
+        {
+          "thread": "worker",
+          "order": "1",
+          "wait": "nanosleep",
+          "delay_ms": 10,
+          "median_overshoot_ms": 5.034999999999999,
+          "max_overshoot_ms": 5.046,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "1",
+          "wait": "nanosleep",
+          "delay_ms": 100,
+          "median_overshoot_ms": 5.451999999999998,
+          "max_overshoot_ms": 9.802999999999992,
+          "over_5ms": 3,
+          "over_10ms": 0
+        }
+      ],
+      "samples": 120
+    },
+    "native-latency0": {
+      "groups": [
+        {
+          "thread": "main",
+          "order": "0",
+          "wait": "nanosleep",
+          "delay_ms": 10,
+          "median_overshoot_ms": 5.016,
+          "max_overshoot_ms": 5.023999999999999,
+          "over_5ms": 4,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "0",
+          "wait": "nanosleep",
+          "delay_ms": 100,
+          "median_overshoot_ms": 10.014999999999997,
+          "max_overshoot_ms": 10.043999999999997,
+          "over_5ms": 3,
+          "over_10ms": 3
+        },
+        {
+          "thread": "main",
+          "order": "0",
+          "wait": "condition_relative",
+          "delay_ms": 10,
+          "median_overshoot_ms": 5.029000000000001,
+          "max_overshoot_ms": 5.032,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "0",
+          "wait": "condition_relative",
+          "delay_ms": 100,
+          "median_overshoot_ms": 10.028999999999996,
+          "max_overshoot_ms": 10.042999999999996,
+          "over_5ms": 5,
+          "over_10ms": 3
+        },
+        {
+          "thread": "main",
+          "order": "0",
+          "wait": "condition_absolute",
+          "delay_ms": 10,
+          "median_overshoot_ms": 5.017,
+          "max_overshoot_ms": 5.022,
+          "over_5ms": 5,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "0",
+          "wait": "condition_absolute",
+          "delay_ms": 100,
+          "median_overshoot_ms": 4.72199999999999,
+          "max_overshoot_ms": 10.044999999999998,
+          "over_5ms": 2,
+          "over_10ms": 1
+        },
+        {
+          "thread": "main",
+          "order": "1",
+          "wait": "condition_absolute",
+          "delay_ms": 10,
+          "median_overshoot_ms": 3.244,
+          "max_overshoot_ms": 5.0360000000000005,
+          "over_5ms": 2,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "1",
+          "wait": "condition_absolute",
+          "delay_ms": 100,
+          "median_overshoot_ms": 10.043999999999997,
+          "max_overshoot_ms": 10.050999999999991,
+          "over_5ms": 4,
+          "over_10ms": 3
+        },
+        {
+          "thread": "main",
+          "order": "1",
+          "wait": "condition_relative",
+          "delay_ms": 10,
+          "median_overshoot_ms": 5.0329999999999995,
+          "max_overshoot_ms": 5.044,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "1",
+          "wait": "condition_relative",
+          "delay_ms": 100,
+          "median_overshoot_ms": 7.069999999999993,
+          "max_overshoot_ms": 8.784,
+          "over_5ms": 5,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "1",
+          "wait": "nanosleep",
+          "delay_ms": 10,
+          "median_overshoot_ms": 5.034000000000001,
+          "max_overshoot_ms": 5.074999999999999,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "main",
+          "order": "1",
+          "wait": "nanosleep",
+          "delay_ms": 100,
+          "median_overshoot_ms": 6.237999999999993,
+          "max_overshoot_ms": 10.046,
+          "over_5ms": 3,
+          "over_10ms": 2
+        },
+        {
+          "thread": "worker",
+          "order": "0",
+          "wait": "nanosleep",
+          "delay_ms": 10,
+          "median_overshoot_ms": 4.652,
+          "max_overshoot_ms": 5.029999999999999,
+          "over_5ms": 2,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "0",
+          "wait": "nanosleep",
+          "delay_ms": 100,
+          "median_overshoot_ms": 10.024999999999991,
+          "max_overshoot_ms": 10.048999999999989,
+          "over_5ms": 4,
+          "over_10ms": 3
+        },
+        {
+          "thread": "worker",
+          "order": "0",
+          "wait": "condition_relative",
+          "delay_ms": 10,
+          "median_overshoot_ms": 5.020999999999999,
+          "max_overshoot_ms": 5.037999999999999,
+          "over_5ms": 3,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "0",
+          "wait": "condition_relative",
+          "delay_ms": 100,
+          "median_overshoot_ms": 10.040999999999995,
+          "max_overshoot_ms": 10.048999999999989,
+          "over_5ms": 5,
+          "over_10ms": 4
+        },
+        {
+          "thread": "worker",
+          "order": "0",
+          "wait": "condition_absolute",
+          "delay_ms": 10,
+          "median_overshoot_ms": 5.041,
+          "max_overshoot_ms": 5.056,
+          "over_5ms": 4,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "0",
+          "wait": "condition_absolute",
+          "delay_ms": 100,
+          "median_overshoot_ms": 3.764999999999991,
+          "max_overshoot_ms": 10.047,
+          "over_5ms": 2,
+          "over_10ms": 1
+        },
+        {
+          "thread": "worker",
+          "order": "1",
+          "wait": "condition_absolute",
+          "delay_ms": 10,
+          "median_overshoot_ms": 3.4520000000000004,
+          "max_overshoot_ms": 5.039,
+          "over_5ms": 2,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "1",
+          "wait": "condition_absolute",
+          "delay_ms": 100,
+          "median_overshoot_ms": 1.0369999999999964,
+          "max_overshoot_ms": 10.055999999999996,
+          "over_5ms": 2,
+          "over_10ms": 2
+        },
+        {
+          "thread": "worker",
+          "order": "1",
+          "wait": "condition_relative",
+          "delay_ms": 10,
+          "median_overshoot_ms": 5.037,
+          "max_overshoot_ms": 5.053999999999999,
+          "over_5ms": 5,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "1",
+          "wait": "condition_relative",
+          "delay_ms": 100,
+          "median_overshoot_ms": 7.064000000000001,
+          "max_overshoot_ms": 10.052999999999992,
+          "over_5ms": 3,
+          "over_10ms": 1
+        },
+        {
+          "thread": "worker",
+          "order": "1",
+          "wait": "nanosleep",
+          "delay_ms": 10,
+          "median_overshoot_ms": 4.479,
+          "max_overshoot_ms": 5.032,
+          "over_5ms": 2,
+          "over_10ms": 0
+        },
+        {
+          "thread": "worker",
+          "order": "1",
+          "wait": "nanosleep",
+          "delay_ms": 100,
+          "median_overshoot_ms": 2.7789999999999897,
+          "max_overshoot_ms": 7.0749999999999975,
+          "over_5ms": 2,
+          "over_10ms": 0
+        }
+      ],
+      "samples": 120
+    }
+  },
+  "limitations": [
+    "Each condition has only five observations; this is mechanism diagnosis, not stable tail estimation.",
+    "No continuous host-idleness measurement; no database driver imported by either probe.",
+    "The native-latency0 process was not confirmed terminal before starting Python latency1; those two exploratory controls may overlap.",
+    "Latency-policy options were process-scoped only; no change was made to the machine or parent process.",
+    "Returned task_policy_get values do not establish an effective policy change; no successful remedy is claimed.",
+    "Raw complete compatibility failure and its strict gate remain failed."
+  ]
+}

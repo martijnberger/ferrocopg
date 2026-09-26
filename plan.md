@@ -386,6 +386,15 @@ search for tiny transport optimizations.
    shared timing evidence, not a root-cause diagnosis or waiver. Preserve
    `2026-09-26-signal-state-full-compat.md` and its full raw/classified archive.
    Do not rerun the unchanged complete candidate merely to select a pass.
+   Driver-free host controls now reproduce lateness exceeding these tolerances
+   in two CPython builds and a native C/pthreads program. For 100 ms waits,
+   17/60 native C observations exceed 10 ms lateness, with no database or Rust
+   code involved. See `2026-09-26-host-timer-diagnostic.md` and all raw controls.
+   This establishes a host-level source of delay, not a complete accounting of
+   each pool failure or permission to weaken the strict gate. Process-scoped
+   latency-policy exploration supplies no verified remedy and is not adopted.
+   Prioritize exact-candidate supported-runner validation over speculative pool
+   or Rust changes, retaining any backend-specific timing remainder as open.
    Main `1bab4336` lint passes; Tests `36232554216` and Phase 5 `36232554264`
    remain pending/live. Predecessor Tests `36230544349` is terminal cancelled,
    not a full pass. Its soak remains live; the dedicated comparison is now audited.
