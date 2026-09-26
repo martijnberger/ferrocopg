@@ -58,6 +58,17 @@ in `summary.json`. Use an empty output directory for each attempt. Do not rebuil
 install packages, or run other tests while collecting timings. Investigate
 disagreement across runs; do not cherry-pick the fastest run or workloads.
 
+Each repeated comparison also writes `run-N-host-activity.jsonl`, sampling host
+process activity and system CPU every two seconds, with a final interval and
+observer-thread CPU accounting. Missing or failed observation prevents a pass.
+`summary.json` links the files and marks host review as required, not an automatic
+idle verdict. Review all intervals, inaccessible/new/exited processes and observer
+cost before claiming an otherwise idle run. Sampling can miss brief activity;
+names and parent PIDs alone do not prove ownership. The
+[observer control](performance/2026-09-26-corrected-profile-and-observer.md)
+records its nonzero overhead and limitations. Do not combine monitored and older
+unmonitored reports into one frozen-candidate three-run acceptance claim.
+
 The exit status is nonzero if any workload is missing, crashes, times out, or
 fails a correctness check. Each workload's median Rust duration must be no more
 than 1.15 times the Python median and no more than 1.50 times the C median.
@@ -67,7 +78,8 @@ limits in every one of the three runs. Python parity and no more than 1.10 times
 C are the current near-parity engineering objectives, not beta blockers. Existing reports
 retain their original verdicts; the new policy does not retroactively turn an
 old failure into acceptance. Compatibility, soak duration, and resource budgets
-are unchanged. No candidate has yet passed the revised three-run gate.
+are unchanged. Earlier checkpoints have passed all three numerical comparisons;
+this does not establish full Phase 5 acceptance for the latest candidate.
 
 Once accepted, preserve the frozen Rust wheel and raw results as the regression
 baseline for later changes. Cross-driver ceilings are not a license to spend

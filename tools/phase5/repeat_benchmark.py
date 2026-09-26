@@ -14,9 +14,11 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+from host_activity import HostActivity
 from run import BACKENDS, BENCHMARKS, PERFORMANCE_LIMITS, PERFORMANCE_POLICY, compare
 
 REQUIRED_RUNS = 3
+HOST_SAMPLE_INTERVAL = 2.0
 
 
 def identity(wheel: Path) -> dict[str, Any]:
@@ -126,6 +128,11 @@ def main() -> int:
         "runs": [],
         "failures": [],
         "benchmark_gate_passed": False,
+        "host_observer": {
+            "interval_seconds": HOST_SAMPLE_INTERVAL,
+            "review_required": True,
+            "idle_verdict": None,
+        },
     }
 
     def save() -> None:
@@ -139,26 +146,28 @@ def main() -> int:
                 raise ValueError(
                     "installed packages, wheel, or machine identity changed"
                 )
-            process = subprocess.run(
-                [
-                    sys.executable,
-                    str(Path(__file__).with_name("run.py")),
-                    "benchmark",
-                    "--revision",
-                    args.revision,
-                    "--output",
-                    str(output),
-                    "--iterations",
-                    "100",
-                    "--samples",
-                    "9",
-                    "--rows",
-                    "1000",
-                    "--warmup",
-                    "10",
-                ],
-                check=False,
-            )
+            activity = args.output / f"run-{number}-host-activity.jsonl"
+            with HostActivity(activity, interval=HOST_SAMPLE_INTERVAL):
+                process = subprocess.run(
+                    [
+                        sys.executable,
+                        str(Path(__file__).with_name("run.py")),
+                        "benchmark",
+                        "--revision",
+                        args.revision,
+                        "--output",
+                        str(output),
+                        "--iterations",
+                        "100",
+                        "--samples",
+                        "9",
+                        "--rows",
+                        "1000",
+                        "--warmup",
+                        "10",
+                    ],
+                    check=False,
+                )
             report = json.loads((output / "report.json").read_text())
             failures = validate_report(report, args.revision, process.returncode)
             environment = server_identity(report)
@@ -169,7 +178,11 @@ def main() -> int:
                     "installed packages, wheel, or machine identity changed"
                 )
             summary["runs"].append(
-                {"report": f"run-{number}/report.json", "failures": failures}
+                {
+                    "report": f"run-{number}/report.json",
+                    "host_activity": activity.name,
+                    "failures": failures,
+                }
             )
             summary["failures"].extend(
                 f"run-{number}: {failure}" for failure in failures

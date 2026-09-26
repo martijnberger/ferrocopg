@@ -4,6 +4,7 @@ import copy
 import json
 import tempfile
 import unittest
+from itertools import count
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -61,13 +62,24 @@ class RepeatedBenchmarkTests(unittest.TestCase):
         report.update(compare(report["results"]))
         self.assertTrue(validate_report(report, REVISION, 1))
 
-    def run_repeated(self, reports, identities=None):
+    def run_repeated(self, reports, identities=None, activity_snapshots=None):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             wheel = root / "candidate.whl"
             wheel.touch()
             output = root / "results"
             pending = iter(reports)
+            clock = count(1)
+
+            def snapshot():
+                tick = next(clock)
+                return {
+                    "monotonic": tick,
+                    "unix_time": tick + 1000,
+                    "cpu_times": {"user": tick, "idle": tick * 3},
+                    "processes": {},
+                    "unavailable": 0,
+                }
 
             def run(command, **kwargs):
                 report = next(pending)
@@ -95,11 +107,25 @@ class RepeatedBenchmarkTests(unittest.TestCase):
                     side_effect=identities,
                 ),
                 patch("repeat_benchmark.subprocess.run", side_effect=run) as process,
+                patch(
+                    "host_activity.snapshot",
+                    side_effect=activity_snapshots or snapshot,
+                ),
             ):
                 status = main()
+            summary = json.loads((output / "summary.json").read_text())
+            for run in summary["runs"]:
+                telemetry = [
+                    json.loads(line)
+                    for line in (output / run["host_activity"]).read_text().splitlines()
+                ]
+                self.assertEqual(telemetry[0]["mode"], "host-activity")
+                self.assertEqual(telemetry[-1]["status"], "completed")
+                self.assertEqual(telemetry[-1]["samples"], len(telemetry) - 2)
+                self.assertGreaterEqual(telemetry[-1]["samples"], 1)
             return (
                 status,
-                json.loads((output / "summary.json").read_text()),
+                summary,
                 process.call_count,
             )
 
@@ -109,6 +135,31 @@ class RepeatedBenchmarkTests(unittest.TestCase):
         self.assertTrue(summary["benchmark_gate_passed"])
         self.assertEqual(count, 3)
         self.assertEqual(len(summary["runs"]), 3)
+        self.assertTrue(summary["host_observer"]["review_required"])
+        self.assertIsNone(summary["host_observer"]["idle_verdict"])
+
+    def test_missing_host_observation_cannot_pass(self):
+        with patch(
+            "repeat_benchmark.HostActivity",
+            side_effect=RuntimeError("observer unavailable"),
+        ):
+            status, summary, count = self.run_repeated([self.report()] * 3)
+        self.assertEqual(status, 1)
+        self.assertFalse(summary["benchmark_gate_passed"])
+        self.assertEqual(count, 0)
+        self.assertEqual(summary["failures"], ["observer unavailable"])
+
+    def test_failed_host_observation_cannot_pass(self):
+        from test_host_activity import sample
+
+        status, summary, count = self.run_repeated(
+            [self.report()] * 3,
+            activity_snapshots=[sample(10, []), RuntimeError("snapshot failed")],
+        )
+        self.assertEqual(status, 1)
+        self.assertFalse(summary["benchmark_gate_passed"])
+        self.assertEqual(count, 1)
+        self.assertEqual(summary["failures"], ["host-activity sampling failed"])
 
     def test_failed_first_run_is_not_replaced_by_later_passes(self):
         failed = self.report()

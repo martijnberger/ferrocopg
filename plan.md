@@ -395,6 +395,18 @@ search for tiny transport optimizations.
    latency-policy exploration supplies no verified remedy and is not adopted.
    Prioritize exact-candidate supported-runner validation over speculative pool
    or Rust changes, retaining any backend-specific timing remainder as open.
+   Eight profiles of the corrected installed `17c77760` wheel confirm that
+   Python query conversion and per-execution loader setup remain substantial
+   visible work. Fresh parameterized operations have 190 Python-visible calls
+   versus C's 63, but profiler overhead differs and this is not a recoverable
+   latency budget. Preserve `2026-09-26-corrected-profile-and-observer.md`.
+   Do not restart a rejected adapter cache or generic Transformer port from
+   those counts alone. The repeated benchmark runner now samples host activity
+   throughout each comparison, fails closed on missing/failed observation and
+   explicitly requires manual review. All 165 installed/tooling checks and a
+   real observer smoke pass; both-order observer controls retain nonzero cost
+   and do not establish perfect host idleness or zero observer effect. New
+   monitored comparisons must not be combined with older unmonitored evidence.
    Main `1bab4336` lint passes; Tests `36232554216` and Phase 5 `36232554264`
    remain pending/live. Predecessor Tests `36230544349` is terminal cancelled,
    not a full pass. Its soak remains live; the dedicated comparison is now audited.
