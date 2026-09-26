@@ -96,3 +96,37 @@ The `/tmp` paths in the coordinator document this run's environments, not a
 portable installation recipe or durable wheel hosting.
 
 Report and analysis produced with AI assistance.
+
+## Dedicated Follow-Up
+
+Comparison [36231026807](https://github.com/martijnberger/ferrocopg/actions/runs/36231026807)
+is dispatched at `bcd8ded9af06eb4ee10aa43fc18e6c231a2cc441` against the frozen
+before revision and is queued. This successor changes documentation and the
+comparison harness, not the runtime measured locally. Do not dispatch a duplicate.
+
+The separate main acceptance workflow's benchmark job has completed successfully.
+[Independent audit](2026-09-26-public-boundary-three-run-benchmark.json) validates
+three complete eleven-workload comparisons, 99 raw workers, and all 89,100
+operation latency observations. Every ratio passes the unchanged beta limits.
+The greatest Rust/Python ratio is 1.053 (transaction); the greatest Rust/C ratio
+is 1.364 (prepared). This is beta numerical evidence, not near parity or a
+comparison against the pre-integration implementation.
+
+The uploaded Linux wheel SHA-256 is
+`62f736e0525f8995a1f20a9c36426f3665fedd8764aeb3c8549924a07877ee4c` and matches the
+frozen summary and artifact checksum. Its 91 Python files match the local wheel;
+native extension bytes necessarily differ by platform. The audit records hashes
+for all 94 package files so subsequent soak artifacts can be compared exactly.
+On-runner checks verified installed package/wheel identity around each run;
+archived evidence cannot independently reconstruct the complete remote environment.
+
+[Raw benchmark archive](2026-09-26-public-boundary-three-run-raw.tar.gz), SHA-256:
+`7d5d7664d1d126e7a2fe5d811d8fcb9069a33f3607b5c6ae791f107348d2be26`.
+It preserves all reports, worker logs, latency arrays, server/process diagnostics,
+wheel checksum, and the independent audit script. The native wheel is in GitHub
+artifact `10902059653`, not embedded in this text/report archive.
+
+The soak and full compatibility jobs remain live. Process snapshots show no
+concurrent build/test process at the measurement boundaries, but do not supply
+continuous host-idleness evidence. Final acceptance and the remaining integration
+requirements are still open; no failed earlier run has been relabeled or erased.

@@ -1,0 +1,1399 @@
+{
+  "workflow": "https://github.com/martijnberger/ferrocopg/actions/runs/36230544336",
+  "artifact_id": 10902059653,
+  "revision": "12f139ce63a0c78d8148913673ef39392794e85f",
+  "benchmark_job": "success",
+  "soak_status_at_audit": "in_progress",
+  "independently_recomputed": true,
+  "three_run_numeric_benchmark_gate_passed": true,
+  "phase5_complete": false,
+  "validated_runs": 3,
+  "validated_workers": 99,
+  "validated_operation_latencies": 89100,
+  "summary": {
+    "schema": 1,
+    "revision": "12f139ce63a0c78d8148913673ef39392794e85f",
+    "performance_policy": "beta-2026-09-20",
+    "performance_limits": {
+      "python": 1.15,
+      "c": 1.5
+    },
+    "identity": {
+      "wheel": "ferrocopg-0.1.0-cp314-cp314-manylinux_2_38_x86_64.whl",
+      "wheel_sha256": "62f736e0525f8995a1f20a9c36426f3665fedd8764aeb3c8549924a07877ee4c",
+      "packages": {
+        "ferrocopg": {
+          "version": "0.1.0",
+          "files_sha256": "4292067ea7d55c53788ef92bac2efc8adce6da0ed1018277f2acaf5c97a05d23"
+        },
+        "psycopg": {
+          "version": "3.3.2",
+          "files_sha256": "257d55eb017b48ed5f0e83f8cdc379534c03ebf55a79a979286f6194baa3ef95"
+        },
+        "psycopg-c": {
+          "version": "3.3.2",
+          "files_sha256": "95b6ebc147fc21c212f612023f519a200d6937a65b3494bf46ebf0a5299ce152"
+        },
+        "psycopg-pool": {
+          "version": "3.3.0",
+          "files_sha256": "9a8af2f77cec2d0f951f28581d7da6c5ae445402d492b9ca52496916873fbe95"
+        },
+        "psutil": {
+          "version": "7.2.2",
+          "files_sha256": "42bdd16485f4e080b967e6f2558f40ab4c15407fc7fbc788fbfd062acc25f33f"
+        }
+      },
+      "python": "3.14.7 (main, Aug  6 2026, 02:19:46) [GCC 13.3.0]",
+      "executable": "/tmp/phase5-env/bin/python",
+      "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+      "host": "runnervmtr4k5"
+    },
+    "required_runs": 3,
+    "runs": [
+      {
+        "report": "run-1/report.json",
+        "failures": []
+      },
+      {
+        "report": "run-2/report.json",
+        "failures": []
+      },
+      {
+        "report": "run-3/report.json",
+        "failures": []
+      }
+    ],
+    "failures": [],
+    "benchmark_gate_passed": true,
+    "environment": {
+      "server": "PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+      "server_settings": {
+        "fsync": "on",
+        "max_connections": "100",
+        "shared_buffers": "16384",
+        "ssl": "on",
+        "synchronous_commit": "on"
+      },
+      "python": "3.14.7 (main, Aug  6 2026, 02:19:46) [GCC 13.3.0]",
+      "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+      "machine": "x86_64",
+      "cpu_logical": 4,
+      "cpu_physical": 2,
+      "memory_bytes": 16765378560
+    }
+  },
+  "wheel_package_file_sha256": {
+    "ferrocopg/__init__.py": "546fa11ec65349b0e3727d7d81600545473bc2c6784bb4b7092939ddc59a5e8a",
+    "ferrocopg/_acompat.py": "a403fe13a8deb1d80e3ae7e9e532e1f2eb525917951e4f7fddc42b5f1d9ad78a",
+    "ferrocopg/_adapters_map.py": "573a8598e0f46bf7891768cf68d4bddf4e91dc22a3afb14bc9d4bfc1d44c4497",
+    "ferrocopg/_capabilities.py": "01d498d399be8394f2c47e7a72680ce0a9f26b424d017070286f69042c1768bd",
+    "ferrocopg/_cmodule.py": "81e27abbc8788aa62e1acbb7e80a035c1be39685fc44276106ca2f5873438bb2",
+    "ferrocopg/_column.py": "948799c75558d917f2af529254b0963dfb664069deb759d72377f2088d82e55f",
+    "ferrocopg/_compat.py": "9c82f8c18563c21f9b7dfb77d5650dcd24817357d9cc8a8a14e460aeed39b57e",
+    "ferrocopg/_connection_base.py": "e5c1d9409a6498ebaba6847e639fe4ba4a1ad8d6adf682495550cb16ed1cc843",
+    "ferrocopg/_connection_info.py": "1aab70228aeb12fe3578c60f2004b9b8bffbe3324c3a4727a2024e50eb0316c6",
+    "ferrocopg/_conninfo_attempts.py": "f69c721909cc0b12590c39a9aa22cb615ace62e23b268b674f8ba8c857aa2d49",
+    "ferrocopg/_conninfo_attempts_async.py": "5f7860a6950fb8924ff2d553392cddc79877a163682b61952f5debfdf6322451",
+    "ferrocopg/_conninfo_utils.py": "be0264539e6f23b54f7b3886418acdee5acfe0b7d50b4eb4952f2d9a196dd41d",
+    "ferrocopg/_copy.py": "694294daa5eac8aad365f6f5cc0d1f76fc73278e6bea34eab942abba7af98457",
+    "ferrocopg/_copy_async.py": "87d758f02dc08ca688c2751c1b1ff551464c0719f541be1a3a285cfda6f92ef9",
+    "ferrocopg/_copy_base.py": "29e85675bea40d0d8d95f9703c892e156d98097e54343d45543485d8a918c553",
+    "ferrocopg/_cursor_base.py": "26eaa0d80560f9b00c1de55d8a20de002b9cbf959da69d1e13d23d922beff0dc",
+    "ferrocopg/_dns.py": "d52e2b5c21504c4f8624ae5128389b80e78927a3631f9adef5bb613f4b4532a1",
+    "ferrocopg/_encodings.py": "f2b5aee1d5ad05dc70633c858eae42aa15569391c488abbb50a1289904c775c1",
+    "ferrocopg/_enums.py": "a12ee93f0f2c2e8bf999348b9f53972bf00d97938a4e870a60141524c311ada2",
+    "ferrocopg/_ferrocopg.py": "cf0339867dc807e6d75a9a0da59a0f1a1e9705bd895feaefff6f07e5981c06b9",
+    "ferrocopg/_ferrocopg_async.py": "495f868b6c744048723233f0d435a8764a9c443c20ada8585701a228025e54e4",
+    "ferrocopg/_ferrocopg_conninfo.py": "52f36d4a20e724070fa302f656b97625c423910bf270ee1ef98e2a5878a0ed7a",
+    "ferrocopg/_official.py": "c487f9bf8e74296e9070a38956a6400463d01eb56df542d5b2427fa78b172b28",
+    "ferrocopg/_oids.py": "3018aeffa0b8a708ecf363699dd9bc1757817fc1c2029472dec2daeaf48fc9ba",
+    "ferrocopg/_pipeline.py": "b1660d2a5efdaa7aa326bc0d0810a2d5d9c40f90972eb9fa6115f658fa802a64",
+    "ferrocopg/_pipeline_async.py": "10c29922f2026a363ec02d4c64911f4a07ed7594b9107224e4ecc486b04da078",
+    "ferrocopg/_pipeline_base.py": "8fd4651b94e9a0f0bd7c2756c2f55ee031c87d5254cf7621aa33aa9ecc2ee9e1",
+    "ferrocopg/_pq_compat.py": "a62ed2f308dfe80ad09ad3d2c1442f784925d839b7eeb6cfb3f8666084a972c3",
+    "ferrocopg/_preparing.py": "7c35122400335ddd975a74c1957293fa9bc39b4ba178aca8997898a90161fc08",
+    "ferrocopg/_py_transformer.py": "a670653cd757f349691c4194ecb6c9c6b80ba145a7ade39ee163ab19a419fbdb",
+    "ferrocopg/_queries.py": "a417ac82e307e22c4d2bad16e465d675d461074d506ce87bd29c35a8e2da406b",
+    "ferrocopg/_rmodule.py": "8ba5fb0e347e4e2e1d590ce18697ba5e01aea46bffc023d8061c68a0c82c4075",
+    "ferrocopg/_rust/__init__.py": "a5e12579832dc3c26224e84931e265d9e9d73ae39de4dd5863261ded8eae16fb",
+    "ferrocopg/_rust/_ferrocopg.cpython-314-x86_64-linux-gnu.so": "44bc53752e1c39f758928eacc9b3fb31bb0654166c216c06a928ac96123b8292",
+    "ferrocopg/_server_cursor.py": "21750953da98bac13405a344ebacd6f199a2e5dc92009951d6470aa3050ed9ee",
+    "ferrocopg/_server_cursor_async.py": "052d7171a9059b7cdc2fc30c107c27b5ed31be712916daeee7cc0081671813fb",
+    "ferrocopg/_server_cursor_base.py": "f09de914d8897c94f98f7018608946a6f777f9f4e6ea8355d397ed31b88566d7",
+    "ferrocopg/_struct.py": "4534cd5a1859380a7ffc90be3c812237812229994aba5d33995300701cf2c1e4",
+    "ferrocopg/_tpc.py": "dbaade36306eba1f01b0923c0cae9470154e9643e647d3886dce17dd4e0304dd",
+    "ferrocopg/_transformer.py": "0c13f69f598d6b61c30da0cb59c369f55188bacef797aae134511d3d6f022253",
+    "ferrocopg/_tstrings.py": "d0b2c62c72a3fa15cb79de1eb9e001767b99ed5f1e239876b2506ef5fe9af225",
+    "ferrocopg/_typeinfo.py": "c7e4338d7769ca92343474a83b6b3117af7ea79e914495bb5716f38078fa08ae",
+    "ferrocopg/_typemod.py": "519c0715f9d66d7ab167d508541ac9877eb9f7da686406998fae6ff04b1b209b",
+    "ferrocopg/_tz.py": "cd4a6cb4817c61eb9f2e226e425a1edc5f36c9698ed2c9e1933d7210178ae9d2",
+    "ferrocopg/_vendored.py": "d7bed31d3bbf6dafc67438d8e664327fd5298cb9d64e2479c8862e6b46c690c0",
+    "ferrocopg/_wrappers.py": "44fe56068002e5be1da6d2103ebc1f1904d3370c794d453c4b8f7ca4d149c904",
+    "ferrocopg/abc.py": "fbee4f53130738f5eac91df754d8f47ba668bf8f8d6f4a033792d70436f105dc",
+    "ferrocopg/adapt.py": "2fe49726f5f5fe28c557c4ea5c5d70d33687a4effef1b1995a7c0ad92318af20",
+    "ferrocopg/client_cursor.py": "2fdefb4f10614c4e0877f030f50bb91d5cc83a79d053e839527d51cbf414facf",
+    "ferrocopg/connection.py": "a98d8bb030cdf722f2b2d40bf32511e70b9dd5dcb6a8045b76f49038016f920b",
+    "ferrocopg/connection_async.py": "bef827def258fdb35f85f80570be0da10a318835e1fe9de9a419e51c00373f19",
+    "ferrocopg/conninfo.py": "0c2facbafd48a307b061e4754302780fa2e477cf2a4e50c434b39540f8121e5d",
+    "ferrocopg/copy.py": "fd5ef68e9d835ebd931ecaa8f52e9c6a1bde328d10b819777e78a0b74ac699b7",
+    "ferrocopg/crdb/__init__.py": "674c11bec482fc2a5a38159f5828a5c0fd2c37a037f88561403e5c95d826fdd1",
+    "ferrocopg/crdb/_types.py": "283cc0f275c3e875304f8691dfbd41ba029f65f72a78b1c8bb563a628d074d60",
+    "ferrocopg/crdb/connection.py": "a8da57e56ed1cb1d84dc645d40b939c86d384752d68aa0f29804513f28761ece",
+    "ferrocopg/cursor.py": "2a0298ca456fa181f1c5d9e878bb48feb7c797b88fd344e0891c851b83720324",
+    "ferrocopg/cursor_async.py": "baec93de14348d41f65a9d8eadfcbe7338f0a01c92c2210479bb89a25d0826ff",
+    "ferrocopg/dbapi20.py": "a6f014d21dad513dfe07705bc5cda597353d5baa9135b763452bc561dc332746",
+    "ferrocopg/errors.py": "ebea98455325d066f3eaf118c6deb2d59b08466aec67574c853bdeb236f7b3d8",
+    "ferrocopg/generators.py": "4b1e11adc3ec50ef4e701251c757c34a43cb884a882f19d35ddbc9a9dd07f714",
+    "ferrocopg/postgres.py": "0eb279075bbdf5b934feb135b72269b41b05c00a1f1054cd8256235b9ab19c48",
+    "ferrocopg/pq/__init__.py": "1efd0f1f982ec2f6ac4f9d690f7d15b1f7f065e92bb69e5e8bf1a4ebff6d4b7b",
+    "ferrocopg/pq/_debug.py": "46cc6b5a7c1a48f303a1e8a66bd7fd499c2d598a17fb12c16a4165949c731ae8",
+    "ferrocopg/pq/_enums.py": "7a1f64faaf282234de50deaa2f668f98ea5133848e2a4d567712bc2a91865736",
+    "ferrocopg/pq/_pq_ctypes.py": "58b41863728ebf870f582d953cb1cf27eaecd2cd90c0bf377a9e0c21fa384313",
+    "ferrocopg/pq/_pq_ctypes.pyi": "e00d030cd96f80a7d93b37bd21c45c41af70178a96cec09f2c517938b18e2ceb",
+    "ferrocopg/pq/abc.py": "fc7d65f6dcceaa38de327db8d86582c89dbb7cb37889f9f9e573bbc5e5baebf1",
+    "ferrocopg/pq/misc.py": "0c532bf94bf34663aa54fe46f4e6893229e24f6edfc992d894e238ff6c3303c3",
+    "ferrocopg/pq/pq_ctypes.py": "b235fbaac78cf8c460eef441ca02d7a0b848061bc9c2b2bfc8cab330d4c4d17b",
+    "ferrocopg/py.typed": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ferrocopg/raw_cursor.py": "be393a35719812560224a3a8a6584dd74fce48ba25871503d9cda28b49985359",
+    "ferrocopg/rows.py": "2aadc647f25969d31a391ba0d425f32c8ca17b08eb8b8e4a96b995ef64ae57bc",
+    "ferrocopg/sql.py": "679c0af3847fed2ca6164c291624041a7ecfbd2eab3e20c4c3e4da88164c9fdb",
+    "ferrocopg/transaction.py": "7180361011696beee7f81079bd7f4c79f7eade64899241bd290c99f9a50aabd4",
+    "ferrocopg/types/__init__.py": "f9f8e78c80557763144d136b9f52c886b9c6af9deb76af0fc29bd422f8d5968d",
+    "ferrocopg/types/array.py": "c1abe21b3f83a26b3bbc1b42af6ca305d664e88eea5a06fda9c38c2fa26d0fa3",
+    "ferrocopg/types/bool.py": "e1e9426247c6d3e4c6fc7733c9f7f0378f32d52bdfbe5a461fafbfdb565a5802",
+    "ferrocopg/types/composite.py": "17ccfcd0b84499dc17a543a08c024f4ffc1ce830dcdbd41da8105d917d7805c5",
+    "ferrocopg/types/datetime.py": "1966558989811be6c9ef04b8a8d293ec261ab53456921ee8a5f14b4e27336ddc",
+    "ferrocopg/types/enum.py": "d476f10a9e4668d03207f30ae3671d8971cc55ea06ff51f67c52d4d843137006",
+    "ferrocopg/types/hstore.py": "fc3b4dff304794b9384110bdeea49ecc3032853536c6a47e36c8c380f89ace8f",
+    "ferrocopg/types/json.py": "5be25df080ad379f319159b5da5f1b7e6fd53fd3a96ba67463fe73e247c535a5",
+    "ferrocopg/types/multirange.py": "8c7ab3fd303783955195f9986dce068cc129578619b1c090afb335073b1996b6",
+    "ferrocopg/types/net.py": "baee8032fe6d0df2e79a7a6bd018273066ee258767abb5c934d5085cfea20ee2",
+    "ferrocopg/types/none.py": "832fce26a13562c949d91222c7412adf1d01f083dfa07f8671cdac40c20ed12c",
+    "ferrocopg/types/numeric.py": "1a3ec260bb2f1d6a7bb6aab1f33596a14b8dbd310f0350e7cac8f651d8d285df",
+    "ferrocopg/types/numpy.py": "83d8ea55882a45a3060fec4f5fee3735c2bcba5468ae4d60f920275c47f16bc1",
+    "ferrocopg/types/range.py": "41a499003f6b5cc38b0e2651a14184ac1a00db15354a158a3fbe387e82376fc0",
+    "ferrocopg/types/shapely.py": "774afee614da1cabfa6914e43a7ed11a300333486fd51728cb5c44ff935c48e1",
+    "ferrocopg/types/string.py": "0a882dc425fd4f54f37ff511d463da7156dba5342c1b49a4a594ee25b963fb4c",
+    "ferrocopg/types/uuid.py": "c1cb8abde3e630af09b12b9d0253fc165fc0d3dc5cab3a7204c45cee63ff6f03",
+    "ferrocopg/version.py": "0728b2e275d6c29cafe11f694f9dbe56a92925783eb9318935fe70b74bc03bac",
+    "ferrocopg/waiting.py": "239c7fdf77bdcb7d5ff11c451833f2ea98262446ea401819b3cad981a5fc4412"
+  },
+  "python_files_matching_local_measured_wheel": 91,
+  "runs": [
+    {
+      "run": 1,
+      "ratios": {
+        "connect_plain": {
+          "python": 0.592494345281781,
+          "c": 0.6099812112313845
+        },
+        "connect_tls": {
+          "python": 0.6748786869391639,
+          "c": 0.6956981464150467
+        },
+        "parameterized": {
+          "python": 1.027718597930969,
+          "c": 1.1791071615446604
+        },
+        "prepared": {
+          "python": 0.9580827775841032,
+          "c": 1.2672426276903428
+        },
+        "rows_tuple": {
+          "python": 0.09728581460702808,
+          "c": 1.2075641433087785
+        },
+        "rows_dict": {
+          "python": 0.1579010959476425,
+          "c": 1.1628770929309897
+        },
+        "rows_namedtuple": {
+          "python": 0.1276553797117629,
+          "c": 1.170839890438266
+        },
+        "transaction": {
+          "python": 1.0528392488550469,
+          "c": 1.1785004623223243
+        },
+        "copy_text": {
+          "python": 0.5172065064108056,
+          "c": 1.1978378805624725
+        },
+        "copy_binary": {
+          "python": 0.47897575841909656,
+          "c": 1.0300191217775843
+        },
+        "pool": {
+          "python": 1.0162041042744978,
+          "c": 1.200353742372307
+        }
+      },
+      "metrics": {
+        "connect_plain": {
+          "rust": {
+            "wall_us_per_operation": 3748.04615,
+            "cpu_us_per_operation": 1739.3381299999999,
+            "latency_ms": {
+              "p50": 3.724451,
+              "p95": 4.061032,
+              "p99": 4.505447
+            },
+            "units_per_second": 266.8056795405254
+          },
+          "python": {
+            "wall_us_per_operation": 6325.876660000001,
+            "cpu_us_per_operation": 4324.94687,
+            "latency_ms": {
+              "p50": 6.281935,
+              "p95": 6.901575,
+              "p99": 7.293728
+            },
+            "units_per_second": 158.08085641682428
+          },
+          "c": {
+            "wall_us_per_operation": 6144.52721,
+            "cpu_us_per_operation": 4109.77744,
+            "latency_ms": {
+              "p50": 6.13372,
+              "p95": 6.441079,
+              "p99": 6.77141
+            },
+            "units_per_second": 162.7464515695423
+          }
+        },
+        "connect_tls": {
+          "python": {
+            "wall_us_per_operation": 8701.22304,
+            "cpu_us_per_operation": 5231.29844,
+            "latency_ms": {
+              "p50": 8.6839895,
+              "p95": 9.182825,
+              "p99": 9.462999
+            },
+            "units_per_second": 114.92637246545056
+          },
+          "c": {
+            "wall_us_per_operation": 8440.83028,
+            "cpu_us_per_operation": 4943.29051,
+            "latency_ms": {
+              "p50": 8.428587,
+              "p95": 8.81998,
+              "p99": 9.099949
+            },
+            "units_per_second": 118.47175773329256
+          },
+          "rust": {
+            "wall_us_per_operation": 5872.26998,
+            "cpu_us_per_operation": 2188.75404,
+            "latency_ms": {
+              "p50": 5.866207,
+              "p95": 6.240996,
+              "p99": 6.663739
+            },
+            "units_per_second": 170.2918979212192
+          }
+        },
+        "parameterized": {
+          "c": {
+            "wall_us_per_operation": 128.23686,
+            "cpu_us_per_operation": 49.45078,
+            "latency_ms": {
+              "p50": 0.1270105,
+              "p95": 0.151483,
+              "p99": 0.174237
+            },
+            "units_per_second": 7798.069915311401
+          },
+          "rust": {
+            "wall_us_per_operation": 151.205,
+            "cpu_us_per_operation": 79.91544999999999,
+            "latency_ms": {
+              "p50": 0.151553,
+              "p95": 0.181397,
+              "p99": 0.197087
+            },
+            "units_per_second": 6613.537912106081
+          },
+          "python": {
+            "wall_us_per_operation": 147.12685,
+            "cpu_us_per_operation": 78.27265,
+            "latency_ms": {
+              "p50": 0.1425975,
+              "p95": 0.174153,
+              "p99": 0.191714
+            },
+            "units_per_second": 6796.85591039297
+          }
+        },
+        "prepared": {
+          "rust": {
+            "wall_us_per_operation": 138.26494,
+            "cpu_us_per_operation": 78.78984,
+            "latency_ms": {
+              "p50": 0.136716,
+              "p95": 0.16488,
+              "p99": 0.186483
+            },
+            "units_per_second": 7232.491476147171
+          },
+          "python": {
+            "wall_us_per_operation": 144.31419,
+            "cpu_us_per_operation": 85.93637,
+            "latency_ms": {
+              "p50": 0.1396195,
+              "p95": 0.176561,
+              "p99": 0.202681
+            },
+            "units_per_second": 6929.325522320432
+          },
+          "c": {
+            "wall_us_per_operation": 109.10692,
+            "cpu_us_per_operation": 45.789359999999995,
+            "latency_ms": {
+              "p50": 0.106864,
+              "p95": 0.128608,
+              "p99": 0.155867
+            },
+            "units_per_second": 9165.321502980747
+          }
+        },
+        "rows_tuple": {
+          "python": {
+            "wall_us_per_operation": 5760.07779,
+            "cpu_us_per_operation": 5500.62814,
+            "latency_ms": {
+              "p50": 5.722497000000001,
+              "p95": 6.007452,
+              "p99": 7.256705
+            },
+            "units_per_second": 173608.7664885512
+          },
+          "c": {
+            "wall_us_per_operation": 464.05307999999997,
+            "cpu_us_per_operation": 201.55363,
+            "latency_ms": {
+              "p50": 0.4604775,
+              "p95": 0.501238,
+              "p99": 0.530403
+            },
+            "units_per_second": 2154925.897701185
+          },
+          "rust": {
+            "wall_us_per_operation": 560.37386,
+            "cpu_us_per_operation": 369.66969,
+            "latency_ms": {
+              "p50": 0.557871,
+              "p95": 0.602095,
+              "p99": 0.658848
+            },
+            "units_per_second": 1784522.9254626546
+          }
+        },
+        "rows_dict": {
+          "c": {
+            "wall_us_per_operation": 851.50562,
+            "cpu_us_per_operation": 599.13884,
+            "latency_ms": {
+              "p50": 0.8455159999999999,
+              "p95": 0.967588,
+              "p99": 1.054818
+            },
+            "units_per_second": 1174390.3698486453
+          },
+          "rust": {
+            "wall_us_per_operation": 990.19638,
+            "cpu_us_per_operation": 795.3324700000001,
+            "latency_ms": {
+              "p50": 0.989327,
+              "p95": 1.066357,
+              "p99": 1.175429
+            },
+            "units_per_second": 1009900.6825292575
+          },
+          "python": {
+            "wall_us_per_operation": 6270.99118,
+            "cpu_us_per_operation": 6017.06957,
+            "latency_ms": {
+              "p50": 6.1860065,
+              "p95": 6.769196,
+              "p99": 8.583135
+            },
+            "units_per_second": 159464.42456964197
+          }
+        },
+        "rows_namedtuple": {
+          "rust": {
+            "wall_us_per_operation": 774.84094,
+            "cpu_us_per_operation": 583.60672,
+            "latency_ms": {
+              "p50": 0.7609965000000001,
+              "p95": 0.891823,
+              "p99": 1.054347
+            },
+            "units_per_second": 1290587.459150003
+          },
+          "python": {
+            "wall_us_per_operation": 6069.78681,
+            "cpu_us_per_operation": 5804.7063,
+            "latency_ms": {
+              "p50": 5.919467,
+              "p95": 7.021729,
+              "p99": 8.509517
+            },
+            "units_per_second": 164750.43214903295
+          },
+          "c": {
+            "wall_us_per_operation": 661.78215,
+            "cpu_us_per_operation": 397.15281999999996,
+            "latency_ms": {
+              "p50": 0.6530545000000001,
+              "p95": 0.719834,
+              "p99": 0.76558
+            },
+            "units_per_second": 1511071.2792721896
+          }
+        },
+        "transaction": {
+          "python": {
+            "wall_us_per_operation": 1067.63308,
+            "cpu_us_per_operation": 553.84698,
+            "latency_ms": {
+              "p50": 1.049812,
+              "p95": 1.21493,
+              "p99": 1.44524
+            },
+            "units_per_second": 936.6513821396392
+          },
+          "c": {
+            "wall_us_per_operation": 953.79344,
+            "cpu_us_per_operation": 394.8114,
+            "latency_ms": {
+              "p50": 0.945948,
+              "p95": 1.071855,
+              "p99": 1.124134
+            },
+            "units_per_second": 1048.4450385819387
+          },
+          "rust": {
+            "wall_us_per_operation": 1124.04601,
+            "cpu_us_per_operation": 531.33022,
+            "latency_ms": {
+              "p50": 1.102636,
+              "p95": 1.281666,
+              "p99": 1.476391
+            },
+            "units_per_second": 889.6432984980747
+          }
+        },
+        "copy_text": {
+          "c": {
+            "wall_us_per_operation": 4745.15784,
+            "cpu_us_per_operation": 2541.5557900000003,
+            "latency_ms": {
+              "p50": 4.6699135,
+              "p95": 5.053405,
+              "p99": 5.262427
+            },
+            "units_per_second": 421482.2915142481
+          },
+          "rust": {
+            "wall_us_per_operation": 5683.9298100000005,
+            "cpu_us_per_operation": 3403.3155300000003,
+            "latency_ms": {
+              "p50": 5.646688,
+              "p95": 6.046007,
+              "p99": 6.266965
+            },
+            "units_per_second": 351869.229011468
+          },
+          "python": {
+            "wall_us_per_operation": 10989.6719,
+            "cpu_us_per_operation": 8831.23756,
+            "latency_ms": {
+              "p50": 10.9634415,
+              "p95": 11.495823,
+              "p99": 11.959162
+            },
+            "units_per_second": 181989.05465048505
+          }
+        },
+        "copy_binary": {
+          "rust": {
+            "wall_us_per_operation": 4738.8164,
+            "cpu_us_per_operation": 2460.63213,
+            "latency_ms": {
+              "p50": 4.6963985,
+              "p95": 5.051424,
+              "p99": 5.301745
+            },
+            "units_per_second": 422046.31519381085
+          },
+          "python": {
+            "wall_us_per_operation": 9893.64559,
+            "cpu_us_per_operation": 7692.98077,
+            "latency_ms": {
+              "p50": 9.812625,
+              "p95": 10.333664,
+              "p99": 10.687873
+            },
+            "units_per_second": 202149.95390794062
+          },
+          "c": {
+            "wall_us_per_operation": 4600.7072100000005,
+            "cpu_us_per_operation": 2486.08489,
+            "latency_ms": {
+              "p50": 4.572134500000001,
+              "p95": 4.902037,
+              "p99": 5.14735
+            },
+            "units_per_second": 434715.77492539457
+          }
+        },
+        "pool": {
+          "python": {
+            "wall_us_per_operation": 161.86393,
+            "cpu_us_per_operation": 100.33049000000001,
+            "latency_ms": {
+              "p50": 0.15905249999999999,
+              "p95": 0.189396,
+              "p99": 0.229168
+            },
+            "units_per_second": 6178.028668894916
+          },
+          "c": {
+            "wall_us_per_operation": 137.03193000000002,
+            "cpu_us_per_operation": 69.9185,
+            "latency_ms": {
+              "p50": 0.132996,
+              "p95": 0.16612,
+              "p99": 0.185788
+            },
+            "units_per_second": 7297.569259952771
+          },
+          "rust": {
+            "wall_us_per_operation": 164.48679,
+            "cpu_us_per_operation": 98.53654,
+            "latency_ms": {
+              "p50": 0.16294150000000002,
+              "p95": 0.185853,
+              "p99": 0.200679
+            },
+            "units_per_second": 6079.515564745351
+          }
+        }
+      }
+    },
+    {
+      "run": 2,
+      "ratios": {
+        "connect_plain": {
+          "python": 0.5908839452237769,
+          "c": 0.6106621467549
+        },
+        "connect_tls": {
+          "python": 0.680240403887938,
+          "c": 0.705181972671759
+        },
+        "parameterized": {
+          "python": 1.0054405892848324,
+          "c": 1.3232772128361443
+        },
+        "prepared": {
+          "python": 0.9461893591688917,
+          "c": 1.271350963076982
+        },
+        "rows_tuple": {
+          "python": 0.09499988977388589,
+          "c": 1.2357529393791553
+        },
+        "rows_dict": {
+          "python": 0.1615833309439537,
+          "c": 1.1365478889144986
+        },
+        "rows_namedtuple": {
+          "python": 0.12766230243395724,
+          "c": 1.1691704752971501
+        },
+        "transaction": {
+          "python": 1.0411568753975167,
+          "c": 1.2074553887312762
+        },
+        "copy_text": {
+          "python": 0.514764049049357,
+          "c": 1.2055187959061027
+        },
+        "copy_binary": {
+          "python": 0.49320102530907817,
+          "c": 1.0599109960623068
+        },
+        "pool": {
+          "python": 1.0308019083948192,
+          "c": 1.2887086797158318
+        }
+      },
+      "metrics": {
+        "connect_plain": {
+          "rust": {
+            "wall_us_per_operation": 3745.11454,
+            "cpu_us_per_operation": 1734.48354,
+            "latency_ms": {
+              "p50": 3.7261115,
+              "p95": 4.062002,
+              "p99": 4.319448
+            },
+            "units_per_second": 267.0145303486499
+          },
+          "python": {
+            "wall_us_per_operation": 6338.15586,
+            "cpu_us_per_operation": 4343.41538,
+            "latency_ms": {
+              "p50": 6.305852,
+              "p95": 7.048662,
+              "p99": 7.809225
+            },
+            "units_per_second": 157.77459912448413
+          },
+          "c": {
+            "wall_us_per_operation": 6132.87488,
+            "cpu_us_per_operation": 4155.74754,
+            "latency_ms": {
+              "p50": 6.1121265000000005,
+              "p95": 6.649862,
+              "p99": 7.047869
+            },
+            "units_per_second": 163.05566631745796
+          }
+        },
+        "connect_tls": {
+          "python": {
+            "wall_us_per_operation": 8715.83741,
+            "cpu_us_per_operation": 5288.8230300000005,
+            "latency_ms": {
+              "p50": 8.6855655,
+              "p95": 9.271893,
+              "p99": 9.618816
+            },
+            "units_per_second": 114.73366848865989
+          },
+          "c": {
+            "wall_us_per_operation": 8407.56711,
+            "cpu_us_per_operation": 4983.55684,
+            "latency_ms": {
+              "p50": 8.3828265,
+              "p95": 8.991894,
+              "p99": 10.1593
+            },
+            "units_per_second": 118.94047194825185
+          },
+          "rust": {
+            "wall_us_per_operation": 5928.86476,
+            "cpu_us_per_operation": 2229.31312,
+            "latency_ms": {
+              "p50": 5.893975,
+              "p95": 6.415485,
+              "p99": 6.722124
+            },
+            "units_per_second": 168.66635359043002
+          }
+        },
+        "parameterized": {
+          "c": {
+            "wall_us_per_operation": 114.30286,
+            "cpu_us_per_operation": 44.964929999999995,
+            "latency_ms": {
+              "p50": 0.1115015,
+              "p95": 0.1319,
+              "p99": 0.15637
+            },
+            "units_per_second": 8748.68747816109
+          },
+          "rust": {
+            "wall_us_per_operation": 151.25437,
+            "cpu_us_per_operation": 81.78015,
+            "latency_ms": {
+              "p50": 0.1516975,
+              "p95": 0.198104,
+              "p99": 0.247846
+            },
+            "units_per_second": 6611.379228249736
+          },
+          "python": {
+            "wall_us_per_operation": 150.43591,
+            "cpu_us_per_operation": 79.08732,
+            "latency_ms": {
+              "p50": 0.1468825,
+              "p95": 0.168392,
+              "p99": 0.185341
+            },
+            "units_per_second": 6647.3490272369145
+          }
+        },
+        "prepared": {
+          "rust": {
+            "wall_us_per_operation": 136.74445,
+            "cpu_us_per_operation": 73.80767,
+            "latency_ms": {
+              "p50": 0.13361299999999998,
+              "p95": 0.164073,
+              "p99": 0.195345
+            },
+            "units_per_second": 7312.911054159785
+          },
+          "python": {
+            "wall_us_per_operation": 144.52123,
+            "cpu_us_per_operation": 88.40367,
+            "latency_ms": {
+              "p50": 0.1421465,
+              "p95": 0.180646,
+              "p99": 0.203592
+            },
+            "units_per_second": 6919.398623994551
+          },
+          "c": {
+            "wall_us_per_operation": 107.55838,
+            "cpu_us_per_operation": 46.37937,
+            "latency_ms": {
+              "p50": 0.1062185,
+              "p95": 0.137008,
+              "p99": 0.16448
+            },
+            "units_per_second": 9297.27651160235
+          }
+        },
+        "rows_tuple": {
+          "python": {
+            "wall_us_per_operation": 6074.3318899999995,
+            "cpu_us_per_operation": 5814.25949,
+            "latency_ms": {
+              "p50": 6.0235195,
+              "p95": 6.539063,
+              "p99": 7.718495
+            },
+            "units_per_second": 164627.15869152156
+          },
+          "c": {
+            "wall_us_per_operation": 466.97106,
+            "cpu_us_per_operation": 203.77948,
+            "latency_ms": {
+              "p50": 0.46278450000000004,
+              "p95": 0.530997,
+              "p99": 0.606396
+            },
+            "units_per_second": 2141460.329468811
+          },
+          "rust": {
+            "wall_us_per_operation": 577.0608599999999,
+            "cpu_us_per_operation": 381.00376,
+            "latency_ms": {
+              "p50": 0.569279,
+              "p95": 0.644851,
+              "p99": 0.677582
+            },
+            "units_per_second": 1732919.470573693
+          }
+        },
+        "rows_dict": {
+          "c": {
+            "wall_us_per_operation": 877.78728,
+            "cpu_us_per_operation": 618.22461,
+            "latency_ms": {
+              "p50": 0.8683905000000001,
+              "p95": 0.9664,
+              "p99": 1.033198
+            },
+            "units_per_second": 1139228.173823617
+          },
+          "rust": {
+            "wall_us_per_operation": 997.64728,
+            "cpu_us_per_operation": 813.0704,
+            "latency_ms": {
+              "p50": 0.9849699999999999,
+              "p95": 1.081196,
+              "p99": 1.150524
+            },
+            "units_per_second": 1002358.2683451009
+          },
+          "python": {
+            "wall_us_per_operation": 6174.19677,
+            "cpu_us_per_operation": 5926.013919999999,
+            "latency_ms": {
+              "p50": 6.1467165,
+              "p95": 6.427461,
+              "p99": 6.822444
+            },
+            "units_per_second": 161964.3877984148
+          }
+        },
+        "rows_namedtuple": {
+          "rust": {
+            "wall_us_per_operation": 765.98738,
+            "cpu_us_per_operation": 575.17101,
+            "latency_ms": {
+              "p50": 0.7625934999999999,
+              "p95": 0.835516,
+              "p99": 0.896604
+            },
+            "units_per_second": 1305504.5371635235
+          },
+          "python": {
+            "wall_us_per_operation": 6000.10626,
+            "cpu_us_per_operation": 5746.67187,
+            "latency_ms": {
+              "p50": 5.995994,
+              "p95": 6.323298,
+              "p99": 6.595691
+            },
+            "units_per_second": 166663.7150522731
+          },
+          "c": {
+            "wall_us_per_operation": 655.15457,
+            "cpu_us_per_operation": 398.43297,
+            "latency_ms": {
+              "p50": 0.654322,
+              "p95": 0.722809,
+              "p99": 0.77068
+            },
+            "units_per_second": 1526357.3602180628
+          }
+        },
+        "transaction": {
+          "python": {
+            "wall_us_per_operation": 1064.15367,
+            "cpu_us_per_operation": 553.50966,
+            "latency_ms": {
+              "p50": 1.056103,
+              "p95": 1.201672,
+              "p99": 1.262148
+            },
+            "units_per_second": 939.7139042897818
+          },
+          "c": {
+            "wall_us_per_operation": 917.5915900000001,
+            "cpu_us_per_operation": 380.16191,
+            "latency_ms": {
+              "p50": 0.918428,
+              "p95": 1.035962,
+              "p99": 1.085539
+            },
+            "units_per_second": 1089.8094652327839
+          },
+          "rust": {
+            "wall_us_per_operation": 1107.95091,
+            "cpu_us_per_operation": 514.22734,
+            "latency_ms": {
+              "p50": 1.0996705,
+              "p95": 1.243965,
+              "p99": 1.478179
+            },
+            "units_per_second": 902.5670640949246
+          }
+        },
+        "copy_text": {
+          "c": {
+            "wall_us_per_operation": 4656.98432,
+            "cpu_us_per_operation": 2510.0704,
+            "latency_ms": {
+              "p50": 4.616350000000001,
+              "p95": 5.045836,
+              "p99": 6.130197
+            },
+            "units_per_second": 429462.47240102367
+          },
+          "rust": {
+            "wall_us_per_operation": 5614.08213,
+            "cpu_us_per_operation": 3387.23376,
+            "latency_ms": {
+              "p50": 5.5776465,
+              "p95": 5.972509,
+              "p99": 6.61666
+            },
+            "units_per_second": 356247.01486153714
+          },
+          "python": {
+            "wall_us_per_operation": 10906.12707,
+            "cpu_us_per_operation": 8785.12694,
+            "latency_ms": {
+              "p50": 10.8337035,
+              "p95": 11.450769,
+              "p99": 11.881061
+            },
+            "units_per_second": 183383.1558318713
+          }
+        },
+        "copy_binary": {
+          "rust": {
+            "wall_us_per_operation": 4815.207939999999,
+            "cpu_us_per_operation": 2508.01895,
+            "latency_ms": {
+              "p50": 4.7917095,
+              "p95": 5.180498,
+              "p99": 5.441237
+            },
+            "units_per_second": 415350.70238316647
+          },
+          "python": {
+            "wall_us_per_operation": 9763.17504,
+            "cpu_us_per_operation": 7595.4157700000005,
+            "latency_ms": {
+              "p50": 9.702054,
+              "p95": 10.227595,
+              "p99": 10.613219
+            },
+            "units_per_second": 204851.39227822347
+          },
+          "c": {
+            "wall_us_per_operation": 4543.03046,
+            "cpu_us_per_operation": 2443.87895,
+            "latency_ms": {
+              "p50": 4.535005,
+              "p95": 4.883183,
+              "p99": 5.203783
+            },
+            "units_per_second": 440234.7766781207
+          }
+        },
+        "pool": {
+          "python": {
+            "wall_us_per_operation": 163.26390999999998,
+            "cpu_us_per_operation": 105.50117,
+            "latency_ms": {
+              "p50": 0.1633095,
+              "p95": 0.196232,
+              "p99": 0.212789
+            },
+            "units_per_second": 6125.052376854138
+          },
+          "c": {
+            "wall_us_per_operation": 130.59022,
+            "cpu_us_per_operation": 65.19565,
+            "latency_ms": {
+              "p50": 0.127855,
+              "p95": 0.16343,
+              "p99": 0.187101
+            },
+            "units_per_second": 7657.541276827622
+          },
+          "rust": {
+            "wall_us_per_operation": 168.29275,
+            "cpu_us_per_operation": 101.3476,
+            "latency_ms": {
+              "p50": 0.1638965,
+              "p95": 0.192099,
+              "p99": 0.239208
+            },
+            "units_per_second": 5942.026617308232
+          }
+        }
+      }
+    },
+    {
+      "run": 3,
+      "ratios": {
+        "connect_plain": {
+          "python": 0.5911684895505687,
+          "c": 0.6070934440201604
+        },
+        "connect_tls": {
+          "python": 0.666205577457874,
+          "c": 0.6950054568907044
+        },
+        "parameterized": {
+          "python": 0.9678299080137804,
+          "c": 1.280724509488315
+        },
+        "prepared": {
+          "python": 0.9492001956155045,
+          "c": 1.36354529622325
+        },
+        "rows_tuple": {
+          "python": 0.10137843795002578,
+          "c": 1.253887650891762
+        },
+        "rows_dict": {
+          "python": 0.15685662281179485,
+          "c": 1.1227843610211592
+        },
+        "rows_namedtuple": {
+          "python": 0.1286171713266368,
+          "c": 1.1801329839933155
+        },
+        "transaction": {
+          "python": 1.0214726028410928,
+          "c": 1.147138266503214
+        },
+        "copy_text": {
+          "python": 0.5264457878356659,
+          "c": 1.2354831998279652
+        },
+        "copy_binary": {
+          "python": 0.48196734713311884,
+          "c": 1.044547208048926
+        },
+        "pool": {
+          "python": 0.9612017248263292,
+          "c": 1.316852334688083
+        }
+      },
+      "metrics": {
+        "connect_plain": {
+          "rust": {
+            "wall_us_per_operation": 3730.11888,
+            "cpu_us_per_operation": 1735.18477,
+            "latency_ms": {
+              "p50": 3.736025,
+              "p95": 4.037259,
+              "p99": 4.269435
+            },
+            "units_per_second": 268.0879704295108
+          },
+          "python": {
+            "wall_us_per_operation": 6309.739009999999,
+            "cpu_us_per_operation": 4349.01195,
+            "latency_ms": {
+              "p50": 6.266354,
+              "p95": 6.8465,
+              "p99": 7.137684
+            },
+            "units_per_second": 158.48516054549142
+          },
+          "c": {
+            "wall_us_per_operation": 6144.22527,
+            "cpu_us_per_operation": 4161.68908,
+            "latency_ms": {
+              "p50": 6.124452,
+              "p95": 6.588898,
+              "p99": 6.956318
+            },
+            "units_per_second": 162.75444926842664
+          }
+        },
+        "connect_tls": {
+          "python": {
+            "wall_us_per_operation": 8883.06772,
+            "cpu_us_per_operation": 5371.32794,
+            "latency_ms": {
+              "p50": 8.8357895,
+              "p95": 9.542969,
+              "p99": 9.812621
+            },
+            "units_per_second": 112.57372244821748
+          },
+          "c": {
+            "wall_us_per_operation": 8514.96805,
+            "cpu_us_per_operation": 5032.26671,
+            "latency_ms": {
+              "p50": 8.401354999999999,
+              "p95": 9.126239,
+              "p99": 11.038248
+            },
+            "units_per_second": 117.4402527558515
+          },
+          "rust": {
+            "wall_us_per_operation": 5917.94926,
+            "cpu_us_per_operation": 2229.3923299999997,
+            "latency_ms": {
+              "p50": 5.882747500000001,
+              "p95": 6.480758,
+              "p99": 6.964205
+            },
+            "units_per_second": 168.9774541933129
+          }
+        },
+        "parameterized": {
+          "c": {
+            "wall_us_per_operation": 120.65156,
+            "cpu_us_per_operation": 45.49891,
+            "latency_ms": {
+              "p50": 0.1152065,
+              "p95": 0.159023,
+              "p99": 0.197888
+            },
+            "units_per_second": 8288.330461703106
+          },
+          "rust": {
+            "wall_us_per_operation": 154.52141,
+            "cpu_us_per_operation": 81.50309,
+            "latency_ms": {
+              "p50": 0.149148,
+              "p95": 0.18722,
+              "p99": 0.245755
+            },
+            "units_per_second": 6471.595101287258
+          },
+          "python": {
+            "wall_us_per_operation": 159.65760999999998,
+            "cpu_us_per_operation": 91.11354,
+            "latency_ms": {
+              "p50": 0.156433,
+              "p95": 0.196067,
+              "p99": 0.237887
+            },
+            "units_per_second": 6263.403291581279
+          }
+        },
+        "prepared": {
+          "rust": {
+            "wall_us_per_operation": 148.46332999999998,
+            "cpu_us_per_operation": 82.17418,
+            "latency_ms": {
+              "p50": 0.14796700000000002,
+              "p95": 0.191019,
+              "p99": 0.215572
+            },
+            "units_per_second": 6735.670013598644
+          },
+          "python": {
+            "wall_us_per_operation": 156.40886999999998,
+            "cpu_us_per_operation": 94.404,
+            "latency_ms": {
+              "p50": 0.1518745,
+              "p95": 0.188701,
+              "p99": 0.216541
+            },
+            "units_per_second": 6393.499294509321
+          },
+          "c": {
+            "wall_us_per_operation": 108.88037999999999,
+            "cpu_us_per_operation": 46.4413,
+            "latency_ms": {
+              "p50": 0.1077535,
+              "p95": 0.13392,
+              "p99": 0.154779
+            },
+            "units_per_second": 9184.391163954424
+          }
+        },
+        "rows_tuple": {
+          "python": {
+            "wall_us_per_operation": 5906.80052,
+            "cpu_us_per_operation": 5639.03112,
+            "latency_ms": {
+              "p50": 5.8541665,
+              "p95": 6.349723,
+              "p99": 6.455814
+            },
+            "units_per_second": 169296.38924051562
+          },
+          "c": {
+            "wall_us_per_operation": 477.57246000000004,
+            "cpu_us_per_operation": 208.0045,
+            "latency_ms": {
+              "p50": 0.473586,
+              "p95": 0.526029,
+              "p99": 0.569732
+            },
+            "units_per_second": 2093923.0876085274
+          },
+          "rust": {
+            "wall_us_per_operation": 598.82221,
+            "cpu_us_per_operation": 389.87584999999996,
+            "latency_ms": {
+              "p50": 0.5911,
+              "p95": 0.656904,
+              "p99": 0.737616
+            },
+            "units_per_second": 1669944.7403595801
+          }
+        },
+        "rows_dict": {
+          "c": {
+            "wall_us_per_operation": 885.07876,
+            "cpu_us_per_operation": 615.85792,
+            "latency_ms": {
+              "p50": 0.8758245,
+              "p95": 0.962104,
+              "p99": 1.004764
+            },
+            "units_per_second": 1129842.9531853187
+          },
+          "rust": {
+            "wall_us_per_operation": 993.7525899999999,
+            "cpu_us_per_operation": 789.02677,
+            "latency_ms": {
+              "p50": 0.9835050000000001,
+              "p95": 1.077991,
+              "p99": 1.164795
+            },
+            "units_per_second": 1006286.6855018713
+          },
+          "python": {
+            "wall_us_per_operation": 6335.420029999999,
+            "cpu_us_per_operation": 6072.726309999999,
+            "latency_ms": {
+              "p50": 6.2879385,
+              "p95": 6.823958,
+              "p99": 7.054381
+            },
+            "units_per_second": 157842.73106829825
+          }
+        },
+        "rows_namedtuple": {
+          "rust": {
+            "wall_us_per_operation": 775.74242,
+            "cpu_us_per_operation": 582.15986,
+            "latency_ms": {
+              "p50": 0.772767,
+              "p95": 0.854216,
+              "p99": 0.895063
+            },
+            "units_per_second": 1289087.684543537
+          },
+          "python": {
+            "wall_us_per_operation": 6031.40632,
+            "cpu_us_per_operation": 5780.72099,
+            "latency_ms": {
+              "p50": 6.0280545,
+              "p95": 6.284767,
+              "p99": 6.63175
+            },
+            "units_per_second": 165798.81157799365
+          },
+          "c": {
+            "wall_us_per_operation": 657.33475,
+            "cpu_us_per_operation": 397.53155,
+            "latency_ms": {
+              "p50": 0.652853,
+              "p95": 0.704514,
+              "p99": 0.764692
+            },
+            "units_per_second": 1521294.895789398
+          }
+        },
+        "transaction": {
+          "python": {
+            "wall_us_per_operation": 1070.97729,
+            "cpu_us_per_operation": 544.83998,
+            "latency_ms": {
+              "p50": 1.054249,
+              "p95": 1.222868,
+              "p99": 1.279101
+            },
+            "units_per_second": 933.7266152487696
+          },
+          "c": {
+            "wall_us_per_operation": 953.65484,
+            "cpu_us_per_operation": 393.38393,
+            "latency_ms": {
+              "p50": 0.9464859999999999,
+              "p95": 1.068894,
+              "p99": 1.116754
+            },
+            "units_per_second": 1048.5974149724864
+          },
+          "rust": {
+            "wall_us_per_operation": 1093.97396,
+            "cpu_us_per_operation": 515.04646,
+            "latency_ms": {
+              "p50": 1.079352,
+              "p95": 1.228725,
+              "p99": 1.441045
+            },
+            "units_per_second": 914.0985403345433
+          }
+        },
+        "copy_text": {
+          "c": {
+            "wall_us_per_operation": 4667.98583,
+            "cpu_us_per_operation": 2517.15313,
+            "latency_ms": {
+              "p50": 4.624452,
+              "p95": 4.937644,
+              "p99": 5.139543
+            },
+            "units_per_second": 428450.31515444856
+          },
+          "rust": {
+            "wall_us_per_operation": 5767.21807,
+            "cpu_us_per_operation": 3449.25833,
+            "latency_ms": {
+              "p50": 5.6518715,
+              "p95": 6.443436,
+              "p99": 7.750283
+            },
+            "units_per_second": 346787.6497342158
+          },
+          "python": {
+            "wall_us_per_operation": 10955.008479999999,
+            "cpu_us_per_operation": 8824.095659999999,
+            "latency_ms": {
+              "p50": 10.873841500000001,
+              "p95": 11.517615,
+              "p99": 12.484465
+            },
+            "units_per_second": 182564.89747600816
+          }
+        },
+        "copy_binary": {
+          "rust": {
+            "wall_us_per_operation": 4781.39949,
+            "cpu_us_per_operation": 2481.86413,
+            "latency_ms": {
+              "p50": 4.704831,
+              "p95": 5.10956,
+              "p99": 5.3146
+            },
+            "units_per_second": 418287.5754646471
+          },
+          "python": {
+            "wall_us_per_operation": 9920.58802,
+            "cpu_us_per_operation": 7722.52484,
+            "latency_ms": {
+              "p50": 9.858700500000001,
+              "p95": 10.498038,
+              "p99": 10.810824
+            },
+            "units_per_second": 201600.9530854402
+          },
+          "c": {
+            "wall_us_per_operation": 4577.4853,
+            "cpu_us_per_operation": 2461.0186400000002,
+            "latency_ms": {
+              "p50": 4.5683755,
+              "p95": 4.901872,
+              "p99": 5.242488
+            },
+            "units_per_second": 436921.1191131515
+          }
+        },
+        "pool": {
+          "python": {
+            "wall_us_per_operation": 167.68064999999999,
+            "cpu_us_per_operation": 109.61871,
+            "latency_ms": {
+              "p50": 0.164218,
+              "p95": 0.190578,
+              "p99": 0.205553
+            },
+            "units_per_second": 5963.71734007472
+          },
+          "c": {
+            "wall_us_per_operation": 122.39408,
+            "cpu_us_per_operation": 63.41258,
+            "latency_ms": {
+              "p50": 0.1190325,
+              "p95": 0.141295,
+              "p99": 0.1547
+            },
+            "units_per_second": 8170.329806801113
+          },
+          "rust": {
+            "wall_us_per_operation": 161.17493,
+            "cpu_us_per_operation": 97.30146,
+            "latency_ms": {
+              "p50": 0.1583105,
+              "p95": 0.195441,
+              "p99": 0.308448
+            },
+            "units_per_second": 6204.438866516027
+          }
+        }
+      }
+    }
+  ],
+  "measurement_limits": [
+    "Dedicated GitHub-hosted runner; before/after process snapshots are not continuous host-idleness proof.",
+    "Package identity is checked by the on-runner harness around each complete run; archived wheel digest independently matches.",
+    "Passing these beta limits is not near parity or before/after attribution.",
+    "Soak, compatibility, dedicated prototype comparison, outcome completion, and final audits remain incomplete."
+  ]
+}

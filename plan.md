@@ -347,15 +347,29 @@ search for tiny transport optimizations.
    continued evaluation, not near parity or final retention. The diagnostic
    harness now validates each wheel with its own revision's tests while keeping
    timing workloads identical; all 155 current and 148 historical checks pass.
-   Next obtain the dedicated comparison and all eleven workload results, complete
-   remaining outcome/error-state ownership, and audit the unchanged final gates.
+   Dedicated comparison `36231026807` is dispatched at `bcd8ded9`, against
+   `d957b508`; the candidate runtime remains identical to `12f139ce`. It is queued
+   at the latest check. Follow that handle rather than dispatching a duplicate.
+   Next audit the dedicated comparison, complete remaining outcome/error-state
+   ownership, and satisfy the unchanged final gates.
    Tests `36227989975` on published `d957b508` is now complete: all 57 jobs pass;
    Lint `36227989984` passes. These parent runs do not validate the latest slice.
    The user explicitly approved publishing the current unfinished integration to
    main as a revisable checkpoint. This does not authorize PyPI publication or
    change any performance, compatibility, or resource gate.
-   Published `12f139ce` Tests `36230544349` and Phase 5 `36230544336` are live;
-   Lint `36230544327` passes. Do not cancel them with an evidence-only main push.
+   Published `12f139ce` Tests `36230544349` remains live (7 complete, 50 active/
+   queued, no failures at the latest check); Lint `36230544327` passes. Phase 5
+   `36230544336` has a successful benchmark job and a live soak job. Artifact
+   `10902059653` independently recomputes all three complete eleven-workload
+   comparisons: every Rust/Python ratio <= 1.15 and Rust/C ratio <= 1.50.
+   Audit `2026-09-26-public-boundary-three-run-benchmark.json` and its raw archive
+   preserve all 99 workers and 89,100 latency observations. The uploaded Linux
+   wheel hash matches the frozen manifest; all 91 Python files also match the
+   locally measured wheel. Numerical benchmark checks pass for this exact
+   checkpoint, not near parity or final Phase 5 acceptance. Before/after process
+   snapshots do not continuously prove host idleness. Do not cancel these runs
+   with an evidence-only main push. Development Tests `36231014162` and Lint
+   `36231014169` on `bcd8ded9` are also queued at the latest check.
    Scheduled workflow `35581426803` now proves scheduled soak execution on older
    main `7c1a644a`: all three backends exceed 1,800 seconds, all eight scenarios
    run, and independently recomputed resources/cleanup pass. Its benchmark job
