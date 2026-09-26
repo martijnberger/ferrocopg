@@ -182,16 +182,16 @@ class InstalledPoolTests(unittest.TestCase):
                     os.environ["PHASE5_DSN"], autocommit=True
                 ) as conn:
                     conn.adapters.register_dumper(Payload, MutableDumper)
-                    execute = conn._session.execute_owned
+                    preflight = conn._ensure_transaction
 
-                    def mutate_before_execute(*args):
+                    def mutate_before_preflight():
                         payload[:] = b"xxxx"
-                        return execute(*args)
+                        return preflight()
 
-                    # The native entry now owns preparation. Intercept before
-                    # that entry, still strictly before preparation I/O.
+                    # Native ownership must precede the transaction hook as
+                    # well as preparation I/O, without a Python packet copy.
                     with patch.object(
-                        conn._session, "execute_owned", mutate_before_execute
+                        conn, "_ensure_transaction", mutate_before_preflight
                     ):
                         cur = conn.execute(
                             "select %s::bytea", (Payload(),), prepare=True
@@ -200,6 +200,64 @@ class InstalledPoolTests(unittest.TestCase):
                     self.assertEqual(payload, b"xxxx")
                     cur.execute("select %s::bytea", (Payload(),), prepare=True)
                     self.assertEqual(cur.fetchone(), (b"xx" if as_view else b"xxxx",))
+
+    def test_native_path_removes_python_request_and_result_containers(self):
+        import ferrocopg
+        from ferrocopg import _ferrocopg as integration
+        from ferrocopg._rust import _ferrocopg as native
+
+        with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+            with (
+                patch.object(
+                    integration._BoundParams,
+                    "__new__",
+                    side_effect=AssertionError("parameter packet"),
+                ),
+                patch.object(
+                    integration.BackendResultCursor,
+                    "__init__",
+                    side_effect=AssertionError("result wrapper"),
+                ),
+            ):
+                for query, params in (
+                    ("select 42::int4", None),
+                    ("select %s::int4", (42,)),
+                ):
+                    cur = conn.execute(query, params, prepare=True)
+                    self.assertEqual(cur.fetchone(), (42,))
+                    self.assertEqual(cur.statusmessage, "SELECT 1")
+                    self.assertIsInstance(
+                        integration._backend_cursor_adapter(cur)._result,
+                        native.BackendExecutionOutcome,
+                    )
+
+    def test_transaction_preflight_errors_are_not_processed_twice(self):
+        import ferrocopg
+
+        with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+            observed = []
+            conn._session.error_handler = observed.append
+            expected = ferrocopg.errors.DataError("preflight callback")
+
+            def fail_directly():
+                raise expected
+
+            with patch.object(conn, "_ensure_transaction", fail_directly):
+                with self.assertRaises(ferrocopg.errors.DataError) as caught:
+                    conn.execute("select %s::int4", (42,), prepare=True)
+            self.assertIs(caught.exception, expected)
+            self.assertEqual(observed, [])
+            self.assertEqual(str(expected), "preflight callback")
+
+            def fail_from_command():
+                conn._session.execute_params("select 1 / 0", [])
+
+            with patch.object(conn, "_ensure_transaction", fail_from_command):
+                with self.assertRaises(ferrocopg.errors.DivisionByZero) as caught:
+                    conn.execute("select %s::int4", (42,), prepare=True)
+            self.assertEqual(observed, [caught.exception])
+            self.assertEqual(conn._prepared._names, {})
+            self.assertEqual(conn.execute("select 42").fetchone(), (42,))
 
     def test_public_queries_use_one_native_preparation_owner(self):
         import ferrocopg

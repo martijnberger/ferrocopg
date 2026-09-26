@@ -1812,24 +1812,44 @@ class NoTlsSessionAdapter:
     def execute_owned(
         self,
         query: str,
-        params: _BoundParams,
+        params: _BoundParams | PostgresQuery | None,
         result_format: pq.Format,
         prepare: bool | None,
         plan: _NativePipelinePreparePlan | None,
+        preflight: Callable[[], None] | None = None,
     ) -> BackendResultCursor:
         native = cast(Any, self._session)
         outcome = None
         try:
+            formats: Sequence[int]
+            values: Sequence[Buffer | None]
+            if params is None:
+                wire_query = query.encode("utf-8")
+                values = ()
+                formats = ()
+                types: Sequence[int] = ()
+            elif isinstance(params, PostgresQuery):
+                wire_query = params.query
+                values = params.params or ()
+                formats = params.formats or ()
+                types = params.types
+            else:
+                wire_query = query.encode("utf-8")
+                values = [value for _, _, value in params.values]
+                formats = [int(binary) for _, binary, _ in params.values]
+                types = params.types
             outcome = native.execute_query(
-                query.encode("utf-8"),
-                [value for _, _, value in params.values],
-                params.types,
-                [int(binary) for _, binary, _ in params.values],
+                wire_query,
+                values,
+                types,
+                formats,
                 binary=result_format == pq.Format.BINARY,
                 prepare=prepare,
                 reservation=plan.reservation if plan is not None else None,
+                preflight=preflight,
+                own_preflight_errors=True,
             )
-            if outcome.error is not None:
+            if outcome.error is not None and not outcome.preflight_failed:
                 raise outcome.error
         except BaseException as ex:
             if isinstance(ex, e.Error):
@@ -1852,9 +1872,12 @@ class NoTlsSessionAdapter:
             except Exception:
                 logger.exception("error draining backend messages after failure")
             raise
+        if outcome.preflight_failed:
+            raise outcome.error
+        if self.encoding != "utf-8":
+            outcome.set_encoding(self.encoding)
         self._publish_owned_events(outcome)
-        result = outcome.result
-        return BackendResultCursor([result], [result.command_tag or None])
+        return cast(BackendResultCursor, outcome)
 
     def _publish_owned_events(self, outcome: Any) -> None:
         if self.closed:
@@ -2840,6 +2863,7 @@ class NoTlsServerCursorAdapter(NoTlsCursorAdapter):
             result = self._conn._session.execute_bound(declaration, converted)
             query_params = [value for _oid, _binary, value in converted.values]
         elif converted is not None:
+            assert not isinstance(converted, PostgresQuery)
             result = self._conn._session.execute_params(declaration, converted)
             query_params = converted
         else:
@@ -4350,8 +4374,12 @@ class NoTlsConnectionAdapter:
         prepared_plan: _PipelinePreparePlan | _NativePipelinePreparePlan | None = None,
     ) -> BackendResultCursor:
         self._ensure_cancel_handle()
-        query, params = self._convert_query_params(
-            query, params, adapters=adapters, cursor_state=cursor_state
+        query, converted = self._convert_query_params(
+            query,
+            params,
+            adapters=adapters,
+            cursor_state=cursor_state,
+            native=isinstance(self._prepared, _NativePreparationView),
         )
         statusmessage = _statusmessage_for_query(query)
         if statusmessage and statusmessage.split(maxsplit=1)[0] == "COPY":
@@ -4360,6 +4388,29 @@ class NoTlsConnectionAdapter:
             )
         if self._unsupported_client_encoding and not _changes_client_encoding(query):
             raise e.NotSupportedError(str(self._unsupported_client_encoding))
+        if isinstance(converted, PostgresQuery) or (
+            converted is None
+            and isinstance(self._prepared, _NativePreparationView)
+            and self._pgconn._encoding == "utf-8"
+            and query.isascii()
+            and len(_split_extended_statements(query)) == 1
+        ):
+            assert prepared_plan is None or isinstance(
+                prepared_plan, _NativePipelinePreparePlan
+            )
+            result = self._session.execute_owned(
+                query,
+                converted,
+                result_format,
+                prepare,
+                prepared_plan,
+                preflight=self._ensure_transaction,
+            )
+            self._refresh_client_encoding(query)
+            self._refresh_session_timeout(query)
+            self._update_transaction_state(query)
+            return result
+        params = converted
         self._ensure_transaction()
         client_encoding = self._pgconn._encoding
         bridge_encoding = client_encoding not in {
@@ -4658,7 +4709,8 @@ class NoTlsConnectionAdapter:
         adapters: AdaptersMap | None = None,
         cursor_state: NoTlsCursorAdapter | None = None,
         query_cls: type[PostgresQuery] | None = None,
-    ) -> tuple[str, list[str | None] | _BoundParams | None]:
+        native: bool = False,
+    ) -> tuple[str, list[str | None] | _BoundParams | PostgresQuery | None]:
         query_cls = query_cls or (
             cursor_state._query_cls if cursor_state is not None else PostgresQuery
         )
@@ -4680,16 +4732,16 @@ class NoTlsConnectionAdapter:
                 return query, None
 
         if query_cls is PostgresQuery and isinstance(query, str) and "%" not in query:
-            native = _coerce_native_params(params)
-            return query, self._bound_native_params(native)
+            raw_params = _coerce_native_params(params)
+            return query, self._bound_native_params(raw_params)
         if (
             query_cls is PostgresQuery
             and isinstance(query, bytes)
             and b"%" not in query
         ):
-            native = _coerce_native_params(params)
+            raw_params = _coerce_native_params(params)
             return query.decode(self._pgconn._encoding), self._bound_native_params(
-                native
+                raw_params
             )
 
         tx = _BackendTransformer(
@@ -4712,6 +4764,8 @@ class NoTlsConnectionAdapter:
 
         assert pgq.formats is not None
         assert len(pgq.params) == len(pgq.types) == len(pgq.formats)
+        if native and tx.encoding == "utf-8" and pgq.query.isascii():
+            return pgq.query.decode("utf-8"), pgq
         transcode = _query_param_transcode_flags(pgq, query, params, tx)
         bound = _BoundParams(
             values=[

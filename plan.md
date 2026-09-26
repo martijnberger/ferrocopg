@@ -331,12 +331,21 @@ search for tiny transport optimizations.
    a separate pure-Python/libpq control. Preserve every failure and the unchanged
    zero-regression gate. All other supported-sync feature families are green in
    that complete run, but this is not complete candidate compatibility acceptance.
-   Next remove `_BoundParams` triple construction/re-extraction and result-cursor
-   list scaffolding together, preserving adaptation/transaction snapshot points
-   and callback behavior, before measuring the whole Python-facing boundary.
-   Tests `36227989975` on published `d957b508` is still live (41 complete, 16 active
-   at the latest check), with no reported failures; Lint `36227989984` passes.
-   Do not cancel that run with another development push.
+   The next implemented slice removes `_BoundParams` triple construction and
+   re-extraction for common UTF8/ASCII-SQL operations, feeding adapted sequences
+   directly to Rust. Rust snapshots buffers before transaction preflight, and the
+   owned native outcome replaces the Python result-cursor wrapper. Encoding and
+   legacy fallbacks remain explicit; preflight errors preserve identity without
+   duplicate error-handler delivery. All 154 installed checks, 32 Rust tests,
+   845 focused source checks (37 skipped), and mypy's 239 sources pass. This slice
+   has not yet been performance-measured or given full candidate acceptance.
+   Next measure the whole Python-facing boundary against the frozen pre-integration
+   control in both orders, with fresh/reused cursors and constant/bound queries.
+   Tests `36227989975` on published `d957b508` is now complete: all 57 jobs pass;
+   Lint `36227989984` passes. These parent runs do not validate the latest slice.
+   The user explicitly approved publishing the current unfinished integration to
+   main as a revisable checkpoint. This does not authorize PyPI publication or
+   change any performance, compatibility, or resource gate.
    Scheduled workflow `35581426803` now proves scheduled soak execution on older
    main `7c1a644a`: all three backends exceed 1,800 seconds, all eight scenarios
    run, and independently recomputed resources/cleanup pass. Its benchmark job

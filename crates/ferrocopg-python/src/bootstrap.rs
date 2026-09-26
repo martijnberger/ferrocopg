@@ -541,7 +541,14 @@ struct BackendExecutionOutcome {
     #[pyo3(get)]
     error: Option<Py<PyBaseException>>,
     #[pyo3(get)]
-    encoding: String,
+    preflight_failed: bool,
+    #[pyo3(get)]
+    encoding: Option<String>,
+    #[pyo3(get)]
+    statusmessage: Option<Py<PyString>>,
+    #[pyo3(get, set, name = "_pos")]
+    position: usize,
+    pgresults_cache: Option<(String, u8, Py<PyList>)>,
     notices: Vec<ferrocopg_postgres::PostgresDiagnostic>,
     #[pyo3(get)]
     notifications: Vec<BackendNotification>,
@@ -549,6 +556,109 @@ struct BackendExecutionOutcome {
 
 #[pymethods]
 impl BackendExecutionOutcome {
+    #[getter]
+    fn current_result(&self, py: Python<'_>) -> Option<Py<BackendResultSet>> {
+        self.result.as_ref().map(|result| result.clone_ref(py))
+    }
+
+    #[getter(_index)]
+    fn index(&self) -> isize {
+        if self.result.is_some() { 0 } else { -1 }
+    }
+
+    #[getter]
+    fn columns(&self, py: Python<'_>) -> Vec<String> {
+        self.result
+            .as_ref()
+            .map_or_else(Vec::new, |result| result.borrow(py).columns.clone())
+    }
+
+    #[getter]
+    fn rows_affected(&self, py: Python<'_>) -> i128 {
+        self.result
+            .as_ref()
+            .map_or(-1, |result| i128::from(result.borrow(py).rows_affected))
+    }
+
+    fn set_encoding(&mut self, encoding: Option<String>) {
+        self.encoding = encoding;
+        self.pgresults_cache = None;
+    }
+
+    fn pgresults(&mut self, py: Python<'_>, encoding: String, format: u8) -> PyResult<Py<PyList>> {
+        if let Some((cached_encoding, cached_format, results)) = &self.pgresults_cache {
+            if *cached_encoding == encoding && *cached_format == format {
+                return Ok(results.clone_ref(py));
+            }
+        }
+        let results = PyList::empty(py);
+        if let Some(result) = &self.result {
+            let status = {
+                let result = result.borrow(py);
+                PyBytes::new(py, result.command_tag.as_deref().unwrap_or("").as_bytes()).unbind()
+            };
+            let pgresult = BackendResultSet::as_pgresult(
+                result.clone_ref(py),
+                py,
+                self.encoding.as_ref().unwrap_or(&encoding).clone(),
+                format,
+                status,
+            );
+            results.append(Py::new(py, pgresult)?)?;
+        }
+        let results = results.unbind();
+        self.pgresults_cache = Some((encoding, format, results.clone_ref(py)));
+        Ok(results)
+    }
+
+    fn fetchone(&mut self, py: Python<'_>) -> Option<Vec<Option<Vec<u8>>>> {
+        let result = self.result.as_ref()?.borrow(py);
+        let row = result.rows.get(self.position)?;
+        self.position += 1;
+        Some(row.iter().map(|value| value.map(<[u8]>::to_vec)).collect())
+    }
+
+    fn fetchall(&mut self, py: Python<'_>) -> Vec<Vec<Option<Vec<u8>>>> {
+        let Some(result) = self.result.as_ref() else {
+            return Vec::new();
+        };
+        let result = result.borrow(py);
+        let rows = result
+            .rows
+            .iter()
+            .skip(self.position)
+            .map(|row| row.iter().map(|value| value.map(<[u8]>::to_vec)).collect())
+            .collect();
+        self.position = result.rows.len();
+        rows
+    }
+
+    fn nextset(&self) -> Option<bool> {
+        None
+    }
+
+    fn set_result(slf: Py<Self>, py: Python<'_>, index: isize) -> PyResult<Py<Self>> {
+        {
+            let mut state = slf.borrow_mut(py);
+            let count = usize::from(state.result.is_some());
+            if count == 0 || !matches!(index, -1 | 0) {
+                return Err(PyIndexError::new_err(format!(
+                    "index {index} out of range: {count} result(s) available"
+                )));
+            }
+            state.position = 0;
+        }
+        Ok(slf)
+    }
+
+    fn results(slf: Py<Self>, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let results = PyList::empty(py);
+        if slf.borrow(py).result.is_some() {
+            results.append(slf)?;
+        }
+        Ok(results.call_method0("__iter__")?.unbind())
+    }
+
     #[getter]
     fn notices(&self, py: Python<'_>) -> PyResult<Vec<Py<PyDict>>> {
         self.notices
@@ -559,12 +669,19 @@ impl BackendExecutionOutcome {
 
     fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
         visit.call(&self.result)?;
-        visit.call(&self.error)
+        visit.call(&self.error)?;
+        visit.call(&self.statusmessage)?;
+        if let Some((_, _, results)) = &self.pgresults_cache {
+            visit.call(results)?;
+        }
+        Ok(())
     }
 
     fn __clear__(&mut self) {
         self.result = None;
         self.error = None;
+        self.statusmessage = None;
+        self.pgresults_cache = None;
         self.notices.clear();
         self.notifications.clear();
     }
@@ -1536,7 +1653,7 @@ impl BackendSyncNoTlsSession {
         finish_owned_session(py, result, signal)
     }
 
-    #[pyo3(signature = (query, values, types, formats, *, binary=false, prepare=None, encoding="utf-8", capture_notifications=false, preflight=None, reservation=None))]
+    #[pyo3(signature = (query, values, types, formats, *, binary=false, prepare=None, encoding="utf-8", capture_notifications=false, preflight=None, reservation=None, own_preflight_errors=false))]
     fn execute_query(
         &self,
         py: Python<'_>,
@@ -1550,6 +1667,7 @@ impl BackendSyncNoTlsSession {
         capture_notifications: bool,
         preflight: Option<Py<PyAny>>,
         reservation: Option<&BackendExecutionReservation>,
+        own_preflight_errors: bool,
     ) -> PyResult<BackendExecutionOutcome> {
         if values.len() != types.len() || values.len() != formats.len() {
             return Err(PyValueError::new_err(
@@ -1596,7 +1714,22 @@ impl BackendSyncNoTlsSession {
         // Preserve snapshot-before-BEGIN ordering without retaining a packet or
         // holding native state across Python transaction hooks.
         if let Some(preflight) = preflight {
-            preflight.call0(py)?;
+            if let Err(error) = preflight.call0(py) {
+                if !own_preflight_errors {
+                    return Err(error);
+                }
+                return Ok(BackendExecutionOutcome {
+                    result: None,
+                    error: Some(error.into_value(py)),
+                    preflight_failed: true,
+                    encoding: Some(encoding.to_owned()),
+                    statusmessage: None,
+                    position: 0,
+                    pgresults_cache: None,
+                    notices: Vec::new(),
+                    notifications: Vec::new(),
+                });
+            }
         }
         // All Python-owned buffers have been copied before releasing the GIL.
         let (outcome, signal) = with_owned_session(py, self, move |inner| {
@@ -1666,10 +1799,22 @@ impl BackendSyncNoTlsSession {
         } else {
             None
         };
+        let statusmessage = result.as_ref().and_then(|result| {
+            let result = result.borrow(py);
+            result
+                .command_tag
+                .as_deref()
+                .filter(|tag| !tag.is_empty())
+                .map(|tag| PyString::new(py, tag).unbind())
+        });
         Ok(BackendExecutionOutcome {
             result,
             error: error.map(|error| error.into_value(py)),
-            encoding: encoding.to_owned(),
+            preflight_failed: false,
+            encoding: Some(encoding.to_owned()),
+            statusmessage,
+            position: 0,
+            pgresults_cache: None,
             notices,
             notifications,
         })

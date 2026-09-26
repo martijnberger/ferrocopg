@@ -107,6 +107,7 @@ class ExecutionBoundaryTests(unittest.TestCase):
                 expected = struct.pack("!q", value) if binary else str(value).encode()
                 self.assertEqual(result.get_value(0, 0), expected)
         self.assertEqual(self.server_prepared_count(), 3)
+
         self.session.configure_execution(None, 1 << 20000)
         self.query(b"select 99", prepare=True)
         self.assertEqual(self.server_prepared_count(), 3)
@@ -117,6 +118,41 @@ class ExecutionBoundaryTests(unittest.TestCase):
         self.query(b"select 101")
         # Resizing rotates gradually, just like the Python preparation manager.
         self.assertEqual(self.server_prepared_count(), 3)
+
+    def test_owned_result_navigation_projection_and_cache_cycles(self):
+        outcome = self.execute(b"select i::int4 from generate_series(1, 3) i")
+        self.assertEqual(outcome._index, 0)
+        self.assertEqual(outcome._pos, 0)
+        self.assertIs(outcome.current_result, outcome.result)
+        self.assertEqual(outcome.statusmessage, "SELECT 3")
+        self.assertEqual(outcome.fetchone(), [b"1"])
+        self.assertEqual(outcome.fetchall(), [[b"2"], [b"3"]])
+        self.assertIsNone(outcome.fetchone())
+        self.assertIsNone(outcome.nextset())
+        self.assertIs(outcome.set_result(-1), outcome)
+        self.assertEqual(outcome._pos, 0)
+        self.assertEqual(list(outcome.results()), [outcome])
+        with self.assertRaises(IndexError):
+            outcome.set_result(1)
+        pgresults = outcome.pgresults("utf-8", 0)
+        self.assertIs(outcome.pgresults("utf-8", 0), pgresults)
+        self.assertEqual(pgresults[0].command_status, b"SELECT 3")
+        self.assertEqual(pgresults[0].get_value(2, 0), b"3")
+        outcome.set_encoding("ascii")
+        self.assertIsNot(outcome.pgresults("utf-8", 0), pgresults)
+        self.session.close()
+        self.assertEqual(outcome.fetchone(), [b"1"])
+
+        class Owner:
+            pass
+
+        owner = Owner()
+        reference = weakref.ref(owner)
+        owner.outcome = outcome
+        outcome.pgresults("utf-8", 0).append(owner)
+        del owner, outcome
+        gc.collect()
+        self.assertIsNone(reference())
 
     def test_reserved_and_immediate_queries_share_reference_preparation_state(self):
         from ferrocopg._preparing import PrepareManager

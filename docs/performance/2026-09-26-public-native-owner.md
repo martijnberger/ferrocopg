@@ -1,8 +1,9 @@
 # Public Native Preparation Owner
 
 Incomplete integration checkpoint, not a retained performance candidate or a
-completed Phase 5 gate. Public bound queries now execute through the native owner;
-the request/result intermediates still need removal before performance evaluation.
+completed Phase 5 gate. Public bound queries now execute through the native owner.
+The follow-up below removes common-path request/result intermediates; performance
+evaluation remains pending.
 
 ## Changes
 
@@ -74,19 +75,40 @@ concurrent pytest invocation hit the repository's active-run
 guard and ran no tests; the bootstrap checks were rerun after the other suite ended.
 
 Published parent `d957b508` has passing Lint `36227989984`; Tests `36227989975`
-was still live with 41 complete and 16 active jobs at the latest observation,
-with no reported failures.
-Do not cancel it with another development push. These parent runs do not validate
-the new public route.
+is now complete with all 57 jobs passing. These parent runs do not validate the
+new public route.
+
+## Direct Request/Outcome Follow-Up
+
+Common UTF8 operations with ASCII SQL now pass the existing adapted sequences
+directly to Rust rather than constructing and extracting `_BoundParams` triples.
+Constant queries avoid an empty request packet. Rust snapshots mutable buffers
+before transaction preflight; the mutation tests now hook that preflight boundary.
+Encoding bridges and legacy fallbacks retain their explicit conversion paths.
+
+The native `BackendExecutionOutcome` supplies cursor navigation and cached public
+PGresult projection directly, replacing the Python result-cursor wrapper and its
+lists. Preflight exceptions preserve identity and do not run error hooks twice.
+Tests cover these behaviors, cache identity, and garbage collection of cache cycles.
+
+The release wheel SHA-256 is
+`1b8b361aa0bebcc57df7affad47c83bba575ac0a2e1981d2cedfff32123dae22`.
+Installed checks: 154 pass. Focused source checks: 845 pass, 37 skip. Rust unit
+tests: 32 pass. Mypy checks all 239 sources; Ruff and Rust formatting checks pass.
+Local logs are `/tmp/phase5-direct-outcome-final-tests.log`,
+`/tmp/phase5-direct-outcome-source.log`, and
+`/tmp/phase5-direct-outcome-rust-tests.log`. The earlier failed full compatibility
+run remains failed and is not superseded by these focused checks.
+
+The user approved publishing this unfinished integration to main as a revisable
+checkpoint. No package release or performance acceptance is implied.
 
 ## Remaining Work
 
-Remove the `_BoundParams` triple list and subsequent extraction lists by feeding
-the existing adapted sequences directly to the native entry, preserving the
-snapshot-before-transaction/preparation boundary. Replace result-cursor list
-scaffolding with an owned-result projection without deferring observable public
-descriptor updates. Preserve pipeline adaptation/order/abort behavior, unusual
-encoding bridges, and legacy fallbacks while doing this.
+Measure this whole public boundary against the frozen pre-integration `d957b508`
+wheel, using fresh/reused cursors and constant/parameterized queries in both
+execution orders. This is a diagnostic control, not the accepted beta baseline.
+Preserve every result and distinguish diagnostic improvements from acceptance.
 
 Failed-operation ReadyForQuery ownership, complete final-candidate compatibility,
 packaging/coexistence, both-order fresh/reused public controls, all eleven workload
