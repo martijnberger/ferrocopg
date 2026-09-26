@@ -7,6 +7,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::fmt;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 const NO: u8 = 1;
@@ -162,6 +163,7 @@ pub(crate) struct PreparationState {
 pub(crate) enum ExecutionError {
     Backend(ferrocopg_postgres::ProbeError),
     EmptyCache,
+    InvalidReservation(&'static str),
 }
 
 impl From<ferrocopg_postgres::ProbeError> for ExecutionError {
@@ -174,11 +176,28 @@ pub(crate) struct ExecutionState {
     preparation: PreparationState,
     statements: HashMap<Vec<u8>, u64>,
     configuration: Option<Arc<ExecutionConfiguration>>,
+    generation: Arc<()>,
+}
+
+pub(crate) struct ExecutionReservation {
+    key: Key,
+    decision: u8,
+    name: Vec<u8>,
+    validate: bool,
+    prepare: Option<bool>,
+    generation: Arc<()>,
+    consumed: AtomicBool,
+}
+
+impl ExecutionReservation {
+    pub(crate) fn matches(&self, query: &[u8], types: &[u32]) -> bool {
+        self.key.query == query && self.key.types == types
+    }
 }
 
 pub(crate) struct ExecutionConfiguration {
-    threshold: Option<BigInt>,
-    maximum: BigInt,
+    pub(crate) threshold: Option<BigInt>,
+    pub(crate) maximum: BigInt,
 }
 
 pub(crate) type SharedExecutionConfiguration = Mutex<Arc<ExecutionConfiguration>>;
@@ -195,6 +214,7 @@ impl ExecutionState {
             preparation: PreparationState::new(),
             statements: HashMap::new(),
             configuration: None,
+            generation: Arc::new(()),
         }
     }
 
@@ -231,11 +251,43 @@ impl ExecutionState {
         self.preparation.clear();
         self.preparation.to_flush.clear();
         self.statements.clear();
+        self.generation = Arc::new(());
     }
 
     pub(crate) fn clear(&mut self, session: &mut ferrocopg_postgres::SyncNoTlsSession) {
         self.preparation.clear();
+        self.generation = Arc::new(());
         self.maintain(session);
+    }
+
+    pub(crate) fn reserve(
+        &mut self,
+        query: Vec<u8>,
+        types: Vec<u32>,
+        prepare: Option<bool>,
+    ) -> ExecutionReservation {
+        let key = Key { query, types };
+        let (decision, name) = self.preparation.get(&key, prepare);
+        let validate = self.preparation.add(key.clone(), decision, name.clone());
+        ExecutionReservation {
+            key,
+            decision,
+            name,
+            validate,
+            prepare,
+            generation: Arc::clone(&self.generation),
+            consumed: AtomicBool::new(false),
+        }
+    }
+
+    pub(crate) fn cancel_reservation(&mut self, reservation: &ExecutionReservation) {
+        if !reservation.consumed.swap(true, Ordering::AcqRel)
+            && Arc::ptr_eq(&self.generation, &reservation.generation)
+            && reservation.decision == SHOULD
+            && self.preparation.names.get(&reservation.key) == Some(&reservation.name)
+        {
+            self.preparation.discard(&reservation.key);
+        }
     }
 
     fn maintain(&mut self, session: &mut ferrocopg_postgres::SyncNoTlsSession) {
@@ -260,30 +312,58 @@ impl ExecutionState {
         params: &[ferrocopg_postgres::BoundParam],
         prepare: Option<bool>,
         format: ferrocopg_postgres::WireFormat,
+        reservation: Option<&ExecutionReservation>,
     ) -> Result<ferrocopg_postgres::ResultSet, ExecutionError> {
         self.sync_configuration(configuration)?;
         let key = Key {
             query: query.as_bytes().to_vec(),
             types: params.iter().map(|param| param.oid).collect(),
         };
-        let (decision, name) = self.preparation.get(&key, prepare);
-        let id = match decision {
-            SHOULD => {
-                let statement = session.prepare_params(query, &key.types)?;
-                self.statements.insert(name.clone(), statement.statement_id);
-                Some(statement.statement_id)
+        let mut reserved_validation = None;
+        let (decision, name) = if let Some(reservation) = reservation {
+            if !reservation.matches(query.as_bytes(), &key.types) {
+                return Err(ExecutionError::InvalidReservation(
+                    "reservation query or types differ",
+                ));
             }
-            YES => Some(*self.statements.get(&name).ok_or_else(|| {
-                ferrocopg_postgres::ProbeError::BadParam(
-                    "native prepared statement has no execution owner".to_owned(),
-                )
-            })?),
-            _ => None,
+            if reservation.consumed.swap(true, Ordering::AcqRel) {
+                return Err(ExecutionError::InvalidReservation(
+                    "reservation was already consumed",
+                ));
+            }
+            if !Arc::ptr_eq(&self.generation, &reservation.generation)
+                || (matches!(reservation.decision, YES | SHOULD)
+                    && self.preparation.names.get(&key) != Some(&reservation.name))
+            {
+                // This operation has not sent SQL yet. Cache eviction or an
+                // earlier queued DDL command may have retired its selection.
+                self.preparation.get(&key, reservation.prepare)
+            } else {
+                reserved_validation = Some(reservation.validate);
+                (reservation.decision, reservation.name.clone())
+            }
+        } else {
+            self.preparation.get(&key, prepare)
         };
-        let result = match id {
-            Some(id) => session.run_prepared_params_format(id, params, format),
-            None => session.run_params_format(query, params, format),
-        };
+        let result = (|| {
+            let id = match decision {
+                SHOULD => {
+                    let statement = session.prepare_params(query, &key.types)?;
+                    self.statements.insert(name.clone(), statement.statement_id);
+                    Some(statement.statement_id)
+                }
+                YES => Some(*self.statements.get(&name).ok_or_else(|| {
+                    ferrocopg_postgres::ProbeError::BadParam(
+                        "native prepared statement has no execution owner".to_owned(),
+                    )
+                })?),
+                _ => None,
+            };
+            match id {
+                Some(id) => session.run_prepared_params_format(id, params, format),
+                None => session.run_params_format(query, params, format),
+            }
+        })();
         // A signal handler may have changed policy during I/O, before caching.
         self.sync_configuration(configuration)?;
         let result = match result {
@@ -293,11 +373,18 @@ impl ExecutionState {
                     if let Some(id) = self.statements.remove(&name) {
                         let _ = session.close_prepared(id);
                     }
+                    if reserved_validation.is_some() {
+                        self.preparation.discard(&key);
+                    }
                 }
                 return Err(error.into());
             }
         };
-        if self.preparation.add(key.clone(), decision, name.clone()) {
+        let validate = match reserved_validation {
+            Some(validate) => validate,
+            None => self.preparation.add(key.clone(), decision, name.clone()),
+        };
+        if validate {
             let status = if result.command_tag.as_deref() == Some("") {
                 0
             } else if result.is_tuples {
@@ -324,6 +411,9 @@ impl ExecutionState {
             if let Some(id) = self.statements.remove(&name) {
                 let _ = session.close_prepared(id);
             }
+        }
+        if self.preparation.to_flush.iter().any(Option::is_none) {
+            self.generation = Arc::new(());
         }
         self.maintain(session);
         Ok(result)

@@ -118,6 +118,223 @@ class ExecutionBoundaryTests(unittest.TestCase):
         # Resizing rotates gradually, just like the Python preparation manager.
         self.assertEqual(self.server_prepared_count(), 3)
 
+    def test_reserved_and_immediate_queries_share_reference_preparation_state(self):
+        from ferrocopg._preparing import PrepareManager
+
+        reference = PrepareManager()
+        reference.prepare_threshold = 1
+        reference.prepared_max = 3
+        self.session.configure_execution(1, 3)
+
+        def check_state():
+            reference._to_flush.clear()
+            actual = self.snapshot()
+            self.assertEqual(
+                actual["counts"],
+                [(q, list(t), n) for (q, t), n in reference._counts.items()],
+            )
+            self.assertEqual(
+                actual["names"],
+                [(q, list(t), n) for (q, t), n in reference._names.items()],
+            )
+            self.assertEqual(actual["next_name"], reference._prepared_idx)
+
+        for batch in range(12):
+            queued = []
+            for index in range(4):
+                query = f"select $1::int8 as col_{batch % 5}".encode()
+                pgq = SimpleNamespace(query=query, types=(23,))
+                prepare = False if index == 3 else None
+                decision, name = reference.get(pgq, prepare)
+                key = reference.maybe_add_to_cache(pgq, decision, name)
+                plan = self.session.reserve_execution(query, [23], prepare)
+                queued.append((query, plan, decision, name, key, index))
+                check_state()
+            for query, plan, decision, name, key, index in queued:
+                result = self.query(
+                    query, [b"42"], [23], [0], reservation=plan, binary=bool(index % 2)
+                )
+                self.assertEqual(
+                    result.get_value(0, 0),
+                    struct.pack("!q", 42) if index % 2 else b"42",
+                )
+                if key is not None:
+                    reference.validate(
+                        key,
+                        decision,
+                        name,
+                        [SimpleNamespace(status=2, command_status=b"SELECT 1")],
+                    )
+                check_state()
+            self.assertEqual(self.server_prepared_count(), len(reference._names))
+            # The non-pipeline path reuses the same statement and updates it once.
+            pgq = SimpleNamespace(query=query, types=(23,))
+            decision, name = reference.get(pgq)
+            key = reference.maybe_add_to_cache(pgq, decision, name)
+            self.query(query, [b"43"], [23], [0])
+            if key is not None:
+                reference.validate(
+                    key,
+                    decision,
+                    name,
+                    [SimpleNamespace(status=2, command_status=b"SELECT 1")],
+                )
+            check_state()
+
+    def test_reservations_reject_wrong_session_signature_and_replay(self):
+        from ferrocopg._rust import _ferrocopg as native
+
+        query = b"select $1::int4"
+        plan = self.session.reserve_execution(query, [23], True)
+        before = self.snapshot()
+        callbacks = []
+        other = native.connect_session(os.environ["PHASE5_DSN"])
+        self.addCleanup(other.close)
+        with self.assertRaisesRegex(ValueError, "another session"):
+            other.execute_query(
+                query,
+                [b"42"],
+                [23],
+                [0],
+                reservation=plan,
+                preflight=lambda: callbacks.append("wrong owner"),
+            )
+        with self.assertRaisesRegex(ValueError, "query or types"):
+            self.execute(
+                query,
+                [b"42"],
+                [21],
+                [0],
+                reservation=plan,
+                preflight=lambda: callbacks.append("wrong types"),
+            )
+        with self.assertRaisesRegex(ValueError, "query or types"):
+            self.execute(b"select 43", reservation=plan)
+        self.assertEqual(callbacks, [])
+        self.assertEqual(self.snapshot(), before)
+        self.assertEqual(self.server_prepared_count(), 0)
+        self.query(query, [b"42"], [23], [0], reservation=plan)
+        outcome = self.execute(query, [b"42"], [23], [0], reservation=plan)
+        self.assertIsInstance(outcome.error, ValueError)
+        self.assertIn("already consumed", str(outcome.error))
+        stale = self.session.reserve_execution(query, [23])
+        self.session.clear_execution_prepared()
+        outcome = self.execute(query, [b"42"], [23], [0], reservation=stale)
+        self.assertIsNone(outcome.error)
+        self.assertEqual(outcome.result.get_value(0, 0), b"42")
+        self.assertEqual(self.server_prepared_count(), 0)
+        self.assertEqual(self.snapshot()["names"], [])
+
+    def test_failed_and_cancelled_reservations_release_pending_names(self):
+        from ferrocopg import errors
+
+        for query, values, types, expected in (
+            (b"select (", [], [], errors.SyntaxError),
+            (b"select 1 / $1::int4", [b"0"], [23], errors.DivisionByZero),
+        ):
+            plan = self.session.reserve_execution(query, types, True)
+            result = self.execute(
+                query, values, types, [0] * len(types), reservation=plan
+            )
+            self.assertIsInstance(result.error, expected)
+            self.assertEqual(self.snapshot()["names"], [])
+            self.assertEqual(self.server_prepared_count(), 0)
+        plan = self.session.reserve_execution(b"select 42", [], True)
+        dependent = self.session.reserve_execution(b"select 42", [])
+        self.session.cancel_execution_reservation(plan)
+        self.session.cancel_execution_reservation(plan)
+        self.assertEqual(self.snapshot()["names"], [])
+        outcome = self.execute(b"select 42", reservation=dependent)
+        self.assertIsNone(outcome.error)
+        self.assertEqual(self.server_prepared_count(), 0)
+        self.query(b"select 42", prepare=True)
+        reused = self.session.reserve_execution(b"select 42", [])
+        self.session.cancel_execution_reservation(reused)
+        self.assertEqual(self.server_prepared_count(), 1)
+        self.assertEqual(len(self.snapshot()["names"]), 1)
+
+    def test_reserved_queries_replan_after_eviction_and_ddl_without_replay(self):
+        self.query(b"create temporary table reservation_eviction (i int)")
+        self.session.configure_execution(0, 1)
+        queued = []
+        for value in range(6):
+            query = f"insert into reservation_eviction values ({value}) returning i".encode()
+            queued.append((query, self.session.reserve_execution(query, [], True)))
+        for index, (query, plan) in enumerate(queued):
+            self.assertEqual(
+                self.query(query, reservation=plan).get_value(0, 0), str(index).encode()
+            )
+        self.session.clear_execution_prepared()
+        result = self.query(
+            b"select count(*), sum(i) from reservation_eviction", prepare=False
+        )
+        self.assertEqual(result.get_value(0, 0), b"6")
+        self.assertEqual(result.get_value(0, 1), b"15")
+        self.assertLessEqual(self.server_prepared_count(), 1)
+        ddl = b"alter table reservation_eviction add column j int"
+        query = b"select i from reservation_eviction order by i"
+        ddl_plan = self.session.reserve_execution(ddl, [], True)
+        query_plan = self.session.reserve_execution(query, [], True)
+        self.query(ddl, reservation=ddl_plan)
+        self.assertEqual(self.server_prepared_count(), 0)
+        result = self.query(query, reservation=query_plan)
+        self.assertEqual(
+            [result.get_value(i, 0) for i in range(6)],
+            [str(i).encode() for i in range(6)],
+        )
+        self.assertEqual(self.server_prepared_count(), 1)
+
+    def test_reservation_is_one_shot_across_threads(self):
+        self.query(b"create temporary table reservation_once (i int)")
+        query = b"insert into reservation_once values (1) returning i"
+        plan = self.session.reserve_execution(query, [], True)
+        outcomes = []
+        barrier = threading.Barrier(3)
+
+        def execute():
+            barrier.wait()
+            outcomes.append(self.execute(query, reservation=plan))
+
+        threads = [threading.Thread(target=execute) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        barrier.wait()
+        for thread in threads:
+            thread.join(10)
+            self.assertFalse(thread.is_alive())
+        self.assertEqual(len(outcomes), 2)
+        self.assertEqual(sum(outcome.result is not None for outcome in outcomes), 1)
+        self.assertEqual(
+            sum(isinstance(outcome.error, ValueError) for outcome in outcomes), 1
+        )
+        self.assertEqual(
+            self.query(b"select count(*) from reservation_once").get_value(0, 0), b"1"
+        )
+
+    def test_policy_properties_preserve_other_setting_and_allow_preflight(self):
+        huge = 1 << 20000
+        self.session.execution_prepare_threshold = huge
+        self.assertEqual(self.session.execution_prepare_threshold, huge)
+        self.assertEqual(self.session.execution_prepared_max, 100)
+        self.session.execution_prepared_max = -huge
+        self.assertEqual(self.session.execution_prepare_threshold, huge)
+        self.assertEqual(self.session.execution_prepared_max, -huge)
+        self.session.execution_prepare_threshold = None
+        self.assertEqual(self.session.execution_prepared_max, -huge)
+        self.session.execution_prepared_max = 100
+        callbacks = []
+
+        def configure():
+            self.session.execution_prepare_threshold = 2
+            self.session.execution_prepared_max = 3
+            callbacks.append(self.session.execution_prepare_threshold)
+            callbacks.append(self.session.execution_prepared_max)
+
+        self.query(b"select 42", preflight=configure)
+        self.assertEqual(callbacks, [2, 3])
+        self.assertEqual(self.snapshot()["prepare_threshold"], 2)
+        self.assertEqual(self.snapshot()["prepared_max"], 3)
+
     def test_invalidation_and_failed_execution_release_statement_owners(self):
         from ferrocopg import errors
 
@@ -371,7 +588,10 @@ try:
             session.configure_execution(5, 100)
             expected = Interrupted(index)
             def interrupt(signum, frame):
-                session.configure_execution(None, 100)
+                session.execution_prepare_threshold = None
+                session.execution_prepared_max = 101
+                assert session.execution_prepare_threshold is None
+                assert session.execution_prepared_max == 101
                 raise expected
             signal.signal(signal.SIGINT, interrupt)
             queued, failures = [], []

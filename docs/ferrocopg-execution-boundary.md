@@ -188,6 +188,26 @@ ownership with a queued query. See the
 
 Next wire the public ordinary-query path to this operation, with one native
 preparation owner shared by the compatibility views and explicit fallback paths.
+The reservation follow-up supplies `reserve_execution` and one-shot native
+reservation consumption for that shared owner. Queued selection updates the same
+counts/names as immediate execution, without a second Python cache. A reservation
+owns its key but only weakly references the session. Explicit cancellation removes
+an unexecuted new-name reservation; the future pipeline shell must cancel skipped
+operations after an abort rather than silently dropping their tokens. Cache
+eviction or invalidation before execution triggers a fresh native selection, not
+SQL replay. Cross-session use, mismatched query/types, and repeat consumption are
+rejected. Reservations are for queued operations only: ordinary execution still
+does not allocate a separate request packet or reservation object.
+
+Native policy properties now independently update/read threshold and maximum
+under the short configuration lock, preserving the other setting and arbitrary
+integer sizes. Signal-handler controls exercise both setters and getters during
+I/O. The new release wheel passes all 148 Phase 5 checks, including mixed queued
+and immediate reference transitions, server statement counts, stale selections,
+failed preparation/execution, cancellation, and concurrent one-shot execution.
+See the [reservation checks](performance/2026-09-26-native-reservation-checks.md).
+This is not a completed public pipeline implementation or a performance result.
+
 Public preparation setters/getters must not introduce an I/O-lock dependency.
 Move public result projection onto the owned outcome, preserve error-normalizing
 and notice/notification callback order, and remove the superseded Python request

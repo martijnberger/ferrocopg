@@ -6,13 +6,13 @@ use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 use pyo3::wrap_pyfunction;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
-use std::sync::{Arc, Mutex, TryLockError};
+use std::sync::{Arc, Mutex, TryLockError, Weak};
 use std::thread;
 use std::time::Duration;
 
 use crate::preparing::{
-    ExecutionConfiguration, ExecutionError, ExecutionState, NativePreparationState,
-    SharedExecutionConfiguration,
+    ExecutionConfiguration, ExecutionError, ExecutionReservation, ExecutionState,
+    NativePreparationState, SharedExecutionConfiguration,
 };
 use crate::python_helpers::psycopg_import;
 
@@ -520,6 +520,12 @@ struct BackendSyncNoTlsSession {
 struct OwnedSession {
     session: ferrocopg_postgres::SyncNoTlsSession,
     execution: ExecutionState,
+}
+
+#[pyclass(module = "ferrocopg_rust._ferrocopg", frozen)]
+struct BackendExecutionReservation {
+    owner: Weak<Mutex<OwnedSession>>,
+    reservation: Arc<ExecutionReservation>,
 }
 
 #[pyclass(module = "ferrocopg_rust._ferrocopg")]
@@ -1415,6 +1421,84 @@ impl BackendSyncNoTlsCancelHandle {
 
 #[pymethods]
 impl BackendSyncNoTlsSession {
+    #[getter]
+    fn execution_prepare_threshold(&self) -> PyResult<Option<BigInt>> {
+        Ok(self
+            .configuration
+            .lock()
+            .map_err(|_| backend_runtime_error("execution configuration mutex is poisoned"))?
+            .threshold
+            .clone())
+    }
+
+    #[setter]
+    fn set_execution_prepare_threshold(&self, value: Option<BigInt>) -> PyResult<()> {
+        let mut current = self
+            .configuration
+            .lock()
+            .map_err(|_| backend_runtime_error("execution configuration mutex is poisoned"))?;
+        *current = Arc::new(ExecutionConfiguration::new(value, current.maximum.clone()));
+        Ok(())
+    }
+
+    #[getter]
+    fn execution_prepared_max(&self) -> PyResult<BigInt> {
+        Ok(self
+            .configuration
+            .lock()
+            .map_err(|_| backend_runtime_error("execution configuration mutex is poisoned"))?
+            .maximum
+            .clone())
+    }
+
+    #[setter]
+    fn set_execution_prepared_max(&self, value: BigInt) -> PyResult<()> {
+        let mut current = self
+            .configuration
+            .lock()
+            .map_err(|_| backend_runtime_error("execution configuration mutex is poisoned"))?;
+        *current = Arc::new(ExecutionConfiguration::new(
+            current.threshold.clone(),
+            value,
+        ));
+        Ok(())
+    }
+
+    #[pyo3(signature = (query, types, prepare=None))]
+    fn reserve_execution(
+        &self,
+        py: Python<'_>,
+        query: Vec<u8>,
+        types: Vec<u32>,
+        prepare: Option<bool>,
+    ) -> PyResult<BackendExecutionReservation> {
+        let (result, signal) = with_owned_session(py, self, |inner| {
+            inner.execution.sync_configuration(&self.configuration)?;
+            Ok(inner.execution.reserve(query, types, prepare))
+        });
+        Ok(BackendExecutionReservation {
+            owner: Arc::downgrade(&self.inner),
+            reservation: Arc::new(finish_owned_session(py, result, signal)?),
+        })
+    }
+
+    fn cancel_execution_reservation(
+        &self,
+        py: Python<'_>,
+        reservation: &BackendExecutionReservation,
+    ) -> PyResult<()> {
+        if !Weak::ptr_eq(&reservation.owner, &Arc::downgrade(&self.inner)) {
+            return Err(PyValueError::new_err(
+                "reservation belongs to another session",
+            ));
+        }
+        let (result, signal) = with_owned_session(py, self, |inner| {
+            inner.execution.cancel_reservation(&reservation.reservation);
+            Ok(())
+        });
+        finish_owned_session(py, result, signal)
+    }
+
     #[pyo3(signature = (prepare_threshold, prepared_max))]
     fn configure_execution(
         &self,
@@ -1446,7 +1530,7 @@ impl BackendSyncNoTlsSession {
         finish_owned_session(py, result, signal)
     }
 
-    #[pyo3(signature = (query, values, types, formats, *, binary=false, prepare=None, encoding="utf-8", capture_notifications=false, preflight=None))]
+    #[pyo3(signature = (query, values, types, formats, *, binary=false, prepare=None, encoding="utf-8", capture_notifications=false, preflight=None, reservation=None))]
     fn execute_query(
         &self,
         py: Python<'_>,
@@ -1459,6 +1543,7 @@ impl BackendSyncNoTlsSession {
         encoding: &str,
         capture_notifications: bool,
         preflight: Option<Py<PyAny>>,
+        reservation: Option<&BackendExecutionReservation>,
     ) -> PyResult<BackendExecutionOutcome> {
         if values.len() != types.len() || values.len() != formats.len() {
             return Err(PyValueError::new_err(
@@ -1470,6 +1555,17 @@ impl BackendSyncNoTlsSession {
                 "parameter format must be text (0) or binary (1)",
             ));
         }
+        if let Some(reservation) = reservation {
+            if !Weak::ptr_eq(&reservation.owner, &Arc::downgrade(&self.inner)) {
+                return Err(PyValueError::new_err(
+                    "reservation belongs to another session",
+                ));
+            }
+            if !reservation.reservation.matches(&query, &types) {
+                return Err(PyValueError::new_err("reservation query or types differ"));
+            }
+        }
+        let reservation = reservation.map(|plan| Arc::clone(&plan.reservation));
         if !matches!(encoding, "utf-8" | "ascii") || (encoding == "ascii" && !query.is_ascii()) {
             return Err(PyValueError::new_err(
                 "native execution requires UTF8 or ASCII query encoding",
@@ -1505,6 +1601,7 @@ impl BackendSyncNoTlsSession {
                 &params,
                 prepare,
                 wire_format(binary),
+                reservation.as_deref(),
             );
             let notices = inner.session.drain_notices();
             let notifications = if capture_notifications {
@@ -1527,6 +1624,9 @@ impl BackendSyncNoTlsSession {
             Err(ExecutionError::Backend(error)) => (None, Some(backend_py_error(py, error))),
             Err(ExecutionError::EmptyCache) => {
                 (None, Some(PyKeyError::new_err("dictionary is empty")))
+            }
+            Err(ExecutionError::InvalidReservation(message)) => {
+                (None, Some(PyValueError::new_err(message)))
             }
         };
         let notices = match notices {

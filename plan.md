@@ -285,8 +285,7 @@ search for tiny transport optimizations.
    the complete native boundary, not a standalone cache/packet benchmark.
    Preserve `2026-09-24-preparation-and-ci-audit.json` and its raw archive.
    Follow-up `b3a0da06` publishes those checkpoints and the DNS typing fix.
-   Successor Lint `35960615267` passes; Tests `35960615386` is still live, so do
-   not interrupt it with another push. The next local implementation retains
+   Successor Lint `35960615267` and Tests `35960615386` both pass. The next implementation retains
    exact command tags and per-operation transaction status in native extended
    results, with one runtime entry for prepared collection and transferred tag
    ownership. All 132 installed Phase 5 checks and 32 Rust unit tests pass.
@@ -302,6 +301,23 @@ search for tiny transport optimizations.
    preparation views, result projection, and exact-candidate performance gates
    remain unfinished. Continue that integration; do not time the private entry
    as if the Python-facing operation were complete.
+   The user explicitly approved publishing this unfinished checkpoint to main;
+   `49ded12e` is now on `origin/main`, without a package release. Its latest Tests
+   `36134035499` passes all 57 jobs and Lint `36131379225` passes. Earlier Tests
+   `35997745155` failed two pure-Python comparator jobs; the later green run does
+   not diagnose those failures. Phase 5 workflow `35963923509` is terminal failure:
+   its soak job passes, its benchmark job fails. These are inspected CI verdicts,
+   not an independent raw-artifact acceptance audit, and do not establish parity.
+   The reservation follow-up shares the native preparation owner across deferred
+   and immediate operations. One-shot, session-bound reservations reselect before
+   I/O when eviction/DDL has retired their cached selection. No completed SQL is
+   replayed. Explicit cancellation cleans pending new names; the public pipeline
+   shell must invoke it for skipped operations. Independent native policy
+   properties avoid the I/O lock and preserve arbitrary integers. All 148 installed
+   checks pass on the release wheel; see `2026-09-26-native-reservation-checks.md`.
+   Public routing/result publication and the compatibility preparation facade are
+   still missing. Integrate those together, including pipeline abort cleanup and
+   legacy/encoding fallbacks, before measuring the whole Python-facing boundary.
    Scheduled workflow `35581426803` now proves scheduled soak execution on older
    main `7c1a644a`: all three backends exceed 1,800 seconds, all eight scenarios
    run, and independently recomputed resources/cleanup pass. Its benchmark job
