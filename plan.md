@@ -407,12 +407,29 @@ search for tiny transport optimizations.
    real observer smoke pass; both-order observer controls retain nonzero cost
    and do not establish perfect host idleness or zero observer effect. New
    monitored comparisons must not be combined with older unmonitored evidence.
-   Main `1bab4336` lint passes; Tests `36232554216` and Phase 5 `36232554264`
-   remain pending/live. Predecessor Tests `36230544349` is terminal cancelled,
-   not a full pass. Its soak remains live; the dedicated comparison is now audited.
-   Hold follow-up publication while both existing bookmark Tests runs are live.
-   Next diagnose the remaining strict timing failures, assess remaining fallback
-   ownership, and satisfy the unchanged exact-candidate final gates.
+   The user explicitly requested another main checkpoint: `6cdf1bdf` is now
+   published, including the four follow-up commits. New Tests `36234726947`
+   has 3 completed and 54 queued/live jobs, no failures at the latest check;
+   Phase 5 `36234726979` is pending. Previous queued Phase 5 `36232554264`
+   is cancelled, not passed. Development Tests `36231014162` is terminal success
+   with all 57 jobs passing, so follow-up development publication is safe.
+   Preserve the new main runs rather than automatically promoting each commit.
+   Predecessor Tests `36230544349` is terminal cancelled, not a full pass;
+   its Phase 5 `36230544336` soak remains live. The dedicated comparison is audited.
+   The next implementation priority is now a demonstrated encoding-state defect,
+   not speculative timing changes. The exact installed `17c77760` runtime
+   (unchanged through main `6cdf1bdf`) fails 16/24 boundary controls while C passes
+   all 24. Commented boundaries, END/ABORT, savepoint rollback and failed COMMIT
+   leave stale encoding; 14 cases silently corrupt subsequent text and two raise
+   decoding errors. Retained old results and transaction status remain correct.
+   See `2026-09-26-encoding-state.md` and its raw scripts/fingerprinted reports.
+   SHOW client_encoding repairs the stale state and must follow, not precede,
+   the next-row regression check. Carry wire ParameterStatus through owned
+   operation/error/result state, including simple-query and bridge paths; do not
+   substitute the startup-only parameter getter or final batch-wide state.
+   Promote these cases into installed regression coverage with the fix, then
+   satisfy the unchanged exact-candidate final gates. Current CI cannot waive a
+   known correctness failure simply because its existing cases are green.
    Tests `36227989975` on published `d957b508` is now complete: all 57 jobs pass;
    Lint `36227989984` passes. These parent runs do not validate the latest slice.
    The user explicitly approved publishing the current unfinished integration to

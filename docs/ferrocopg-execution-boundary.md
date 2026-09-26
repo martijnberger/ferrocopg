@@ -262,3 +262,19 @@ packaging/coexistence, cancellation, and resource/soak gates on the changed
 candidate. Pipeline throughput remains a separate experiment. If this boundary
 does not produce repeatable savings, preserve the evidence and seek an explicit
 larger-redesign/deferral decision; do not call the Rust client irreducibly slow.
+
+## Blocking setting ownership gap
+
+The [encoding-state controls](performance/2026-09-26-encoding-state.md) establish
+a correctness blocker in the current runtime: 16/24 Rust cases fail while all
+24 C controls pass. SQL-based encoding refresh misses commented/aliased
+transaction boundaries and failed COMMIT. Subsequent text can be silently
+misdecoded even though transaction status and retained old results are correct.
+
+The next native ownership slice must include ordered server ParameterStatus
+updates, with connection state distinct from each result's encoding snapshot.
+Cover successful and failed operations, simple-query/internal commit paths,
+bridges and callbacks; neither the existing startup-only parameter getter nor a
+batch-final global setting is an acceptable replacement. Preserve the raw failed
+controls and require successor regression/acceptance evidence. This is required
+correctness work, not a predicted speedup or a reason to loosen the gates.
