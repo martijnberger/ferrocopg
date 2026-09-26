@@ -135,8 +135,11 @@ impossibility or silently accepting a rejected prototype:
 The [native execution boundary design](ferrocopg-execution-boundary.md) specifies
 one coarse operation, its ownership/invalidation rules, retained callbacks, and
 an exact list of dispatch/setup work to remove. The private native operation is
-now implemented and locally tested; public routing/result publication and
-performance acceptance remain unfinished.
+now integrated into public ordinary-query routing and result publication.
+[Local both-order controls](performance/2026-09-26-public-boundary-local.md)
+show 5.50-8.68% wall reductions, while remaining 1.236-1.388 times the bracketing
+C controls. The host was not idle. Dedicated comparison, error-state completion,
+all-workload evaluation, and final acceptance remain unfinished.
 Two new installed controls preserve dynamic prepared parameter types/result
 formats and outer-result ownership across reentrant loader queries on Rust/C.
 Built-in fast paths must still respect registered adapter overrides, cursor

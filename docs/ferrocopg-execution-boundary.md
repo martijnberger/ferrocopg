@@ -1,7 +1,8 @@
 # Native execution boundary
 
 Status: public bound-query routing and shared native preparation ownership are
-implemented; adaptation/result-wrapper cleanup and performance acceptance remain open.
+implemented, including common-path request/result-wrapper removal. Local paired
+controls improve; dedicated comparison and performance acceptance remain open.
 The retained runtime remains `7bbc14eb` / `8eddc2ec`. This document does not
 supersede the compatibility contract, beta limits, or the Phase 5 completion audit.
 
@@ -221,17 +222,21 @@ install/remove notification handlers, so eager notification capture would consum
 messages that should remain pending. The public result uses the actual command
 tag; native empty-query PGresult projection now reports EMPTY_QUERY.
 
-This is not the completed fast path. Python adaptation still creates `_BoundParams`
-triples and the integration extracts separate lists again; result publication
-still uses `BackendResultCursor` list scaffolding. Remove those intermediates next,
-preserving the verified snapshot and callback order. Simple-query/COPY operations
+The next slice (`12f139ce`) removes `_BoundParams` triples and re-extraction for
+common UTF8/ASCII-SQL operations. Rust snapshots the existing adapted sequences
+before transaction preflight, and `BackendExecutionOutcome` directly supplies
+navigation and cached public PGresult projection. Preflight errors retain their
+identity without duplicate error-hook delivery. Simple-query/COPY operations
 and encoding bridges retain their Python orchestration; existing client/server
 cursor orchestration is unchanged, although their bound queries share the native
 owner. The prototype does not yet capture failed-operation ReadyForQuery state.
 See the [public owner checkpoint](performance/2026-09-26-public-native-owner.md)
-for verification limits and the failed local compatibility run. No performance gain has
-yet been demonstrated, and this partial route must not be benchmarked as the
-completed execution-boundary redesign.
+for verification limits and the failed local compatibility run. The
+[local public-boundary comparison](performance/2026-09-26-public-boundary-local.md)
+finds 5.50-8.68% wall and 7.57-11.97% CPU reductions across both orders of all four
+scalar controls against pre-integration `d957b508`. The host was not idle, and
+after/C ratios remain 1.236-1.388. This supports further evaluation, not a completed
+redesign, general near parity, or final-candidate retention.
 
 Compare an exact installed baseline and prototype with both backend orders and
 fresh/reused constant/parameterized controls. Capture ordinary CPU/wall samples

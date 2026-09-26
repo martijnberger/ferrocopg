@@ -26,6 +26,7 @@ from codegen_compare import (
     complete_measurement,
     main,
     query_measurement,
+    validation_command,
 )
 from run import BACKENDS, compare
 from workloads import BENCHMARKS
@@ -67,6 +68,23 @@ class CodegenExperimentTests(unittest.TestCase):
         self.assertEqual(thin["CARGO_PROFILE_RELEASE_CODEGEN_UNITS"], "1")
         self.assertNotEqual(default["CARGO_TARGET_DIR"], thin["CARGO_TARGET_DIR"])
         self.assertNotIn("RUSTFLAGS", thin)
+
+    def test_validation_uses_each_wheels_source_suite(self):
+        for variant in ("baseline", "candidate"):
+            with self.subTest(variant=variant):
+                source = self.output / variant
+                self.assertEqual(
+                    validation_command("/installed/python", source),
+                    [
+                        "/installed/python",
+                        "-m",
+                        "unittest",
+                        "discover",
+                        "-s",
+                        str(source / "tools/phase5"),
+                        "-v",
+                    ],
+                )
 
     def test_inherited_codegen_overrides_are_rejected(self):
         for key in (

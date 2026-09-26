@@ -338,14 +338,24 @@ search for tiny transport optimizations.
    legacy fallbacks remain explicit; preflight errors preserve identity without
    duplicate error-handler delivery. All 154 installed checks, 32 Rust tests,
    845 focused source checks (37 skipped), and mypy's 239 sources pass. This slice
-   has not yet been performance-measured or given full candidate acceptance.
-   Next measure the whole Python-facing boundary against the frozen pre-integration
-   control in both orders, with fresh/reused cursors and constant/bound queries.
+   has not yet been given full candidate acceptance. Local diagnostic comparison
+   now measures published `12f139ce` against frozen pre-integration `d957b508` in
+   both orders, with fresh/reused cursors and constant/bound queries. All eight
+   pairs improve: wall reductions 5.50-8.68%, CPU reductions 7.57-11.97%.
+   After/C scalar wall ratios remain 1.236-1.388; the host was not idle. Preserve
+   `2026-09-26-public-boundary-local.md` and its complete raw archive. This supports
+   continued evaluation, not near parity or final retention. The diagnostic
+   harness now validates each wheel with its own revision's tests while keeping
+   timing workloads identical; all 155 current and 148 historical checks pass.
+   Next obtain the dedicated comparison and all eleven workload results, complete
+   remaining outcome/error-state ownership, and audit the unchanged final gates.
    Tests `36227989975` on published `d957b508` is now complete: all 57 jobs pass;
    Lint `36227989984` passes. These parent runs do not validate the latest slice.
    The user explicitly approved publishing the current unfinished integration to
    main as a revisable checkpoint. This does not authorize PyPI publication or
    change any performance, compatibility, or resource gate.
+   Published `12f139ce` Tests `36230544349` and Phase 5 `36230544336` are live;
+   Lint `36230544327` passes. Do not cancel them with an evidence-only main push.
    Scheduled workflow `35581426803` now proves scheduled soak execution on older
    main `7c1a644a`: all three backends exceed 1,800 seconds, all eight scenarios
    run, and independently recomputed resources/cleanup pass. Its benchmark job

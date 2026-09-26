@@ -165,6 +165,20 @@ def comparison_order(names: Sequence[str]) -> tuple[tuple[str, str], ...]:
     return ((first, "a"), (second, "a"), (second, "b"), (first, "b"))
 
 
+def validation_command(python: str, source: Path) -> list[str]:
+    # Private implementation controls must match the wheel's source revision.
+    # Timing workers below deliberately use the same current harness for both.
+    return [
+        python,
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        str(source / "tools/phase5"),
+        "-v",
+    ]
+
+
 def query_measurement(path: Path, revision: str, workload: str) -> dict[str, float]:
     result = json.loads(path.read_text())
     if (
@@ -294,6 +308,13 @@ def main() -> int:
                 "cargo_lock_sha256": hashlib.sha256(
                     (source / "Cargo.lock").read_bytes()
                 ).hexdigest(),
+                "validation_command": validation_command("<installed-python>", source),
+                "validation_test_sha256": {
+                    str(path.relative_to(source)): hashlib.sha256(
+                        path.read_bytes()
+                    ).hexdigest()
+                    for path in sorted((source / "tools/phase5").glob("test_*.py"))
+                },
             }
             for profile, source in sources.items()
         },
@@ -450,7 +471,8 @@ def main() -> int:
                 install(profile, f"check-{profile}")
                 run(
                     f"check-{profile}",
-                    [python, "-m", "unittest", "discover", "-s", "tools/phase5", "-v"],
+                    validation_command(python, sources[profile]),
+                    cwd=sources[profile],
                 )
             run("processes-before-timing", ["ps", "-eo", "pid,ppid,pcpu,comm"])
             for profile, position in order:
