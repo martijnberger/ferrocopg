@@ -1,0 +1,657 @@
+{
+  "workflow": "https://github.com/martijnberger/ferrocopg/actions/runs/36231026807",
+  "artifact_id": 10902787691,
+  "revisions": {
+    "baseline": "d957b508785c9c304ad14f82b15fb3f598412cf3",
+    "candidate": "bcd8ded9af06eb4ee10aa43fc18e6c231a2cc441"
+  },
+  "release_acceptance": false,
+  "validated_workers": 90,
+  "validated_latency_observations": 7259400,
+  "source_hash_checks": {
+    "baseline": 17,
+    "candidate": 17
+  },
+  "wheels": {
+    "baseline": {
+      "revision": "d957b508785c9c304ad14f82b15fb3f598412cf3",
+      "path": "baseline-wheel/ferrocopg-0.1.0-cp314-cp314-manylinux_2_38_x86_64.whl",
+      "sha256": "d03075a51d5db082a4ccbf8f112c76960948a6fa384999f7a104dd128cf36887"
+    },
+    "candidate": {
+      "revision": "bcd8ded9af06eb4ee10aa43fc18e6c231a2cc441",
+      "path": "candidate-wheel/ferrocopg-0.1.0-cp314-cp314-manylinux_2_38_x86_64.whl",
+      "sha256": "e27ee7ab36c5b449111555c7b0d1e6029fddab9ea7505b0d7189fdf1247fb09d"
+    }
+  },
+  "environment": {
+    "python": "3.14.7 (main, Aug  6 2026, 02:19:46) [GCC 13.3.0]",
+    "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "server": "PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+    "server_settings": {
+      "fsync": "on",
+      "max_connections": "100",
+      "shared_buffers": "16384",
+      "ssl": "on",
+      "synchronous_commit": "on"
+    },
+    "pool": "3.3.0",
+    "psutil": "7.2.2"
+  },
+  "query_pairs": {
+    "prepared-a": {
+      "measurements": {
+        "baseline": {
+          "wall_us": 149.35903612,
+          "cpu_us": 85.65069582
+        },
+        "candidate": {
+          "wall_us": 142.54625109,
+          "cpu_us": 79.07904383
+        }
+      },
+      "candidate_over_baseline": {
+        "wall_us": 0.9543865225233082,
+        "cpu_us": 0.9232738049926563
+      }
+    },
+    "prepared-b": {
+      "measurements": {
+        "baseline": {
+          "wall_us": 149.80753700999998,
+          "cpu_us": 86.12910672
+        },
+        "candidate": {
+          "wall_us": 142.21822521,
+          "cpu_us": 78.47580873
+        }
+      },
+      "candidate_over_baseline": {
+        "wall_us": 0.949339586302034,
+        "cpu_us": 0.911141560832851
+      }
+    },
+    "parameterized-a": {
+      "measurements": {
+        "baseline": {
+          "wall_us": 164.86485614999998,
+          "cpu_us": 89.08236254
+        },
+        "candidate": {
+          "wall_us": 157.57832946000002,
+          "cpu_us": 81.56376528999999
+        }
+      },
+      "candidate_over_baseline": {
+        "wall_us": 0.9558030324948671,
+        "cpu_us": 0.9155994852895376
+      }
+    },
+    "parameterized-b": {
+      "measurements": {
+        "baseline": {
+          "wall_us": 165.97599884000002,
+          "cpu_us": 90.16181008000001
+        },
+        "candidate": {
+          "wall_us": 153.44311005,
+          "cpu_us": 79.37042421999999
+        }
+      },
+      "candidate_over_baseline": {
+        "wall_us": 0.9244897522678466,
+        "cpu_us": 0.8803109004752135
+      }
+    }
+  },
+  "integration_pairs": {
+    "public-fresh-constant-a": {
+      "measurements": {
+        "baseline": {
+          "wall_us": 138.405829,
+          "cpu_us": 72.678982
+        },
+        "candidate": {
+          "wall_us": 129.1918052,
+          "cpu_us": 66.3617132
+        }
+      },
+      "candidate_over_baseline": {
+        "wall_us": 0.9334274873639895,
+        "cpu_us": 0.9130798392305494
+      }
+    },
+    "public-fresh-constant-b": {
+      "measurements": {
+        "baseline": {
+          "wall_us": 137.1880886,
+          "cpu_us": 73.8615636
+        },
+        "candidate": {
+          "wall_us": 128.8113898,
+          "cpu_us": 65.957976
+        }
+      },
+      "candidate_over_baseline": {
+        "wall_us": 0.9389400429331444,
+        "cpu_us": 0.8929945804721633
+      }
+    },
+    "public-fresh-parameterized-a": {
+      "measurements": {
+        "baseline": {
+          "wall_us": 154.8752114,
+          "cpu_us": 88.38387420000001
+        },
+        "candidate": {
+          "wall_us": 141.9028118,
+          "cpu_us": 77.727221
+        }
+      },
+      "candidate_over_baseline": {
+        "wall_us": 0.916239664935818,
+        "cpu_us": 0.8794276297972011
+      }
+    },
+    "public-fresh-parameterized-b": {
+      "measurements": {
+        "baseline": {
+          "wall_us": 149.6899332,
+          "cpu_us": 85.11655259999999
+        },
+        "candidate": {
+          "wall_us": 140.17798499999998,
+          "cpu_us": 76.9602664
+        }
+      },
+      "candidate_over_baseline": {
+        "wall_us": 0.9364556587296277,
+        "cpu_us": 0.9041750875610534
+      }
+    },
+    "public-reused-constant-a": {
+      "measurements": {
+        "baseline": {
+          "wall_us": 131.687298,
+          "cpu_us": 66.6214082
+        },
+        "candidate": {
+          "wall_us": 122.186568,
+          "cpu_us": 57.225904799999995
+        }
+      },
+      "candidate_over_baseline": {
+        "wall_us": 0.9278538618052593,
+        "cpu_us": 0.8589717081363043
+      }
+    },
+    "public-reused-constant-b": {
+      "measurements": {
+        "baseline": {
+          "wall_us": 131.6581514,
+          "cpu_us": 66.5529278
+        },
+        "candidate": {
+          "wall_us": 118.37869,
+          "cpu_us": 54.9520276
+        }
+      },
+      "candidate_over_baseline": {
+        "wall_us": 0.899136808022963,
+        "cpu_us": 0.825689108150701
+      }
+    },
+    "public-reused-parameterized-a": {
+      "measurements": {
+        "baseline": {
+          "wall_us": 147.49464220000002,
+          "cpu_us": 81.1436568
+        },
+        "candidate": {
+          "wall_us": 133.7379132,
+          "cpu_us": 69.9841588
+        }
+      },
+      "candidate_over_baseline": {
+        "wall_us": 0.9067306527558734,
+        "cpu_us": 0.8624723306776089
+      }
+    },
+    "public-reused-parameterized-b": {
+      "measurements": {
+        "baseline": {
+          "wall_us": 143.3341914,
+          "cpu_us": 77.4324966
+        },
+        "candidate": {
+          "wall_us": 135.3206326,
+          "cpu_us": 70.2029144
+        }
+      },
+      "candidate_over_baseline": {
+        "wall_us": 0.9440917849277378,
+        "cpu_us": 0.9066337452949955
+      }
+    }
+  },
+  "complete_reports": {
+    "baseline": {
+      "metrics": {
+        "connect_plain": {
+          "rust": {
+            "wall_us": 4074.79547,
+            "cpu_us": 1919.2493799999997
+          },
+          "python": {
+            "wall_us": 6968.64943,
+            "cpu_us": 4831.17894
+          },
+          "c": {
+            "wall_us": 6887.17703,
+            "cpu_us": 4676.216229999999
+          }
+        },
+        "connect_tls": {
+          "python": {
+            "wall_us": 9997.829310000001,
+            "cpu_us": 6009.26721
+          },
+          "c": {
+            "wall_us": 9692.50944,
+            "cpu_us": 5692.86965
+          },
+          "rust": {
+            "wall_us": 6486.9790299999995,
+            "cpu_us": 2446.96463
+          }
+        },
+        "parameterized": {
+          "c": {
+            "wall_us": 128.54739,
+            "cpu_us": 50.7829
+          },
+          "rust": {
+            "wall_us": 176.29074,
+            "cpu_us": 95.17394
+          },
+          "python": {
+            "wall_us": 166.73308000000003,
+            "cpu_us": 96.00532
+          }
+        },
+        "prepared": {
+          "rust": {
+            "wall_us": 159.95273,
+            "cpu_us": 90.0549
+          },
+          "python": {
+            "wall_us": 144.54193999999998,
+            "cpu_us": 88.14831000000001
+          },
+          "c": {
+            "wall_us": 109.69941000000001,
+            "cpu_us": 46.957429999999995
+          }
+        },
+        "rows_tuple": {
+          "python": {
+            "wall_us": 6387.278490000001,
+            "cpu_us": 6113.62792
+          },
+          "c": {
+            "wall_us": 499.6687999999999,
+            "cpu_us": 221.01207000000002
+          },
+          "rust": {
+            "wall_us": 601.72673,
+            "cpu_us": 404.51803
+          }
+        },
+        "rows_dict": {
+          "c": {
+            "wall_us": 945.04991,
+            "cpu_us": 665.86151
+          },
+          "rust": {
+            "wall_us": 1065.0486799999999,
+            "cpu_us": 854.17072
+          },
+          "python": {
+            "wall_us": 7005.07373,
+            "cpu_us": 6715.32365
+          }
+        },
+        "rows_namedtuple": {
+          "rust": {
+            "wall_us": 845.58853,
+            "cpu_us": 634.27042
+          },
+          "python": {
+            "wall_us": 6823.80105,
+            "cpu_us": 6539.18224
+          },
+          "c": {
+            "wall_us": 735.47895,
+            "cpu_us": 444.72719
+          }
+        },
+        "transaction": {
+          "python": {
+            "wall_us": 1128.94434,
+            "cpu_us": 598.93615
+          },
+          "c": {
+            "wall_us": 986.0055600000001,
+            "cpu_us": 414.99168000000003
+          },
+          "rust": {
+            "wall_us": 1164.28145,
+            "cpu_us": 576.3415
+          }
+        },
+        "copy_text": {
+          "c": {
+            "wall_us": 5113.819939999999,
+            "cpu_us": 2799.3034700000003
+          },
+          "rust": {
+            "wall_us": 6272.505,
+            "cpu_us": 3793.17308
+          },
+          "python": {
+            "wall_us": 12179.352329999998,
+            "cpu_us": 9828.85167
+          }
+        },
+        "copy_binary": {
+          "rust": {
+            "wall_us": 5253.135410000001,
+            "cpu_us": 2778.88407
+          },
+          "python": {
+            "wall_us": 10779.371149999999,
+            "cpu_us": 8447.87175
+          },
+          "c": {
+            "wall_us": 5118.89904,
+            "cpu_us": 2729.18267
+          }
+        },
+        "pool": {
+          "python": {
+            "wall_us": 181.46845000000002,
+            "cpu_us": 122.56282999999999
+          },
+          "c": {
+            "wall_us": 142.26679000000001,
+            "cpu_us": 73.24164999999999
+          },
+          "rust": {
+            "wall_us": 187.53641000000002,
+            "cpu_us": 115.97926999999999
+          }
+        }
+      },
+      "ratios": {
+        "connect_plain": {
+          "python": 0.5847324522393144,
+          "c": 0.5916495905725252
+        },
+        "connect_tls": {
+          "python": 0.6488387457777072,
+          "c": 0.6692775560505412
+        },
+        "parameterized": {
+          "python": 1.0573231178839857,
+          "c": 1.3714066073220157
+        },
+        "prepared": {
+          "python": 1.1066181206644936,
+          "c": 1.4581001848596997
+        },
+        "rows_tuple": {
+          "python": 0.09420706032186801,
+          "c": 1.2042511559657119
+        },
+        "rows_dict": {
+          "python": 0.15203961029543653,
+          "c": 1.1269761191766052
+        },
+        "rows_namedtuple": {
+          "python": 0.12391752394363842,
+          "c": 1.1497113955470786
+        },
+        "transaction": {
+          "python": 1.0313010205622715,
+          "c": 1.1808061711132742
+        },
+        "copy_text": {
+          "python": 0.5150113758142671,
+          "c": 1.2265791665711252
+        },
+        "copy_binary": {
+          "python": 0.4873322698421049,
+          "c": 1.0262236799262991
+        },
+        "pool": {
+          "python": 1.0334380990194163,
+          "c": 1.318202301464734
+        }
+      },
+      "failures": []
+    },
+    "candidate": {
+      "metrics": {
+        "connect_plain": {
+          "rust": {
+            "wall_us": 4074.08404,
+            "cpu_us": 1893.25383
+          },
+          "python": {
+            "wall_us": 6960.2898399999995,
+            "cpu_us": 4799.90073
+          },
+          "c": {
+            "wall_us": 6898.24359,
+            "cpu_us": 4730.562550000001
+          }
+        },
+        "connect_tls": {
+          "python": {
+            "wall_us": 9874.26721,
+            "cpu_us": 5915.80572
+          },
+          "c": {
+            "wall_us": 9389.57238,
+            "cpu_us": 5508.05458
+          },
+          "rust": {
+            "wall_us": 6259.28304,
+            "cpu_us": 2325.25558
+          }
+        },
+        "parameterized": {
+          "c": {
+            "wall_us": 117.28061999999998,
+            "cpu_us": 49.723769999999995
+          },
+          "rust": {
+            "wall_us": 170.45212,
+            "cpu_us": 89.73438999999999
+          },
+          "python": {
+            "wall_us": 158.34251999999998,
+            "cpu_us": 87.37307
+          }
+        },
+        "prepared": {
+          "rust": {
+            "wall_us": 144.76904,
+            "cpu_us": 78.59999
+          },
+          "python": {
+            "wall_us": 151.85521,
+            "cpu_us": 92.99378000000002
+          },
+          "c": {
+            "wall_us": 109.11689,
+            "cpu_us": 46.86288
+          }
+        },
+        "rows_tuple": {
+          "python": {
+            "wall_us": 6144.414070000001,
+            "cpu_us": 5871.901430000001
+          },
+          "c": {
+            "wall_us": 493.99388000000005,
+            "cpu_us": 218.23461999999998
+          },
+          "rust": {
+            "wall_us": 588.5466299999999,
+            "cpu_us": 388.55867000000006
+          }
+        },
+        "rows_dict": {
+          "c": {
+            "wall_us": 896.8025299999999,
+            "cpu_us": 624.51095
+          },
+          "rust": {
+            "wall_us": 1007.72807,
+            "cpu_us": 809.8654600000001
+          },
+          "python": {
+            "wall_us": 6542.465499999999,
+            "cpu_us": 6277.53903
+          }
+        },
+        "rows_namedtuple": {
+          "rust": {
+            "wall_us": 802.03585,
+            "cpu_us": 599.65362
+          },
+          "python": {
+            "wall_us": 6301.46181,
+            "cpu_us": 6030.74103
+          },
+          "c": {
+            "wall_us": 675.9786600000001,
+            "cpu_us": 407.12785
+          }
+        },
+        "transaction": {
+          "python": {
+            "wall_us": 1102.82568,
+            "cpu_us": 572.9622899999999
+          },
+          "c": {
+            "wall_us": 937.3698,
+            "cpu_us": 389.62494999999996
+          },
+          "rust": {
+            "wall_us": 1088.77668,
+            "cpu_us": 517.89038
+          }
+        },
+        "copy_text": {
+          "c": {
+            "wall_us": 4849.160519999999,
+            "cpu_us": 2636.76235
+          },
+          "rust": {
+            "wall_us": 5855.047909999999,
+            "cpu_us": 3518.0024399999998
+          },
+          "python": {
+            "wall_us": 11177.60896,
+            "cpu_us": 8982.86773
+          }
+        },
+        "copy_binary": {
+          "rust": {
+            "wall_us": 4723.38746,
+            "cpu_us": 2448.24705
+          },
+          "python": {
+            "wall_us": 9593.165920000001,
+            "cpu_us": 7462.10182
+          },
+          "c": {
+            "wall_us": 4522.6153300000005,
+            "cpu_us": 2412.14923
+          }
+        },
+        "pool": {
+          "python": {
+            "wall_us": 228.73515,
+            "cpu_us": 149.19562000000002
+          },
+          "c": {
+            "wall_us": 125.78776,
+            "cpu_us": 59.892469999999996
+          },
+          "rust": {
+            "wall_us": 166.15879,
+            "cpu_us": 95.40929
+          }
+        }
+      },
+      "ratios": {
+        "connect_plain": {
+          "python": 0.5853325268994832,
+          "c": 0.5905973001454997
+        },
+        "connect_tls": {
+          "python": 0.6338984865288044,
+          "c": 0.6666206709618016
+        },
+        "parameterized": {
+          "python": 1.0764772469201578,
+          "c": 1.4533698747499801
+        },
+        "prepared": {
+          "python": 0.953336010005847,
+          "c": 1.3267335606797444
+        },
+        "rows_tuple": {
+          "python": 0.09578563932947963,
+          "c": 1.1914046991837226
+        },
+        "rows_dict": {
+          "python": 0.1540287938851187,
+          "c": 1.123690039099243
+        },
+        "rows_namedtuple": {
+          "python": 0.12727774509832346,
+          "c": 1.1864810199777607
+        },
+        "transaction": {
+          "python": 0.9872609060028417,
+          "c": 1.161523104328729
+        },
+        "copy_text": {
+          "python": 0.5238193544748947,
+          "c": 1.2074353665652626
+        },
+        "copy_binary": {
+          "python": 0.4923700371065822,
+          "c": 1.044392926514933
+        },
+        "pool": {
+          "python": 0.7264243820855693,
+          "c": 1.3209456150582537
+        }
+      },
+      "failures": []
+    }
+  },
+  "limitations": [
+    "Not the latest correctness runtime; no inherited candidate acceptance.",
+    "Full eleven-workload reports are single runs per variant, not mirrored comparisons.",
+    "Only integration workers archive per-worker installed-file fingerprints.",
+    "Before/after process snapshots do not continuously prove host idleness.",
+    "No direct GIL/poll/wakeup attribution in this run."
+  ]
+}

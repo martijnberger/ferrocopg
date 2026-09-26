@@ -100,8 +100,10 @@ Report and analysis produced with AI assistance.
 ## Dedicated Follow-Up
 
 Comparison [36231026807](https://github.com/martijnberger/ferrocopg/actions/runs/36231026807)
-is dispatched at `bcd8ded9af06eb4ee10aa43fc18e6c231a2cc441` against the frozen
-before revision and is queued. This successor changes documentation and the
+completed at `bcd8ded9af06eb4ee10aa43fc18e6c231a2cc441` against the frozen
+before revision. The [dedicated audit](2026-09-26-public-boundary-dedicated.md)
+confirms improvements in both orders and two passing complete reports, with
+explicit measurement limits. This successor changes documentation and the
 comparison harness, not the runtime measured locally. Do not dispatch a duplicate.
 
 The separate main acceptance workflow's benchmark job has completed successfully.

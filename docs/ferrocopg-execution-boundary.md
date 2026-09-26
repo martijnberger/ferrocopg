@@ -2,7 +2,12 @@
 
 Status: public bound-query routing and shared native preparation ownership are
 implemented, including common-path request/result-wrapper removal. Local paired
-controls improve; dedicated comparison and performance acceptance remain open.
+controls improve; final exact-candidate performance acceptance remains open.
+The [dedicated comparison](performance/2026-09-26-public-boundary-dedicated.md)
+now confirms both-order improvement for the earlier integrated runtime. The
+[corrected successor's full local run](performance/2026-09-26-signal-state-full-compat.md)
+still fails four supported pool/scheduler timing assertions; final acceptance
+remains open.
 The latest follow-up retains operation-owned transaction status on recoverable
 extended-query errors and serializes pipeline reservations with queue publication.
 See the [correctness checkpoint](performance/2026-09-26-error-outcome-local.md);

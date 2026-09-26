@@ -348,8 +348,18 @@ search for tiny transport optimizations.
    harness now validates each wheel with its own revision's tests while keeping
    timing workloads identical; all 155 current and 148 historical checks pass.
    Dedicated comparison `36231026807` is dispatched at `bcd8ded9`, against
-   `d957b508`; the candidate runtime remains identical to `12f139ce`. It is queued
-   at the latest check. Follow that handle rather than dispatching a duplicate.
+   `d957b508`; the candidate runtime remains identical to `12f139ce`. It is now
+   terminal success. Independent audit of artifact `10902787691` checks 90 workers,
+   7,259,400 latency observations, wheel digests and all integration fingerprints.
+   Long query wall reductions are 4.42-7.55% in both orders; fresh/reused public
+   integration reductions are 5.59-10.09%, with CPU improvements in every pair.
+   Both complete eleven-workload reports pass beta limits, but these are single
+   runs per variant, not final acceptance or near parity. After/C reaches 1.453
+   for parameterized, 1.327 for prepared and 1.321 for pool. Comparator drift
+   prevents attributing every complete-report difference to the implementation.
+   See `2026-09-26-public-boundary-dedicated.md` and its complete raw archive.
+   This supports continued retention testing of the combined boundary; later
+   correctness fixes do not inherit the result. Do not redispatch this comparison.
    The subsequent correctness checkpoint retains operation-owned ReadyForQuery
    status on recoverable extended-query errors and publishes server transaction
    state on success/failure. Fatal errors do not wait for completion. Pipeline
@@ -368,12 +378,20 @@ search for tiny transport optimizations.
    (30 skipped), and 239-source mypy checks pass. See
    `2026-09-26-signal-state-local.md`, including the explicit C/Python control
    difference for arbitrary signal exceptions and the original failed control.
+   The complete local harness on `17c77760` now finishes with a failed strict
+   gate: 4,716/4,720 supported sync cases pass, with four pool/scheduler timing
+   failures and zero errors. All other supported-sync feature families pass.
+   Subsequent unchanged Python/libpq and Rust controls each fail three of the
+   four cases, with different concurrent-filling/reconnect outcomes. This is
+   shared timing evidence, not a root-cause diagnosis or waiver. Preserve
+   `2026-09-26-signal-state-full-compat.md` and its full raw/classified archive.
+   Do not rerun the unchanged complete candidate merely to select a pass.
    Main `1bab4336` lint passes; Tests `36232554216` and Phase 5 `36232554264`
    remain pending/live. Predecessor Tests `36230544349` is terminal cancelled,
-   not a full pass. Its soak and dedicated comparison `36231026807` remain live.
+   not a full pass. Its soak remains live; the dedicated comparison is now audited.
    Hold follow-up publication while both existing bookmark Tests runs are live.
-   Next audit the dedicated comparison, assess remaining fallback ownership,
-   and satisfy the unchanged exact-candidate final gates.
+   Next diagnose the remaining strict timing failures, assess remaining fallback
+   ownership, and satisfy the unchanged exact-candidate final gates.
    Tests `36227989975` on published `d957b508` is now complete: all 57 jobs pass;
    Lint `36227989984` passes. These parent runs do not validate the latest slice.
    The user explicitly approved publishing the current unfinished integration to
