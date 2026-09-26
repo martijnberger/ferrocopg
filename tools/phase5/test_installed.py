@@ -182,14 +182,16 @@ class InstalledPoolTests(unittest.TestCase):
                     os.environ["PHASE5_DSN"], autocommit=True
                 ) as conn:
                     conn.adapters.register_dumper(Payload, MutableDumper)
-                    prepare = conn._session.prepare_bound
+                    execute = conn._session.execute_owned
 
-                    def mutate_before_prepare(*args):
+                    def mutate_before_execute(*args):
                         payload[:] = b"xxxx"
-                        return prepare(*args)
+                        return execute(*args)
 
+                    # The native entry now owns preparation. Intercept before
+                    # that entry, still strictly before preparation I/O.
                     with patch.object(
-                        conn._session, "prepare_bound", mutate_before_prepare
+                        conn._session, "execute_owned", mutate_before_execute
                     ):
                         cur = conn.execute(
                             "select %s::bytea", (Payload(),), prepare=True
@@ -198,6 +200,88 @@ class InstalledPoolTests(unittest.TestCase):
                     self.assertEqual(payload, b"xxxx")
                     cur.execute("select %s::bytea", (Payload(),), prepare=True)
                     self.assertEqual(cur.fetchone(), (b"xx" if as_view else b"xxxx",))
+
+    def test_public_queries_use_one_native_preparation_owner(self):
+        import ferrocopg
+
+        with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+            conn.prepare_threshold = 0
+            native = conn._session._session
+            with patch.object(
+                conn._session,
+                "prepare_bound",
+                side_effect=AssertionError("legacy prepare"),
+            ):
+                cur = conn.execute("select %s::int4", (42,))
+                self.assertEqual(cur.fetchone(), (42,))
+                with conn.pipeline():
+                    cursors = [conn.execute("select %s::int4", (i,)) for i in range(3)]
+                self.assertEqual(
+                    [cur.fetchone() for cur in cursors], [(0,), (1,), (2,)]
+                )
+            snapshot = native.execution_preparation_snapshot().snapshot()
+            self.assertEqual(
+                conn._prepared._names,
+                {(q, tuple(t)): name for q, t, name in snapshot["names"]},
+            )
+            self.assertEqual(conn._prepared_ids, {})
+            self.assertEqual(conn._prepared_statusmessages, {})
+            detached = conn._prepared._names
+            detached.clear()
+            self.assertTrue(conn._prepared._names)
+            conn.prepare_threshold = None
+            conn.prepared_max = 17
+            self.assertIsNone(native.execution_prepare_threshold)
+            self.assertEqual(native.execution_prepared_max, 17)
+
+    def test_public_pipeline_abort_cancels_unexecuted_native_reservations(self):
+        import ferrocopg
+
+        with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+            with self.assertRaises(ferrocopg.errors.DivisionByZero):
+                with conn.pipeline():
+                    conn.execute("select 1 / 0", prepare=True)
+                    conn.execute("select 42", prepare=True)
+            snapshot = (
+                conn._session._session.execution_preparation_snapshot().snapshot()
+            )
+            self.assertEqual(snapshot["names"], [])
+            self.assertEqual(
+                conn.execute(
+                    "select count(*) from pg_prepared_statements", prepare=False
+                ).fetchone(),
+                (0,),
+            )
+            self.assertEqual(conn.execute("select 42", prepare=True).fetchone(), (42,))
+
+    def test_notice_callbacks_control_notification_consumption(self):
+        import ferrocopg
+
+        with ferrocopg.connect(os.environ["PHASE5_DSN"], autocommit=True) as conn:
+            conn.execute("listen phase5_callback_policy")
+            delivered = []
+
+            def receive(notification):
+                delivered.append(notification.payload)
+
+            def change_policy(notice):
+                if notice.message_primary == "enable":
+                    conn.add_notify_handler(receive)
+                elif notice.message_primary == "disable":
+                    conn.remove_notify_handler(receive)
+
+            conn.add_notice_handler(change_policy)
+            for policy in ("enable", "disable"):
+                conn.execute(
+                    f"do $$ begin raise notice '{policy}'; "
+                    f"perform pg_notify('phase5_callback_policy', '{policy}'); end $$",
+                    prepare=True,
+                )
+            self.assertEqual(delivered, ["enable"])
+            pending = list(conn.notifies(timeout=0, stop_after=1))
+            self.assertEqual(
+                [notification.payload for notification in pending], ["disable"]
+            )
 
     def test_execution_schema_type_registry_snapshots(self):
         import ferrocopg

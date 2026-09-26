@@ -287,7 +287,13 @@ impl BackendResultSet {
         command_status: Py<PyBytes>,
     ) -> BackendPgResult {
         let result = slf.borrow(py);
-        let status = if result.is_tuples { 2 } else { 1 };
+        let status = if result.command_tag.as_deref() == Some("") {
+            0
+        } else if result.is_tuples {
+            2
+        } else {
+            1
+        };
         let nfields = result.columns.len();
         let ntuples = result.rows.len();
         drop(result);

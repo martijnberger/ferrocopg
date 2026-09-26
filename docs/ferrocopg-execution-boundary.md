@@ -1,7 +1,7 @@
 # Native execution boundary
 
-Status: native ordinary-query operation implemented and locally tested;
-public cursor routing/result publication not yet integrated or performance-accepted.
+Status: public bound-query routing and shared native preparation ownership are
+implemented; adaptation/result-wrapper cleanup and performance acceptance remain open.
 The retained runtime remains `7bbc14eb` / `8eddc2ec`. This document does not
 supersede the compatibility contract, beta limits, or the Phase 5 completion audit.
 
@@ -161,7 +161,7 @@ including `WITH ... INSERT` and `COMMIT` returning `ROLLBACK` after an error.
 Simple-query fallback metadata remains explicitly absent, not guessed. At that
 checkpoint, error outcomes and notice ownership were still missing.
 See the [local checks](performance/2026-09-24-native-outcome-checks.md).
-The public Python status projection and query routing have not switched yet.
+At that checkpoint, public Python status projection and query routing had not switched.
 
 The subsequent native operation now calls the same preparation core directly,
 owns logical-name/statement-ID mappings, performs prepare/execute/maintenance,
@@ -186,8 +186,8 @@ retained results/notices, opt-in notifications, cancellation, and signal/error
 ownership with a queued query. See the
 [native operation checks](performance/2026-09-24-native-execution-checks.md).
 
-Next wire the public ordinary-query path to this operation, with one native
-preparation owner shared by the compatibility views and explicit fallback paths.
+The next integration connects the public bound-query path to this operation,
+with one native preparation owner shared by compatibility views and queued work.
 The reservation follow-up supplies `reserve_execution` and one-shot native
 reservation consumption for that shared owner. Queued selection updates the same
 counts/names as immediate execution, without a second Python cache. A reservation
@@ -208,15 +208,30 @@ failed preparation/execution, cancellation, and concurrent one-shot execution.
 See the [reservation checks](performance/2026-09-26-native-reservation-checks.md).
 This is not a completed public pipeline implementation or a performance result.
 
-Public preparation setters/getters must not introduce an I/O-lock dependency.
-Move public result projection onto the owned outcome, preserve error-normalizing
-and notice/notification callback order, and remove the superseded Python request
-and preparation scaffolding rather than retaining both paths on the hot path.
-Public routing is still unchanged; unusual encodings, pipeline, COPY, and
-client/server cursors retain their existing implementation. The prototype does
-not yet capture a failed operation's ReadyForQuery state in an owned result.
-Do not ship an unused second cache or benchmark this private entry as a completed
-Python-facing execution path. No performance gain has yet been demonstrated.
+Public bound execution now calls the native owner. `_NativePreparationView`
+forwards policy access directly to the independent configuration lock and builds
+detached names/counts views only on explicit inspection. Native sessions no longer
+update the Python names/IDs cache. Legacy/mock sessions keep their old path.
+Queued bound operations reserve against the same native state; abort cleanup
+cancels the failed/unexecuted tail without per-item calls after successful batches.
+
+Owned errors are normalized and dispatched before owned notices, outside native
+guards. Notification draining remains after notice callbacks: those callbacks can
+install/remove notification handlers, so eager notification capture would consume
+messages that should remain pending. The public result uses the actual command
+tag; native empty-query PGresult projection now reports EMPTY_QUERY.
+
+This is not the completed fast path. Python adaptation still creates `_BoundParams`
+triples and the integration extracts separate lists again; result publication
+still uses `BackendResultCursor` list scaffolding. Remove those intermediates next,
+preserving the verified snapshot and callback order. Simple-query/COPY operations
+and encoding bridges retain their Python orchestration; existing client/server
+cursor orchestration is unchanged, although their bound queries share the native
+owner. The prototype does not yet capture failed-operation ReadyForQuery state.
+See the [public owner checkpoint](performance/2026-09-26-public-native-owner.md)
+for verification limits and the failed local compatibility run. No performance gain has
+yet been demonstrated, and this partial route must not be benchmarked as the
+completed execution-boundary redesign.
 
 Compare an exact installed baseline and prototype with both backend orders and
 fresh/reused constant/parameterized controls. Capture ordinary CPU/wall samples

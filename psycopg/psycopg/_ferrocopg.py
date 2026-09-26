@@ -123,6 +123,52 @@ class _PipelinePreparePlan(NamedTuple):
     key: tuple[bytes, tuple[int, ...]] | None
 
 
+class _NativePipelinePreparePlan(NamedTuple):
+    reservation: Any
+
+
+class _NativePreparationView:
+    """Cold compatibility views over the session's single preparation owner."""
+
+    def __init__(self, session: Any):
+        self._session = session
+
+    @property
+    def prepare_threshold(self) -> int | None:
+        return cast(int | None, self._session.execution_prepare_threshold)
+
+    @prepare_threshold.setter
+    def prepare_threshold(self, value: int | None) -> None:
+        self._session.execution_prepare_threshold = value
+
+    @property
+    def prepared_max(self) -> int:
+        return cast(int, self._session.execution_prepared_max)
+
+    @prepared_max.setter
+    def prepared_max(self, value: int) -> None:
+        self._session.execution_prepared_max = value
+
+    @property
+    def _counts(self) -> dict[tuple[bytes, tuple[int, ...]], int]:
+        snapshot = self._session.execution_preparation_snapshot().snapshot()
+        return {(q, tuple(types)): count for q, types, count in snapshot["counts"]}
+
+    @property
+    def _names(self) -> dict[tuple[bytes, tuple[int, ...]], bytes]:
+        snapshot = self._session.execution_preparation_snapshot().snapshot()
+        return {(q, tuple(types)): name for q, types, name in snapshot["names"]}
+
+    @property
+    def _prepared_idx(self) -> int:
+        return cast(
+            int, self._session.execution_preparation_snapshot().snapshot()["next_name"]
+        )
+
+    def clear(self) -> None:
+        self._session.clear_execution_prepared()
+
+
 class _PreparedStatementLike(Protocol):
     statement_id: int
 
@@ -1763,6 +1809,62 @@ class NoTlsSessionAdapter:
         )
         return BackendResultCursor([result], [_statusmessage_for_query(query, result)])
 
+    def execute_owned(
+        self,
+        query: str,
+        params: _BoundParams,
+        result_format: pq.Format,
+        prepare: bool | None,
+        plan: _NativePipelinePreparePlan | None,
+    ) -> BackendResultCursor:
+        native = cast(Any, self._session)
+        outcome = None
+        try:
+            outcome = native.execute_query(
+                query.encode("utf-8"),
+                [value for _, _, value in params.values],
+                params.types,
+                [int(binary) for _, binary, _ in params.values],
+                binary=result_format == pq.Format.BINARY,
+                prepare=prepare,
+                reservation=plan.reservation if plan is not None else None,
+            )
+            if outcome.error is not None:
+                raise outcome.error
+        except BaseException as ex:
+            if isinstance(ex, e.Error):
+                self._normalize_error(ex, native.execute_query, (query,))
+                if ex.sqlstate and (
+                    ex.sqlstate.startswith("08")
+                    or ex.sqlstate in {"57P01", "57P02", "57P03"}
+                ):
+                    self._session.close()
+                if self.error_handler is not None:
+                    self.error_handler(ex)
+            elif isinstance(ex, KeyboardInterrupt) and self.error_handler is not None:
+                self.error_handler(ex)
+            try:
+                if outcome is not None:
+                    self._publish_owned_events(outcome)
+                else:
+                    self._drain_notices()
+                    self._drain_notifications()
+            except Exception:
+                logger.exception("error draining backend messages after failure")
+            raise
+        self._publish_owned_events(outcome)
+        result = outcome.result
+        return BackendResultCursor([result], [result.command_tag or None])
+
+    def _publish_owned_events(self, outcome: Any) -> None:
+        if self.closed:
+            return
+        if self.notice_handler is not None and (notices := outcome.notices):
+            self.notice_handler(notices)
+        # Notice handlers can change notification delivery policy. Leave the
+        # native queue untouched until those callbacks have completed.
+        self._drain_notifications()
+
     def execute_prepared(
         self,
         statement_id: int,
@@ -1922,6 +2024,7 @@ class NoTlsSessionAdapter:
                 "run_params_format",
                 "prepare_text",
                 "prepare_params",
+                "execute_query",
             }
             and args
             and isinstance(args[0], str)
@@ -3344,7 +3447,7 @@ class NoTlsPipelineAdapter:
                 NoTlsCursorAdapter,
                 Params | None,
                 bool | None,
-                _PipelinePreparePlan | None,
+                _PipelinePreparePlan | _NativePipelinePreparePlan | None,
             ]
         ] = deque()
         self.level = 0
@@ -3444,6 +3547,7 @@ class NoTlsPipelineAdapter:
                 cursor._set_result(_backend_cursor_adapter(result)._result)
             return
         first_error: e.Error | None = None
+        completed = 0
         self._syncing = True
         try:
             for query, cursor, params, prepare, plan in queued:
@@ -3466,8 +3570,21 @@ class NoTlsPipelineAdapter:
                     cursor._pipeline_error = ex
                     first_error = ex
                     self._aborted = True
+                else:
+                    completed += 1
         finally:
             self._syncing = False
+            for index in range(completed, len(queued)):
+                plan = queued[index][4]
+                if isinstance(plan, _NativePipelinePreparePlan):
+                    try:
+                        cast(
+                            Any, self._conn._session._session
+                        ).cancel_execution_reservation(plan.reservation)
+                    except Exception:
+                        logger.exception(
+                            "error releasing pipeline preparation reservation"
+                        )
         if first_error is not None:
             raise first_error
 
@@ -3533,7 +3650,11 @@ class NoTlsConnectionAdapter:
         self.row_factory = row_factory
         self.cursor_factory = cursor_factory
         self.server_cursor_factory = server_cursor_factory or NoTlsServerCursorAdapter
-        self._prepared = PrepareManager()
+        self._prepared: PrepareManager | _NativePreparationView
+        if hasattr(session._session, "execute_query"):
+            self._prepared = _NativePreparationView(session._session)
+        else:
+            self._prepared = PrepareManager()
         self._prepared.prepare_threshold = prepare_threshold
         self._autocommit = autocommit
         self._info = BackendConnectionInfo(self)
@@ -4226,7 +4347,7 @@ class NoTlsConnectionAdapter:
         adapters: AdaptersMap | None = None,
         result_format: pq.Format = pq.Format.TEXT,
         cursor_state: NoTlsCursorAdapter | None = None,
-        prepared_plan: _PipelinePreparePlan | None = None,
+        prepared_plan: _PipelinePreparePlan | _NativePipelinePreparePlan | None = None,
     ) -> BackendResultCursor:
         self._ensure_cancel_handle()
         query, params = self._convert_query_params(
@@ -4392,8 +4513,14 @@ class NoTlsConnectionAdapter:
         params: _BoundParams,
         prepare: bool | None,
         result_format: pq.Format,
-        plan: _PipelinePreparePlan | None = None,
+        plan: _PipelinePreparePlan | _NativePipelinePreparePlan | None = None,
     ) -> BackendResultCursor:
+        if isinstance(self._prepared, _NativePreparationView):
+            assert plan is None or isinstance(plan, _NativePipelinePreparePlan)
+            return self._session.execute_owned(
+                query, params, result_format, prepare, plan
+            )
+        assert plan is None or isinstance(plan, _PipelinePreparePlan)
         if plan is None:
             pgq = cast(
                 PostgresQuery,
@@ -4454,7 +4581,7 @@ class NoTlsConnectionAdapter:
         params: Params | None,
         prepare: bool | None,
         cursor: NoTlsCursorAdapter,
-    ) -> _PipelinePreparePlan | None:
+    ) -> _PipelinePreparePlan | _NativePipelinePreparePlan | None:
         if not hasattr(self._session._session, "run_params"):
             return None
         query_text, converted = self._convert_query_params(
@@ -4469,6 +4596,12 @@ class NoTlsConnectionAdapter:
             bound = converted
         else:
             return None
+        if isinstance(self._prepared, _NativePreparationView):
+            return _NativePipelinePreparePlan(
+                cast(Any, self._session._session).reserve_execution(
+                    query_text.encode("utf-8"), bound.types, prepare
+                )
+            )
         pgq = cast(
             PostgresQuery,
             _BackendPreparedQuery(
@@ -4484,6 +4617,8 @@ class NoTlsConnectionAdapter:
         self._maintain_prepared()
 
     def _maintain_prepared(self) -> None:
+        if isinstance(self._prepared, _NativePreparationView):
+            return
         while self._prepared._to_flush:
             name = self._prepared._to_flush.popleft()
             names = list(self._prepared_ids) if name is None else [name]

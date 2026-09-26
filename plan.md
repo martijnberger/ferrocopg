@@ -315,9 +315,28 @@ search for tiny transport optimizations.
    shell must invoke it for skipped operations. Independent native policy
    properties avoid the I/O lock and preserve arbitrary integers. All 148 installed
    checks pass on the release wheel; see `2026-09-26-native-reservation-checks.md`.
-   Public routing/result publication and the compatibility preparation facade are
-   still missing. Integrate those together, including pipeline abort cleanup and
-   legacy/encoding fallbacks, before measuring the whole Python-facing boundary.
+   The next checkpoint wires public bound execution and pipeline reservations to
+   that native owner. `_NativePreparationView` forwards policy and supplies cold,
+   detached inspection views; native execution no longer updates Python names/IDs.
+   Failed/unexecuted pipeline reservations are cancelled. Owned errors/notices
+   preserve callback ordering, and notification consumption remains after notice
+   callbacks so handler changes cannot steal pending notifications. Public status
+   messages now use real command tags; empty native results project EMPTY_QUERY.
+   Legacy/mock sessions and simple-query/COPY orchestration remain explicit paths.
+   See `2026-09-26-public-native-owner.md` and its raw evidence archive. All 151
+   installed checks and 32 Rust tests pass. The full local harness is terminal
+   failure: 134 supported-sync checks could not find `mypy` on PATH, and one pool
+   backoff timing assertion fails. Corrected-PATH targeted checks pass all 139
+   tool/typing cases; the unchanged pool timing assertion still fails, including
+   a separate pure-Python/libpq control. Preserve every failure and the unchanged
+   zero-regression gate. All other supported-sync feature families are green in
+   that complete run, but this is not complete candidate compatibility acceptance.
+   Next remove `_BoundParams` triple construction/re-extraction and result-cursor
+   list scaffolding together, preserving adaptation/transaction snapshot points
+   and callback behavior, before measuring the whole Python-facing boundary.
+   Tests `36227989975` on published `d957b508` is still live (41 complete, 16 active
+   at the latest check), with no reported failures; Lint `36227989984` passes.
+   Do not cancel that run with another development push.
    Scheduled workflow `35581426803` now proves scheduled soak execution on older
    main `7c1a644a`: all three backends exceed 1,800 seconds, all eight scenarios
    run, and independently recomputed resources/cleanup pass. Its benchmark job
